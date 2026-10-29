@@ -1,0 +1,4 @@
+<term id="global_read" source="docs/GLOSSARY.md">
+  <name>global_read</name>
+  <definition>An IR expression that computes its global on first need (the initializer of an ABSENT global), then evaluates its body; the global-read pass puts one at the head of each LET chain that reads a global with an initializer (<ref kind="decision" to="D234"/>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="namespace_context" source="docs/GLOSSARY.md">
+  <name>namespace_context</name>
+  <definition>The namespace bindings, XPath default namespace and base URI that QName values and XPath records of a schema document are read with</definition>
+</term>

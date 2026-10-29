@@ -1,0 +1,32 @@
+<decision id="D175" status="accepted" source="docs/DECISIONS.md">
+  <title>Assertions and type alternatives (packet <ref kind="packet" to="5.9"/>)</title>
+  <body>
+    <p><recorded date="2026-10-18"/>. Fills ASSERTIONS and the seams of <ref kind="decision" to="D167"/> for XSD 1.1 assertions and conditional type assignment (<code>src/schema_assertion.c</code>); golden <code>src/schema_simple_type.c</code>.</p>
+    <list>
+      <item>
+        <p><strong>One engine.</strong> Tests are compiled with <code>xpath.h</code> (the XPath 4.0 front end reads XSD 1.1's XPath 2.0, a superset 3.13.6.2 allows) in the static context of XPath Valid: the record's namespace bindings (prefix 0 and xml left out), its {default namespace} (xpathDefaultNamespace) as the default element namespace, its base URI when absolute, the codepoint collation; assertions declare <code>$value</code> as xs:anyAtomicType*, type alternatives nothing. A static or type error is as-props-correct.2 or ta-props-correct.2. Evaluation gives no available documents and collections and the empty default collection (a resolver of the file, 3.13.4.2); a dynamic or type error makes a test false; the result is taken as fn:boolean takes it (<code>sxml_evaluator_compute_effective_boolean_value</code>).</p>
+      </item>
+      <item>
+        <p><strong>Assertions of complex types</strong> run when the outermost recorded element ends, on an assertion copy (glossary assertion_copy): the element's recorded subtree copied into a tree of its own whose root is xs:anyType (3.13.4.1 clauses 1.2 and 1.3: partially validated, nothing outside it); <code>$value</code> is the typed value of simple content, else empty. The recorder drops comments and processing instructions (clause 1.2, the suite's comments-and-PIs-excluded). Each false one is cvc-assertion.</p>
+      </item>
+      <item>
+        <p><strong>Assertion facets</strong> (Part 2, 4.3.13.3) run with <code>$value</code> and no context item, for the type's {assertions}, a list's items against their item type, and a union value against its active basic member (glossary basic_member): the member the cast engine chose, which knows no assertions, and when its assertions fail each later basic member whose cast of the text succeeds (union items of a list: the chosen member only). One report, cvc-assertions-valid, and the value is invalid. The xs:assertion facets of a simpleContent restriction are now the synthesized simple content type's (<code>facet_assertions</code>, as read; 5.6 gave them to the complex type).</p>
+      </item>
+      <item>
+        <p><strong>Type alternatives</strong> (3.12.4) are tested on the parentless element copy of <ref kind="decision" to="D173"/> with the element's inherited attributes added (glossary inherited_attribute, 3.3.5.6): the validator keeps the inheritable attributes of the open elements (a use's {inheritable}, else the declaration's), with their values as they appeared, and the copy gets the innermost of each name the element does not have. The copies have the document's base URI. The first test that holds selects, else the default alternative, else the declared type.</p>
+      </item>
+      <item>
+        <p><strong>Type tables compared</strong> (3.8.6.3 equivalence, the minimum it requires: same expression, namespace bindings, default namespace, base URI and type, same default type), for cos-element-consistent and clause 4.6 of 3.4.6.4 (<code>sxml_schema_type_tables_are_equivalent</code>).</p>
+      </item>
+      <item>
+        <p><strong>Fixes in earlier stages</strong>: an attribute reference without inheritable= takes its declaration's {inheritable} (<code>has_inheritable</code>, as read; RESOLVE took the declaration's when the reference said false); a restricted attribute use keeps its {inheritable} (3.4.6.4 clause 5.4); xpathDefaultNamespace="##defaultNamespace" on xs:schema is resolved on each host element (3.13.2).</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong>: namespace fixup of an inherited attribute whose prefix an inner element rebinds; xml:base of ancestors in the copies' base URI; value constraints and enumerations checked against assertions at compile time; casting to a type with assertions in schema-aware expressions (5.11).</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release): Saxon Assert 101 of 101, CTA 113 of 113, IBM assert 79 of 79, assertion 101 of 101, typeAlternatives 39 of 39, typeAlternativesMixed 15 of 15 (before: 188 of 448). XSD in scope 41,037 of 41,518 (98.8 %, from 40,755); gate groups datatypes 100 %, structures 95.6 %, XSD 1.1 95.6 % (from 83.3 %); slice 147 of 147. No test set lost a test (ibm-vc, ibm-idIDREF, saxon-VC, saxon-Override and saxon-Wild gained some). Only schema code changed: XP40, XQ40 and XT40 are not affected.</p>
+      </item>
+    </list>
+  </body>
+</decision>

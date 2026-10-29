@@ -1,0 +1,4 @@
+<term id="side_result" source="docs/GLOSSARY.md">
+  <name>side_result</name>
+  <definition>What a call of the JavaScript shim delivers besides its result, kept by the handle that made it until its next call: a tree an updating query changed, a document fn:put stores, a result document, a message, a schema report (<ref kind="decision" to="D216"/>)</definition>
+</term>

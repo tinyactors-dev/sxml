@@ -1,0 +1,35 @@
+<decision id="D160" status="accepted" source="docs/DECISIONS.md">
+  <title>Packages (packet <ref kind="packet" to="4.16"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D112"/>, <ref kind="decision" to="D117"/>, <ref kind="decision" to="D139"/>, <ref kind="decision" to="D148"/>, <ref kind="decision" to="D157"/>. <code>src/xslt_package.c</code> with <code>src/xslt_package_internal.h</code> (the package table, glossary); no IR kind, no evaluator change; <code>include/sxml/xslt.h</code> changes one comment (provisional, <ref kind="decision" to="D151"/>).</p>
+    <list>
+      <item>
+        <p><strong><ref kind="decision" to="D148"/>'s design for XSLT</strong>: a package is a set of modules whose components have a visibility. One AST holds every package: the reader asks the resolver for each xsl:use-package (kind XSLT_PACKAGE, the name as uri_reference and absolute_uri, the package-version or "*") and reads the package's principal module in place as a module of relation USED_PACKAGE, the top of a package (XTSE3000 when nothing is delivered, XTSE3005 for a package that uses itself, XTSE3008 for a use in an imported module). It is read again for every use, so each use has components of its own (3.4.5: a package used twice may be overridden twice), and parsed once per compilation (same name and range: the document is reused). The children of xsl:override are declarations, each with a static context of its own (where xsl:original is looked up). For precedence a USED_PACKAGE module counts as imported, so an override's template rules come before the used package's (3.4.6). One lowering lowers every package's declarations into one unit.</p>
+      </item>
+      <item>
+        <p><strong>The table</strong> is made first in the lowering: the package of each module and static context; per package, from the last to the first, one component instance per own winning declaration (visibility from xsl:expose and the visibility attribute, 3.4.5.1; an xsl:stylesheet's named templates and modes are public), per overriding declaration (its visibility, else private) and per accepted component (xsl:accept, else public/final become private; hidden ones are left out), each instance of the used package pointing at its successor in the user. <strong>Binding</strong> (3.4.5.5): the referring package's instance, then the successors; the last one's declaration is called. xsl:original binds to the overridden instance's declaration (3.4.5.4). Stylesheet parameters are public, as in XSLT 3.0 and the suite (4.0's 3.4.5.1 says private; the 3.4.5.2 rule for using packages says public).</p>
+      </item>
+      <item>
+        <p><strong>Lowering</strong>: functions (each static context's function table binds through its package; xsl:original in an overriding function), attribute sets (one per name and package; xsl:original in use-attribute-sets), global variables (one per name and package; each package's static contexts get a view of the names it binds with <ref kind="decision" to="D148"/>'s <code>global_numbers</code>, plus $xsl:original in an overriding variable; a global no view binds, an overridden or hidden abstract one, gets no initializer), named templates (call-template, xsl:original), modes (a mode is a package and a name: each package has its own unnamed mode, a named mode binds like a component, #all is the template's package's modes, XTSE3085 per package), and the invocation: the top-level package's public or final initial template and function, an initial mode it declares public or final or does not declare. Abstract components' bodies raise XTDE3052. The existing checks between declarations (XTSE0630, XTSE0660, XTSE0770, XTSE0545, attribute set merging) apply within a package.</p>
+      </item>
+      <item>
+        <p><strong>Static errors</strong>: XTSE0020 (package-version of xsl:package or xsl:use-package), XTSE3003 (another name, a version out of range), XTSE3010, XTSE3020, XTSE3022, XTSE3025 (xsl:expose), XTSE3030, XTSE3032, XTSE3040, XTSE3051 (xsl:accept), XTSE3050, XTSE3055, XTSE3058, XTSE3060, XTSE3070 (arity ranges, parameter, result, variable and context item types identical by subtyping both ways, tunnel and required flags), XTSE3080.</p>
+      </item>
+      <item>
+        <p><strong>Versions</strong> (3.4.1): <code>sxml_xslt_package_version_matches</code> (versions, "<em>", lists, V.</em>, V+, to V, V to W). The resolver chooses the version; the driver (<code>tests/xslt/driver/xslt_package_version.c</code>) serves the highest one the range matches, settling <ref kind="decision" to="D117"/>'s package_version_resolution as highest_version, and reads the name and version of a catalog &lt;package&gt; without uri= from its file.</p>
+      </item>
+      <item>
+        <p><strong><ref kind="decision" to="D157"/>'s Proposed item accepted</strong>: a RESOLVED_PACKAGE principal module may be an xsl:stylesheet or xsl:transform (3.4: an implicit package); a simplified module stays XTSE3000 (<code>src/xslt.c</code>, the xslt.h comment).</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong>: keys, accumulators, decimal formats, namespace aliases, strip-space, outputs and named types are still stylesheet-wide, not per package (use-package-101, -104, override-misc-006); xsl:with-param of xsl:use-package and a used package's own static parameters; xsl:package-location (the resolver decides); XTSE3075; an abstract variable a view binds is computed eagerly, so XTDE3052 also when it is never read (accept-042, -043a: XSLT globals are all computed first).</p>
+      </item>
+      <item>
+        <p>Also: a library package's global variables have no global context item (2.3.2, XPDY0002); the reader's <code>decide_role</code> no longer dereferences a missing rule (a lint finding).</p>
+      </item>
+      <item>
+        <p>Measured (release, <code>tools/run-xslt.sh</code>, in-scope passed before -&gt; after): decl/package 53 -&gt; 68 of 72, override 30 -&gt; 91 of 102, accept 33 -&gt; 48 of 50, expose 12 -&gt; 42 of 42, attr/package-version 25 -&gt; 33 of 34, use-package 13 -&gt; 34 of 53 (34 of the 45 run: the 8 others need package_version_resolution lowest_version or unspecified, and one streaming); the six sets +150. Whole suite 7,585 -&gt; 7,864 in scope (4.17's numbering included). No other test set lost a case.</p>
+      </item>
+    </list>
+  </body>
+</decision>

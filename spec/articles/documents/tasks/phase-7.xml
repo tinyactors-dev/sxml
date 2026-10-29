@@ -1,0 +1,629 @@
+<document id="tasks/phase-7" source="docs/tasks/phase-7.md">
+  <title>Phase 7: Deferred features</title>
+  <p>Goal (PLAN.md, <ref kind="decision" to="D162"/>): everything <ref kind="decision" to="D97"/> left out of Phases 2 to 4 except schema awareness (Phase 5): full UCA collations, fn:parse-html and fn:html-doc, Invisible XML, XSLT streaming, the XQuery Update Facility, Full Text, EXPath Binary and File, XPath 1.0 compatibility mode and XSLT backwards-compatible behaviour, a timezone database, other calendars and languages in the formatting functions, and fn:transform. The owner has said every deferred feature must be supported eventually (<ref kind="decision" to="D162"/>). Four features no phase covers yet are proposed below for the owner. Design: <ref kind="decision" to="D183"/>. Rules for parallel packets are those of <code>docs/tasks/phase-2.md</code> (<ref kind="decision" to="D45"/>, <ref kind="decision" to="D96"/>, <ref kind="decision" to="D132"/>: a packet starts when every packet in its "After" list is committed), plus the shared-table rule below. Phase 7 must not regress the counts of Phases 2 to 5.</p>
+  <section id="the-design-in-one-page-d183">
+    <title>The design in one page (<ref kind="decision" to="D183"/>)</title>
+    <list>
+      <item>
+        <p><strong>Each feature replaces its one rejection place</strong> (<ref kind="decision" to="D162"/>). Every packet below names the place where sxml rejects or ignores the feature today, with the error the specification gives a processor without it. The packet replaces that place. It does not add a second path beside it. When the feature is in, the packet also removes the feature from the drivers' non-goal lists (<code>tests/qt4/driver/applicability.c</code>, <code>tests/xslt/driver/xslt_applicability.c</code>) and sets its system property (<code>src/system_property.c</code>).</p>
+      </item>
+      <item>
+        <p><strong>One IR, one evaluator, one tree builder.</strong> No feature adds an evaluator or a tree kind:</p>
+        <list>
+          <item>
+            <p>Dynamic evaluation (xsl:evaluate) and fn:transform compile at run time and ask the machine for a unit evaluation, as fn:load-xquery-module does (glossary <term name="unit_evaluation"/>, <ref kind="decision" to="D154"/>).</p>
+          </item>
+          <item>
+            <p>Parsers for other notations (HTML5, Invisible XML, DTD-driven entities, XML 1.1) send tree builder events (<code>tree.h</code>), as the XML parser does. The result is an ordinary arena tree.</p>
+          </item>
+          <item>
+            <p>DTD validation is schema validation. The DTD's declarations become schema components (<code>src/schema_internal.h</code>), and the validator (a tree builder filter, <ref kind="decision" to="D165"/>) checks them.</p>
+          </item>
+          <item>
+            <p>Updates do not change trees. A pending update list is applied by copying the affected trees through the tree builder with the changes made, so <code>tree.h</code> stays frozen (<ref kind="decision" to="D99"/>).</p>
+          </item>
+          <item>
+            <p>Streaming consumes the parser's builder events as a receiving task (<ref kind="decision" to="D166"/>). Before that, streamability analysis is a static pass over the XSLT AST.</p>
+          </item>
+          <item>
+            <p>Full Text compiles a selection into a match program, as the regex engine compiles a pattern (<ref kind="decision" to="D53"/>). The program is run by a loop, not by recursion (<ref kind="decision" to="D71"/>).</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>No substrate change is planned.</strong> <term name="status"/>, <code>view</code>, <code>memory</code>, <term name="string"/>, <code>name</code>, <code>types</code>, <term name="tree"/>, <code>xdm</code> and <code>export</code> stay as they are. The planned header changes are additive and each needs a decision record:</p>
+        <list>
+          <item>
+            <p><code>processor.h</code>: optional features (7.2), a file-system interface (7.9) and new resource kinds (7.10, 7.12, 7.15, 7.16, 7.18);</p>
+          </item>
+          <item>
+            <p><code>xpath.h</code>: the XPath 1.0 compatibility flag (7.4);</p>
+          </item>
+          <item>
+            <p><code>xquery.h</code>: updating queries (7.7);</p>
+          </item>
+          <item>
+            <p><code>xml.h</code>: DTD options (7.14).</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Size</strong> (below): <code>sxml.wasm</code> is 1,998,723 of 2,000,000 bytes. Every feature that XPath can reach would link into it. Packet <ref kind="packet" to="7.2"/> carries out the owner's choice, and features that would grow <code>sxml.wasm</code> wait for 7.2.</p>
+      </item>
+    </list>
+  </section>
+  <section id="not-run-today-by-feature">
+    <title>Not run today, by feature</title>
+    <p>The counts come from <code>docs/CONFORMANCE.md</code> at 3b0812a, and from the catalogs where the dashboard shows only the 15 largest reasons. "First" means "the first dependency not met", the dashboard's count. "Any" counts every case that names the dependency. XQ40 and XP40 share most QT4 cases, so their counts are not added together.</p>
+    <table align="default right right default">
+      <row header="true">
+        <cell>Feature</cell>
+        <cell>QT4 (XQ40 / XP40)</cell>
+        <cell>XT40</cell>
+        <cell>Other suites</cell>
+      </row>
+      <row>
+        <cell>XSLT streaming</cell>
+        <cell>–</cell>
+        <cell>2,932 first (2,564 in <code>tests/strm/</code>)</cell>
+        <cell>–</cell>
+      </row>
+      <row>
+        <cell>HTML5 (fn:parse-html, fn:html-doc)</cell>
+        <cell>1,401 / 22 (misc-HtmlTestSuite 1,379 XQ only; fn-parse-html 14; fn-html-doc 8)</cell>
+        <cell>–</cell>
+        <cell>–</cell>
+      </row>
+      <row>
+        <cell>XQuery Update Facility</cell>
+        <cell>825 (upd-*) / –</cell>
+        <cell>–</cell>
+        <cell>–</cell>
+      </row>
+      <row>
+        <cell>Full Text</cell>
+        <cell>685 (ft-*) / –</cell>
+        <cell>–</cell>
+        <cell>–</cell>
+      </row>
+      <row>
+        <cell>EXPath Binary</cell>
+        <cell>673 / 673</cell>
+        <cell>–</cell>
+        <cell>–</cell>
+      </row>
+      <row>
+        <cell>XML 1.1 input (proposed)</cell>
+        <cell>313 / 291</cell>
+        <cell>65</cell>
+        <cell>xmlconf 275 (84 valid, 13 invalid, 173 not-wf, 5 error)</cell>
+      </row>
+      <row>
+        <cell>EXPath File</cell>
+        <cell>271 / 268</cell>
+        <cell>–</cell>
+        <cell>–</cell>
+      </row>
+      <row>
+        <cell>fn:transform</cell>
+        <cell>133 (21 of them XSLT 3.0) / 129</cell>
+        <cell>12 in <code>transform</code> (9 fail)</cell>
+        <cell>–</cell>
+      </row>
+      <row>
+        <cell>Backwards compatibility</cell>
+        <cell>5 / 5 (xpath-1.0-compatibility)</cell>
+        <cell>124 first</cell>
+        <cell>–</cell>
+      </row>
+      <row>
+        <cell>DTD processing (proposed)</cell>
+        <cell>32 / 27 first (infoset-dtd), plus 7 / 6 FODC0013 failures</cell>
+        <cell>78 first (87 any)</cell>
+        <cell>xmlconf 265 with external entities; the 175 invalid cases are checked for well-formedness only</cell>
+      </row>
+      <row>
+        <cell>xsl:evaluate (proposed)</cell>
+        <cell>–</cell>
+        <cell>83, plus 5 XTDE3175 failures</cell>
+        <cell>–</cell>
+      </row>
+      <row>
+        <cell>UCA collations</cell>
+        <cell>49 advanced-uca-fallback; 13 / 5 non_unicode_codepoint_collation; 4 XQST0038 failures</cell>
+        <cell>–</cell>
+        <cell>Unicode CollationTest (not vendored)</cell>
+      </row>
+      <row>
+        <cell>Calendars and languages</cell>
+        <cell>24 (language de 16, it 2, fr 1, fr-CA 1; CLDR 4)</cell>
+        <cell>14 (numbering de 6, it 1, fr 1; ICU_spellout 3; ordinals 3)</cell>
+        <cell>–</cell>
+      </row>
+      <row>
+        <cell>disable-output-escaping (proposed)</cell>
+        <cell>–</cell>
+        <cell>32 first (33 any)</cell>
+        <cell>–</cell>
+      </row>
+      <row>
+        <cell>Timezone database</cell>
+        <cell>8 olson-timezone, plus 6 FODT0004 failures</cell>
+        <cell>–</cell>
+        <cell>–</cell>
+      </row>
+      <row>
+        <cell>Invisible XML</cell>
+        <cell>10 / 10 (of the 16 in fn-invisible-xml)</cell>
+        <cell>–</cell>
+        <cell>the iXML community suite (not vendored)</cell>
+      </row>
+    </table>
+    <p>In total these features would unlock about 4,400 of XQ40's 5,505 not-run cases, about 3,330 of XT40's 4,659, and 540 xmlconf cases. Other not-run features are not planned. They are listed so the owner sees them: staticTyping (77 XQ40, 48 XP40), xsl-stylesheet-processing-instruction (23 XT40), HTML4 output (3), schema-location-hint (3), XInclude (2), and remote_http (2).</p>
+    <p>When a packet lands, its cases enter the <ref kind="decision" to="D95"/> denominators. A feature that passes below the current rate lowers XP40's, XQ40's or XT40's gate rate even though no pass is lost. This is why each feature has a gate of its own, below.</p>
+  </section>
+  <section id="size-optional-build-parts-owner-decision-d183-proposed">
+    <title>Size: optional build parts (owner decision, <ref kind="decision" to="D183"/> Proposed)</title>
+    <p>The JavaScript package links XPath only, so the following features cost nothing in <code>sxml.wasm</code>: XSLT- and XQuery-only features (streaming, the Update Facility, Full Text in the XQuery grammar, xsl:evaluate, disable-output-escaping, XSLT backwards compatibility). They do grow the <code>sxml</code> CLI module, which is 4,877,565 of 5,500,000 bytes. The other features are reachable from XPath and would link into <code>sxml.wasm</code>. The estimates below (to be measured by 7.2) are of stripped bytes. Measured references: linking XSLT added 1,159,058 bytes to the CLI module (<ref kind="decision" to="D157"/>), and linking schema validation added 268,168 bytes (<ref kind="decision" to="D176"/>).</p>
+    <table align="default right right">
+      <row header="true">
+        <cell>Feature</cell>
+        <cell><code>sxml.wasm</code> (estimate)</cell>
+        <cell>CLI module (estimate)</cell>
+      </row>
+      <row>
+        <cell>UCA: DUCET 16.0 tables, algorithm, options</cell>
+        <cell>170–280 KB</cell>
+        <cell>same</cell>
+      </row>
+      <row>
+        <cell>UCA tailorings (CLDR rules, a few languages)</cell>
+        <cell>10–40 KB</cell>
+        <cell>same</cell>
+      </row>
+      <row>
+        <cell>HTML5 parser (with 2,231 named character references)</cell>
+        <cell>100–180 KB</cell>
+        <cell>same</cell>
+      </row>
+      <row>
+        <cell>Timezone database, all zones, compact</cell>
+        <cell>60–120 KB (TZif reader alone: about 5 KB)</cell>
+        <cell>same</cell>
+      </row>
+      <row>
+        <cell>Invisible XML (Earley parser, iXML grammar)</cell>
+        <cell>40–70 KB</cell>
+        <cell>same</cell>
+      </row>
+      <row>
+        <cell>EXPath Binary</cell>
+        <cell>30–50 KB</cell>
+        <cell>same</cell>
+      </row>
+      <row>
+        <cell>EXPath File</cell>
+        <cell>20–30 KB (no use in a browser)</cell>
+        <cell>same</cell>
+      </row>
+      <row>
+        <cell>DTD processing</cell>
+        <cell>30–60 KB</cell>
+        <cell>same</cell>
+      </row>
+      <row>
+        <cell>Calendars and languages</cell>
+        <cell>5–15 KB plus 3–6 KB per language</cell>
+        <cell>same</cell>
+      </row>
+      <row>
+        <cell>XPath 1.0 compatibility mode</cell>
+        <cell>5–10 KB</cell>
+        <cell>same</cell>
+      </row>
+      <row>
+        <cell>XML 1.1 input</cell>
+        <cell>2–8 KB</cell>
+        <cell>same</cell>
+      </row>
+      <row>
+        <cell>fn:transform</cell>
+        <cell>0 if XSLT stays out of the package; else about 1.16 MB</cell>
+        <cell>10–20 KB</cell>
+      </row>
+      <row>
+        <cell>Streaming / Update / Full Text / evaluate / d-o-e / XSLT compat</cell>
+        <cell>0</cell>
+        <cell>150–250 / 60–100 / 150–250 / 5 / 3 / 15–25 KB</cell>
+      </row>
+    </table>
+    <p>If every XPath-reachable feature were linked, <code>sxml.wasm</code> would grow by about 0.5 to 0.8 MB, to about 2.6 MB. The options:</p>
+    <list ordered="true">
+      <item>
+        <p><strong>Raise the budget per feature as it lands.</strong> This costs no code. Every browser user downloads every table, used or not, and the budget ends near 2.8 MB stripped (about 0.9 MB gzipped).</p>
+      </item>
+      <item>
+        <p><strong>Optional features chosen at link time</strong> (recommended, with 4). One public mechanism: the processor configuration takes a view of <code>sxml_optional_feature</code> values (<code>processor.h</code>, additive, a record). Each feature has an exported function that returns one, for example <code>sxml_uca_collation_feature()</code>, <code>sxml_html_parser_feature()</code> or <code>sxml_xslt_transform_feature()</code>. The core reaches a feature only through that value's operations table. Without the value, the feature's <ref kind="decision" to="D162"/> place stays the behaviour (FOCH0002, XPST0017, FODT0004), so a program that never names a feature does not link it.</p>
+        <list>
+          <item>
+            <p>What stays the same: one build, every feature tested in every build, and no <code>#if</code>.</p>
+          </item>
+          <item>
+            <p>The JavaScript package ships <code>sxml.wasm</code> as today, plus a larger module (or a few) that names the features. Its API takes a feature list.</p>
+          </item>
+          <item>
+            <p>Costs: one <code>processor.h</code> addition; an operations table per feature (about 1 KB each); behaviour that depends on the host's configuration (the drivers and the CLI name every feature).</p>
+          </item>
+          <item>
+            <p>The core still needs headroom for core changes (DTD, XML 1.1, the compatibility mode). The proposal is 2,100,000 bytes for the core and 3,000,000 for the full module.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>CMake options</strong> (<code>SXML_WITH_UCA</code> and similar). At compile time, stub files hold the rejection places in place of the excluded sources.</p>
+        <list>
+          <item>
+            <p>Advantage: no header change.</p>
+          </item>
+          <item>
+            <p>Costs: at least two configurations to build and test (minimal and full); a binary's features are fixed when it is built; and two sxml binaries of one version behave differently.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Large data as host resources</strong> (adds to 2 or 3). sxml compiles in readers for standard formats, and the host supplies the data through the resource resolver:</p>
+        <list>
+          <item>
+            <p>DUCET as <code>allkeys.txt</code> (UTS #10 format) and tailorings as CLDR rule text (UTS #35, Part 5);</p>
+          </item>
+          <item>
+            <p>the timezone database as TZif files (RFC 8536): the CLI reads <code>/usr/share/zoneinfo</code>, and the JavaScript package fetches files on demand.</p>
+          </item>
+        </list>
+        <p>A compiled built-in copy can be its own optional feature, for hosts that want no files. Costs:</p>
+        <list>
+          <item>
+            <p>new resource kinds (<code>processor.h</code>, additive);</p>
+          </item>
+          <item>
+            <p>parsing at first use (<code>allkeys.txt</code> is 1.9 MB of text; loading it takes an estimated 20 to 60 ms);</p>
+          </item>
+          <item>
+            <p>correctness that depends on the version of the host's data (tests pin it);</p>
+          </item>
+          <item>
+            <p>no help for features that are mostly code (HTML5, iXML, Binary).</p>
+          </item>
+        </list>
+      </item>
+    </list>
+  </section>
+  <section id="parallelism-plan">
+    <title>Parallelism plan</title>
+    <table>
+      <row header="true">
+        <cell>Wave</cell>
+        <cell>Packets (run together)</cell>
+        <cell>Why first</cell>
+      </row>
+      <row>
+        <cell>1</cell>
+        <cell>7.2 optional features (after the owner's choice), 7.3 xsl:evaluate, 7.4 backwards compatibility, 7.5 disable-output-escaping</cell>
+        <cell>Small, low risk, no <code>sxml.wasm</code> cost (7.4's XPath flag aside). 7.4 matters most to users: today every <code>version="1.0"</code> stylesheet raises XTDE0160 when an instruction of it is evaluated</cell>
+      </row>
+      <row>
+        <cell>2</cell>
+        <cell>7.6 XSLT streaming (a, b), 7.7 Update Facility (a, b, c)</cell>
+        <cell>The two largest sets (2,932 and 825); XSLT and XQuery only</cell>
+      </row>
+      <row>
+        <cell>3</cell>
+        <cell>7.8 EXPath Binary, 7.9 EXPath File, 7.10 HTML5 (a, b), 7.11 fn:transform</cell>
+        <cell>Large sets or high demand, after <ref kind="packet" to="7.2"/></cell>
+      </row>
+      <row>
+        <cell>4</cell>
+        <cell>7.12 Full Text (a, b, c), 7.13 XML 1.1 input, 7.14 DTD processing (a, b)</cell>
+        <cell>Highest risk (Full Text); 7.13 and 7.14 share the XML parser, so 7.14 follows 7.13</cell>
+      </row>
+      <row>
+        <cell>5</cell>
+        <cell>7.15 UCA (a, b), 7.16 timezone database, 7.17 calendars and languages, 7.18 Invisible XML</cell>
+        <cell>Few cases and much data; 7.17 follows 7.16 (both use <code>src/format_date.c</code>)</cell>
+      </row>
+      <row>
+        <cell>6</cell>
+        <cell>7.19 review (gate)</cell>
+        <cell/>
+      </row>
+    </table>
+    <p>Dependencies ("After"):</p>
+    <list>
+      <item>
+        <p>7.2 depends on the owner's size decision.</p>
+      </item>
+      <item>
+        <p>7.3, 7.4 and 7.5 can start now.</p>
+      </item>
+      <item>
+        <p>7.6b after 7.6a; 7.7b after 7.7a; 7.7c after 7.7b.</p>
+      </item>
+      <item>
+        <p>After <ref kind="packet" to="7.2"/>: 7.8, 7.9, 7.10a, 7.11, 7.13, 7.14a, 7.15a, 7.16, 7.17 and 7.18, which all grow <code>sxml.wasm</code> (option 1 means "after the owner raises the budget").</p>
+      </item>
+      <item>
+        <p>7.10b after 7.10a.</p>
+      </item>
+      <item>
+        <p>7.12b after 7.12a; 7.12c after 7.12b.</p>
+      </item>
+      <item>
+        <p>7.14a after <ref kind="packet" to="7.13"/>; 7.14b after 7.14a.</p>
+      </item>
+      <item>
+        <p>7.15b after 7.15a.</p>
+      </item>
+      <item>
+        <p>7.17 after <ref kind="packet" to="7.16"/> and after 7.15b (both use CLDR data).</p>
+      </item>
+      <item>
+        <p>7.19 after everything the owner accepted.</p>
+      </item>
+    </list>
+    <p>The critical path is 7.6a, 7.6b and 7.19. The proposed packets (7.3, 7.5, 7.13, 7.14) start only when the owner accepts them.</p>
+    <p><strong>Shared tables.</strong> Each packet changes only its own entries in the drivers' dependency and non-goal tables and in <code>src/system_property.c</code>, as single hunks staged ledger-style (BRIEF.md). The CLI grows only when a feature works (BRIEF.md, <ref kind="decision" to="D44"/>).</p>
+  </section>
+  <section id="packets">
+    <title>Packets</title>
+    <p>Each packet gives: the specifications; the cases it unlocks; the rejection place it replaces and the mechanism it extends; header changes; dependencies ("After"); what it owns; size; and its gate (proposed, for the owner). "Owns" lists new files, plus the existing files the packet changes beyond single shared-table entries.</p>
+    <include kind="packet" to="7.1"/>
+    <include kind="packet" to="7.2"/>
+    <include kind="packet" to="7.2b"/>
+    <include kind="packet" to="7.2c"/>
+    <include kind="packet" to="7.4"/>
+    <include kind="packet" to="7.6"/>
+    <include kind="packet" to="7.7"/>
+    <include kind="packet" to="7.8"/>
+    <include kind="packet" to="7.9"/>
+    <include kind="packet" to="7.10"/>
+    <include kind="packet" to="7.11"/>
+    <include kind="packet" to="7.12"/>
+    <include kind="packet" to="7.15"/>
+    <include kind="packet" to="7.16"/>
+    <include kind="packet" to="7.17"/>
+    <include kind="packet" to="7.18"/>
+    <include kind="packet" to="7.19"/>
+    <include kind="packet" to="7.20"/>
+  </section>
+  <section id="bindings">
+    <title>Bindings</title>
+    <include kind="packet" to="js-1"/>
+    <include kind="packet" to="cli-2"/>
+  </section>
+  <section id="performance">
+    <title>Performance</title>
+    <include kind="packet" to="perf-1"/>
+    <include kind="packet" to="perf-2"/>
+    <include kind="packet" to="xml-mem"/>
+    <include kind="packet" to="perf-3"/>
+    <include kind="packet" to="perf-4"/>
+    <include kind="packet" to="perf-5"/>
+    <include kind="packet" to="perf-6"/>
+    <include kind="packet" to="perf-7"/>
+    <include kind="packet" to="perf-8"/>
+    <include kind="packet" to="perf-9"/>
+    <include kind="packet" to="perf-10"/>
+    <include kind="packet" to="fix-4"/>
+    <include kind="packet" to="perf-11"/>
+    <include kind="packet" to="perf-12"/>
+    <include kind="packet" to="perf-13"/>
+    <include kind="packet" to="perf-14"/>
+    <include kind="packet" to="perf-15"/>
+    <include kind="packet" to="fix-5"/>
+    <include kind="packet" to="perf-16"/>
+    <include kind="packet" to="perf-17"/>
+    <include kind="packet" to="fix-6"/>
+    <include kind="packet" to="fix-7"/>
+    <include kind="packet" to="wasm-1"/>
+    <include kind="packet" to="7.21"/>
+    <include kind="packet" to="7.22"/>
+    <include kind="packet" to="7.23"/>
+    <include kind="packet" to="7.24"/>
+    <include kind="packet" to="7.25"/>
+    <include kind="packet" to="7.26"/>
+    <include kind="packet" to="7.27"/>
+    <include kind="packet" to="7.28"/>
+    <include kind="packet" to="7.29"/>
+    <include kind="packet" to="cli-4"/>
+    <include kind="packet" to="7.30"/>
+  </section>
+  <section id="proposed-for-the-owner">
+    <title>Proposed for the owner</title>
+    <p>No phase covers these four features yet (<ref kind="decision" to="D183"/> Proposed). The owner has said every deferred feature must be supported in the end, but <ref kind="decision" to="D97"/> and <ref kind="decision" to="D162"/> do not name these four, so they need the owner's word to join the phase. Their packet numbers keep their places in the waves above. They start only when the owner accepts them.</p>
+    <include kind="packet" to="7.3"/>
+    <include kind="packet" to="7.5"/>
+    <include kind="packet" to="7.13"/>
+    <include kind="packet" to="7.14"/>
+  </section>
+  <section id="gate-proposed-in-d183-the-owner-may-change-the-numbers">
+    <title>Gate (proposed in <ref kind="decision" to="D183"/>; the owner may change the numbers)</title>
+    <p>Reviewed by packet <ref kind="packet" to="7.19"/> (<ref kind="decision" to="D237"/>) on whole release runs at 9c5b1ba.</p>
+    <list>
+      <item checked="false">
+        <p>Each feature meets its packet's gate above under <term name="release"/>: every one but two, see the table below. Not met: 7.11's "all 12 XT40 <code>transform</code> cases" (9 pass, 2 fail, 1 not run: a static fn:transform, a ~record pattern, an assertion the driver does not check; <ref kind="decision" to="D203"/>; after <ref kind="packet" to="7.20"/>, 10 pass: the static fn:transform needs a compiler that does not re-enter itself (<ref kind="decision" to="D71"/>), the ~record pattern packet 4.22's newest-draft patterns (<ref kind="decision" to="D245"/>); <ref kind="decision" to="D249"/>). Met as <ref kind="decision" to="D208"/> reads it: 7.4's "all 5 QT4 cases" (1 passes; the other 4 expect fn:number conversion of xs:numeric parameters, which XPath 4.0, 3.4.1 gives only to xs:double, and <ref kind="decision" to="D208"/> follows the specification).</p>
+      </item>
+      <item checked="true">
+        <p>XP40 ≥ 90 %, XQ40 ≥ 85 % and XT40 ≥ 70 % still; the passed counts of XP40, XQ40, XT40 and XSD have not dropped; the schema-aware gates of Phase 5 still hold; all ctest slices are at their baselines (agent review): XP40 99.5 %, XQ40 99.5 %, XT40 94.8 % (core sets 88.5 % to 100 %); passed 32,689, 45,969, 12,075 and 41,486 (<ref kind="decision" to="D182"/>: 30,931, 41,273, 8,650, 41,483); XSD in scope 99.9 %, datatypes 100 %, structures 99.7 %, XSD 1.1 99.7 %; schema-aware XQ40 92.2 %, XT40 95.6 %; slices 198/198, XSLT 149 of 154 (baseline), XSD 147/147.</p>
+      </item>
+      <item checked="true">
+        <p>No in-scope test crashes, leaks or ends in an "error" outcome, including the new suites (xmlconf 1.1 and entity cases, and the iXML suite if vendored) (agent review): 0 errors in XP40, XQ40, XT40 and XSD; xmlconf, html5lib and the iXML suite pass their whole runs (the iXML suite's 4 errors were inputs no xs:string holds, now not run with that reason, <ref kind="decision" to="D237"/>).</p>
+      </item>
+      <item checked="true">
+        <p><code>sxml.wasm</code> and the CLI module are within the budgets the owner set in answer to <ref kind="decision" to="D183"/>'s size item; the size test checks every module variant (agent review): <code>sxml.wasm</code> 2,090,746 / 730,902 of 2,200,000 / 770,000, <code>sxml-full.wasm</code> 7,637,162 / 1,690,683 of 8,000,000 / 2,800,000, the CLI 9,231,791 / 1,973,839 of 9,500,000 / 2,100,000; the <ref kind="decision" to="D225"/> guard names +1,978 bytes since its baseline (the IR's GLOBAL_READ, 4.21).</p>
+      </item>
+      <item checked="false">
+        <p>The fuzz targets cover each new parser (HTML, iXML, DTD, XML 1.1, Full Text selections), run on the owner's machine (<ref kind="decision" to="D181"/>): the targets exist (agent review: <code>ixml_fuzz</code> and <code>full_text_fuzz</code> added, XML 1.1 through <code>xml_parse_fuzz</code>), two-minute runs here found one bug, fixed (<ref kind="decision" to="D237"/>); the full runs are deferred to the owner's machine (<ref kind="decision" to="D181"/>).</p>
+      </item>
+    </list>
+    <table>
+      <row header="true">
+        <cell>Packet</cell>
+        <cell>Its gate or done-when</cell>
+        <cell>Fresh numbers (9c5b1ba, release)</cell>
+        <cell/>
+      </row>
+      <row>
+        <cell>7.2, 7.2b, 7.2c (size-2), health-3</cell>
+        <cell>core under budget, one part list per language, the size guard</cell>
+        <cell>sizes above; the core links no feature definition, the guard prints its top growths</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.3</cell>
+        <cell>≥ 90 % of 83</cell>
+        <cell>evaluate 77 of 83 (92.8 %)</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.4, 7.4b</cell>
+        <cell>≥ 80 % of the 124; all 5 QT4</cell>
+        <cell>backwards_compatibility 115 of 131 (87.8 %); QT4 1 of 5</cell>
+        <cell>met as <ref kind="decision" to="D208"/> reads it</cell>
+      </row>
+      <row>
+        <cell>7.5</cell>
+        <cell>≥ 90 % of 32</cell>
+        <cell>disable_output_escaping 32 of 32 run (9 more need the feature absent, XSLT 2.0 or streaming fallback)</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.6a–g</cell>
+        <cell>≥ 85 % of the streaming cases; XT40 passes kept; peak under 64 MB</cell>
+        <cell>streaming 2,882 of 2,938 (98.1 %); strm 2,521 of 2,564; 1,000,000 orders (74.7 MB) summed streamed in 11.0 MB peak resident</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.7a–c</cell>
+        <cell>≥ 85 % of 798</cell>
+        <cell>upd-* 787 of 798 (98.6 %; 27 staticTyping not run)</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.8</cell>
+        <cell>≥ 95 % of 673</cell>
+        <cell>binary 673 of 674 (XQ40), bin-* 672 of 672 (XP40, XQ40)</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.9</cell>
+        <cell>≥ 90 % of 271</cell>
+        <cell>expath-file 270 of 270 (XQ40), 267 of 267 (XP40)</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.10a, 7.10b</cell>
+        <cell>≥ 95 % HtmlTestSuite; ≥ 90 % parse-html, html-doc</cell>
+        <cell>1,378 of 1,379; 22 of 22; 9 of 10; html5lib 1,749 / 7,045 / 82</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.11</cell>
+        <cell>≥ 80 % of 133; all 12 XT40</cell>
+        <cell>fn-transform 130 of 137 (XQ40), 127 of 137 (XP40); XT40 transform 9 of 12, 10 after <ref kind="packet" to="7.20"/> (<ref kind="decision" to="D249"/>: 004 needs a resumable compiler under <ref kind="decision" to="D71"/>, 401 the "~T" patterns of 4.22)</cell>
+        <cell>not met (XT40)</cell>
+      </row>
+      <row>
+        <cell>7.12a–d</cell>
+        <cell>≥ 75 % of 685</cell>
+        <cell>ft-* 672 of 685 (98.1 %); XP40 unchanged</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.13</cell>
+        <cell>≥ 95 % of the xmlconf 1.1 cases; ≥ 90 % QT4 and XT40</cell>
+        <cell>xmlconf 1.1 271 of 271 (valid 84, invalid 13, not-wf 169, error 5); QT4 300 + 1 of 313 (96.2 %); XT40 XML_1.1 62 of 65 run</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.14a–c</cell>
+        <cell>≥ 95 % of the entity and invalid cases; ≥ 90 % QT4 and XT40 dtd</cell>
+        <cell>xmlconf entities 265 of 265, invalid 175 of 175, DTD validation 173 + 54 of 227; XT40 dtd 84 of 87 (96.6 %); QT4 infoset-dtd 33 of 34</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.15a, 7.15b</cell>
+        <cell>≥ 95 % of 49; ≥ 90 % others; CollationTest</cell>
+        <cell>49 of 49; 13 of 13 (XQ40), 5 of 5 run (XP40); CollationTest samples 10,314 and 11,391 lines in order</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.16</cell>
+        <cell>all 14</cell>
+        <cell>olson-timezone 8 of 8, fn-civil-timezone 9 of 9</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.17</cell>
+        <cell>≥ 75 % of 38; none lost</cell>
+        <cell>QT4 20 of 20; XT40 9 of 9 (the cases naming the 14 dependencies); fn-format-date 137 of 137 run, fn-format-integer 94 of 94 run</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>7.18</cell>
+        <cell>all 16 QT4; ≥ 90 % of the correct-grammar tests</cell>
+        <cell>16 of 16 (XP40, XQ40); suite 886 of 907, correct-grammar 711 of 711 run, grammar tests 142 of 142</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>js-1</cell>
+        <cell>the three languages in the package; <code>sxml.wasm</code> unchanged</cell>
+        <cell>the <code>javascript/*</code> tests pass (wasm preset, 383 of 383)</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>cli-2</cell>
+        <cell>written files, csv, hints</cell>
+        <cell>CLI tests pass (release, 379 of 379)</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>perf-1, perf-2, perf-3</cell>
+        <cell>numbers recorded; outcomes unchanged</cell>
+        <cell>xmark-all 1.10 s, itunes 2.29 s, parse 0.16 s (processor seconds, release); suite counts as at e4ea880 but XT40's gains</cell>
+        <cell>met</cell>
+      </row>
+      <row>
+        <cell>xml-mem</cell>
+        <cell>memory by depth, not input</cell>
+        <cell>the 74.7 MB run above in 11.0 MB; the allocator-limit unit test passes</cell>
+        <cell>met</cell>
+      </row>
+    </table>
+  </section>
+  <section id="questions-for-the-owner-d183-proposed">
+    <title>Questions for the owner (<ref kind="decision" to="D183"/> Proposed)</title>
+    <list ordered="true">
+      <item>
+        <p>Do xsl:evaluate, DTD processing, XML 1.1 input and disable-output-escaping join Phase 7 as 7.3, 7.14, 7.13 and 7.5?</p>
+      </item>
+      <item>
+        <p>Size: which option (1 to 4) do you choose, and what budgets?</p>
+      </item>
+      <item>
+        <p>Are the per-feature gate numbers above acceptable?</p>
+      </item>
+      <item>
+        <p>New test data: vendor the iXML community tests (<code>third_party/ixml-tests</code>) and Unicode's CollationTest (about 30 MB unpacked; a sampled subset would be about 1 MB)? xmlconf is already vendored.</p>
+      </item>
+      <item>
+        <p>Which languages and calendars should be supported, and which UCA tailorings built in? The proposal is en, de, fr, it, es and nl; the calendars ISO, AD, BE, JE, OS and AH; and tailorings for the same languages.</p>
+      </item>
+      <item>
+        <p>Should the Update Facility follow XQUF 3.0 only, or also the 4.0 community draft that some QT4 cases use?</p>
+      </item>
+      <item>
+        <p>EXPath File in the CLI: should it be off unless <code>--allow-file-access</code> is given?</p>
+      </item>
+    </list>
+  </section>
+</document>

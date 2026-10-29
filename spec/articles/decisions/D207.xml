@@ -1,0 +1,17 @@
+<decision id="D207" status="accepted" source="docs/DECISIONS.md">
+  <title>JavaScript module budgets raised: core 2,200,000, full 4,000,000 (owner)</title>
+  <body>
+    <p><recorded date="2026-10-19"/> on the owner's choices. Amends <ref kind="decision" to="D184"/> and <ref kind="decision" to="D189"/>.</p>
+    <list>
+      <item>
+        <p>The core <code>sxml.wasm</code> crept to 2,120,223 bytes stripped over <ref kind="decision" to="D184"/>'s 2,100,000 (small additions of several packets; XPath 1.0 compatibility mode, <ref kind="decision" to="D197"/>, added 9,776). The owner chose to raise the budget, not to move schema validation out of the core: 2,200,000 stripped, 770,000 gzipped.</p>
+      </item>
+      <item>
+        <p>fn:transform (packet <ref kind="packet" to="7.11"/>) links the XSLT processor into <code>sxml-full.wasm</code>, now 3,553,063 bytes. The owner chose to keep it there and raise the full budget to 4,000,000 stripped, 1,400,000 gzipped.</p>
+      </item>
+      <item>
+        <p>The gzipped limits keep <ref kind="decision" to="D138"/>'s ratio of 0.35.</p>
+      </item>
+    </list>
+  </body>
+</decision>

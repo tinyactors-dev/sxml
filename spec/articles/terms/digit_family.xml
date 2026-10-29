@@ -1,0 +1,4 @@
+<term id="digit_family" source="docs/GLOSSARY.md">
+  <name>digit_family</name>
+  <definition>Ten consecutive Unicode characters of category Nd with digit values 0 to 9; named by its zero digit</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="cast_frame" source="docs/GLOSSARY.md">
+  <name>cast_frame</name>
+  <definition>A cast to a union, choice or list target on the explicit stack of a cast, waiting for the cast of a member or token (<ref kind="decision" to="D66"/>)</definition>
+</term>

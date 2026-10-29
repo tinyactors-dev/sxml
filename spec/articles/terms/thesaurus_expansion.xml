@@ -1,0 +1,4 @@
+<term id="thesaurus_expansion" source="docs/GLOSSARY.md">
+  <name>thesaurus_expansion</name>
+  <definition>The query strings a thesaurus gives one query string: the string itself and the terms related to it, within the relationship and levels asked for, each matched as an alternative (Full Text 3.0, 3.4.3; <ref kind="decision" to="D214"/>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="collation_binding" source="docs/GLOSSARY.md">
+  <name>collation_binding</name>
+  <definition>A host's collation URI standing for a collation sxml implements, added to the statically known collations</definition>
+</term>

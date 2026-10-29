@@ -1,0 +1,26 @@
+<decision id="D103" status="accepted" source="docs/DECISIONS.md">
+  <title>Lowering parts and the embedding entry (packet <ref kind="packet" to="2.1"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D63"/> and <ref kind="decision" to="D71"/> for Phases 3 and 4. <code>src/xpath_lower_internal.h</code> (module <code>xpath_lower</code>) opens the lowering machine to other files.</p>
+    <list>
+      <item>
+        <p><strong>The lowerer</strong> (<code>sxml_xpath_lowerer</code>, lifecycle quintet): one lowering into one unit, over a static context, for one <code>sxml_language</code> (<ref kind="decision" to="D101"/>), with a part view (empty: the registry). Building blocks are exported under <code>sxml_xpath_lowerer_*</code>: scratch memory, add an expression or a slot, bind in a block, finish a block, constants, raise, push and pop variables, read the focus, resolve and coerce types, signatures, enter and leave an IR function.</p>
+      </item>
+      <item>
+        <p><strong>Procedures are descriptors</strong>: a frame holds a pointer to a static <code>sxml_xpath_lowering_procedure</code> (name, step function, locals size); the core's 24 procedures are a table of them, so core and part frames run alike. Steps ask for parts with <code>sxml_xpath_lowering_call_*</code> and return; no step runs a machine (<ref kind="decision" to="D71"/>). <code>_push_procedure</code> pushes any procedure with initial locals (copied bytes; one depth level), for constructs that are not AST kinds (XSLT instructions over the <ref kind="decision" to="D102"/> AST); <code>sxml_xpath_lowerer_run_procedure</code> runs one from outside.</p>
+      </item>
+      <item>
+        <p><strong>Lowering parts by glob</strong>: a file <code>src/&lt;name&gt;_lower.c</code> or <code>src/&lt;name&gt;_lower_&lt;part&gt;.c</code> defining <code>const sxml_xpath_lowering_part sxml_xpath_lowering_part_&lt;part&gt; =</code> (languages, rules of AST kind to a procedure or a leaf function) is registered by <code>sxml_generate_lowering_part_registry</code> in <code>cmake/SxmlParts.cmake</code> (generated <code>lowering_parts.c</code>, <code>sxml_xpath_lowering_registered_parts()</code>, sorted by file). <code>call_expression</code> takes the first part serving the lowerer's language that lists the kind, then the core; so a part may replace a core kind for its language (XQuery FLWOR). A unit test checks that no two registered parts list one kind for a common language. The CMake function and its two lines in the root <code>CMakeLists.txt</code> join packet <ref kind="packet" to="2.0"/>'s files after <ref kind="packet" to="2.0"/> is committed (2.1 adds them then).</p>
+      </item>
+      <item>
+        <p><strong>Embedding entry</strong>: <code>sxml_xpath_lowering_call_embedded</code> (from a step) and <code>sxml_xpath_lowerer_lower_embedded</code> (outside) lower one XPath AST into the current function: variables the caller pushed are in scope as their atoms, the focus is the caller's choice (absent, slots, fixed) or the current one, the static context is the AST's (namespaces, function table with XSLT's in-scope functions; same heap and allocator; its variable declarations are the unit's globals in order). The lowerer's AST, static context and focus are restored afterwards. <code>sxml_xpath_lower</code> lowers its main function through it, so the slice dumps cover it.</p>
+      </item>
+      <item>
+        <p>After a failure a lowerer is fit only for finalize. <code>sxml_xpath_lower</code> and <code>_compile</code> (<code>xpath_static_internal.h</code>) are unchanged: XPath, the registered parts; XQuery and XSLT compile with a lowerer of their own.</p>
+      </item>
+      <item>
+        <p>Rejected: parts as a second enum range in the core's switch (every part would edit the core); running a nested machine for embedded expressions (C recursion through a step).</p>
+      </item>
+    </list>
+  </body>
+</decision>

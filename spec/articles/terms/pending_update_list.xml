@@ -1,0 +1,4 @@
+<term id="pending_update_list" source="docs/GLOSSARY.md">
+  <name>pending_update_list</name>
+  <definition>The update primitives an updating expression returns, applied together at the end of a snapshot (XQuery Update Facility 3.0, "pending update list"); internal to the evaluator, not an XDM item</definition>
+</term>

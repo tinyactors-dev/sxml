@@ -1,0 +1,104 @@
+<document id="tasks/phase-3" source="docs/tasks/phase-3.md">
+  <title>Phase 3: XQuery 4.0 and serialization</title>
+  <p>Goal (PLAN.md): XQuery 4.0 (FLWOR, constructors, prolog, modules) and serialization, lowered into the shared IR (<ref kind="decision" to="D46"/>) and run by the one evaluator; <code>sxml xquery</code> and <code>sxml serialize</code> (docs/CLI.md). Gate: <strong>85% of the applicable XQ40 test cases pass, 75% of the XQ-only ones</strong> (<ref kind="decision" to="D95"/>). Rules for parallel packets are those of <code>docs/tasks/phase-2.md</code> (<ref kind="decision" to="D45"/>, <ref kind="decision" to="D96"/>).</p>
+  <section id="overlap-with-phase-2-d96">
+    <title>Overlap with Phase 2 (<ref kind="decision" to="D96"/>)</title>
+    <p>Packets marked <strong>Early</strong> may start as soon as the Phase 1 gate is closed (the substrate freeze) and their "After" list is committed, while Phase 2 is still running; the Phase 2 file shows the waves they join. They own no file of a Phase 2 packet. The other packets wait for the Phase 2 gate. Early: 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9.</p>
+  </section>
+  <section id="how-xquery-lowers-d55-src-ir-internal-h">
+    <title>How XQuery lowers (<ref kind="decision" to="D55"/>, <code>src/ir_internal.h</code>)</title>
+    <p>One AST holds XPath and XQuery kinds (3.1). Lowering parts (2.1) add the XQuery kinds in their own files: FLWOR clauses to MAP, LET, CONDITIONAL and SORT over tuple arrays; group by and windows to internal native rows; constructors to the reserved constructor kinds; try/catch to TRY_CATCH; typeswitch and switch to CONDITIONAL chains; prolog functions to IR functions, prolog variables to globals with initializers; library modules into the same unit. The evaluator runs the reserved kinds in the stub files of 2.0. Nothing here adds an IR kind; a packet that needs one stops and writes the reason under "Proposed".</p>
+  </section>
+  <section id="parallelism-plan">
+    <title>Parallelism plan</title>
+    <table>
+      <row header="true">
+        <cell>Wave</cell>
+        <cell>Packets (run together)</cell>
+      </row>
+      <row>
+        <cell>E1 (with Phase 2 wave 1)</cell>
+        <cell>3.0 API, 3.1 query AST, 3.5 constructors, 3.6 try/catch</cell>
+      </row>
+      <row>
+        <cell>E2 (with Phase 2 wave 2)</cell>
+        <cell>3.2 front end, 3.3 XML serializer</cell>
+      </row>
+      <row>
+        <cell>E3 (with Phase 2 wave 3)</cell>
+        <cell>3.4 other serializers, 3.7 FLWOR and expressions</cell>
+      </row>
+      <row>
+        <cell>E4 (with Phase 2 wave 4)</cell>
+        <cell>3.8 group by and windows, 3.9 constructor lowering</cell>
+      </row>
+      <row>
+        <cell>1</cell>
+        <cell>3.10 prolog, 3.13 driver</cell>
+      </row>
+      <row>
+        <cell>2</cell>
+        <cell>3.11 modules, 3.12 XQuery API and CLI</cell>
+      </row>
+      <row>
+        <cell>3</cell>
+        <cell>3.14 conformance sweeps</cell>
+      </row>
+      <row>
+        <cell>4</cell>
+        <cell>3.15 review (gate)</cell>
+      </row>
+    </table>
+    <p>Critical path: 3.1 3.2 3.7 3.10 3.12 3.14 3.15. "Working XQuery" for the owner is the end of 3.12: <code>sxml xquery</code> runs app-Walmsley and app-FunctxFunctx queries with XML output.</p>
+  </section>
+  <section id="packets">
+    <title>Packets</title>
+    <include kind="packet" to="3.0"/>
+    <include kind="packet" to="3.1"/>
+    <include kind="packet" to="3.2"/>
+    <include kind="packet" to="3.3"/>
+    <include kind="packet" to="3.4"/>
+    <include kind="packet" to="3.5"/>
+    <include kind="packet" to="3.6"/>
+    <include kind="packet" to="3.7"/>
+    <include kind="packet" to="3.8"/>
+    <include kind="packet" to="3.9"/>
+    <include kind="packet" to="3.10"/>
+    <include kind="packet" to="3.11"/>
+    <include kind="packet" to="3.12"/>
+    <include kind="packet" to="3.13"/>
+    <include kind="packet" to="3.14"/>
+    <include kind="packet" to="3.15"/>
+  </section>
+  <section id="gate">
+    <title>Gate</title>
+    <list>
+      <item checked="true">
+        <p>XQ40 (<ref kind="decision" to="D95"/> denominator) ≥ 85% pass, XQ-only cases ≥ 75%, method-* ≥ 80%, under <term name="release"/>; XP40 still ≥ 90%. (agent review, <ref kind="decision" to="D161"/>: XQ40 97.2 %, XQ-only 98.8 %, method-* 433 of 508; XP40 97.1 %)</p>
+      </item>
+      <item checked="true">
+        <p><code>qt4/slice</code> and <code>qt4/xquery-slice</code> at their baselines in CI (<code>debug</code>, <code>debug-gcc</code>, <code>wasm</code>). (agent review, <ref kind="decision" to="D161"/>: 198/198 and 186/186 under every preset, run locally as <ref kind="decision" to="D123"/> says)</p>
+      </item>
+      <item checked="true">
+        <p>No XQ40 case crashes, leaks or ends in an "error" outcome. (agent review, <ref kind="decision" to="D161"/>)</p>
+      </item>
+      <item checked="true">
+        <p><code>sxml xquery</code> and <code>sxml serialize</code> match docs/CLI.md. (agent review, <ref kind="decision" to="D161"/>; <code>--output</code> stays planned)</p>
+      </item>
+      <item checked="true">
+        <p>Review agent pass (<ref kind="decision" to="D11"/>), findings fixed; the owner is told XQuery works (<ref kind="decision" to="D11"/> goal). (agent review, <ref kind="decision" to="D161"/>; the larger follow-ups are listed there, the owner's questions in docs/LOG.md)</p>
+      </item>
+    </list>
+  </section>
+  <section id="later-sweeps">
+    <title>Later sweeps</title>
+    <include kind="packet" to="2.21"/>
+    <include kind="packet" to="2.22"/>
+    <include kind="packet" to="2.23"/>
+    <include kind="packet" to="2.24"/>
+    <include kind="packet" to="2.25"/>
+    <include kind="packet" to="2.26"/>
+    <include kind="packet" to="2.27"/>
+    <include kind="packet" to="2.28"/>
+  </section>
+</document>

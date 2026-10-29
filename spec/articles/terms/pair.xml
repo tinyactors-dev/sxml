@@ -1,0 +1,4 @@
+<term id="pair" source="docs/GLOSSARY.md">
+  <name>pair</name>
+  <definition>Two values a function relates or compares (<code>type_pair</code>, <code>item_pair</code>, <code>node_pair</code>)</definition>
+</term>

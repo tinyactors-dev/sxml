@@ -1,0 +1,4 @@
+<term id="constraint_name" source="docs/GLOSSARY.md">
+  <name>constraint_name</name>
+  <definition>The name XSD 1.1 gives a rule an error breaks (<code>cvc-complex-type.2.4</code>, <code>src-resolve</code>; Part 1, appendix C "Outcome Tabulations"): the local name, in no namespace, of the error code schema errors carry</definition>
+</term>

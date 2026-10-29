@@ -1,0 +1,4 @@
+<term id="schema_wildcard" source="docs/GLOSSARY.md">
+  <name>schema_wildcard</name>
+  <definition>XSD's wildcard component: a namespace constraint, disallowed names and process contents, matching elements or attributes by name (XSD 1.1 Part 1, 3.10); not the XPath <term name="wildcard"/> name test</definition>
+</term>

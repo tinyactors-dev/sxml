@@ -1,0 +1,4 @@
+<term id="parameter_default" source="docs/GLOSSARY.md">
+  <name>parameter_default</name>
+  <definition>How an omitted parameter gets its value: required, the context value, or supplied by the body</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="sequence_generator" source="docs/GLOSSARY.md">
+  <name>sequence_generator</name>
+  <definition>Interface that produces the items of a lazy sequence on demand</definition>
+</term>

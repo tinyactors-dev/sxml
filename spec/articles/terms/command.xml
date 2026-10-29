@@ -1,0 +1,4 @@
+<term id="command" source="docs/GLOSSARY.md">
+  <name>command</name>
+  <definition>One verb of a program (<code>sxml version</code>) with its options, positionals and function</definition>
+</term>

@@ -1,0 +1,47 @@
+<decision id="D173" status="accepted" source="docs/DECISIONS.md">
+  <title>Validation and the typed tree (packet <ref kind="packet" to="5.7"/>)</title>
+  <body>
+    <p><recorded date="2026-10-18"/>. The schema validator of <ref kind="decision" to="D165"/> and the seams of <ref kind="decision" to="D167"/> (<code>src/schema_validate.c</code>, <code>src/schema_validate_value.c</code>, <code>src/schema_validate_record.c</code>, <code>src/schema_validate_internal.h</code>); golden <code>src/xslt_whitespace.c</code>, <code>src/arena_tree.c</code>.</p>
+    <list>
+      <item>
+        <p><strong>A filtering tree builder.</strong> An element's start is held back with its bindings and attributes (glossary pending_element) until its first content event or its end; then its governing type is chosen (its declaration's, after the type table seam; the configured governing type for the root; xsi:type when validly derived, cvc-elt.4; abstract declarations cvc-elt.2 and types cvc-type.2), xsi:nil applied (cvc-elt.3), and its start, bindings and assessed attributes go on. One validation frame per open element (glossary validation_frame) on a scratch array (<ref kind="decision" to="D71"/>). Each element is assessed strictly, laxly or skipped (glossary assessment); lax and skipped elements are xs:anyType, their unassessed attributes xs:untypedAtomic (XDM 4.0, 3.3.1.1).</p>
+      </item>
+      <item>
+        <p><strong>Content</strong>: children step the parent type's content model cursor (5.6; wildcards by process contents, open content by the matcher); an error in content is reported once and the rest of the element is assessed laxly. Simple content is collected and assessed at the end, then sent as one text event of its schema normalized value, or of the declaration's default or fixed value when the element is empty (cvc-elt.5); whitespace text in content that is not mixed is dropped (XDM 4.0, 7.5.7.4), and empty content allows no character children at all (3.4.4.2 clause 1.1). Element Declarations Consistent at validation (XSD 1.1, 3.4.4.2): an element a strict or lax wildcard matched must have a type derived from that of a like-named declaration (or substitution group member) of the content model or its base types; a skipped one is not checked.</p>
+      </item>
+      <item>
+        <p><strong>Attributes</strong>: an attribute use of the name (also of an xsi: name: a required xsi:type), else the four xsi: declarations, else the attribute wildcard by process contents (strict needs a global declaration, cvc-assess-attr); missing required uses cvc-complex-type.4; uses with a default or fixed value not present are added. Values are sent as their schema normalized values.</p>
+      </item>
+      <item>
+        <p><strong>Simple values</strong> go through the cast engine (<ref kind="decision" to="D171"/>): an invalid value is reported with the facet's cvc-*-valid name the cast puts first in its description, else cvc-datatype-valid.1.2.1; xs:anySimpleType and xs:anyAtomicType values are xs:untypedAtomic (also for value constraints in SIMPLE_TYPES and COMPLEX_TYPES, which reported au-props-correct.2, a-props-correct.2 and e-props-correct.2 for them); fixed values compare item by item (atomic-equal), mixed ones as strings; ENTITY values must name an unparsed entity of the document.</p>
+      </item>
+      <item>
+        <p><strong>IDs</strong> (cvc-id, XSD 1.1, 3.17.5.2): an ID identifies its attribute's element, or the parent of an element whose content is the ID (the validation root's content identifies nothing); one value may identify one element more than once; IDREFs are checked when the validation root ends. <code>sxml_schema_id_request</code> gained <code>element_number</code>.</p>
+      </item>
+      <item>
+        <p><strong>The recorded subtree</strong> (glossary recorded_subtree): while an element whose declaration has identity constraints or whose type has assertions is open, the annotated events also go to an arena tree through a counting builder, so each element's declaration is known by node index; the checks are deferred and run, in end order, through the seams of 5.8 and 5.9 when the outermost recorded element ends. Type alternatives get a parentless copy of the element with its attributes as they appear and its in-scope namespaces; the attributes it inherits are 5.9's.</p>
+      </item>
+      <item>
+        <p><strong>Typed values</strong> are derived in <code>sxml_node_make_typed_value</code> (<ref kind="decision" to="D165"/>): a nilled element none, empty content the empty sequence, element-only content FOTY0012, mixed content and xs:anySimpleType xs:untypedAtomic, otherwise the string value cast with the element's (an attribute's parent's) in-scope namespaces.</p>
+      </item>
+      <item>
+        <p><strong><code>sxml_schema_validate_node</code></strong> copies the node through a validator into a new arena tree (<code>sxml_tree_builder_copy_node</code>, annotations dropped); a copy of a node that is no document keeps its base URI.</p>
+      </item>
+      <item>
+        <p><strong>Driver</strong> (<code>tests/xsd/driver/xsd_test_run.c</code>): instance tests validate while parsing; the instance's xsi:schemaLocation and xsi:noNamespaceSchemaLocation hints are followed by the driver, not the library (schema.h: hints are not followed; 4.3.2 allows either): the hinted documents are added as RESOLVED documents relative to the instance, and a hint that breaks the schema is not followed. The suite expects hints for 55 instance tests of groups without a schema test and for some with one.</p>
+      </item>
+      <item>
+        <p><strong>schema.h</strong> (provisional, comment only): a document the resolver does not deliver is no error for include, redefine and override either (XSD 1.1, 4.2.3 clause 2.4), resolving 5.4's Proposed item.</p>
+      </item>
+      <item>
+        <p><strong>Quick fix for 5.6</strong>: ##definedSibling excludes the substitution group members of the content model's declarations (3.10.4.2).</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong>: the attributes an element inherits (for type alternatives, 5.9); the XML 1.1 instances of saxon-XmlVersions (the parser reads XML 1.0); identity constraints and assertions stay UNSUPPORTED_FEATURE where used (<ref kind="decision" to="D167"/>, <ref kind="decision" to="D162"/>).</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release, at the packet's last commit): XSD in scope 40,755 of 41,518 (98.2 %): instance tests 25,533 of 26,189 (97.5 %; NIST 100 %, Microsoft 95.0 %, Sun 93.9 %, IBM 65.3 %, Saxonica 74.5 %; 632 meet identity constraints, assertions or type alternatives and are not run), schema tests 15,222 of 15,329; gate groups: datatypes 100 %, structures 95.6 %, XSD 1.1 83.3 %; the XSD slice 147 of 147. XP40 30,647, XQ40 40,034 and XT40 7,990 unchanged.</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,23 @@
+<decision id="D171" status="accepted" source="docs/DECISIONS.md">
+  <title>Simple types and facets (packet <ref kind="packet" to="5.5"/>)</title>
+  <body>
+    <p><recorded date="2026-10-18"/>. Fills SIMPLE_TYPES (<ref kind="decision" to="D167"/>) and registration (<ref kind="decision" to="D165"/>).</p>
+    <list>
+      <item>
+        <p><strong>One lexical engine.</strong> Casting to a registered type is its whiteSpace facet (the nearest on its chain of registered bases, else the built-in one), the lexical mapping of its built-in ancestor (src/cast_lexical.c), then every facet of it and its registered bases (new src/cast_facet.c, part of the cast engine): steps by conjunction, the patterns of a step by disjunction. A failure is FORG0001 whose description starts with the constraint name (cvc-minInclusive-valid, ...), so validation (5.7) can report it with XSD's code. Facet values are read with the lexical mapping of the value's built-in type, never cast back through src/cast.c (<ref kind="decision" to="D71"/>). Equality is atomic-equal in that type (QNames by EQName); order is XSD's (<code>sxml_cast_order_values</code>: NaN incomparable, a date without a timezone compared at -14:00 and +14:00, durations at the four reference dateTimes of Part 2, E.3.3). Lists made by xs:list may be empty; a union's facets apply to the value its first accepting member gives, and no other member is tried after them.</p>
+      </item>
+      <item>
+        <p><strong>Patterns</strong>: <code>sxml_regex_flags.is_xsd_pattern</code> (<ref kind="decision" to="D53"/>'s flag), the regex anchored to the whole value, ^ and $ ordinary, back-references, reluctant quantifiers, (? and (* groups and \b \B FORX0002. A pattern is compiled per check, in heap memory (open: a cache).</p>
+      </item>
+      <item>
+        <p><strong>Registration</strong> (<code>sxml_type_registry_register_schema_type</code>, src/types.c): no interning, no name index; facets copied, in the component's facet order, so a stage can pair registered (canonical) values with the components' fixed flags.</p>
+      </item>
+      <item>
+        <p><strong>SIMPLE_TYPES</strong> reads "simple" as "variety not COMPLEX" and replaces the variety of a restriction with its base's, so READ may write any simple variety for xs:restriction (comment at the stage's declaration). Order: an explicit stack over the type table; a type met again on it is st-props-correct.2. Facet values are made canonical (counts, keywords, enumeration values cast to the base, bounds read in the built-in type and compared with the base's bounds as Part 2, 4.3.7.4 to 4.3.10.4 say: incomparable values break no rule); the base's effective facets include the implicit ones of built-in types (whiteSpace, fractionDigits 0 of xs:integer, minLength 1 of the built-in lists, explicitTimezone of xs:dateTimeStamp). A failed type is not registered and the types made from it are skipped without a second report. Then value constraints of attribute declarations and uses are cast to their types (a-props-correct.2, au-props-correct.2). NOTATION enumeration values are read as QNames and must name notation declarations; xs:NOTATION itself (a declaration's type, a list item, a union member, a restriction without enumeration) is enumeration-required-notation. In the XSD dialect an unknown block name is all characters (Part 2, G.4.2.4) and an unescaped "-" never starts a range.</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release, schema tests only: instance tests wait for 5.7): NIST 3,953 of 3,953, MS-Regex 2,590 of 2,590, MS-DataTypes 2,240 of 2,247, MS-SimpleType 322 of 334, Saxon Simple 65 of 65; the rest are the reader's (duplicate ids, include and redefine order, stZ033's chain of redefinitions) and complex types'. All XSD: 15,073 passed, 335 failed of the 15,408 run. XP40 30,647 and XQ40 40,034 unchanged, slice 198.</p>
+      </item>
+    </list>
+  </body>
+</decision>

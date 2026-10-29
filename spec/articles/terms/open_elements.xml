@@ -1,0 +1,4 @@
+<term id="open_elements" source="docs/GLOSSARY.md">
+  <name>open_elements</name>
+  <definition>The HTML parser's stack of open elements, the current node last (HTML Living Standard, 13.2.4.2)</definition>
+</term>

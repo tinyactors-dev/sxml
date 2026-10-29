@@ -1,0 +1,4 @@
+<term id="whitespace_stripping" source="docs/GLOSSARY.md">
+  <name>whitespace_stripping</name>
+  <definition>Removing the whitespace text nodes that <code>xsl:strip-space</code> names from a copy of a source document (XSLT 4.0, 4.2.2; <ref kind="decision" to="D150"/>)</definition>
+</term>

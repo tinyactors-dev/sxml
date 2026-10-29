@@ -1,0 +1,4 @@
+<term id="stylesheet_reader" source="docs/GLOSSARY.md">
+  <name>stylesheet_reader</name>
+  <definition>What reads stylesheet modules into the stylesheet AST (<code>sxml_xslt_read_stylesheet</code>, packet <ref kind="packet" to="4.5"/>)</definition>
+</term>

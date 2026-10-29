@@ -1,0 +1,23 @@
+<decision id="D303" status="accepted" source="docs/DECISIONS.md">
+  <title>Vane is one service with modules and two SDKs (packet book-22)</title>
+  <body>
+    <p><recorded date="2026-10-21"/>, after <ref kind="decision" to="D299"/> and <ref kind="decision" to="D301"/>. The owner found Vane as a set of services nonsensical: "make it a monolithic service that's fully featured, and we want to offer client libraries/SDKs for frontend and backend, so it's a believable example." The projects, counts, planted flaws and diff shapes of <ref kind="decision" to="D301"/> stay; docs/tasks/book.md section 9 has the change table and the packets.</p>
+    <list>
+      <item>
+        <p><strong>One service</strong>, <code>vane</code> (TypeScript on Node.js), whose parts are modules (api, flags, registry, cache, rollout, audit, db), backed by PostgreSQL and Redis; an evaluation API for the SDKs, an admin API for the console, both as the remote functions of the codegen project (<code>GET /api/getFlags</code>, <code>POST /api/killFlag</code>, ...), and an update stream (the draft's ABNF lines, now rollout-update, kill-update, status-request). Two SDKs: <code>@vane/browser</code> (evaluateFlags for one user) and <code>@vane/node</code> (getFlags, local evaluation, a cache kept current from the stream).</p>
+      </item>
+      <item>
+        <p><strong>The change keeps its shape in modules</strong>: listFlags's N+1 runs against PostgreSQL (report "1 -&gt; 1 + n"), killFlag drops the Redis read and calls the audit module. The new trace participant is the owners' webhook (hooks.example.com), not a service: a monolith has no new service to add, and an audit write alone would only change a count. The trace diff loses its "none -&gt;" version line (nothing new has a resource); that is accepted, and the traces packet teaches the case another way.</p>
+      </item>
+      <item>
+        <p><strong>The diagram draws modules as boxes</strong> labelled <code>vane/MODULE</code>, not a group box: the vocabulary and layout code stay, so draw.xq still writes diagram.svg byte for byte, and no other chapter's diagram changes. Rejected: a <code>group</code> element (new layout machinery for one picture).</p>
+      </item>
+      <item>
+        <p><strong>Codegen joins the story</strong>: it generates the SDK clients (one module per name in api.xml's new <code>clients</code> attribute), the console's client and the service's request validation from vane-api.xsd; the library example goes. The spec keeps its anchors and counts; only wording that described separate services, the ABNF rule names, the Percentage term (rollout by a hash) and req-10 (the SDK's cache) changed.</p>
+      </item>
+      <item>
+        <p><strong>Packets</strong> book-23 to book-29 carry the chapters over (rules of book-15 to book-21: regenerate every output, read it, prose matches, the search words find nothing); book-29 integrates.</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,20 @@
+<packet id="perf-13" source="docs/tasks/phase-7.md">
+  <title>Compiling XSLT and Schematron: the component graph, value templates, the Schematron front end (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D320"/>, <ref kind="decision" to="D323"/> and <ref kind="decision" to="D324"/> (perf-12, whose Proposed entry names the first two). With perf-12, validating one EN 16931 invoice with the pre-compiled stylesheet takes 0.29–0.37 s (2.08 x 10^9 instructions); validating it with <code>sxml validate --schematron</code> from the <code>.sch</code> sources takes 0.59–0.73 s, the Schematron compile 0.53–0.59 s (<ref kind="decision" to="D323"/>).</p>
+    <list>
+      <item>
+        <p><strong>Known costs</strong>: XSLT's component graph grows with the square of the stylesheet (<code>add_named_edges</code> in <code>src/xslt_lower_control.c</code>, <code>sxml_xslt_package_bind</code>); value templates are parsed even when they contain no "{" (6.3 % of the invoice).</p>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong>: profile first (callgrind on both invoice runs and on perf-12's growth series); make the component graph linear in the stylesheet with the same result; a value template without "{" or "}" is its text (XSLT 4.0, 5.6.1); then the largest costs the profile of the Schematron compile shows in the files below (reading the <code>.sch</code>, expanding abstract patterns, building the AST). The IR text form after the passes stays identical; compiled Schematron gives the same findings.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/xslt_lower*.c</code>, <code>src/xslt_read.c</code>, <code>src/xslt_package*</code> and their internal headers, <code>src/schematron*</code>, <code>tests/xslt_*</code>, <code>tests/schematron_test.c</code>, <code>tests/bench/</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: each change measured before and after (instructions and seconds) in a D-record and the commit messages, on both invoice runs, the growth series, xmark-all and the XT40 stylesheets' compile; IR text identical on EN 16931 and the XT40 units; Schematron: the 7.30 suite as in <ref kind="decision" to="D323"/> and EN 16931 UBL 1,133 of 1,133 from the sources; QT4 XP40, XQ40 and XT40 whole, base and change in the same setup: no outcome changes, case by case. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D325"/>): components, instances, globals and templates found through indexes made once; a value template without braces is its text; the Schematron builder parses each synthesized text once. Invoice 2.077 to 1.958 x 10^9 instructions, validate --schematron 3.366 to 2.633; growth N = 256 18.2 to 11.0; IR text identical; XP40, XQ40, XT40 0 outcomes differ; Schematron 463 of 463, VEFA 1,133 of 1,133.</p>
+      </item>
+    </list>
+  </body>
+</packet>

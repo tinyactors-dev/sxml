@@ -1,0 +1,4 @@
+<term id="group_name" source="docs/GLOSSARY.md">
+  <name>group_name</name>
+  <definition>The name of a named capturing subexpression, <code>(?&lt;name&gt;...)</code>; <code>\k&lt;name&gt;</code> refers back to it and result maps key its group by it (F&amp;O 4.0, section 6.1.5)</definition>
+</term>

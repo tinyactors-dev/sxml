@@ -1,0 +1,4 @@
+<term id="exit_code" source="docs/GLOSSARY.md">
+  <name>exit_code</name>
+  <definition>The process exit status: success 0, operation failed 1, usage error 2, input/output error 3, internal error 4</definition>
+</term>

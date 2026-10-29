@@ -1,0 +1,4 @@
+<term id="schema_document_source" source="docs/GLOSSARY.md">
+  <name>schema_document_source</name>
+  <definition>Where the configuration's schema document comes from: its text, or the resource resolver</definition>
+</term>

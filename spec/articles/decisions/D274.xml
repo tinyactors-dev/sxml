@@ -1,0 +1,38 @@
+<decision id="D274" status="accepted" source="docs/DECISIONS.md">
+  <title>XSLT conformance sweep: CDATA requests, key details, strip-space "none", XTTE0950 (packet 4.27)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D188"/>, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D260"/>, <ref kind="decision" to="D262"/>, <ref kind="decision" to="D273"/>. Verified as <ref kind="decision" to="D181"/> asks: the debug preset (arena_tree, serialize<em>, xslt</em>, xslt_key, xslt_number, xslt_output, xslt_read, xslt_schema, xslt_value_template, evaluator_construct, function_library<em>, processor, json, xquery, cli tests), clang-tidy on the changed files, the call-cycle check, the book examples (<ref kind="decision" to="D257"/>), the QT4 sets of the changed functions and serializer (XP40/XQ40: fn-serialize, method-xml/-xhtml/-html, fn-transform, fn-doc, fn-doc-available, fn-parse-xml, fn-collection, the construction sets), and the whole XT40 suite with the release driver after each change, case by case. *</em>XT40 12,210 to 12,226 passed (115 to 107 wrong error), 308 to 292 failed, 0 errors, no case lost** (<ref kind="decision" to="D273"/>'s 12,209 became 12,210 with 2.24's commits); at 92a8a8c, with 2.25's commits 9973519 and 5f79679, 12,239 passed and 279 failed. Commits 1018850, 2f14d94, e0dadcc, a7086d6, c427878, 150a638, 0c0f1e9, c1436f8, 92a8a8c.</p>
+    <list>
+      <item>
+        <p><strong>CDATA requests</strong> (11.4.3, implementation-defined; <ref kind="decision" to="D188"/>'s approach): inside a parent, text that differs in asking for CDATA sections is a text node of its own (src/arena_tree.c; the streamed serializer flushes alike unless the parent is in cdata-section-elements); the serializer leaves a CDATA section open so adjacent text nodes' sections join, and any other output or the final flush closes it (a "]]&gt;" across them is still split). The XSLT lowering asks for CDATA only in final output state, as for disable-output-escaping (one mark_choice_of for both), so temporary trees keep XDM's single text node: the deviation from XDM 4.0, 6.7.1 stays limited to final result trees, as <ref kind="decision" to="D188"/>'s is. text-012, -019, -020, value-of-012.</p>
+      </item>
+      <item>
+        <p><strong>Static XTSE0020</strong> (5.6.1: only a value written with curly brackets escapes the static check): a fixed start-at that is no list of integers (12.1; number-0109, error-1001a); static="yes" below the top level (9.2, 9.6; static-025); an ItemType attribute with an occurrence indicator (context-item-901). One sxml_xslt_lowering_read_fixed_text replaces three private copies.</p>
+      </item>
+      <item>
+        <p><strong>Other codes</strong>: XTSE1220 for keys of one name with different collations, XTSE1222 only for composite (collations-0125, error-1210b, -1220a); XTSE0620 for a static variable with select and content (use-when-0431); XTSE3022 before XTSE3010 (expose-914).</p>
+      </item>
+      <item>
+        <p><strong>Keys over namespace nodes</strong> (6.3, 20.2.1; key-087, -090): a key whose pattern has a namespace-node() test or a namespace-axis step also visits $root/descendant-or-self::<em>/namespace::</em>; other keys are unchanged.</p>
+      </item>
+      <item>
+        <p><strong>strip-space "none"</strong> (F&amp;O 4.0, 17.1.1; XSLT 4.0, 20.1; document-4031, -4031-doc): the document request's skips_preparation (src/evaluator_internal.h) makes the loader read the document without the stylesheet's xsl:strip-space and not keep it (a new tree per call, as "all" makes a new stripped copy). Without a preparation (XPath, XQuery) nothing changes. <strong>Left</strong>: an available document is given as configured, which in XSLT is its stripped copy.</p>
+      </item>
+      <item>
+        <p><strong>XTTE0950</strong> (11.9.1.1, 11.9.2; error-0950a, -0950b, copy-of-009): XQuery's XQTY0086 check (sxml_construction_check_copy) applies to XSLT's copies with validation="preserve" too, with XSLT's code; an element SHALLOW_COPY copies with new content is recorded so its own attributes are copied with their parent. fn:copy-of now preserves type annotations, as its definition (validation="preserve", 20.6.1) says (validation-1203 passes too).</p>
+      </item>
+      <item>
+        <p><strong>Smaller</strong>: value template fixed parts accept XML 1.1 Char, which the XML parser has already checked (xml-version-007); name attributes read XPath 4.0's Q{uri}prefix:local (PR 2272; variable-0124, function-0123).</p>
+      </item>
+      <item>
+        <p><strong>The draft decides, left</strong> (<ref kind="decision" to="D245"/>): key-070 (4.0 compares keys by deep-equal, NaN matches NaN; the suite has 3.0's eq); error-0150b, -0150c, -0150e (4.0 simplified stylesheets need no xsl:version, so XTSE0150 is gone; an included catalog's text value templates give XPST0003); iterate-006 (XTSE3120 covers xsl:next-iteration outside xsl:iterate); maps-910 and iterate-024 hold a second error the reader meets first (XTSE0010, XTSE0090).</p>
+      </item>
+      <item>
+        <p><strong>Left, with causes</strong>: xsl:next-match in an attribute set (next-match- 012, attribute-set-0108: attribute sets are lowered outside a template body, and the evaluator's current rule is not cleared where the lowering clears it lexically); per-package xsl:strip-space for fn:document (document-2401); fragment identifiers in xsl:source-document (docbook-003, -004); the suite's assert-xml expectations without the result's whitespace (use-package-170 to -173, <ref kind="decision" to="D262"/>'s list); namespace-2606 (expects XML 1.1 undeclarations); XTTE errors of XSLT validation without a line (<ref kind="decision" to="D271"/>: the XSLT lowering adds expressions without a source span; no conformance effect); <ref kind="decision" to="D273"/>'s and <ref kind="decision" to="D262"/>'s other items.</p>
+      </item>
+      <item>
+        <p>The XT40 section of <code>docs/CONFORMANCE.md</code> was not regenerated (a later packet regenerates it from whole runs of all suites).</p>
+      </item>
+    </list>
+  </body>
+</decision>

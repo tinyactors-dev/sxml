@@ -1,0 +1,4 @@
+<term id="internal_subset" source="docs/GLOSSARY.md">
+  <name>internal_subset</name>
+  <definition>The declarations between <code>[</code> and <code>]</code> of a document type declaration (XML 1.0, section 2.8)</definition>
+</term>

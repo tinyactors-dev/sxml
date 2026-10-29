@@ -1,0 +1,4 @@
+<term id="source_location" source="docs/GLOSSARY.md">
+  <name>source_location</name>
+  <definition>Source name, line number, column number and byte offset of a position in a source text</definition>
+</term>

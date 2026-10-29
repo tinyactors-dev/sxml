@@ -1,0 +1,4 @@
+<term id="json_event" source="docs/GLOSSARY.md">
+  <name>json_event</name>
+  <definition>One step of walking a JSON text: the start or end of an object or array, a key, or a scalar; what a JSON sink receives</definition>
+</term>

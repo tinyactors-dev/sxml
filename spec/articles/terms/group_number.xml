@@ -1,0 +1,4 @@
+<term id="group_number" source="docs/GLOSSARY.md">
+  <name>group_number</name>
+  <definition>The number of a capturing subexpression: its capturing left parenthesis counted from 1, left to right</definition>
+</term>

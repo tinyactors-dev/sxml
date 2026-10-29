@@ -1,0 +1,4 @@
+<term id="notation_declaration" source="docs/GLOSSARY.md">
+  <name>notation_declaration</name>
+  <definition>A named notation with its system and public identifiers (XSD 1.1 Part 1, 3.14)</definition>
+</term>

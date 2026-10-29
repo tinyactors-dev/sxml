@@ -1,0 +1,17 @@
+<packet id="perf-3" source="docs/tasks/phase-7.md">
+  <title>XML parsing speed (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D12"/> (tree-sitter parses XML, the owner's choice), <ref kind="decision" to="D222"/> (segmented parsing) and <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/> (the benchmarks; parsing a quarter of XMark-All).</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: profile parsing alone (callgrind, 10 MB and 100 MB); fewer tokens and nodes in the grammar and its scanner, a cheaper walk; tree-sitter, the segments and the incremental events kept.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>grammars/xml/</code>, <code>src/xml.c</code>, <code>src/xml_segment.c</code>, <code>src/xml_encoding.c</code>; the validation loop of <code>src/string.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: MB/s before and after for parse-only and the tree, and XMark-All, in a D-record; xmlconf, QT4 and XT40 unchanged case by case. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D232"/>): tags and attributes without references as single tokens and childless nodes, content items without rebalancing, fields by number, node types by symbol. Parse-only 14.9 to 25.2 MB/s, the tree 13.4 to 21.3 MB/s (6.71 to 3.90 x 10^9 instructions at 10 MB); XMark-All 9.87 to 8.88; QT4 and XT40 unchanged case by case.</p>
+      </item>
+    </list>
+  </body>
+</packet>

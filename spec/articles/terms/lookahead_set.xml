@@ -1,0 +1,4 @@
+<term id="lookahead_set" source="docs/GLOSSARY.md">
+  <name>lookahead_set</name>
+  <definition>Where an Earley item stands, the distinct terminals that can read the next character, and end of input: FIRST of the rest of its production, with the FOLLOW set of its nonterminal when that rest can be empty. An item whose lookahead set misses the next character's class is not made (<ref kind="decision" to="D283"/>)</definition>
+</term>

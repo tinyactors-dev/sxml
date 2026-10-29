@@ -1,0 +1,6 @@
+<decision id="D40" status="accepted" source="docs/DECISIONS.md">
+  <title>Tree builder and arena tree</title>
+  <body>
+    <p><recorded date="2026-10-16"/> (task 0.7). One event interface, <code>sxml_tree_builder</code> (start/end document and element, namespace binding, attribute, text, comment, processing instruction, unparsed entity), is fed by the XML parser, XQuery constructors and XSLT instructions, and implemented by the arena tree and later by serializers, so results can stream to output. Builders merge adjacent text, drop empty text, reject duplicate attributes and perform namespace fixup (XSLT 4.0, section 5.7.3). <code>sxml_tree_builder_copy_node</code> replays a subtree as events (deep copy with copy-namespaces modes). The arena tree stores nodes in index-addressed arrays and text in one store (<ref kind="decision" to="D24"/>), shares in-scope namespace lists between elements that declare nothing, keeps source locations on request, and enforces node-count, depth and text-size limits for untrusted input.</p>
+  </body>
+</decision>

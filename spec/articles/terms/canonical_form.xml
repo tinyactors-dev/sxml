@@ -1,0 +1,4 @@
+<term id="canonical_form" source="docs/GLOSSARY.md">
+  <name>canonical_form</name>
+  <definition>How an article file is written: indented as <code>sxml serialize --indent</code> writes it, with a final newline; a file not in it was edited as text (<code>spec:not-canonical</code>)</definition>
+</term>

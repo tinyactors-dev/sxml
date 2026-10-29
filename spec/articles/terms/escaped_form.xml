@@ -1,0 +1,4 @@
+<term id="escaped_form" source="docs/GLOSSARY.md">
+  <name>escaped_form</name>
+  <definition>Text whose special characters are kept as JSON escape sequences (option <code>escape</code>; attributes <code>escaped</code>, <code>escaped-key</code>)</definition>
+</term>

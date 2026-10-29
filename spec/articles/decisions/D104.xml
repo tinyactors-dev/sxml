@@ -1,0 +1,32 @@
+<decision id="D104" status="accepted" source="docs/DECISIONS.md">
+  <title>The public API for Phase 2 (packet <ref kind="packet" to="2.2"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D51"/>'s "left out until needed" for Phase 2. <code>processor.h</code>, <code>xpath.h</code>, <code>version.h</code>; only new fields at the end of structs and new constants at the end of enumerations, so Phase 1 code compiles unchanged (zero keeps the old behaviour).</p>
+    <list>
+      <item>
+        <p><strong>Decimal formats</strong> (static context): <code>sxml_decimal_format</code> (name, index 0 the unnamed format) with properties as text, <code>{kind, value}</code>, one kind per F&amp;O 4.0 property (11). Text, not codepoints, because every source gives text (xsl:decimal-format attributes, XQuery declarations, QT4 <code>decimal-format</code>), and 4.0's marker-and-rendition form (<code>%:pc</code>, type <code>'.|.:.*'</code>) parses once in sxml. An absent kind has its default. A breach (wrong form, markers not distinct, zero-digit not an Nd zero, duplicate names) is INVALID_ARGUMENT for the XPath API; XQuery and XSLT raise their own codes (XQST0097/8, XTSE1300) before handing formats over.</p>
+      </item>
+      <item>
+        <p><strong>Collations</strong> (static context): <code>default_collation_uri</code> (empty is codepoint; XPath 4.0 puts it in the dynamic context, but every host knows it statically) and <code>collation_bindings</code>, host URIs that stand for a supported collation (the spec's "mapping from URI to collation"). <code>sxml_collation_is_supported(uri)</code> tells hosts and the QT4 driver which URIs sxml implements (<ref kind="decision" to="D97"/>); packet <ref kind="packet" to="2.12"/> defines it in <code>src/xpath.c</code> over the collation lookup that 2.13 later completes. No host collation interface: <ref kind="decision" to="D97"/> keeps collations inside sxml.</p>
+      </item>
+      <item>
+        <p><strong>Dynamic context</strong>: <term name="default_language"/> (empty is "en"), <code>environment_variables</code> (name/value views; sxml never reads the platform's), <term name="trace_sink"/> (null means the processor's).</p>
+      </item>
+      <item>
+        <p><strong>Resources</strong>: kinds TEXT, BINARY, COLLECTION, URI_COLLECTION, XQUERY_MODULE, XSLT_MODULE, XSLT_PACKAGE, each with the forms it allows (a wrong form is INVALID_ARGUMENT); new form SEQUENCE with an owned <code>items</code> sequence for collections; request fields <term name="encoding_name"/> (fn:unparsed-text's argument; sxml decodes by the resource's encoding, then the request's, then BOM, then UTF-8), <code>is_default_collection</code>, <term name="target_namespace_uri"/> (import module) and <term name="package_version"/> (xsl:use-package; uri_reference is the package name). The table resolver serves bytes for every kind that takes them. <code>processor.c</code> gains the SEQUENCE case of fn:doc's switch (INVALID_ARGUMENT).</p>
+      </item>
+      <item>
+        <p><strong>Trace sink</strong>: one interface for fn:trace, fn:message and xsl:message (and failed xsl:assert): <code>receive(state, event)</code> with kind, label, value (borrowed sequence), <code>is_terminating</code> and <term name="error_code"/> for XSLT, location and processor; the null sink discards; a failure stops the evaluation; a sink may nest an evaluation, as a host function may. <code>sxml_stream_trace_sink(&amp;output_stream)</code> writes <code>label: value</code> lines (adaptive, item separator " "): the default implementation and test double, defined by 2.12 in <code>src/processor.c</code>. <code>processor.h</code> now includes <code>serialize.h</code> (no cycle). The two new functions are declared only until 2.12; nothing calls them before.</p>
+      </item>
+      <item>
+        <p><strong>Version</strong>: <code>SXML_VERSION_ENCODE(major, minor, patch)</code>, <code>SXML_VERSION_NUMBER</code> and <code>SXML_API_VERSION</code> = 0.2.0, the first public release's API; 2.18 sets the version macros themselves.</p>
+      </item>
+      <item>
+        <p>Still left out, each a new field later: host extension functions, cancellation, a random seed, default calendar and place.</p>
+      </item>
+      <item>
+        <p>From now on these headers change only through a record until 0.2.0 (<ref kind="decision" to="D47"/>, <ref kind="decision" to="D99"/>).</p>
+      </item>
+    </list>
+  </body>
+</decision>

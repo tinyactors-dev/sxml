@@ -1,0 +1,4 @@
+<term id="entity_frame" source="docs/GLOSSARY.md">
+  <name>entity_frame</name>
+  <definition>One level of nested entity expansion in the XML parser: the replacement text being walked and the entity it belongs to</definition>
+</term>

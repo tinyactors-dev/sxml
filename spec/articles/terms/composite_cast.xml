@@ -1,0 +1,4 @@
+<term id="composite_cast" source="docs/GLOSSARY.md">
+  <name>composite_cast</name>
+  <definition>A cast to an array, map or record type (XPath 4.0, sections 4.19.2.4 to 4.19.2.7): the coercion frames run with the cast rules, so an item that does not match is cast to the item type, and a record keeps only its fields</definition>
+</term>

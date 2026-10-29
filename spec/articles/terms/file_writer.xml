@@ -1,0 +1,4 @@
+<term id="file_writer" source="docs/GLOSSARY.md">
+  <name>file_writer</name>
+  <definition>Interface through which a command of the sxml program writes the files its command line names: each write goes to a temporary file beside the target and is committed (moved into place in one step) or abandoned (<code>sxml_cli_file_writer</code>, <code>sxml_cli_file_write</code>; <ref kind="decision" to="D217"/>)</definition>
+</term>

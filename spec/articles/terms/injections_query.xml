@@ -1,0 +1,4 @@
+<term id="injections_query" source="docs/GLOSSARY.md">
+  <name>injections_query</name>
+  <definition>A tree-sitter query (the grammar's <code>queries/injections.scm</code>) whose captures <code>injection.content</code> and <code>injection.language</code> mark nodes whose text is code in another language (<ref kind="decision" to="D288"/>)</definition>
+</term>

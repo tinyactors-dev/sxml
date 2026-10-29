@@ -1,0 +1,4 @@
+<term id="insertion_sequence" source="docs/GLOSSARY.md">
+  <name>insertion_sequence</name>
+  <definition>The nodes an insert or replace expression copies in, made from its source as element content: atomic runs become text, documents their children (XQuery Update Facility 3.0, 5.4.1)</definition>
+</term>

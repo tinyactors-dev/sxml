@@ -1,0 +1,4 @@
+<term id="reads_source_locations" source="docs/GLOSSARY.md">
+  <name>reads_source_locations</name>
+  <definition>Said of a compiled program (an IR unit) that can ask for the source locations of the documents it reads: it calls or refers to fn:location, fn:function-lookup, fn:load-xquery-module, fn:transform or xsl:evaluate, or has schemas it can validate with; under AUTOMATIC its documents keep locations (<ref kind="decision" to="D313"/>, <ref kind="decision" to="D318"/>)</definition>
+</term>

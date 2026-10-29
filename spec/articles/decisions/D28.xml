@@ -1,0 +1,26 @@
+<decision id="D28" status="accepted" source="docs/DECISIONS.md">
+  <title>XML 1.0 grammar</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. <code>grammars/xml</code> is written for sxml, not vendored: tree-sitter-grammars/tree-sitter-xml (MIT) was studied but is too lenient and its tag-stack scanner is unsafe for deep or non-ASCII documents (reasons in <code>grammars/xml/README.md</code>; credit in <code>grammars/xml/NOTICE</code>).</p>
+    <list>
+      <item>
+        <p>Node names spell out the XML 1.0 production names in snake_case (<code>STag</code> is <code>start_tag</code>, <code>CharData</code> is <code>character_data</code>); names, values and identifiers are fields. Content items are direct children of <code>element</code>.</p>
+      </item>
+      <item>
+        <p>External scanner (<code>src/scanner.c</code>): element names on a tag stack, so a mismatched end tag is an <code>ERROR</code> (WFC Element Type Match); character data, CDATA text, comment text and PI content with their delimiters and [2] Char; PI targets other than <code>xml</code>. The stack is a persistent, interned table of (parent frame, name) pairs owned by the scanner; the serialized state is one 4-byte frame index, so depth and name length are unlimited. The scanner allocates through <code>ts_malloc</code>/<code>ts_calloc</code>/<code>ts_realloc</code> (<ref kind="decision" to="D12"/> exemption).</p>
+      </item>
+      <item>
+        <p>Only the document and its internal subset are parsed; parameter-entity references inside internal-subset declarations are a grammar error (WFC PEs in Internal Subset). The external subset and text declarations have no grammar.</p>
+      </item>
+      <item>
+        <p>Every well-formedness check the grammar cannot make is listed in <code>grammars/xml/README.md</code> ("What the tree builder checks"). Entity replacement text is checked by parsing it wrapped in a dummy element.</p>
+      </item>
+      <item>
+        <p><code>grammars/CMakeLists.txt</code> registers every <code>grammars/&lt;language&gt;/src/parser.c</code> with <code>sxml_add_grammar</code>; a new grammar needs no CMake edit.</p>
+      </item>
+      <item>
+        <p>Measured: W3C XML suite (standalone, XML 1.0 Fifth Edition) valid 601/601 and invalid 175/175 parse cleanly, not-wf 870/948 rejected by the grammar (the other 78 are builder constraints); all 3583 well-formed UTF-8 <code>*.xml</code> files of the QT4 and XSLT 4.0 suites parse cleanly.</p>
+      </item>
+    </list>
+  </body>
+</decision>

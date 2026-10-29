@@ -1,0 +1,160 @@
+<document id="tasks/phase-4" source="docs/tasks/phase-4.md">
+  <title>Phase 4: XSLT 4.0</title>
+  <p>Goal (PLAN.md): XSLT 4.0 templates, modes and minimal packages, lowered into the shared IR (<ref kind="decision" to="D46"/>, <ref kind="decision" to="D55"/>) and run by the one evaluator; <code>sxml transform</code> (docs/CLI.md). Gate: <strong>70% of the in-scope XSLT 4.0 test cases pass</strong> (<ref kind="decision" to="D95"/>; in scope: spec XSLT40, not the <code>strm</code> and <code>sandp</code> groups, no schema_aware, streaming, dtd, XML_1.1, XSD_1.1, backwards_compatibility, HTML4 or ICU_spellout feature; about 8,700 cases). Rules for parallel packets are those of <code>docs/tasks/phase-2.md</code> (<ref kind="decision" to="D45"/>, <ref kind="decision" to="D96"/>).</p>
+  <section id="overlap-with-phases-2-and-3-d96">
+    <title>Overlap with Phases 2 and 3 (<ref kind="decision" to="D96"/>)</title>
+    <p>Packets marked <strong>Early</strong> may start once the Phase 1 gate is closed and their "After" list is committed, during Phases 2 and 3; they own no file of a running packet. Early: 4.0, 4.1, 4.2, 4.3, 4.4, 4.5. The others wait for the Phase 3 gate (they need XQuery's constructors, try/catch, serializers and API, and must not race its sweeps for files).</p>
+  </section>
+  <section id="how-xslt-lowers-src-ir-internal-h">
+    <title>How XSLT lowers (<code>src/ir_internal.h</code>)</title>
+    <p>The stylesheet is parsed by sxml's XML parser into an arena tree, read into a stylesheet AST (4.2) and lowered by XSLT lowering parts (2.1): instructions as XQuery (xsl:variable LET, xsl:for-each MAP, xsl:sort SORT, xsl:choose CONDITIONAL, literal result elements and xsl:element the constructor kinds, xsl:copy SHALLOW_COPY, xsl:try TRY_CATCH); XPath in attributes through the embedding entry of 2.1 with each element's static context; template rules as the named extension point (modes, rules, match functions from patterns, APPLY_TEMPLATES), as <code>src/ir_internal.h</code> writes out. No new IR kind; a packet that needs one writes "Proposed".</p>
+  </section>
+  <section id="parallelism-plan">
+    <title>Parallelism plan</title>
+    <table>
+      <row header="true">
+        <cell>Wave</cell>
+        <cell>Packets (run together)</cell>
+      </row>
+      <row>
+        <cell>E0 (Phase 2 wave 0)</cell>
+        <cell>4.2 stylesheet AST</cell>
+      </row>
+      <row>
+        <cell>E1 (Phase 2 wave 1)</cell>
+        <cell>4.3 value templates, 4.4 patterns</cell>
+      </row>
+      <row>
+        <cell>E2 (Phase 2 wave 2)</cell>
+        <cell>4.0 XSLT API</cell>
+      </row>
+      <row>
+        <cell>E3 (Phase 2 wave 3)</cell>
+        <cell>4.1 XSLT driver</cell>
+      </row>
+      <row>
+        <cell>E4 (Phase 3)</cell>
+        <cell>4.5 stylesheet reader</cell>
+      </row>
+      <row>
+        <cell>1</cell>
+        <cell>4.6 sequence constructors</cell>
+      </row>
+      <row>
+        <cell>2</cell>
+        <cell>4.7 control flow, 4.8 templates and modes</cell>
+      </row>
+      <row>
+        <cell>3</cell>
+        <cell>4.9 sorting and grouping, 4.10 keys and XSLT functions, 4.11 numbering and analyze-string, 4.12 functions and declarations</cell>
+      </row>
+      <row>
+        <cell>4</cell>
+        <cell>4.13 output and result documents, 4.14 accumulators</cell>
+      </row>
+      <row>
+        <cell>5</cell>
+        <cell>4.15 XSLT API and CLI</cell>
+      </row>
+      <row>
+        <cell>6</cell>
+        <cell>4.16 packages, 4.17 conformance sweeps</cell>
+      </row>
+      <row>
+        <cell>7</cell>
+        <cell>4.18 review (gate)</cell>
+      </row>
+    </table>
+    <p>Critical path: 4.2 4.5 4.6 4.8 4.13 4.15 4.17 4.18. "Working XSLT" for the owner is the end of 4.15: <code>sxml transform</code> runs the insn-apply-templates, for-each-group, sort, key and number tests.</p>
+  </section>
+  <section id="packets">
+    <title>Packets</title>
+    <include kind="packet" to="4.0"/>
+    <include kind="packet" to="4.1"/>
+    <include kind="packet" to="4.2"/>
+    <include kind="packet" to="4.3"/>
+    <include kind="packet" to="4.4"/>
+    <include kind="packet" to="4.5"/>
+    <include kind="packet" to="4.6"/>
+    <include kind="packet" to="4.7"/>
+    <include kind="packet" to="4.8"/>
+    <include kind="packet" to="4.9"/>
+    <include kind="packet" to="4.10"/>
+    <include kind="packet" to="4.11"/>
+    <include kind="packet" to="4.12"/>
+    <include kind="packet" to="4.13"/>
+    <include kind="packet" to="4.14"/>
+    <include kind="packet" to="4.15"/>
+    <include kind="packet" to="4.16"/>
+    <include kind="packet" to="4.17"/>
+    <include kind="packet" to="4.18"/>
+  </section>
+  <section id="gate">
+    <title>Gate</title>
+    <list>
+      <item checked="true">
+        <p>In-scope XSLT 4.0 cases (<ref kind="decision" to="D95"/>) ≥ 70% pass under <term name="release"/>; the core sets apply-templates, mode, match, for-each-group, sort, key, number, choose, copy, value-of, result-document, function ≥ 80% each. (agent review, <ref kind="decision" to="D169"/>: 7,990 of 8,728, 91.5 %; the lowest core set is mode, 88.5 %)</p>
+      </item>
+      <item checked="true">
+        <p>XQ40 still ≥ 85%, XP40 ≥ 90%; all ctest slices at their baselines. (agent review, <ref kind="decision" to="D169"/>: XQ40 97.2 %, XP40 97.1 %, no regression; slices 198, 186, 147 under every preset)</p>
+      </item>
+      <item checked="true">
+        <p>No in-scope case crashes, leaks or ends in an "error" outcome. (agent review, <ref kind="decision" to="D169"/>: every test set finished, 0 errors)</p>
+      </item>
+      <item checked="true">
+        <p><code>sxml transform</code> matches docs/CLI.md. (agent review, <ref kind="decision" to="D169"/>, after the fix of relative references)</p>
+      </item>
+      <item checked="true">
+        <p>Review agent pass (<ref kind="decision" to="D11"/>), findings fixed; the owner is told XSLT works (<ref kind="decision" to="D11"/> goal). (agent review, <ref kind="decision" to="D169"/>; the larger follow-ups are Proposed or listed)</p>
+      </item>
+    </list>
+  </section>
+  <section id="later-sweeps">
+    <title>Later sweeps</title>
+    <p>Sweeps after the gate, over the XSLT leftovers of <code>docs/agents/QUEUE.md</code> (<ref kind="decision" to="D181"/>: debug preset, the unit tests touched, the affected XT40 sets with the release driver).</p>
+    <list>
+      <item checked="true">
+        <p><strong>4.19 XSLT conformance sweep</strong> (implementation). Owns the XSLT lowering and reader files it changes (<code>src/xslt_*</code>), their unit tests, and single insertions in the ledgers. In order of value: the "~T" type patterns of priority (only if the suite's draft is the project's, <ref kind="decision" to="D29"/>), xsl:item-type and xsl:record-type (<ref kind="decision" to="D98"/>), merge, fn:snapshot, extension instructions as template calls (10.1.3), an index for match="$var" membership, the module named by errors in included modules, the larger duplicates of <ref kind="decision" to="D169"/>. Done when each item is done or its cause is recorded, with before and after counts of the affected sets. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D185"/>): XT40 8,650 to 8,759 passed, 0 errors; call-template-ext 32/32, record 39/47, type-alias 25/32, snapshot 34/35, merge 79/120 (29 streaming), collection 5/6; priority unchanged (the "~T" patterns are not in the project's draft, <ref kind="decision" to="D29"/>). Errors in included modules name their module; one array allocation helper. Left: the match="$var" index (<ref kind="decision" to="D185"/>), the record constructor, XTDE3490, the group key equality.</p>
+      </item>
+      <item checked="true">
+        <p><strong>4.20 XSLT conformance sweep</strong> (implementation). Owns the XSLT reader and lowering files it changes (<code>src/xslt_*</code>), the XSLT test driver, the files a leftover's root cause is in when no other packet has them open, their unit tests, and single insertions in the ledgers. In order of value: the XSLT leftovers of <code>docs/agents/QUEUE.md</code> (<ref kind="decision" to="D185"/>, <ref kind="decision" to="D179"/>, <ref kind="decision" to="D195"/>, <ref kind="decision" to="D203"/>, <ref kind="decision" to="D206"/>), then the largest failure clusters of a fresh XT40 run outside strm/: merge errors and validation, the record constructor, the schema-aware leftovers, xml-version and namespace cases, errors of inline functions and xsl:iterate in included modules, docbook-004, fn:transform's options, XTDE3052 (globals computed on first read, as a design if not done). <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D230"/>): XT40 11,826 to 11,912 passed, 0 errors, none lost; merge 97 to 107, record 35 to 37, validation 40 to 51, import-schema 200 to 206, error 448 to 474, namespace 209 to 217, normalize-unicode 18/18; QT4 fn-transform 130/137. Left (causes in <ref kind="decision" to="D230"/>): lazy globals (designed; needs the evaluator), typed modes and XTSE3105, XTDE3490, xml-version-007, namespace-2606 and -6202, docbook-004, three fn:transform cases, xsl:copy of JNodes.</p>
+      </item>
+      <item checked="true">
+        <p><strong>4.21 Hoist guard, lazy globals, typed modes</strong> (implementation). Owns <code>src/ir_loop_passes.c</code>, the new <code>src/ir_global_read.c</code>, the evaluator's global part and the files a fix needs when no other packet has them open, their unit tests, and single insertions in the ledgers. In order: the hoist pass's guard (merge-001a, -016; <ref kind="decision" to="D223"/> kept), globals computed on first read (<ref kind="decision" to="D230"/>'s design: a new IR expression and the evaluator; XTDE0640, XQDY0054 and <ref kind="decision" to="D71"/> kept), typed modes reading name tests as schema-element() and XTSE3105. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D234"/>): XT40 11,913 to 11,943 passed, 0 errors (document-4066 from wrong error to failure); QT4 XQ40 45,914, 0 outcomes differ. Left: document-4066 (fn:document options).</p>
+      </item>
+      <item checked="true">
+        <p><strong>4.22 XSLT on the newest draft</strong> (implementation, <ref kind="decision" to="D245"/>). Owns <code>grammars/xslt_pattern</code>, the pattern lowering and the XSLT files a draft change needs, <code>third_party/xslt40-test</code> (<ref kind="decision" to="D13"/>'s script), their unit tests, the XT40 section of <code>docs/CONFORMANCE.md</code>, and single insertions in the ledgers. Fetch the newest XSLT 4.0 editor's draft (with XPath, XQuery and F&amp;O 4.0) and the newest xslt40-test, run XT40 before and after, classify each changed or failing case (agree: implement; disagree: the draft wins, recorded; neither: recorded), starting with the priority set and the "~T" patterns. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D252"/>): neither moved. The drafts are those of 13 October 2026 (qtspecs 72f2229), the suite is 91328fb; the draft has no type patterns, so 57 cases stay recorded as class (b) (53 "~T", 4 priorities, 2 patterns the draft allows). New from the draft: typed="~T" on xsl:mode (6.9.4, XTTE3100). XT40 11,945 to 11,951 passed (+130 wrong error), 0 errors, no case lost; the six from 7.20.</p>
+      </item>
+      <item checked="true">
+        <p><strong>4.23 XSLT conformance sweep</strong> (implementation, <ref kind="decision" to="D255"/>). Owns the XSLT files a cluster's root cause is in, the XSLT and QT4 drivers' comparison, the XT40 section of <code>docs/CONFORMANCE.md</code> and README's XT40 row, their unit tests, and single insertions in the ledgers. From a fresh XT40 run, the failures and wrong-error passes outside <ref kind="decision" to="D252"/>'s newest-draft cases, clustered by root cause, the largest fixed with general mechanisms, starting with the <code>error</code> set and the XSLT leftovers of <code>docs/agents/QUEUE.md</code>. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D260"/>): XT40 12,081 to 12,156 passed (130 to 120 wrong error), 437 to 362 failed, 0 errors, no case lost; gate rate 95.7 %. Left (causes in <ref kind="decision" to="D260"/>): captured groups through templates, current-output-uri in templates called from functions, fn:apply-templates, absent-focus codes, Sequence JNode copies, XSLT without XPath's predeclared prefixes (a decision), and <ref kind="decision" to="D230"/>'s.</p>
+      </item>
+      <item checked="true">
+        <p><strong>4.24 XSLT without XPath's predeclared prefixes</strong> (implementation, <ref kind="decision" to="D208"/>, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D260"/>). Owns the XSLT static contexts (<code>src/xslt_lower.c</code>, <code>src/xslt_static.c</code>, <code>src/xslt_evaluate.c</code>), prefix lookup in <code>src/xpath_static.c</code>, the XSLT functions' and the streamability analysis's name lookup, the stylesheets sxml ships that relied on the old behaviour (unit tests, the book, the bindings' tests, READMEs, CLI inputs), CHANGELOG, and single insertions in the ledgers. Take the draft's rule (5.3.1, 3.6.1) as the default and record the change for users. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D261"/>): XT40 12,156 to 12,157 passed (120 wrong error), 362 to 361 failed, 0 errors, no case lost (namespace-6202). Left: run-time casts of strings to xs:QName still see the predeclared prefixes (<code>src/cast_lexical.c</code>, every language).</p>
+      </item>
+      <item checked="true">
+        <p><strong>4.25 XSLT conformance sweep</strong> (implementation, <ref kind="decision" to="D255"/>, <ref kind="decision" to="D260"/>, <ref kind="decision" to="D261"/>). Owns the XSLT files a cluster's root cause is in, the XPath lowering's context variables, their unit tests, and single insertions in the ledgers. In order of value: <ref kind="decision" to="D260"/>'s open list (captured groups through templates, fn:apply-templates, absent-focus codes, FORG0001 in coercions, Sequence JNode copies, prolog declarations in xsl:select, current-output-uri in functions, stream-available-004/005, the single cases), <ref kind="decision" to="D261"/>'s run-time QName cast, then the largest clusters of a fresh run. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D262"/>): XT40 12,157 to 12,187 passed (120 to 118 wrong error), 361 to 331 failed, 0 errors, no case lost. Left (causes in <ref kind="decision" to="D262"/>): stream-available-004/005, casts and collations of inner static contexts, fn:load-xquery-module in XSLT, <ref kind="decision" to="D260"/>'s single cases.</p>
+      </item>
+      <item checked="true">
+        <p><strong>4.26 XSLT conformance sweep</strong> (implementation, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D262"/>). Owns the XSLT files a cluster's root cause is in, the XSLT driver, the function library and loader files a cluster needs when no other packet has them open, their unit tests, and single insertions in the ledgers. From a fresh XT40 run at HEAD, the failures and wrong-error passes clustered by root cause, largest first; stream-available-004/005 and <ref kind="decision" to="D260"/>'s single cases; casts and collations of inner static contexts and src/xpath_lower.c stay with 2.24. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D273"/>): XT40 12,191 to 12,209 passed (118 wrong error), 327 to 309 failed, 0 errors, no case lost (variable-0120 to wrong error as the draft decides). Left (causes in <ref kind="decision" to="D273"/>): "//" lowered right-nested (for 2.25), globals captured by XSLT's inline functions, CDATA text merging, fn:document strip-space "none".</p>
+      </item>
+      <item checked="true">
+        <p><strong>4.27 XSLT conformance sweep</strong> (implementation, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D273"/>). Owns the XSLT files a cluster's root cause is in, the XSLT driver, the serializer, tree, loader and function library files a cluster needs when no other packet has them open, their unit tests, and single insertions in the ledgers. From a fresh XT40 run at HEAD, failures and wrong-error passes by root cause, largest first; <ref kind="decision" to="D273"/>'s open list (CDATA merging, static start-at, key namespace nodes, strip-space "none", XTTE lines); src/xpath_lower.c and XSLT's default collations and global capture stay with 2.25. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D274"/>): XT40 12,210 to 12,226 passed (115 to 107 wrong error), 308 to 292 failed, 0 errors, no case lost. Left (causes in <ref kind="decision" to="D274"/>): xsl:next-match in attribute sets, per-package strip-space for fn:document, xsl:source-document fragment identifiers, XTTE errors without a line (<ref kind="decision" to="D271"/>).</p>
+      </item>
+      <item checked="true">
+        <p><strong>4.28 XSLT conformance sweep</strong> (implementation, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D274"/>). Owns the XSLT files a cluster's root cause is in, their unit tests and CLI expectations, the book chapter whose output changes, and single insertions in the ledgers. From a fresh XT40 run at HEAD, failures and wrong-error passes by root cause, largest first; <ref kind="decision" to="D274"/>'s open list. src/xpath_lower.c stays with the XPath sweep. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D276"/>): XT40 12,239 to 12,250 passed (107 to 104 wrong error), 279 to 268 failed, 0 errors, no case lost. Left (causes in <ref kind="decision" to="D276"/>): attribute sets in a changed focus see the enclosing rule, FORG0001 of failed coercion casts, dynamic XTTE0945, <ref kind="decision" to="D274"/>'s fn:document and xsl:source-document items; xs:numeric in XPath 1.0 compatibility for the XPath sweep.</p>
+      </item>
+      <item checked="true">
+        <p><strong>4.29 XSLT conformance sweep</strong> (implementation, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D276"/>). Owns the XSLT files a cluster's root cause is in, the function library and evaluator parts a cluster needs when no other packet has them open, their unit tests, and single insertions in the ledgers. From a fresh XT40 run at HEAD, failures and wrong-error passes by root cause, largest first, skipping what <ref kind="decision" to="D252"/>, <ref kind="decision" to="D262"/>, <ref kind="decision" to="D273"/>, <ref kind="decision" to="D274"/> and <ref kind="decision" to="D276"/> decided; <ref kind="decision" to="D276"/>'s open list. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D281"/>): XT40 12,250 to 12,261 passed (104 to 99 wrong error), 268 to 257 failed, 0 errors, no case lost. Left (sizes in <ref kind="decision" to="D281"/>): xsl:evaluate and package codes, schema-aware codes, streaming, record coercion, fn:document per package, deterministic functions, split-when, JNode shallow copy, namespace undeclarations, copy-4308, the current rule in attribute sets.</p>
+      </item>
+      <item checked="true">
+        <p><strong>4.30 XSLT real gaps</strong> (implementation, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D281"/>). Owns the XSLT files a gap's cause is in, the serializer and function library parts it needs when no other packet has them open, their unit tests, and single insertions in the ledgers. From a fresh XT40 run at HEAD, <ref kind="decision" to="D281"/>'s real gaps, small group first, then medium; streaming and namespace undeclarations only as design sketches. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D289"/>): XT40 12,261 to 12,268 passed (99 wrong error), 257 to 250 failed, 0 errors; key-004 lost by the draft (20.2.2). Left (sizes in <ref kind="decision" to="D289"/>): map-for-key-005, copy-4308, function-lookup and accumulators per package, per-package strip-space, schema roles kept apart, merge-when, streaming, namespace undeclarations.</p>
+      </item>
+      <item checked="true">
+        <p><strong>4.31 XSLT per-package items and leftovers</strong> (implementation, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D289"/>). Owns the XSLT files a cause is in, the IR, evaluator, loader and function library parts it needs, their unit tests, and single insertions in the ledgers. From a fresh XT40 run at HEAD: namespace undeclarations in the tree, function-lookup, accumulators and strip-space per package, schema roles kept apart, copy-4308, map-for-key-005, merge-when and <ref kind="decision" to="D276"/>'s current rule if cheap; streaming left. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D291"/>): XT40 12,268 to 12,273 passed (99 to 98 wrong error), 250 to 245 failed, 0 errors, no case lost. Namespace undeclarations needed no tree change (<ref kind="decision" to="D69"/>; namespace-2606's expected file is indented). Left (sizes in <ref kind="decision" to="D291"/>): function-lookup-005, schema roles kept apart (import-schema-216), merge-when, <ref kind="decision" to="D276"/>'s current rule, streaming.</p>
+      </item>
+      <item checked="true">
+        <p><strong>4.32 XSLT streaming conformance</strong> (implementation, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D289"/>, <ref kind="decision" to="D291"/>, <ref kind="decision" to="D294"/>). Owns src/xslt_streamability.c, the streamed evaluation and the XSLT, function library and driver parts a cause is in, their unit tests, and single insertions in the ledgers. From a fresh XT40 run at HEAD: every failing streaming case (si-<em>, sf-</em>, sx-<em>, su-</em>, stream-<em>, accumulators, merge, source-document) clustered by cause, the largest first; the newest draft wins over the suite. *</em>Done** 2026-10-20 (<ref kind="decision" to="D296"/>): XT40 12,273 to 12,283 passed (98 wrong error), 245 to 235 failed, 0 errors, no case lost; of 54 failing streaming cases 9 are fixed, 37 the draft's or the suite's (<ref kind="decision" to="D296"/>). Left: accumulator-061, capture-206.</p>
+      </item>
+    </list>
+  </section>
+</document>

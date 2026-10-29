@@ -1,0 +1,90 @@
+<packet id="7.7" source="docs/tasks/phase-7.md">
+  <title>XQuery Update Facility 3.0 and 4.0 (design and implementation, three packets)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: XQuery Update Facility 3.0:</p>
+        <list>
+          <item>
+            <p>2 (extensions to the processing model: updating expressions, pending update lists, snapshots);</p>
+          </item>
+          <item>
+            <p>3 (the insert, delete, replace, replace value of, rename and copy modify (transform) expressions, %updating functions, fn:put, revalidation declarations);</p>
+          </item>
+          <item>
+            <p>4 (update primitives and upd:applyUpdates, upd:mergeUpdates, upd:revalidate);</p>
+          </item>
+          <item>
+            <p>its error codes (XUST, XUDY, XUTY).</p>
+          </item>
+        </list>
+        <p>Also the XQuery Update Facility 4.0 community draft where the QT4 tests follow it (it is not yet a W3C draft: owner question 6).</p>
+      </item>
+      <item>
+        <p><strong>Unlocks</strong>: XQ40 upd-* 825 cases, including revalidation (strict 21, lax 19, skip 34); upd-StaticTyping's 27 also need staticTyping, so they stay out.</p>
+      </item>
+      <item>
+        <p><strong>Replaces</strong>: two places today. <code>src/xquery_static.c</code> rejects %updating as a reserved-namespace annotation (XQST0045), and the update expressions are not in <code>grammars/xquery</code> (XPST0003).</p>
+      </item>
+      <item>
+        <p><strong>7.7a Design</strong>:</p>
+        <list>
+          <item>
+            <p>the AST kinds, and the IR's update primitives: an updating expression's value is a pending update list, carried as an internal item kind of the evaluator, not an XDM item;</p>
+          </item>
+          <item>
+            <p>how XQuery returns updated documents to the host: <code>xquery.h</code>, additive, an updating query and an update sink that receives each changed document as a new tree, plus fn:put's targets;</p>
+          </item>
+          <item>
+            <p>the <code>sxml xquery</code> design for updates (a flag that writes the changed documents);</p>
+          </item>
+          <item>
+            <p>the D-record.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>7.7b Updating expressions and application</strong>:</p>
+        <list>
+          <item>
+            <p>the grammar (insert, delete, replace, rename, the copy-modify expression and <code>%updating</code>);</p>
+          </item>
+          <item>
+            <p>static rules (XUST0001, XUST0002) in <code>src/xquery_static.c</code>;</p>
+          </item>
+          <item>
+            <p>lowering of every updating expression into primitive constructors;</p>
+          </item>
+          <item>
+            <p>merging and the compatibility checks (XUDY0015, XUDY0016, XUDY0017, XUDY0024 namespace conflicts);</p>
+          </item>
+          <item>
+            <p>application by rebuilding each target tree through the tree builder with the primitives applied in the order of XQUF 3.0, upd:applyUpdates;</p>
+          </item>
+          <item>
+            <p>the copy-modify expression copies with <code>sxml_tree_builder_copy_node</code> and applies to the copy.</p>
+          </item>
+        </list>
+        <p>Node identity across an update cannot be observed inside one snapshot. Hosts get the new trees (XQUF 3.0, upd:applyUpdates: how the changes are made persistent is implementation-defined).</p>
+      </item>
+      <item>
+        <p><strong>7.7c fn:put and revalidation</strong>: fn:put through the update sink; revalidation by the schema validator over the rebuilt tree (<code>schema.h</code>, <ref kind="decision" to="D165"/>). <strong>7.7a done</strong> 2026-10-19 (<ref kind="decision" to="D187"/>), with the 3.0 part of 7.7b as the owner's order asked (<ref kind="decision" to="D184"/>: 3.0 first): grammar, static rules, every 3.0 expression including transform-with and invoke updating, application, the xquery.h update sink, the QT4 driver and <code>sxml xquery</code>. upd-* 0 to 733 of 825 passed (10 wrong error), 24 failed, 0 errors, 68 not run; the gate's 85 % of 798 is 679. <strong>7.7b</strong> is now the 4.0 draft's additions (the updating return clause of copy-modify, id-transform-expr-014; XUDY0038 for dynamic calls of updating function items), <strong>7.7c</strong> fn:put (13 cases) and revalidation lax and strict (40 cases, XUST0026 today). Not in this packet: copies with construction strip keep is-id and is-idrefs (src/tree.c), which 11 cases need gone. <strong>7.7b and 7.7c done</strong> 2026-10-19 (<ref kind="decision" to="D205"/>): fn:put through the update sink's receive_put_document (13 of 13), revalidation lax and strict (XUST0026 gone), copy-modify copies untyped and without schema IDs (<code>sxml_copy_request.strips_identity</code>, additive in <code>tree.h</code>), the 4.0 draft's updating return clause, setToUntyped for content going into an untyped node. upd-* 733 to 787 of 825 (98.6 % of the 798 in scope); left: 6 propagateNamespace cases whose expected whitespace differs from what their queries make, 2 that expect no IDREF check when an element is validated, 27 staticTyping, 3 for processors without a revalidation mode; XUDY0038 for simple dynamic calls of updating function items (no test).</p>
+      </item>
+      <item>
+        <p><strong>Header</strong>: <code>xquery.h</code>, additive (7.7a). <code>tree.h</code>: none.</p>
+      </item>
+      <item>
+        <p><strong>After</strong>: 7.7b after 7.7a; 7.7c after 7.7b.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>grammars/xquery</code> (the update productions), new <code>src/xquery_update.c</code> and <code>src/xquery_update_internal.h</code>, new <code>src/evaluator_update.c</code>, and the update hunks of <code>src/xquery_static.c</code> and <code>src/xquery_lower.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: 0 in <code>sxml.wasm</code> (XQuery is not in it); 60–100 KB plus the grammar's growth in the CLI.</p>
+      </item>
+      <item>
+        <p><strong>Gate</strong>: ≥ 85 % of the 825 (less the 27 static-typing cases).</p>
+      </item>
+    </list>
+  </body>
+</packet>

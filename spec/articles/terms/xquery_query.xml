@@ -1,0 +1,4 @@
+<term id="xquery_query" source="docs/GLOSSARY.md">
+  <name>xquery_query</name>
+  <definition>An XQuery main module compiled for one processor, with the library modules it imports, evaluated any number of times</definition>
+</term>

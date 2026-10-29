@@ -1,0 +1,4 @@
+<term id="item_type" source="docs/GLOSSARY.md">
+  <name>item_type</name>
+  <definition>A class of items, such as <code>xs:integer</code>, <code>element(a)</code> or <code>map(xs:string, item())</code></definition>
+</term>

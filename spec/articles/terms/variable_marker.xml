@@ -1,0 +1,4 @@
+<term id="variable_marker" source="docs/GLOSSARY.md">
+  <name>variable_marker</name>
+  <definition>A part of a date picture string in square brackets, replaced by a date or time component (F&amp;O 4.0, section 9.9.4.1)</definition>
+</term>

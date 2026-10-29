@@ -1,0 +1,43 @@
+<decision id="D189" status="accepted" source="docs/DECISIONS.md">
+  <title>Optional features and the size budgets (packet <ref kind="packet" to="7.2"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D138"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>. Carries out the owner's size choice (<ref kind="decision" to="D184"/>): link-time optional features through one additive <code>processor.h</code> view, one build, no <code>#if</code>, large data from the host through the resolver.</p>
+    <list>
+      <item>
+        <p><strong>Public</strong> (<code>include/sxml/processor.h</code>, additive): <code>sxml_optional_feature</code> (a handle to a static const definition, opaque to hosts), <code>sxml_optional_feature_view</code> as the last field of <code>sxml_processor_configuration</code> (zero means none, so every existing configuration is unchanged; copied at initialize; a NULL definition is INVALID_ARGUMENT), <code>sxml_test_optional_feature()</code> (named "test", adds nothing), <code>sxml_all_optional_features()</code> (every feature, for hosts that want them all), <code>sxml_optional_feature_get_name()</code> and <code>sxml_processor_has_optional_feature()</code>.</p>
+      </item>
+      <item>
+        <p><strong>Internal</strong> (<code>src/optional_feature_internal.h</code>, <code>src/optional_feature.c</code>):</p>
+        <list>
+          <item>
+            <p>one <code>sxml_optional_feature_kind</code> per feature; a definition holds its kind, name, a <code>static const</code> operations table (<code>const void *</code>, cast by kind) and an optional <code>finalize_state</code>;</p>
+          </item>
+          <item>
+            <p>the processor keeps one slot per kind (definition, state): <code>sxml_processor_find_optional_feature(processor, kind)</code> gives the table or NULL. NULL is the <ref kind="decision" to="D162"/> place's answer: the specification's behaviour without the feature stays where it is. No global state; a feature never calls another feature or back through its caller (<ref kind="decision" to="D71"/>);</p>
+          </item>
+          <item>
+            <p><code>sxml_processor_set_optional_feature_state</code> keeps per-processor state (tables built from feature data), finalized with the processor.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Feature data</strong> (glossary <term name="feature_data"/>, <ref kind="decision" to="D184"/>'s option 4): <code>sxml_optional_feature_read_data</code> asks the processor's resolver for an absolute URI as a resource kind whose form is BYTES, lends the bytes to a reader, and gives them back. It goes through the compile document loader (<code>sxml_processor_compile_document_loader_initialize</code>), so URI resolution and form checks are the existing ones. The packets with data add their resource kinds to <code>processor.h</code> (DUCET <code>allkeys.txt</code>, CLDR rule text, TZif), each with its record. The test feature reads <code>urn:sxml:test-feature-data</code> (TEXT) once and keeps its byte count.</p>
+      </item>
+      <item>
+        <p><strong>Hosts</strong>: the sxml command and the QT4, XSLT and XSD drivers name <code>sxml_all_optional_features()</code> (one line each). JavaScript: <code>sxml.wasm</code> (core) and <code>sxml-full.wasm</code> (every feature) are two links of the same shim, which differ only in <code>sxml_javascript_core_features.c</code> and <code>sxml_javascript_full_features.c</code>. <code>Sxml.features</code> lists the module's features; <code>createProcessor({ features })</code> picks some (default all; an unknown name throws). Up to 32 features (one mask word).</p>
+      </item>
+      <item>
+        <p><strong>Budgets</strong> (<code>bindings/javascript/CMakeLists.txt</code>): core 2,100,000 stripped / 735,000 gzipped, full 3,000,000 / 1,050,000 (the owner's stripped budgets; the gzipped ones keep <ref kind="decision" to="D138"/>'s 7:20 ratio). CLI unchanged (5,500,000 / 1,250,000). <code>javascript/package_full</code> runs the package tests on the full module.</p>
+      </item>
+      <item>
+        <p><strong>Sizes</strong> at 2459034, before and after (stripped / gzipped): <code>sxml.wasm</code> 2,003,575 / 697,928 to 2,004,485 / 698,244 (+910 bytes: the shim's feature exports 430, the slots and checks 350, export names); <code>sxml-full.wasm</code> 2,005,513 / 698,677; the CLI 4,966,649 / 1,160,916 to 4,967,809 / 1,161,287. HEAD was already 3,575 bytes over the old 2,000,000 budget. The 910 bytes are the mechanism's fixed cost; no feature links into the core.</p>
+      </item>
+      <item>
+        <p><strong>Existing parts not moved</strong> (measured in <code>sxml.wasm</code> from the linker map, code and data): schema validation for fn:xsd-validator and friends 70,958; XQuery lowering parts linked through the lowering registry (<ref kind="decision" to="D103"/>) 59,879; XSLT-only library and evaluator parts 15,072; Unicode tables 146,058. The first is a candidate feature ("schema-aware"); the second and third are not features but registry links an XPath-only program does not need: splitting the registries per language would save about 75 KB without any API. All are owned by running packets (2.21, 4.19), so this packet changes none of them.</p>
+      </item>
+      <item>
+        <p><strong>Later packets</strong> (7.8 to 7.18) each: add a kind before <code>SXML_OPTIONAL_FEATURE_KIND_COUNT</code>; define the definition, operations table and exported <code>sxml_&lt;name&gt;_feature()</code> in their own files; add the definition to <code>sxml_all_optional_features</code>; make their <ref kind="decision" to="D162"/> place ask <code>sxml_processor_find_optional_feature</code>; add a resource kind for any data and read it with <code>sxml_optional_feature_read_data</code>; extend the CLI's resolver to serve that data (for example <code>/usr/share/zoneinfo</code>) and the JavaScript resolver to forward the kind; check the full module's budget. A feature that gives access beyond the resolver (EXPath File, <ref kind="decision" to="D184"/>) stays out of <code>sxml_all_optional_features</code> and is named by the CLI only under <code>--allow-file-access</code>. The fuzz fixtures do not name features yet: the packet that adds a parser names its feature there.</p>
+      </item>
+    </list>
+  </body>
+</decision>

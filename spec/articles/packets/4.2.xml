@@ -1,0 +1,6 @@
+<packet id="4.2" source="docs/tasks/phase-4.md">
+  <title>Stylesheet AST (design) — Early</title>
+  <body>
+    <p>After the Phase 1 gate. Owns <code>src/xslt_ast_internal.h</code>. Declarations and instructions over the parsed arena tree, index-addressed (<ref kind="decision" to="D24"/>, <ref kind="decision" to="D52"/> style): element kind, attributes as AST indexes of compiled XPath, patterns or value templates, the static context of each element (namespaces, xpath-default-namespace, expand-text, default-collation, default-mode, version, exclude-result-prefixes), import precedence, source locations. Done when the stylesheet of for-each-group-001, a template rule and an xsl:function are written out in comments. <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D102"/>): <code>src/xslt_ast_internal.h</code>, header only; the builder and lifecycle functions go to 4.5 in a new <code>src/xslt_ast.c</code>.</p>
+  </body>
+</packet>

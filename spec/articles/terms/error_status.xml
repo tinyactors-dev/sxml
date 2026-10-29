@@ -1,0 +1,4 @@
+<term id="error_status" source="docs/GLOSSARY.md">
+  <name>error_status</name>
+  <definition>The status an error is raised with: static, dynamic or type error</definition>
+</term>

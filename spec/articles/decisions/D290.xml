@@ -1,0 +1,29 @@
+<decision id="D290" status="accepted" source="docs/DECISIONS.md">
+  <title>Invisible XML for large inputs: regular tokens, sparse item sets, text runs (packet <ref kind="packet" to="7.24"/>)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D215"/>, <ref kind="decision" to="D283"/>. The owner: sxml's iXML usable on tens to hundreds of MB; the book first (f560fdf), then the tests (ef46866), then the implementation (fdff1ee); one parser (<ref kind="decision" to="D215"/>). Done; the chapter is no longer a draft (d46f559).</p>
+    <list>
+      <item>
+        <p><strong>Regular tokens</strong> (<code>src/ixml_tokens.c</code>, glossary <term name="regular_token"/>, <term name="token_automaton"/>): a nonterminal whose language is regular (no recursion but a repetition's left recursion, through every nonterminal it uses) and whose XML is its text or nothing (every use inside hidden, no insertion, its terminals all kept or all hidden) is compiled with the grammar, so once per parse function: Thompson's construction, then the subset construction, each state keeping the number of paths, 1 or 2+, that reach each NFA state. Paths are derivations, so an end reached two ways is an ambiguous completion, as Earley marks it; an empty loop counts as many, as Earley's items do. Limits: 512 NFA states, 8 distinct terminals (a column is a set of them), 1,024 DFA states; a nonterminal over them stays an ordinary rule, and the tokens it uses get automata in turn. Only tokens used by a rule that is not one get an automaton.</p>
+      </item>
+      <item>
+        <p><strong>The rule for ends</strong>: predicting a token runs its automaton, and every end it reaches is a completed item there; longest match is not iXML's semantics. An end is kept when the next character can follow one of the token's uses outside its own rules (the lookahead sets of the dotted rules after its uses, which a left recursion's own FOLLOW would not filter); later ends wait in a heap and are added at the start of their set, in origin order, ahead of the scanned items. So the items a successful parse reads, its tree and its XML are those of the parser without tokens, and its ambiguity too: the token's item is marked exactly when its rules' items would mark a derivation of the same text. A parse that fails with tokens is parsed again without them, so the failure document (where, what was expected) is the same; failures pay twice. An ambiguous parse may show another of its trees than 7.21 did (any is allowed, the Specification, "Parsing"); the suite's listed trees still match.</p>
+      </item>
+      <item>
+        <p><strong>Memory</strong> (measured, then chosen): at the end of a parse 85 to 97 % of the items are on the first derivation (log, csv, calc, markdown, numbers), so a collector freeing sets behind the parse would save at most 15 %; the derivation itself had to shrink. Item sets exist only where items are, numbered (glossary <term name="item_set_number"/>), and an item's origin is a set number; positions are byte offsets in the UTF-8 input, which is borrowed (copied only to normalize a CR), not decoded into 4-byte codepoints; the parse tree has no nodes for hidden nonterminals (their children are the parent's) or hidden terminals, and kept characters next to each other are one <term name="text_run"/> (a node grows 24 to 28 bytes); waiting entries, hash tables, the heap and the sets but their positions are released before the tree is read out; Leo chains are recorded in two passes without a frame stack. Internal header only (<code>src/ixml_internal.h</code>); no public header changed.</p>
+      </item>
+      <item>
+        <p><strong>Steps</strong>: one per token run and one per 16 characters it reads (a character costs an automaton a few instructions, an item some hundred); items, Leo items and tree symbols one each, as before.</p>
+      </item>
+      <item>
+        <p><strong>Numbers</strong> (release, 1 MB, before -&gt; after, s / MB / MB per further MB): log 0.196/90/84 -&gt; 0.059/21/9.9; csv 0.32/120/113 -&gt; 0.22/61/53; calc 0.54/204/195 -&gt; 0.33/95/86; markdown 0.34/119/111 -&gt; 0.22/65/57; right recursion 0.36/136/128 -&gt; 0.14/46/38; log 10 MB 2.0 s/831 MB -&gt; 0.61 s/124 MB; log 100 MB beyond the default step limit (about 8 GB) -&gt; 6.2 s/1.17 GB within it. Of the log's 9.9 MB per MB, about 8.4 are the XML tree itself (the arena tree, not this packet's): the parser's own share fell from about 75 to under 2. The ambiguous sum misses <ref kind="decision" to="D283"/>'s 2 s bound on this machine before and after (3.7 and 3.1 s; a marked item's hash slot now says so).</p>
+      </item>
+      <item>
+        <p><strong>Verified</strong>: iXML suite 886 of 907 unchanged (21 not run, as <ref kind="decision" to="D283"/>); QT4 fn-invisible-xml 16/16 (XP40, XQ40), app-spec-examples' iXML cases; the debug preset's ixml, ixml/suite, cli and function_library tests (ASan, UBSan, every allocation failure); clang-tidy on the changed files; no call cycles; ixml_fuzz 600 s, 51,351 runs, no finding; the five iXML chapters' 42 examples.</p>
+      </item>
+      <item>
+        <p><strong>Left</strong>: tokens whose terminals are mixed (<code>-quoted: -'"', (~['"']; -'"', '"')*, -'"'</code> in csv) could be read by an automaton too, the kept characters found by walking the unique path back at tree time; csv met its bound without it.</p>
+      </item>
+    </list>
+  </body>
+</decision>

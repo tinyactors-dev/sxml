@@ -1,0 +1,17 @@
+<decision id="D64" status="accepted" source="docs/DECISIONS.md">
+  <title>Arrays and function items (packet <ref kind="packet" to="1.10"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. <code>src/xdm_array.c</code>, <code>src/xdm_function.c</code>.</p>
+    <list>
+      <item>
+        <p><strong>Arrays</strong> are AVL trees of <term name="array_node"/> cells (one cell class): a flat node holds members inline (<code>sxml_array_make</code>, so get is O(1)); a run node names a part of a flat node's members (splitting a leaf copies nothing); a branch node joins two subtrees. The array item's cell is the root; the empty array is a flat node of no members. Every update is split plus join (Blelloch et al., "Just Join", without middle keys): append, put, insert, remove and slice are O(log n), get O(log n). 10^5 appends are tested at most 1 + 3 x height allocations each; deep nesting frees through the pending list.</p>
+      </item>
+      <item>
+        <p><strong>Function items</strong>: the signature must be a registered function type other than function(*) (arity = its parameter count), else INVALID_ARGUMENT. Annotations are kept as the borrowed view; captured values are retained; the body's <term name="retain"/> runs once on make and <term name="release"/> once when the cell is freed.</p>
+      </item>
+      <item>
+        <p><strong>Maps and arrays as functions</strong>: <code>sxml_function_item_describe</code> gives a stateless static body (map:get through <code>sxml_map_find</code>, array:get with 1-based positions). The bodies check their argument although coercion is the caller's: not one atomic key / one integer is XPTY0004; a position out of range, also beyond int64_t, is FOAY0001.</p>
+      </item>
+    </list>
+  </body>
+</decision>

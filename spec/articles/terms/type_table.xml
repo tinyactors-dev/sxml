@@ -1,0 +1,4 @@
+<term id="type_table" source="docs/GLOSSARY.md">
+  <name>type_table</name>
+  <definition>An element declaration's type alternatives with a test and its default type definition (the last alternative without a test, else the declared type); two are compared by equivalence (XSD 1.1 Part 1, 3.3.2.2, 3.8.6.3)</definition>
+</term>

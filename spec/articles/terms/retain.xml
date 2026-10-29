@@ -1,0 +1,5 @@
+<term id="retain" source="docs/GLOSSARY.md">
+  <name>retain</name>
+  <name>release</name>
+  <definition>Add / drop one reference to an item, sequence or tree</definition>
+</term>

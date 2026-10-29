@@ -1,0 +1,4 @@
+<term id="stylesheet_ast" source="docs/GLOSSARY.md">
+  <name>stylesheet_ast</name>
+  <definition>What the stylesheet reader builds (<code>sxml_xslt_ast</code>): one node per stylesheet element and text node, attributes read into typed values, each expression, pattern, value template and type its own <term name="abstract_syntax_tree"/>; <code>xslt_ast</code> allowed as a module name only</definition>
+</term>

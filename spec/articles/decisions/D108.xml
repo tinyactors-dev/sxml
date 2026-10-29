@@ -1,0 +1,23 @@
+<decision id="D108" status="accepted" source="docs/DECISIONS.md">
+  <title>The QT4 driver for Phase 2: environments, scope, areas (packet <ref kind="packet" to="2.16"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. Extends <ref kind="decision" to="D83"/> and <ref kind="decision" to="D92"/> in <code>tests/qt4/driver/</code>.</p>
+    <list>
+      <item>
+        <p><strong>Environments now applied</strong>: <code>decimal-format</code> (every attribute one <ref kind="decision" to="D104"/> property, value as written; the name's prefix bound by the element's in-scope namespaces, unprefixed names in no namespace); <term name="collation"/> (any <ref kind="decision" to="D97"/> URI runs: codepoint, HTML ASCII, UCA unless <code>fallback=no</code>; <code>default="true"</code> sets <code>default_collation_uri</code>; other URIs stay "environment collation"; the driver's own check until 2.12's <code>sxml_collation_is_supported</code> exists); <term name="resource"/> and <term name="collection"/> through a resource table (<code>resource_table.c</code>, glossary <term name="qt4_resource_table"/>): TEXT and BINARY by the resource's absolute URI (relative ones against the test-set file; TEXT gets the <code>encoding</code> attribute as the external encoding), else <code>file:///SUITE-PATH</code>; COLLECTION and URI_COLLECTION as SEQUENCE (document nodes, or their document URIs as xs:anyURI), <code>uri=""</code> is the default collection; collection sources with a <code>uri</code> are also available documents; a collection's resources are served like the environment's and their URIs follow the documents' in fn:uri-collection. Still skipped: collections with a <code>query</code> (3.13). Resources are not served to fn:doc.</p>
+      </item>
+      <item>
+        <p><strong>Dependencies</strong> now satisfied: feature simple-uca-fallback, non_empty_sequence_collection, arbitraryPrecisionDecimal; unicode-normalization-form NFC NFD NFKC NFKD (Phase 2 makes them work; the <ref kind="decision" to="D95"/> denominator counts their cases anyway). Not collection-stability: its two cases ask for it to be absent.</p>
+      </item>
+      <item>
+        <p><strong>Scope</strong>: applicability also says whether a case is in the <ref kind="decision" to="D95"/> denominator (spec matches, no non-goal test set, no required non-goal feature; tables in <code>applicability.c</code>). Out-of-scope cases that apply still run, so pass counts stay comparable. <code>sxml-qt4 list</code> ends with "N test cases: A applicable, S skipped; D in scope" and marks "out of scope: ..."; <code>list --spec=XP40</code> gives 31,543 in scope, <code>--spec=XQ40</code> 41,174 (<ref kind="decision" to="D95"/>: about 31,500 and 41,200).</p>
+      </item>
+      <item>
+        <p><strong>JSON report</strong> (still version 1, members only added): test sets, totals and a new <code>areas</code> array (<ref kind="decision" to="D94"/>'s prefixes) carry <code>in_scope</code> and <code>in_scope_passed</code>; <code>in_scope_passed / in_scope</code> is the gate rate. <code>tools/conformance-report.py</code> (1.27) may read them; it ignores them now.</p>
+      </item>
+      <item>
+        <p>Measured (release): XP40 passed 23,146 to 24,451, no pass lost; not run 18,448 to 16,321. The ten new "error" outcomes are UNSUPPORTED_FEATURE in newly run cases, not the driver.</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="simplified_stylesheet" source="docs/GLOSSARY.md">
+  <name>simplified_stylesheet</name>
+  <definition>A stylesheet module whose outermost element is not <code>xsl:stylesheet</code>, <code>xsl:transform</code> or <code>xsl:package</code>; read as one template rule matching <code>.</code> (XSLT 4.0, 3.7)</definition>
+</term>

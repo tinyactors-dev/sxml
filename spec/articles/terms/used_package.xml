@@ -1,0 +1,4 @@
+<term id="used_package" source="docs/GLOSSARY.md">
+  <name>used_package</name>
+  <definition>The package an <code>xsl:use-package</code> names, read again for every use, so each use has components of its own (XSLT 4.0, 3.4.2)</definition>
+</term>

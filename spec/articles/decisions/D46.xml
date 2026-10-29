@@ -1,0 +1,20 @@
+<decision id="D46" status="accepted" source="docs/DECISIONS.md">
+  <title>The shared IR is internal, tree-walking and ANF-like</title>
+  <body>
+    <p><recorded date="2026-10-16"/> (Phase 1 planning; designed in packet <ref kind="packet" to="1.5"/>).</p>
+    <list>
+      <item>
+        <p><strong>Internal</strong>, in <code>src/ir_internal.h</code>, not a public header. XPath, XQuery and XSLT front ends are all in this repository, so nothing outside needs to produce IR; a public IR would join the frozen ABI before XQuery and XSLT have tested it. Hosts extend sxml through function bodies (<ref kind="decision" to="D38"/>) and the resolver, not through IR. If a later need appears (an external front end, a persisted compiled form), a decision publishes a versioned copy.</p>
+      </item>
+      <item>
+        <p><strong>Shape</strong>, after Xee's <code>xee-ir</code> (<ref kind="decision" to="D5"/>): expressions whose operands are atoms (a constant or a variable slot), with <code>let</code> bindings for intermediate values; branches, loop bodies and function bodies are nested expressions. The focus is not implicit state: map, filter, quantified, sort and path-step nodes bind the context item, position and size as ordinary variables, so closures capture them like any variable and XPDY0002 is a static or dynamic check on an unbound slot. Variables are resolved to frame slots during lowering; function definitions carry their capture list. Node-construction, <code>try</code>/<code>catch</code> and template-rule nodes are reserved for XQuery and XSLT (XSLT rules lower to IR functions plus a rule table, as in Xee).</p>
+      </item>
+      <item>
+        <p><strong>Evaluation</strong> walks the IR (no bytecode: PLAN.md non-goal), with evaluation depth bounded so deep recursion returns a limit status.</p>
+      </item>
+      <item>
+        <p><strong>Optimizer seam</strong>: <code>src/ir_pass_internal.h</code> declares a pass as an IR-to-IR function over a compiled unit, run in a fixed list between lowering and evaluation. Phase 1 has only a verifier pass; rewrites (constant folding, type-based simplification) come later as new passes, each with tests that compare results with and without it.</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,26 @@
+<decision id="D127" status="accepted" source="docs/DECISIONS.md">
+  <title>Lowering node constructors (packet <ref kind="packet" to="3.9"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D110"/> and <ref kind="decision" to="D124"/> for XQuery. <code>src/xquery_lower_construct.c</code> is lowering part <code>construct</code> (SXML_LANGUAGE_XQUERY, <ref kind="decision" to="D103"/>) for the DIRECT_* and COMPUTED_* kinds; no IR kind or header change.</p>
+    <list>
+      <item>
+        <p><strong>Direct elements</strong>: ELEMENT_CONSTRUCTOR whose content is a SEQUENCE of one atom per attribute and piece of content in order (<ref kind="decision" to="D110"/>); literal text and CDATA are xs:string constants; boundary whitespace is dropped unless the prolog says boundary-space preserve. Names are xs:QName constants (prefix kept) resolved while lowering (XPST0081); two attributes with one expanded name are XQST0040.</p>
+      </item>
+      <item>
+        <p><strong>Namespace declaration attributes</strong> extend the static context through the embedding entry (<ref kind="decision" to="D103"/>), not new machinery: the element's attributes and content are lowered with a copy of the static context whose bindings are its declarations followed by the current ones, so the core resolves names inside enclosed expressions (and nested constructors) with them. An element, direct or computed, sends as namespace bindings the declarations of its own and every enclosing direct constructor (innermost per prefix, found by walking the frame chain), so they are in scope whatever copy-namespaces says; a computed name inside one gets the extended bindings as name_namespaces. A computed namespace constructor binds no prefix statically.</p>
+      </item>
+      <item>
+        <p><strong>Attribute values</strong>: "" for none, the constant for text alone, the enclosed expression's atom alone (the evaluator joins with spaces); mixed parts are joined with <code>||</code>, each enclosed part as a TEXT_CONSTRUCTOR of its value (atomized and space-joined, empty gives ""), so no library call is needed.</p>
+      </item>
+      <item>
+        <p><strong>Computed</strong> constructors: a literal name is a constant (xs:QName for element and attribute, xs:string for PI target and namespace prefix), a name expression an atom; content is the atom of the enclosed expression (value, or an ATOM content expression for element and document). Direct comments and PIs are constructors of constants.</p>
+      </item>
+      <item>
+        <p><strong>Prolog setters</strong> (boundary-space, construction, copy-namespaces) are read from the module's PROLOG node and become construction_flags of element and document constructors; they take effect once 3.10 lets prologs through <code>sxml_xquery_lower</code> (<ref kind="decision" to="D126"/> rejects them now).</p>
+      </item>
+      <item>
+        <p>Results (scratch harness: xpath.c compiling with sxml_xquery_compile, as 3.7's): the 13 constructor test sets 0 to 932 of 1,165 passed, 59 not run (dependencies); of the 174 failures and errors, 167 are queries with a prolog (3.10). The 7 others are not lowering's: URI whitespace of "Q{ _   _ }x" in the evaluator (2), <code>local:</code> not predeclared (3.10, 3.12), <code>text {''}</code> (the <ref kind="decision" to="D110"/> deviation) and a missing function (3).</p>
+      </item>
+    </list>
+  </body>
+</decision>

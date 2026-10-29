@@ -1,0 +1,6 @@
+<packet id="3.4" source="docs/tasks/phase-3.md">
+  <title>Serializer: HTML, text, JSON, CSV; fn:serialize — Early</title>
+  <body>
+    <p>After <ref kind="packet" to="3.3"/>. Owns <code>src/serialize_html.c</code>, <code>src/serialize_json.c</code>, <code>src/serialize_text.c</code>, <code>src/function_library_serialize.c</code>, <code>tests/serialize_html_test.c</code>, <code>tests/serialize_json_test.c</code>. HTML method (versions 4 and 5, void elements, raw text elements, boolean attributes, include-content-type, escape-uri-attributes), text, JSON (nodes by json-node-output-method, SERE0020/0022/0023), CSV; fn:serialize with element and map parameters. Done when method-html, method-text, method-json, method-csv, fn-serialize ≥ 90%. Spec: Serialization 4.0 per method. <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D128"/>): every method on the 3.3 pipeline (escape styles HTML, none, JSON, CSV; raw text), HTML as a mode of the XML node writer, <code>src/serialize_parameters.c</code> (the parameter reader), fn:serialize. fn-serialize 48 to 165/194 (wrong errors 48 to 3); the 32 left need expath binary, fn:parse-csv, fn:unparsed-text, an entity fix in the parser, or XQuery character references. method-* are XQuery-only: unit cases until 3.10 and 3.13.</p>
+  </body>
+</packet>

@@ -1,0 +1,4 @@
+<term id="static_expression" source="docs/GLOSSARY.md">
+  <name>static_expression</name>
+  <definition>An XPath expression evaluated while the stylesheet is read: <code>[xsl:]use-when</code>, the select of a static variable, the value templates of shadow attributes (XSLT 4.0, 9.7)</definition>
+</term>

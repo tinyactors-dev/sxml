@@ -1,0 +1,4 @@
+<term id="component" source="docs/GLOSSARY.md">
+  <name>component</name>
+  <definition>A stylesheet function, named template, attribute set, global variable or parameter, mode, or named item or record type, as packages bind references to it (XSLT 4.0, 3.4.5)</definition>
+</term>

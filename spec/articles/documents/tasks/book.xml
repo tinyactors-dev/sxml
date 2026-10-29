@@ -1,0 +1,1839 @@
+<document id="tasks/book" source="docs/tasks/book.md">
+  <title>The book around five projects (plan, packets book-5, book-14 and book-22)</title>
+  <p>Internal: this file is not part of the book. It plans the rewrite of <code>docs/book</code> that the owner asked for on 2026-10-21 (<ref kind="decision" to="D299"/>):</p>
+  <quote>
+    <p>restructure the content of the book around useful examples instead of the current ones: 1. keeping structured specifications for projects using XML (think IETF-style RFCs, without needing an LLM to edit large text), 2. creating and transforming SVG (e.g. a diagramming tool), 3. annotating SCXML files with data schemas and XHTML for self-describing machines, 4. using the tree-sitter bridge to create a diff of call chains, 5. recording OTel traces before and after a change and rendering a trace diff for changes in cardinality and communication participants.</p>
+  </quote>
+  <p>The book keeps <ref kind="decision" to="D257"/>'s rules: The Rust Programming Language's style (teach by running small, real examples; no phases, packets or decision numbers in the text), every console block checked by <code>tools/check-book-examples.sh</code>, <code>&lt;!-- examples: NAME --&gt;</code>, <code>&lt;!-- requires: javascript --&gt;</code> and <code>&lt;!-- status: draft --&gt;</code> as today. The library/loans data goes away everywhere except Chapter 18 (codegen), which is already a project and stays as it is (until book-22: it now generates Vane's SDK clients, section 9).</p>
+  <section id="1-one-story-five-projects">
+    <title>1. One story, five projects</title>
+    <p>All five projects belong to one small, made-up system, <strong>Vane</strong>: a feature-flag product (since book-22, section 9). Vane is <strong>one service</strong>, <code>vane</code>, a TypeScript program on Node.js whose parts are modules, not services: <code>api</code> (the HTTP entry points), <code>flags</code> (what each request does), <code>registry</code> (flags, targeting rules and percentages in PostgreSQL), <code>cache</code> (flags read recently, in Redis), <code>rollout</code> (the lifecycle machine of each flag, guardrail checks, the automatic pause) and <code>audit</code> (the audit log in PostgreSQL and the owners' webhook). It offers an <strong>evaluation API</strong> to the SDKs and an <strong>admin API</strong> to its console, both as remote functions (<code>GET /api/getFlags</code>, <code>POST /api/killFlag</code>, ...), and an <strong>update stream</strong> on which it sends a line per change. Two <strong>SDKs</strong> call it: <code>@vane/browser</code>, the frontend SDK, asks the service whether each flag is on for one user (<code>evaluateFlags</code>); <code>@vane/node</code>, the backend SDK, downloads every flag with its rules (<code>getFlags</code>), evaluates them locally, keeps them in a cache and keeps the cache current from the update stream. Owners roll flags out by percentage in the console; the service checks guardrail metrics before each step, pauses a flag after three failed checks, and has a kill switch; every change goes to the audit log. Every developer has met this, and the parts are where a real product has them. The reader meets one domain and sees the projects feed each other:</p>
+    <table>
+      <row header="true">
+        <cell>Project</cell>
+        <cell>What the reader builds</cell>
+        <cell>Data (committed by book-14)</cell>
+      </row>
+      <row>
+        <cell>spec</cell>
+        <cell>The Vane protocol as an Internet-Draft in XML: indexes of requirements and terms, checks, targeted edits, HTML and RFC-style text</cell>
+        <cell>
+          <code>examples/spec/</code>
+        </cell>
+      </row>
+      <row>
+        <cell>svg</cell>
+        <cell>A small diagramming tool: a graph description, a computed layout, SVG written by XQuery and XSLT, SVG transformed</cell>
+        <cell>
+          <code>examples/svg/</code>
+        </cell>
+      </row>
+      <row>
+        <cell>scxml</cell>
+        <cell>A flag's rollout lifecycle as an SCXML machine whose data and events carry XSD types and whose states carry XHTML documentation; checks and generated documentation</cell>
+        <cell>
+          <code>examples/scxml/</code>
+        </cell>
+      </row>
+      <row>
+        <cell>call-chains</cell>
+        <cell>The flag service's TypeScript before and after a change, its call graph, and the diff of its call chains</cell>
+        <cell>
+          <code>examples/call-chains/</code>
+        </cell>
+      </row>
+      <row>
+        <cell>traces</cell>
+        <cell>OTLP JSON traces of the same change before and after, and the diff of cardinalities and participants, rendered as HTML and SVG</cell>
+        <cell>
+          <code>examples/traces/</code>
+        </cell>
+      </row>
+      <row>
+        <cell>codegen (book-22)</cell>
+        <cell>Vane's API as XSD types and remote functions; generated SDK clients for the browser and Node.js, the service's request validation and an OpenAPI document</cell>
+        <cell>
+          <code>examples/codegen/</code>
+        </cell>
+      </row>
+    </table>
+    <p>The links between projects are real and small: the machine's <code>vane:implements</code> attributes name the draft's requirement anchors; the machine's numbers (3 failed checks, 600 s rollout steps, a 300 s pause) are the draft's; the code change of call-chains is the change the traces record; the diagram vocabulary of svg draws the system, the machine, the call-chain diff and the trace diff; the codegen project generates the SDK clients and request checks of the API that the traces record. The book says once, early (introduction), that the projects share a story, and each project chapter can be read on its own.</p>
+    <p>The story replaced an earlier one, <strong>Latch</strong> (door locks, a controller and its services), on the owner's request (2026-10-21: "nobody thinks of doors"). Book-14 rewrote the seed data with the same structure; section 8 has the rename table and the packets that carry the chapters over. Then the owner found Vane as a set of services nonsensical ("make it a monolithic service that's fully featured, and we want to offer client libraries/SDKs for frontend and backend"): book-22 made it one service and two SDKs, with the same teaching structure; section 9 has the change table and packets book-23 to book-29. Sections 3 to 7 below still use the Latch names where they describe chapter content, and section 2's spec and scxml parts keep book-14's text: read them through the tables of sections 8 and 9.</p>
+  </section>
+  <section id="2-the-shared-data">
+    <title>2. The shared data</title>
+    <p>Everything below is committed and checked with a release build of HEAD (<code>tools/private-build.sh SCRATCH/build-book-14 --preset release --</code>; book-22: the shared release build of 4c60631). These files are the <em>seed</em> of each project directory. The svg, call-chains and traces parts and the verification describe book-22's seeds; the spec and scxml parts are book-14's, with book-22's spec changes listed at the end of the spec part.</p>
+    <section id="spec-an-internet-draft-in-a-subset-of-xml2rfc-v3">
+      <title>spec: an Internet-Draft in a subset of xml2rfc v3</title>
+      <p><code>spec/vane.xml</code> (draft -01, <code>draft-example-vane-protocol-01</code>, "The Vane Protocol for Feature Flag Rollouts") and <code>spec/vane-00.xml</code> (the earlier draft), <code>spec/vane.xsd</code>.</p>
+      <list>
+        <item>
+          <p><strong>Vocabulary</strong>: a subset of xml2rfc version 3 (RFC 7991 and the RFC Editor's current v3 grammar), no namespace, xml2rfc's element names and meanings: <code>rfc</code> (version, category, ipr, submissionType, docName), <code>front</code> (title, seriesInfo, author with organization and address/email, date, area, keyword, abstract), <code>middle</code> with nested <code>section</code> (anchor, <code>name</code>, <code>t</code>, <code>dl</code>/<code>dt</code>/<code>dd</code>, <code>sourcecode</code>), inline <code>xref</code>, <code>bcp14</code>, <code>em</code>, <code>strong</code>, <code>tt</code>, <code>cref</code>, and <code>back</code> with nested <code>references</code> and <code>reference</code>. Chosen over an own vocabulary because it is what IETF authors write, xml2rfc can render the file, and the book can say so.</p>
+        </item>
+        <item>
+          <p><strong>Sections</strong> (anchors): Introduction (<code>intro</code>) with Terminology (<code>terminology</code>), Flag States (<code>states</code>), Messages (<code>messages</code>, with the ABNF) with Rollout (<code>rollout</code>) and Status (<term name="status"/>), Pause (<code>pause</code>), Security Considerations (<code>security</code>), IANA Considerations (<code>iana</code>).</p>
+        </item>
+        <item>
+          <p><strong>Requirements</strong> are paragraphs <code>t</code> with an <code>anchor</code> holding <code>bcp14</code> keywords (11 in -01: MUST 5, MUST NOT 1, SHOULD 2, SHOULD NOT 1, MAY 2; plus one unanchored SHOULD in Security Considerations, "carry Vane over an encrypted link", that <code>cref</code> issue-2 flags, deliberately: the "add a requirement" edit gives it an anchor). Anchors are names given once in the order written (<code>req-1</code>…<code>req-11</code>, not in document order: -01 inserted req-9, req-10, req-11 into existing sections; the document order is req-1 2 3 4 5 9 6 10 7 8 11); the renderer numbers sections and requirements by position. The requirements:</p>
+          <table>
+            <row header="true">
+              <cell>Anchor</cell>
+              <cell>Section</cell>
+              <cell>Keyword</cell>
+              <cell>Says</cell>
+            </row>
+            <row>
+              <cell>req-1</cell>
+              <cell>states</cell>
+              <cell>MUST</cell>
+              <cell>a flag is in exactly one of "stable", "rolling-out", "paused"</cell>
+            </row>
+            <row>
+              <cell>req-2</cell>
+              <cell>states</cell>
+              <cell>MUST</cell>
+              <cell>a flag starts "stable" when created</cell>
+            </row>
+            <row>
+              <cell>req-3</cell>
+              <cell>states</cell>
+              <cell>SHOULD</cell>
+              <cell>a rolling-out flag returns to "stable" ten minutes after its step began</cell>
+            </row>
+            <row>
+              <cell>req-4</cell>
+              <cell>rollout</cell>
+              <cell>MUST</cell>
+              <cell>the service checks the guardrail metrics before it applies a percentage</cell>
+            </row>
+            <row>
+              <cell>req-5</cell>
+              <cell>rollout</cell>
+              <cell>MUST NOT</cell>
+              <cell>no rollout during a pause (xref to section <code>pause</code>)</cell>
+            </row>
+            <row>
+              <cell>req-9</cell>
+              <cell>rollout</cell>
+              <cell>MAY</cell>
+              <cell>ask an owner for a one-time password (RFC 6238) before a rollout (-01)</cell>
+            </row>
+            <row>
+              <cell>req-6</cell>
+              <cell>status</cell>
+              <cell>MUST</cell>
+              <cell>answer a status request with the state and the failed checks</cell>
+            </row>
+            <row>
+              <cell>req-10</cell>
+              <cell>status</cell>
+              <cell>SHOULD NOT</cell>
+              <cell>an SDK sends at most one status request per second per flag (-01)</cell>
+            </row>
+            <row>
+              <cell>req-7</cell>
+              <cell>pause</cell>
+              <cell>MUST</cell>
+              <cell>three failed checks in a row pause the flag (-00: five)</cell>
+            </row>
+            <row>
+              <cell>req-8</cell>
+              <cell>pause</cell>
+              <cell>SHOULD</cell>
+              <cell>a pause lasts five minutes (-00: one minute); <code>cref</code> issue-1</cell>
+            </row>
+            <row>
+              <cell>req-11</cell>
+              <cell>pause</cell>
+              <cell>MAY</cell>
+              <cell>report a pause to the flag's owners (-01)</cell>
+            </row>
+          </table>
+          <p>Terms are the <code>dt</code>s of section 1.1 with anchors <code>term-flag</code> (Flag), <code>term-sdk</code> (SDK), <code>term-percentage</code> (Percentage), <code>term-pause</code> (Pause), used through <code>&lt;xref target="term-…"&gt;text&lt;/xref&gt;</code>; the Pause <code>dd</code> refers to <code>term-flag</code>. References: RFC 2119, 5234, 8174 (normative), RFC 6238 (informative, new in -01; kept from Latch because a second factor before a production rollout is plausible, and its authors, M'Raihi among them, carry the collation and array lessons of Chapters 2 and 13). One ABNF <code>sourcecode</code> (<code>name="vane.abnf"</code>, for the iXML task):</p>
+          <pre>message         = rollout-request / kill-request / status-request
+rollout-request = "ROLLOUT" SP flag-key SP percentage CRLF
+kill-request    = "KILL" SP flag-key CRLF
+status-request  = "STATUS" SP flag-key CRLF
+flag-key        = 1*32(ALPHA / DIGIT / "-")
+percentage      = 1*3DIGIT</pre>
+          <p>(undefined core rules: SP, CRLF, ALPHA, DIGIT). Two <code>cref</code> editorial notes. Words for the full-text lessons: "flag"/"flags", "pause"/ "paused", "roll out"/"rollout"/"rolling-out", "SDK", "service", "owner"/"owners"; req-7 says "three", for <code>format-integer(3, "w")</code>.</p>
+        </item>
+        <item>
+          <p><strong>-00 vs -01</strong>: -01 adds req-9 (one-time password, with the RFC 6238 reference and the informative references section), req-10 (status rate) and req-11 (pause report), changes req-7 ("five" to "three" failed checks) and req-8 ("one minute" to "five minutes"), the dates (2026-07-06 to 2026-10-21), the names, and adds the leading comment. Anchors of unchanged requirements are the same, so a diff by anchor works.</p>
+        </item>
+        <item>
+          <p><strong>book-22 changes</strong> (both drafts; the counts, anchors, keywords, the unanchored SHOULD and the -00/-01 differences are unchanged): the abstract and the introduction describe the protocol between the SDKs and "the Vane service" (no "evaluation service", no "line-based"): an SDK keeps the flags in a cache, evaluates them for each user, holds an <em>update stream</em> open on which the service sends a message per change, and asks for the status of a flag; the SDK term is "The library in an application that evaluates flags from its cache and keeps the cache current with Vane messages"; the Percentage term adds the rollout semantics ("An SDK puts a user in the share by a hash of the flag and the user, so the user stays in it while the percentage grows"); the Messages paragraph says the lines travel on the update stream (the service sends ROLLOUT and KILL, an SDK sends STATUS); the ABNF rules are <code>rollout-update</code>, <code>kill-update</code>, <code>status-request</code> (same shape: six rules, the same references, the same undefined core rules); req-10 (-01) ends "; it uses its cached answer in between" (the SDK caching rule; 22 words); Security begins "Vane messages travel in clear text on the network." The ABNF is now:</p>
+          <pre>message        = rollout-update / kill-update / status-request
+rollout-update = "ROLLOUT" SP flag-key SP percentage CRLF
+kill-update    = "KILL" SP flag-key CRLF
+status-request = "STATUS" SP flag-key CRLF
+flag-key       = 1*32(ALPHA / DIGIT / "-")
+percentage     = 1*3DIGIT</pre>
+        </item>
+        <item>
+          <p><strong>vane.xsd</strong> (XSD 1.1, <code>vc:minVersion="1.1"</code>), latch.xsd unchanged but its comment: named simple types (<code>anchor</code>, <code>draft-name</code> with a pattern, <term name="keyword"/> enumerating BCP 14's eleven levels with an annotation, <code>month</code>, <code>day</code>), mixed content (<code>text</code>), a group of inline elements, <code>xs:simpleContent</code> extensions (<code>title</code>, <code>sourcecode</code>), recursive <code>section</code> and <code>references</code>, an <code>xs:assert</code> (docName equals the Internet-Draft seriesInfo), <code>xs:unique</code> over all anchors (not <code>xs:key</code>: most paragraphs have none) and an <code>xs:keyref</code> from <code>xref/@target</code>.</p>
+        </item>
+      </list>
+    </section>
+    <section id="svg-a-diagram-description-and-its-drawing">
+      <title>svg: a diagram description and its drawing</title>
+      <p><code>svg/diagram.xml</code>, <code>svg/diagram.svg</code>.</p>
+      <list>
+        <item>
+          <p><strong>Vocabulary</strong> (own, no namespace): <code>diagram</code> (title) with <term name="node"/> (id, label, optional kind="store") and <code>edge</code> (from, to, optional label), and the optional <code>class</code> on node and edge (copied to the SVG group, so a diff can colour <code>added</code>, <code>removed</code>, <code>changed</code>). Unchanged by book-22.</p>
+        </item>
+        <item>
+          <p><strong>The diagram</strong> ("Vane", book-22): the two SDKs, the modules of the one service as boxes labelled <code>vane/MODULE</code>, and the two stores. Nodes <code>browser</code> (@vane/browser), <term name="node"/> (@vane/node), <code>api</code> (vane/api), <code>flags</code> (vane/flags), <code>registry</code> (vane/registry), <code>cache</code> (vane/cache), <code>postgresql</code> (store), <code>redis</code> (store); edges browser→api HTTP, node→api HTTP, api→flags, flags→registry, flags→cache (module calls have no label), registry→postgresql SQL, cache→redis Redis. The console, the rollout and audit modules are not drawn (the audit module appears only after the change, in the chapter's change.xml). Modules are boxes, not a grouped box: the vocabulary and the layout code stay as they are, and the <code>vane/</code> prefix says that the boxes are parts of one program (a group element would be new layout machinery for one picture).</p>
+        </item>
+        <item>
+          <p><strong>diagram.svg</strong> is the drawing the svg chapter's code makes (<code>draw.xq</code> writes it byte for byte; book-22 regenerated it with the committed draw.xq and draw.xqm, unchanged), with this layout: rank of a node = breadth-first distance from the nodes without incoming edges (cycles allowed; for this DAG equal to the longest path); one row per rank, top to bottom, nodes in document order, each row centred; boxes 140 x 40, gaps 40 across and 60 down, padding 20, so width = 2·20 + n·140 + (n−1)·40 for the widest row; five ranks (browser node / api / flags / registry cache / postgresql redis), 360 x 480; edges are lines from the bottom centre of the source to the top centre of the target with an arrow marker, the label at the midpoint (+6, +4) when there is one; services <code>rect rx="6"</code>, stores <code>rx="20"</code>; a <code>style</code> element with five rules; ids <code>node-ID</code>, <code>edge-FROM-TO</code>; edges drawn before nodes. The file is the serialization with <code>indent=yes</code> of the SVG namespace as the default namespace. The ids <code>node-flags</code> and <code>node-cache</code> remain (svg-xslt.md uses them).</p>
+        </item>
+      </list>
+    </section>
+    <section id="scxml-a-feature-flag-that-describes-itself">
+      <title>scxml: a feature flag that describes itself</title>
+      <p><code>scxml/flag.scxml</code>, <code>scxml/scxml.xsd</code>, <code>scxml/vane-data.xsd</code>.</p>
+      <list>
+        <item>
+          <p><strong>Machine</strong> <code>feature_flag</code> (SCXML 1.0 namespace, <code>datamodel="ecmascript"</code>), one flag's rollout lifecycle: states <code>stable</code> (initial: the flag keeps its percentage), <code>checking</code> (the guardrail metrics are checked), <code>rolling-out</code> (the new percentage is served for one step), <code>paused</code> (rollouts refused), <code>archived</code>. Transitions: stable --rollout.request--&gt; checking; stable status.request (targetless, <code>send</code> status.response); checking --check.passed--&gt; rolling-out (assign failures 0); checking --check.failed, cond <code>failures + 1 &lt; maxFailures</code>--&gt; stable (assign failures + 1); checking --check.failed--&gt; paused; rolling-out (onentry: <code>send</code> step.done with <code>delayexpr</code>) --"kill.request step.done"--&gt; stable (two events in one attribute); rolling-out flag.evaluated (targetless, <code>log</code>); paused (onentry: <code>send</code> pause.expired) --pause.expired--&gt; stable (assign failures 0); archived --kill.request--&gt; stable. The same graph as the Latch machine (locked, checking, unlocked, lockout, jammed).</p>
+        </item>
+        <item>
+          <p><strong>Self-description</strong>, in the namespace <code>urn:example:vane</code>: <code>vane:events</code> declares nine events (<code>vane:event name</code>, optional <code>vane:payload</code> naming a payload element of vane-data.xsd, and an XHTML <code>p</code>): rollout.request (payload <code>vane:rollout</code>), check.passed, check.failed, kill.request, status.request, status.response (payload <code>vane:status</code>), step.done, pause.expired, flag.archived. Data: <code>failures</code> 0 (<code>vane:failure-count</code>), <code>maxFailures</code> 3 (<code>vane:failure-limit</code>), <code>stepSeconds</code> 600 and <code>pauseSeconds</code> 300 (<code>vane:seconds</code>). <code>vane:implements</code>: stable req-2, the status transition req-6, checking req-4, the check.failed → paused transition req-7, rolling-out req-3, paused "req-5 req-8"; each state has an XHTML <code>div</code> (rolling-out and paused with a <code>var</code>).</p>
+        </item>
+        <item>
+          <p><strong>Deliberate flaws</strong>, valid against the schemas, found by the schema-aware checks of Chapter 7: <code>archived</code> is unreachable (no transition targets it), <code>flag.evaluated</code> is handled but not declared, <code>flag.archived</code> is declared but neither handled nor sent (the author forgot the archive transition: the fix adds it), and <code>status.response</code> is only sent (a check must count <code>send/@event</code> as used, or report it as outgoing). The draft's only MUST that nothing implements is req-1.</p>
+        </item>
+        <item>
+          <p><strong>scxml.xsd</strong>: unchanged but for its comment and the import (<code>xs:import</code> of vane-data.xsd for <code>urn:example:vane</code>): a subset of the Recommendation's schema (one target per transition, so a keyref can check it; four executable elements), lax <code>xs:any</code> and <code>xs:anyAttribute</code> <code>##other</code>, two <code>xs:assert</code>s citing SCXML 1.0 3.5 and 5.3.1, <code>xs:key</code> state-id with keyrefs for targets and initial.</p>
+        </item>
+        <item>
+          <p><strong>vane-data.xsd</strong>: simple types with facets (failure-count, failure-limit ≤ 10, seconds ≤ 3600, flag-key and percentage patterns matching the draft's ABNF — <code>[A-Za-z0-9\-]{1,32}</code> and <code>[0-9]{1,3}</code>, so the pattern, like the ABNF, allows 999: a facet lesson —, state enumeration stable, rolling-out, paused), <code>xs:documentation</code> on seconds, flag-key and percentage (the request under "Proposed data changes"), payload elements <code>rollout</code> (flag, percentage, optional owner) and <term name="status"/> (flag, state, failed-checks, optional retry-after, with an <code>xs:assert</code> tying <code>retry-after</code> to the state <code>paused</code>), global attributes <code>type</code>, <code>payload</code>, <code>implements</code> (an <code>xs:list</code>), the <code>events</code> element with <code>xs:unique</code> on names, and <code>vane:value</code> of type <code>xs:anySimpleType</code>, so that a query can check a data value against its type with <code>xsi:type</code>.</p>
+        </item>
+      </list>
+    </section>
+    <section id="call-chains-a-typescript-service-before-and-after">
+      <title>call-chains: a TypeScript service, before and after</title>
+      <p><code>call-chains/before/{api,flags,registry,cache,db}.ts</code>, <code>call-chains/after/{api,flags,registry,audit,db}.ts</code> (book-22; TypeScript, built in; namespace imports <code>import * as registry from "./registry.ts"</code> make callees module-qualified). They are a cut of the Vane service: the modules on the path of the two remote functions the change touches.</p>
+      <list>
+        <item>
+          <p><code>api.ts</code> (was server.ts): <code>route</code> answers <code>GET /api/getFlags</code> (<code>listFlags</code>, the flags with their rules that the backend SDK downloads; the answer is <code>{ flags }</code>) and <code>POST /api/killFlag</code> (body <code>{ flag, owner }</code>, <code>killFlag</code>, the kill switch of the admin API that the console calls; the answer is <code>{ flag, killed }</code>), else <code>{ problems: ["no function …"] }</code>; <code>start</code> with <code>createServer</code> and an arrow function, so the call graph attributes the calls to the enclosing named function. The routes are the remote functions of the codegen project's api.xml.</p>
+        </item>
+        <item>
+          <p><code>db.ts</code> (was http.ts): the <code>Rule</code> and <code>Flag</code> interfaces (Flag: key, name, state, percentage, rules, owners) and <code>query(text, values)</code> over a <code>pg.Pool</code> (<code>pool.query</code> is external). Calls carry no type arguments (<code>await query&lt;Flag&gt;(…)</code> parses as a call of <code>await query</code>, an ERROR-free but wrong tree in tree-sitter-typescript); callers cast with <code>as</code>.</p>
+        </item>
+        <item>
+          <p><code>registry.ts</code>: <code>getFlags</code> (<code>SELECT key, name, state, percentage, rules, owners FROM flags</code>), <code>getFlag(key)</code> (<code>… WHERE key = $1</code>), <code>setPercentage(key, percentage)</code> (<code>UPDATE flags SET percentage = $2 WHERE key = $1</code>); after: <code>getFlagKeys</code> (<code>SELECT key FROM flags</code>) instead of <code>getFlags</code>.</p>
+        </item>
+        <item>
+          <p><code>cache.ts</code> (before only): <code>getFlag(key)</code> reads <code>flag:${key}</code> from Redis (<code>redis://redis:6379</code>).</p>
+        </item>
+        <item>
+          <p><code>flags.ts</code>: <code>FlagSummary</code> is what an SDK needs to evaluate a flag (key, state, percentage, rules: no name, no owners); <code>summarize</code> destructures its parameter; <code>listFlags</code>, <code>isOwner</code>, <code>killFlag</code>.</p>
+        </item>
+        <item>
+          <p><code>audit.ts</code> (after only): <code>record(flagKey, action)</code> inserts into <code>audit_events (flag, action)</code> through <code>db.query</code> and posts to the owners' webhook <code>https://hooks.example.com/vane</code> with <code>fetch</code>.</p>
+        </item>
+      </list>
+      <p>The change (vane 2.3.0 to 2.4.0), in <code>flags.ts</code>: <code>listFlags</code> called <code>registry.getFlags()</code> once; now it calls <code>registry.getFlagKeys()</code> and then <code>registry.getFlag(key)</code> in a <code>for … of</code> loop (an N+1 against the database; a static check sees the call inside a loop); <code>killFlag</code> no longer reads <code>cache.getFlag</code> (a kill must read the flag from the database, not from a cache that may be a minute old; cache.ts is gone) and now calls <code>audit.record(key, "kill")</code> (audit.ts is new). Function counts per file: api 2, cache 1, db 1, flags 4, registry 3, audit 1. Chains (chains.xq): <code>api.start &gt; api.route &gt; flags.listFlags &gt; registry.getFlags &gt; db.query</code> before; after, <code>… &gt; registry.getFlag* &gt; db.query</code> and <code>… &gt; flags.killFlag &gt; audit.record &gt; db.query</code>.</p>
+      <p><code>call-chains/kinds/flag.ts</code> and the chapter's code are not seeds; the chapter's graph.xqm, chains.xq, diff.xq and report.xq ran unchanged on the new files.</p>
+    </section>
+    <section id="traces-otlp-json-before-and-after">
+      <title>traces: OTLP JSON before and after</title>
+      <p><code>traces/before.json</code> (14 spans), <code>traces/after.json</code> (23 spans), each an OTLP <code>ExportTraceServiceRequest</code> in JSON (the OTLP/HTTP JSON encoding: hex trace and span ids, kind as an integer, times as decimal strings, <code>intValue</code> as a string), as a collector writes them: resourceSpans per process (service.name, service.version, deployment.environment.name <code>staging</code>), scopeSpans per instrumentation library. Written by book-22 (the generator script is not committed; trace ids and start times are book-14's, span ids are new). Two traces per file:</p>
+      <list>
+        <item>
+          <p><code>GET /api/getFlags</code> (09:00:00.000): the backend SDK refreshes its flags. Root: a client span in resource <code>storefront</code> 5.2.0 (an application that embeds the SDK), scope <code>@vane/node</code> 1.4.0, <code>server.address</code> vane, <code>url.template</code> /api/getFlags. Then in resource <code>vane</code>: the server span (scope <code>@opentelemetry/instrumentation-http</code>, <code>http.route</code>), internal spans per module function (kind 1, scope <code>vane</code> with the service's version, named after the function: <code>flags.listFlags</code>, <code>registry.getFlags</code>, <code>code.function.name</code>, and <code>vane.flag.key</code> where a flag is meant), and PostgreSQL client spans (scope <code>@opentelemetry/instrumentation-pg</code>, <code>db.system.name</code> postgresql, <code>db.operation.name</code>, <code>db.collection.name</code>, <code>db.query.text</code> as the code writes it, <code>server.address</code> postgresql, port 5432).</p>
+        </item>
+        <item>
+          <p><code>POST /api/killFlag</code> (09:00:02.000): an owner pulls the kill switch of new-checkout. Root: a client span in resource <code>vane-console</code> 1.8.0 (the console in a browser, scope <code>@opentelemetry/instrumentation-fetch</code>, <code>server.address</code> vane.example.com); the server span; <code>flags.killFlag</code>; before: <code>cache.getFlag</code> with a Redis client span (<code>GET</code>, <code>db.system.name</code> redis, <code>GET flag:new-checkout</code>, <code>server.address</code> redis), then <code>registry.getFlag</code> with <code>SELECT flags</code>, and <code>registry.setPercentage</code> with <code>UPDATE flags</code>; after: no cache, <code>audit.record</code> with <code>INSERT audit_events</code> and the webhook, a client span <code>POST</code> (scope <code>@opentelemetry/instrumentation-undici</code>, <code>server.address</code> hooks.example.com, <code>url.full</code> https://hooks.example.com/vane) with no server span.</p>
+        </item>
+      </list>
+      <p>Participants come from client spans: the service of the server span whose parent is the client span, else <code>server.address</code> (postgresql, redis and hooks.example.com have no server spans). Internal spans are not calls. The diff (the traces chapter's <code>diff.xq</code>, unchanged, run on the new files):</p>
+      <pre>vane: 2.3.0 -&gt; 2.4.0
+GET /api/getFlags: vane -&gt; postgresql  1 -&gt; 5
+POST /api/killFlag: vane -&gt; hooks.example.com  0 -&gt; 1
+POST /api/killFlag: vane -&gt; postgresql  2 -&gt; 3
+POST /api/killFlag: vane -&gt; redis  1 -&gt; 0</pre>
+      <p>The new participant is the owners' webhook (hooks.example.com); the N+1 is a run of four <code>registry.getFlag</code> internal spans (each with a <code>SELECT flags</code>) under <code>flags.listFlags</code>, for new-checkout, dark-mode, fast-search, beta-banner; the removed call is Redis; the audit write raises the kill's PostgreSQL calls from 2 to 3. There is no "none -&gt;" version line any more: nothing new has a resource of its own (the storefront and the console keep their versions). The participants diagram of <code>participants.xq</code> draws a callee without a resource as a store, which is wrong for the webhook: the traces packet decides (for example, a store only when the client span has <code>db.system.name</code>).</p>
+    </section>
+    <section id="verification-release-build-of-head-run-in-each-directory">
+      <title>Verification (release build of HEAD, run in each directory)</title>
+      <p>Book-22's run, on the shared release build of 4c60631 (each directory a copy with the symlinks followed):</p>
+      <pre language="console">$ cd spec &amp;&amp; sxml validate --schema=vane.xsd vane.xml vane-00.xml; echo $?
+0
+$ sxml xpath --context-item=vane.xml 'count(//t[bcp14]), count(//t[bcp14][not(@anchor)]), count(//xref), count(//dt)'
+12
+1
+11
+4
+$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor]/@anchor, " "), string-join(for $k in distinct-values(//t[@anchor]/bcp14) return $k || " " || count(//t[@anchor][bcp14 = $k]), ", ")'
+"req-1 req-2 req-3 req-4 req-5 req-9 req-6 req-10 req-7 req-8 req-11"
+"MUST 5, SHOULD 2, MUST NOT 1, MAY 2, SHOULD NOT 1"
+$ sxml xpath --context-item=vane.xml --method=text '//sourcecode[@type = "abnf"]'
+
+message        = rollout-update / kill-update / status-request
+rollout-update = "ROLLOUT" SP flag-key SP percentage CRLF
+kill-update    = "KILL" SP flag-key CRLF
+status-request = "STATUS" SP flag-key CRLF
+flag-key       = 1*32(ALPHA / DIGIT / "-")
+percentage     = 1*3DIGIT
+
+$ cd ../scxml &amp;&amp; sxml validate --schema=scxml.xsd flag.scxml; echo $?
+0
+$ cd ../svg &amp;&amp; sxml check diagram.xml diagram.svg; echo $?
+0
+$ sxml xquery --context-item=diagram.xml --output=drawn.svg draw.xq
+$ diff drawn.svg diagram.svg &amp;&amp; echo same
+same
+$ cd ../call-chains &amp;&amp; sxml xpath --allow-file-access 'for $version in ("before", "after") for $file in sort(file:list($version)) let $tree := tree-sitter:parse(file:read-text($version || "/" || $file), "typescript") return `{$version}/{$file}: {count($tree//function_declaration)} functions, {count($tree//(ERROR | *[@missing]))} errors`'
+"before/api.ts: 2 functions, 0 errors"
+"before/cache.ts: 1 functions, 0 errors"
+"before/db.ts: 1 functions, 0 errors"
+"before/flags.ts: 4 functions, 0 errors"
+"before/registry.ts: 3 functions, 0 errors"
+"after/api.ts: 2 functions, 0 errors"
+"after/audit.ts: 1 functions, 0 errors"
+"after/db.ts: 1 functions, 0 errors"
+"after/flags.ts: 4 functions, 0 errors"
+"after/registry.ts: 3 functions, 0 errors"
+$ sxml xquery --allow-file-access diff.xq --output=diff.xml
+$ sxml xquery --context-item=diff.xml report.xq | tail -4
+Calls to other modules, before and after:
+  flags.listFlags &gt; registry: 1 -&gt; 1 + n
+  flags.killFlag &gt; audit: 0 -&gt; 1
+  flags.killFlag &gt; cache: 1 -&gt; 0
+$ cd ../traces &amp;&amp; sxml xpath '("before.json", "after.json") ! `{.}: {count(json-doc(.)?resourceSpans?*?scopeSpans?*?spans?*)} spans of {count(distinct-values(json-doc(.)?resourceSpans?*?scopeSpans?*?spans?*?traceId))} traces in {string-join(json-doc(.)?resourceSpans?*?resource?attributes?*[?key = "service.name"]?value?stringValue, ", ")}`'
+"before.json: 14 spans of 2 traces in storefront, vane, vane-console"
+"after.json: 23 spans of 2 traces in storefront, vane, vane-console"
+$ sxml xquery diff.xq
+vane: 2.3.0 -&gt; 2.4.0
+GET /api/getFlags: vane -&gt; postgresql  1 -&gt; 5
+POST /api/killFlag: vane -&gt; hooks.example.com  0 -&gt; 1
+POST /api/killFlag: vane -&gt; postgresql  2 -&gt; 3
+POST /api/killFlag: vane -&gt; redis  1 -&gt; 0
+$ cd ../codegen &amp;&amp; sxml validate --schema=api.xsd api.xml; echo $?
+0
+$ sh generate.sh &amp;&amp; sxml xquery --method=text check.xq
+5 functions: client, server and runtime agree
+$ sxml xpath --allow-file-access 'for $file in sort(file:list("generated"))[ends-with(., ".ts")] return `{$file}: {count(tree-sitter:parse(file:read-text("generated/" || $file), "typescript")//(ERROR | *[@missing]))} errors`'
+"client.ts: 0 errors"
+"server.ts: 0 errors"
+"types.ts: 0 errors"</pre>
+      <p>Also tried, so the chapters can rely on them: a broken copy of vane.xml gives cvc-enumeration-valid (bcp14 MIGHT), cvc-assertion (docName -01, seriesInfo -02), cvc-identity-constraint.4.1 (an anchor twice) and 4.3 (an xref to term-client); a broken flag.scxml gives 4.1 on a duplicate event (unique <code>event-name</code>), cvc-assertion on <code>data</code> with expr and src, and 4.3 on a missing target; the scxml chapter's <code>check.xq</code> with the names replaced (<code>latch</code> to <code>vane</code>) prints exactly</p>
+      <pre>unreachable state: archived
+undeclared event: flag.evaluated
+unused event: flag.archived
+not implemented: req-1 (MUST)</pre>
+      <p><code>validate { &lt;vane:value xsi:type="vane:failure-limit"&gt;30&lt;/vane:value&gt; }</code> raises cvc-maxInclusive-valid (XQDY0027), and <code>sum(@expr)</code> on the validated machine fails with FORG0006 because <code>expr</code> is typed xs:string. The call-chains chapter's <code>chains.xq</code>, <code>diff.xq</code> and <code>report.xq</code> and the traces chapter's <code>diff.xq</code> ran unchanged on the new files (their code names no door; only comments and prose do). Book-22 ran them again on its seeds, with the result shape above, ran the scxml <code>check.xq</code> (the same four lines), and ran the generated codegen files with Node.js 22 against a stub implementation: the client refuses <code>rollOutFlag({ flag: "new-checkout", percentage: 150, owner: "ada" })</code> with two problems, and the server answers a <code>fetch</code> of <code>{ flag: "New Checkout", …, force: true }</code> with 400 and two problems.</p>
+    </section>
+  </section>
+  <section id="3-rules-for-the-rewrite-packets">
+    <title>3. Rules for the rewrite packets</title>
+    <list ordered="true">
+      <item>
+        <p><strong>Project directories are example directories.</strong> A chapter file that uses a project names that project's directory: <code>&lt;!-- examples: spec --&gt;</code>. The reader runs every command of a project from one directory, like a real repository. Chapters that use no project keep their own directory (getting-started, ixml, source-code, c, javascript, codegen).</p>
+      </item>
+      <item>
+        <p><strong>Seed files are frozen during the rewrite.</strong> The files of section 2 are read-only for every packet. A packet that needs a change writes it under "Proposed data changes" at the end of this file and goes on without it; the integration packet decides. (The svg packet may regenerate <code>diagram.svg</code> from its own code, as said above; it is the only exception, and it then runs every chapter that shows that file.)</p>
+      </item>
+      <item>
+        <p><strong>New files in a shared directory</strong> are owned by the packet that adds them. Before adding a name, <code>git ls-files docs/book/examples/DIR</code> and the "Files" list of the other packets below; never take a name another packet lists. Never list a project directory's root in an example (<code>file:list(".")</code>, <code>ls</code>): other packets add files there. A packet that needs a listing makes a subdirectory of its own.</p>
+      </item>
+      <item>
+        <p><strong>Cross-project files</strong> are relative symlinks to seed files (or to a file another packet has committed, which is then an order constraint), committed in the using directory by the using packet, e.g. <code>scxml/latch.xml -&gt; ../spec/latch.xml</code>. <code>check-book-examples.sh</code> copies directories with <code>shutil.copytree</code>, which follows symlinks, and <code>{{#include}}</code> should name the target's real path.</p>
+      </item>
+      <item>
+        <p><strong>SUMMARY.md, introduction.md, foreword.md and the appendices</strong> belong to the integration packet (book-13). A rewrite packet checks its files with <code>tools/check-book-examples.sh BUILD file.md…</code> (which does not need SUMMARY) and lists any new glossary term for book-13 in its final report. New chapter files are not in SUMMARY until book-13; mdBook ignores them meanwhile. Run <code>mdbook build</code> only after book-13.</p>
+      </item>
+      <item>
+        <p><strong>Cross references</strong>: refer to other chapters by title with a link (<code>[Transforming with XSLT](xslt.md)</code>), not by number: the numbers move. book-13 replaces the remaining "Chapter N" texts (37 today).</p>
+      </item>
+      <item>
+        <p><strong>Old example directories</strong> are deleted by the packet that takes over their chapters, in the commit that stops using them (see each packet).</p>
+      </item>
+      <item>
+        <p><strong>Every feature in the coverage table (section 6) is taught where the table says</strong>, with at least the depth the old chapter had; a packet that cannot (an sxml limit), keeps the old text's point with the new data and says so in its report.</p>
+      </item>
+      <item>
+        <p>Each packet: release build of a HEAD snapshot (one at a time, deleted at the end), the check on its chapter files, a LOG entry, a decision record only for choices the next packets need, commit and push at each finished chapter. The book never mentions packets, phases or decisions.</p>
+      </item>
+    </list>
+  </section>
+  <section id="4-the-new-summary-md">
+    <title>4. The new SUMMARY.md</title>
+    <pre language="markdown"># Summary
+
+[Foreword](foreword.md)
+[Introduction](introduction.md)
+
+- [Getting Started](getting-started.md)
+    - [Installation](installation.md)
+    - [Hello, XPath](hello-xpath.md)
+    - [The sxml Command](the-sxml-command.md)
+- [Finding Things with XPath](xpath.md)
+    - [Paths, Steps and Predicates](xpath-paths.md)
+    - [Values and Types](xpath-values.md)
+    - [Functions and Operators](xpath-functions.md)
+    - [Maps, Arrays and Records](xpath-maps-arrays.md)
+    - [Functions as Values](xpath-higher-order.md)
+- [Writing Programs with XQuery](xquery.md)
+    - [FLWOR Expressions](xquery-flwor.md)
+    - [Grouping](xquery-grouping.md)
+    - [Building XML](xquery-constructors.md)
+    - [Conditions, Types and Errors](xquery-types-errors.md)
+    - [Functions and Modules](xquery-modules.md)
+    - [Documents, Parameters and the Context](xquery-inputs.md)
+    - [Writing Results](xquery-serialization.md)
+    - [Updating Documents](xquery-updates.md)
+    - [What's New in XQuery 4.0](xquery-4.md)
+    - [Project: Editing a Specification Without Rewriting It](xquery-project.md)
+- [Transforming with XSLT](xslt.md)
+    - [Templates and Modes](xslt-templates.md)
+    - [Keys, Numbers and Grouping](xslt-keys-grouping.md)
+    - [Many Outputs, Functions and Packages](xslt-packages.md)
+    - [Project: Publishing the Specification](xslt-project.md)
+- [Project: Drawing Diagrams with SVG](svg.md)
+    - [Computing a Layout](svg-layout.md)
+    - [Writing SVG with XQuery](svg-xquery.md)
+    - [Drawing with XSLT](svg-xslt.md)
+    - [Transforming SVG](svg-transform.md)
+- [Validating with XSD](xsd.md)
+    - [Simple Types and Facets](xsd-simple-types.md)
+    - [Complex Types and Content Models](xsd-complex-types.md)
+    - [Deriving Types](xsd-derivation.md)
+    - [Namespaces and Larger Schemas](xsd-namespaces.md)
+    - [Keys and References](xsd-identity.md)
+    - [XSD 1.1 Features](xsd-11.md)
+    - [Reading Validation Errors](xsd-errors.md)
+    - [Typed Data and Schema-Aware Queries](xsd-typed-data.md)
+- [Project: Self-Describing State Machines](scxml.md)
+    - [Checking What the Schema Cannot](scxml-checks.md)
+    - [Documenting the Machine in XHTML](scxml-xhtml.md)
+    - [Drawing the Machine](scxml-drawing.md)
+- [Parsing Text with Invisible XML](ixml.md)
+    - [Writing Grammars](ixml-grammars.md)
+    - [Real Tasks](ixml-tasks.md)
+    - [When a Parse Fails](ixml-errors.md)
+    - [Invisible XML Performance](ixml-performance.md)
+- [JSON, CSV and HTML](formats.md)
+- [Source Code as XML](source-code.md)
+- [Project: A Diff of Call Chains](call-chains.md)
+    - [A Call Graph from the Code](call-chains-graph.md)
+    - [Comparing Two Versions](call-chains-diff.md)
+- [Project: Comparing Traces Before and After a Change](traces.md)
+    - [Spans as a Tree](traces-tree.md)
+    - [Who Calls Whom, and How Often](traces-cardinality.md)
+    - [The Trace Diff](traces-diff.md)
+    - [Rendering the Diff](traces-rendering.md)
+    - [Streaming Large Trace Files](traces-streaming.md)
+- [Working with Text](text.md)
+- [Files and the Outside World](files.md)
+- [Embedding sxml in C](c.md)
+- [sxml in JavaScript](javascript.md)
+- [Performance and Memory](performance.md)
+- [Project: Generating Code from a Schema](codegen.md)
+    - [Building a Tree of the Program with XQuery](codegen-typescript.md)
+    - [Printing the Tree with XSLT](codegen-printer.md)
+    - [Running the Generated Code](codegen-running.md)
+    - [A Pipeline, a Second Target and a Changing Schema](codegen-pipeline.md)
+
+---
+
+- [Appendix A: The Command-Line Reference](appendix-cli.md)
+- [Appendix B: Conformance](appendix-conformance.md)
+- [Appendix C: Glossary](appendix-glossary.md)
+- [Appendix D: Differences from Other Processors](appendix-differences.md)</pre>
+    <p>Eighteen chapters, seven of them projects. Order: the three languages on the spec (the spec is the running example of Chapters 2 to 4, and each of those chapters ends with a project section that assembles a tool), then the first stand-alone project (SVG) once XQuery and XSLT are known, then XSD (spec for the basics, SCXML for identity, 1.1 and typed data), then the SCXML project, which draws its machine with the SVG chapter's module. Static analysis (call chains) comes before dynamic (traces) because that is the story: the code diff predicts the change, the traces confirm it and say how often. Renamed: <code>xquery-grouping-windows.md</code> to <code>xquery-grouping.md</code> (windows move to the traces project); <code>xslt-streaming.md</code> to <code>traces-streaming.md</code>. New: <code>xslt-project.md</code>, <code>svg*.md</code>, <code>scxml*.md</code>, <code>call-chains*.md</code>, <code>traces*.md</code>.</p>
+  </section>
+  <section id="5-the-chapters">
+    <title>5. The chapters</title>
+    <p>For each file: the project directory (its <code>examples:</code> comment), what it teaches in order, the main files it adds, and the packet. "Seed" means the files of section 2.</p>
+    <section id="1-getting-started-book-6-examples-getting-started">
+      <title>1. Getting Started (book-6) — <code>examples: getting-started</code></title>
+      <p>Stays tiny and self-contained: <code>getting-started/draft.xml</code>, a ten-line cut of the draft (two sections, three requirements); <code>draft.xsd</code>; <code>broken.xml</code>; <code>invalid.xml</code> (a <code>bcp14</code> of "MIGHT" and a missing <code>name</code>); <code>requirements.xq</code>; <code>outline.xsl</code>. installation.md is unchanged except its "Following along" paragraph. hello-xpath.md: strings, <code>//t</code>, <code>string()</code>, predicates (<code>//t[bcp14 = "MUST"]</code>), <code>count</code>, <code>@anchor</code>, <code>!</code>, the two errors. the-sxml-command.md: check, validate, xquery, transform, serialize, exit status, as today. Replaces books.xml and friends.</p>
+    </section>
+    <section id="2-finding-things-with-xpath-book-6-examples-spec">
+      <title>2. Finding Things with XPath (book-6) — <code>examples: spec</code></title>
+      <list>
+        <item>
+          <p>xpath.md: what an expression is; the draft as a tree (front, middle, sections, mixed content of <code>t</code>).</p>
+        </item>
+        <item>
+          <p>xpath-paths.md: steps from the top (<code>/rfc/middle/section/name</code>), predicates (<code>section[@anchor = "lockout"]</code>), positions (<code>section[2]</code>, <code>(//t[bcp14])[last()]</code>), axes (ancestor::section for "which section is this requirement in", following-sibling, preceding, the section number as <code>count(preceding-sibling::section) + 1</code> per ancestor), kinds of nodes (text(), comment, processing-instruction, the <code>cref</code>), combining (<code>|</code>, <code>except</code>: requirements outside Security), the value of a node (<code>string(t)</code> across <code>xref</code> and <code>bcp14</code>).</p>
+        </item>
+        <item>
+          <p>xpath-values.md: literals, arithmetic (counting requirements per keyword), untyped values (<code>@year</code> of references: RFC 2119 1997), general vs value comparison (<code>bcp14 = ("MUST", "SHALL")</code>), dates (<code>xs:date</code> from <code>date/@year/@month/@day</code> with a month map; the age of each reference; durations between -00 and -01: <code>doc("latch-00.xml")</code>), effective boolean values, sequence types.</p>
+        </item>
+        <item>
+          <p>xpath-functions.md: strings (normalize-space of paragraphs, the docName's version with <code>substring-after</code>/<code>tokenize</code>), regular expressions (finding BCP 14 words written <em>without</em> <code>bcp14</code> markup: <code>matches(., "\b(MUST|SHOULD|MAY)\b")</code> in text nodes, a classic draft bug), numbers (format-number of percentages per keyword), sequences (distinct-values of keywords, index-of), the arrow operator, conditions (<code>if</code>, <code>otherwise</code>), variables and loops (<code>let</code>, <code>for</code> in XPath), namespaces of functions.</p>
+        </item>
+        <item>
+          <p>xpath-maps-arrays.md: maps (anchor to title: the lookup table for xrefs), maps from documents (<code>map:merge(//*[@anchor] ! {@anchor: …})</code>), arrays (the authors of each reference as arrays), JSON (the requirement list serialized with method json and read back with parse-json), records (<code>record(anchor, keyword, section)</code>).</p>
+        </item>
+        <item>
+          <p>xpath-higher-order.md: inline functions, named references, partial application, sort-by (requirements by keyword strength: a map from keyword to rank), filter/for-each/fold-left (the requirement count per section), functions that make functions (a checker per keyword), what XPath can't do alone (points to XQuery).</p>
+        </item>
+      </list>
+      <p>Deletes <code>examples/xpath/</code> with its last use.</p>
+    </section>
+    <section id="3-writing-programs-with-xquery-book-7-examples-spec">
+      <title>3. Writing Programs with XQuery (book-7) — <code>examples: spec</code></title>
+      <list>
+        <item>
+          <p>xquery.md: running a query file against the draft; comments; the chapter's plan.</p>
+        </item>
+        <item>
+          <p>xquery-flwor.md: for/where/order by/return (the requirements index), let, positions (<code>at</code>), joins (xrefs to terms joined with the <code>dt</code>s; requirements of -00 with those of -01 by anchor), group by (first look), count, while (the requirements before the first SHOULD), more clauses.</p>
+        </item>
+        <item>
+          <p>xquery-grouping.md: grouping by a computed key (the section of each requirement), several keys (section and keyword), after the grouping (counts, string-join), choosing a key well. Ends with one paragraph that points to windows in <link href="traces-cardinality.md">Who Calls Whom, and How Often</link>.</p>
+        </item>
+        <item>
+          <p>xquery-constructors.md: direct constructors (an XHTML index of requirements), enclosed expressions, computed constructors (an element named after the keyword), namespaces (the XHTML namespace, the default element namespace), not only XML (text, comments, processing instructions; maps).</p>
+        </item>
+        <item>
+          <p>xquery-types-errors.md: switch (keyword to strength), typeswitch (block kinds <code>t</code>, <code>dl</code>, <code>sourcecode</code>), saying what you expect (<code>as</code>), naming types (<code>declare type keyword as enum(…)</code>), kinds of errors, try/catch (a check that reports every xref to a missing anchor without stopping), raising errors (<code>error(xs:QName("spec:dangling"), …)</code>), errors on purpose (finally).</p>
+        </item>
+        <item>
+          <p>xquery-modules.md: <code>spec.xqm</code> (namespace <code>urn:example:spec</code>): <code>spec:requirements($doc)</code>, <code>spec:section-number($section)</code>, <code>spec:keywords($t)</code>, <code>spec:anchor-map($doc)</code>; library modules, external variables (<code>$draft</code>), typed functions catching mistakes, private functions and module variables, functions as values, a failed import.</p>
+        </item>
+        <item>
+          <p>xquery-inputs.md: the context item, <code>doc()</code>, many documents (both drafts and, after cli-3, <code>collection()</code> over a <code>drafts/</code> subdirectory book-7 adds), external variables (<code>--param=draft=latch-00.xml</code>). <strong>Order: after cli-3's commit, which edits this file today.</strong></p>
+        </item>
+        <item>
+          <p>xquery-serialization.md: output methods; the requirements index as XML, XHTML, HTML (<code>method=html</code>), JSON (an array of records), CSV (anchor, section, keyword, text), text; serialize() inside a query; saving with <code>--output</code>.</p>
+        </item>
+        <item>
+          <p>xquery-updates.md: on draft -01: give the unanchored SHOULD an anchor (<code>insert node attribute anchor {…}</code>) and remove issue-2's <code>cref</code>; add a requirement after req-8 (<code>insert node … after</code>); rename a term everywhere (<code>dt</code>, every <code>xref</code> to it and its text: one pending update list); move a section and see that nothing needs renumbering; renumber requirement anchors in document order and every xref with them (and the warning: other documents, such as lock.scxml, refer to anchors); copy-modify, <code>transform with</code>; updating functions; the errors XUST0001, XUTY0005, XUDY0015; fn:put of draft -02.</p>
+        </item>
+        <item>
+          <p>xquery-4.md: as today, examples over the draft.</p>
+        </item>
+        <item>
+          <p>xquery-project.md, <em>Project: Editing a Specification Without Rewriting It</em>: <code>edit.xqm</code> (updating functions: add-requirement, rename-term, set-keyword, add-reference), <code>check.xq</code> (dangling xrefs, unused terms and references, BCP 14 words without markup, requirements without anchors; exit with an error code), <code>changes.xq</code> (the requirement diff -00 to -01: added, removed, changed text, changed keyword; as text and JSON), and an edit session: three commands that make -02 with <code>--output</code>, checked, diffed. The point the owner made: each edit touches only the nodes it names, so a large draft is never rewritten by hand or by a language model.</p>
+        </item>
+      </list>
+      <p>Deletes <code>examples/xquery/</code> and <code>examples/xquery-project/</code>.</p>
+    </section>
+    <section id="4-transforming-with-xslt-book-8-examples-spec">
+      <title>4. Transforming with XSLT (book-8) — <code>examples: spec</code></title>
+      <list>
+        <item>
+          <p>xslt.md: built-in rules (the draft's text falls out), copying with changes (an identity transform that drops <code>cref</code>s for publication).</p>
+        </item>
+        <item>
+          <p>xslt-templates.md: template rules for the draft to HTML (<code>section</code> to <code>section</code> with <code>h2</code>, <code>t</code>, <code>xref</code> to links, <code>bcp14</code> to <code>&lt;span class="bcp14"&gt;</code>), text value templates, priorities (a requirement <code>t</code> vs a plain <code>t</code>), modes (<code>toc</code> for the table of contents; <code>text</code> for RFC-style plain text with 72-column lines and <code>[RFC2119]</code> references), starting elsewhere (<code>--initial-template</code>, <code>--initial-mode</code>).</p>
+        </item>
+        <item>
+          <p>xslt-keys-grouping.md: keys (<code>xsl:key name="anchor"</code>: xref text computed from the target: "Section 4", "[RFC5234]", the term), numbers (<code>xsl:number level="multiple"</code> for section numbers, requirement numbers in document order), grouping (the term index grouped by first letter; references by normative/informative), sorting (references by anchor, with a collation pointer to Chapter 13).</p>
+        </item>
+        <item>
+          <p>xslt-packages.md: many outputs (one HTML page per top-level section with <code>xsl:result-document</code> and <code>--result-directory</code>), importing (<code>common.xsl</code> with the numbering and xref text, imported by <code>html.xsl</code> and <code>text.xsl</code>), functions (<code>spec:number</code>, <code>spec:xref-text</code>), packages (<code>spec.xsl</code> as a package used by both), transformations from queries (<code>fn:transform</code> from the XQuery index). One sentence says streaming is taught in <link href="traces-streaming.md">Streaming Large Trace Files</link>.</p>
+        </item>
+        <item>
+          <p>xslt-project.md, <em>Project: Publishing the Specification</em>: one script (<code>publish.sh</code>): validate, check.xq from Chapter 3 (symlink or a copy named <code>publish-check.xq</code>; book-8 must not depend on book-7's files unless book-7 has committed them: use only seed files and its own), HTML with the toc and the requirements index, the plain-text draft, a JSON requirements file for tools; and a "what changed" HTML page from both drafts (requirements marked added and changed).</p>
+        </item>
+      </list>
+      <p>Deletes <code>examples/xslt/</code> and moves streaming (below).</p>
+    </section>
+    <section id="5-project-drawing-diagrams-with-svg-book-10-examples-svg">
+      <title>5. Project: Drawing Diagrams with SVG (book-10) — <code>examples: svg</code></title>
+      <list>
+        <item>
+          <p>svg.md: what SVG is (an XML vocabulary in its namespace; boxes, text, lines, markers, style), <code>diagram.xml</code> and <code>diagram.svg</code> side by side, the plan.</p>
+        </item>
+        <item>
+          <p>svg-layout.md: the layout in XQuery: ranks by breadth-first distance as a fold over passes or a <code>while</code> clause (maps id to rank), rows with <code>group by</code> into arrays, positions as a map of records (<code>declare record place(x, y)</code>), the widest row, centring: maps, arrays, records, higher-order functions used for real.</p>
+        </item>
+        <item>
+          <p>svg-xquery.md: writing SVG with constructors: <code>declare default element namespace</code>, attributes from expressions, <code>{{</code>/<code>}}</code> in the style text, computed constructors for the shape by kind, output declarations (indent), <code>--output=diagram.svg</code> and <code>diff</code> against the committed file; <code>draw.xqm</code> (namespace <code>urn:example:draw</code>, <code>draw:svg($diagram as element(diagram)) as element()</code>, honouring the <code>class</code> attributes) is the reusable module other chapters link to. It must be committed early: Chapters 7, 11 and 12 use it.</p>
+        </item>
+        <item>
+          <p>svg-xslt.md: the same drawing with XSLT from a laid-out diagram (the XQuery adds x and y): template rules per element, a mode per layer (<code>edges</code>, <code>nodes</code>, <code>labels</code>), <code>xsl:next-match</code> for stores, attribute value templates, <code>xpath-default-namespace</code> for matching SVG.</p>
+        </item>
+        <item>
+          <p>svg-transform.md: transforming SVG files, any SVG: a dark theme (replace the <code>style</code>, identity with <code>on-no-match="shallow-copy"</code>), highlighting one node and its edges (a parameter), removing ids and metadata, listing the text of a drawing, scaling with <code>viewBox</code>; namespaces in patterns.</p>
+        </item>
+      </list>
+    </section>
+    <section id="6-validating-with-xsd-book-9">
+      <title>6. Validating with XSD (book-9)</title>
+      <list>
+        <item>
+          <p>xsd.md (<code>spec</code>): the schema for the draft, validating both drafts, rules across values (the docName assertion), strict and lax, DTDs (xml2rfc's own DTD exists: one sentence; a two-line internal subset).</p>
+        </item>
+        <item>
+          <p>xsd-simple-types.md (<code>spec</code>): built-in types (gYear, positiveInteger), restriction with pattern, enumeration and range facets (draft-name, keyword, day), lists and unions (fragment schemas the packet adds: <code>levels.xsd</code> for a list of keywords, a union of <code>day</code> and a token), what validation does to values (whitespace in <code>bcp14</code>, typed values), facets that don't fit.</p>
+        </item>
+        <item>
+          <p>xsd-complex-types.md (<code>spec</code>): the schema read top-down; element declarations, sequence/choice/all (<code>front</code>, a section's blocks), attributes (use, fixed version), four kinds of content (empty <code>date</code>, simple <code>title</code>, element-only <code>front</code>, mixed <code>t</code>), mistakes in content, groups.</p>
+        </item>
+        <item>
+          <p>xsd-derivation.md (<code>spec</code>): extension (<code>title</code> and <code>sourcecode</code> extend xs:string; a <code>requirement</code> type extending <code>text</code> with a required anchor), restriction, xsi:type, substitution groups (block elements as a <term name="block"/> group: <code>t</code>, <code>dl</code>, <code>sourcecode</code>), nil (an empty <code>day</code>), block and final.</p>
+        </item>
+        <item>
+          <p>xsd-namespaces.md (<code>scxml</code>): a target namespace (SCXML's), namespace mistakes, <code>xs:import</code> of latch-data.xsd, <code>##other</code> wildcards and lax processing (the XHTML inside states is not validated, the latch attributes are), schema hints (<code>--use-schema-location</code>), namespaces in queries.</p>
+        </item>
+        <item>
+          <p>xsd-identity.md (<code>scxml</code>): state ids as <code>xs:key</code>, targets and initial as <code>xs:keyref</code>, event names as <code>xs:unique</code>, paths in constraints (namespaced selectors), keys or IDs (and why latch.xsd uses <code>xs:unique</code>: most paragraphs have no anchor), broken copies the packet adds (<code>bad-target.scxml</code>, <code>duplicate-event.scxml</code>).</p>
+        </item>
+        <item>
+          <p>xsd-11.md (<code>scxml</code>): assertions on values and on elements (the status payload, <code>data</code>'s one-of rule, a transition's event/cond/target), conditional type assignment (<code>xs:alternative</code> on <code>latch:event</code> by payload), open content, default attributes, xs:override (SCXML's full rule: a target list, <code>xs:list</code> of NCName, and what keyref then cannot check), smaller changes.</p>
+        </item>
+        <item>
+          <p>xsd-errors.md (<code>spec</code>): the parts of a message, errors in the schema, errors in documents (the broken drafts the packet adds: <code>bad-keyword.xml</code>, <code>bad-anchor.xml</code>, <code>bad-xref.xml</code>), after an element that is not allowed, not well-formed, lax, <code>--format=json</code>.</p>
+        </item>
+        <item>
+          <p>xsd-typed-data.md (<code>scxml</code>): typed values in XQuery (<code>import schema</code>, <code>validate</code>, <code>data(@latch:type)</code> as xs:QName, <code>@expr</code> as xs:string and the FORG0006 it gives in <code>sum</code>), values of your own types (<code>latch:seconds</code>), the <code>xsi:type</code> check of each data value, elements without a typed value, types in signatures (<code>schema-element(latch:status)</code>), typed copies, schema-aware XSLT, from C and JavaScript (pointers).</p>
+        </item>
+      </list>
+      <p>Deletes <code>examples/xsd/</code>.</p>
+    </section>
+    <section id="7-project-self-describing-state-machines-book-9-examples-scxml">
+      <title>7. Project: Self-Describing State Machines (book-9) — <code>examples: scxml</code></title>
+      <list>
+        <item>
+          <p>scxml.md: SCXML in one page (states, transitions, events, data model), the lock machine, its annotations (events with payload types, typed data, XHTML, <code>latch:implements</code>), validating it with both schemas.</p>
+        </item>
+        <item>
+          <p>scxml-checks.md: what the schema cannot check, as a schema-aware query <code>check.xq</code>: unreachable states (the closure of targets from <code>initial</code>, a <code>while</code> clause or fold), events handled but not declared, declared but unused (counting <code>send</code> and <code>raise</code>), payload names that name no element declaration, data values against their types (<code>xsi:type</code> and <code>validate</code> in try/catch), requirements implemented: <code>latch:implements</code> anchors that the draft does not have, and the draft's MUST requirements no state implements (<code>scxml/latch.xml</code> symlink to the seed). The four flaws of the seed are found; a fixed <code>lock-fixed.scxml</code> is made with an update (<code>transition with</code>) and checked clean.</p>
+        </item>
+        <item>
+          <p>scxml-xhtml.md: an XSLT <code>document.xsl</code> writing an XHTML page: the states with their XHTML copied through (<code>xsl:copy-of</code> with namespaces), a table of transitions, the events with their payload described from latch-data.xsd (<code>doc("latch-data.xsd")</code>: element children, types, facets as words, <code>xs:documentation</code>), links to the draft's requirements (<code>latch.html#req-7</code>). method xhtml.</p>
+        </item>
+        <item>
+          <p>scxml-drawing.md: the machine as <code>diagram.xml</code> (states as nodes, transitions as edges labelled with events; cycles, hence breadth-first ranks) drawn with <code>../svg/draw.xqm</code> (symlink). <strong>Order: after book-10 has committed <code>svg/draw.xqm</code>.</strong></p>
+        </item>
+      </list>
+    </section>
+    <section id="8-parsing-text-with-invisible-xml-book-8-for-one-section">
+      <title>8. Parsing Text with Invisible XML (book-8 for one section)</title>
+      <p>Unchanged, except ixml-tasks.md gains a task "The grammar in a specification": the ABNF of <code>latch.xml</code> (symlink <code>ixml/latch.xml</code>) extracted with XPath and parsed with a small iXML grammar for ABNF rules (rule names, alternatives, repetitions), listing the rules each rule uses and the undefined ones (SP, CRLF, ALPHA, DIGIT come from RFC 5234's core rules). The performance chapter's numbers stay tied to <code>tests/bench/run-ixml-bench.py --check</code> and are not touched.</p>
+    </section>
+    <section id="9-json-csv-and-html-book-12-examples-traces">
+      <title>9. JSON, CSV and HTML (book-12) — <code>examples: traces</code></title>
+      <p>JSON with <code>json-doc("before.json")</code>: the lookup operator through resourceSpans, scopeSpans and spans, <code>?*</code>, a filter on <code>?kind = 2</code>, numbers become doubles and why OTLP writes times and int64 values as strings (xs:integer of <code>startTimeUnixNano</code>), <code>json-to-xml</code> of an OTLP file and <code>xml-to-json</code>; CSV: the spans as CSV for a spreadsheet (<code>method=csv</code>) and <code>parse-csv</code> of a CSV a tracing UI exports (a small <code>spans.csv</code> the packet adds); HTML: <code>parse-html</code> of a status page (<code>status.html</code>, added). The iXML section becomes one paragraph pointing to Chapter 8.</p>
+    </section>
+    <section id="10-source-code-as-xml-book-11">
+      <title>10. Source Code as XML (book-11)</title>
+      <p>Unchanged (its small examples are about the bridge, not the library data); one sentence at the end points to the call-chain project.</p>
+    </section>
+    <section id="11-project-a-diff-of-call-chains-book-11-examples-call-chains">
+      <title>11. Project: A Diff of Call Chains (book-11) — <code>examples: call-chains</code></title>
+      <list>
+        <item>
+          <p>call-chains.md: the lock service, the change in prose, the two directories, the plan.</p>
+        </item>
+        <item>
+          <p>call-chains-graph.md: functions (<code>function_declaration</code>, methods, and arrows assigned to consts), calls (<code>call_expression</code> and its <code>function</code> field), resolving callees: namespace imports (<code>registry.getDoor</code> to module registry), named imports (<code>listDoors</code> from ./doors.ts), local functions, and everything else as external (<code>fetch</code>, <code>JSON.parse</code>, <code>doors.push</code> is a method of a local, filtered); the graph as XML (<code>&lt;call from="doors.listDoors" to="registry.getDoor" line="20" repeated="true"/&gt;</code>, <code>repeated</code> when an ancestor is a loop); with <code>--allow-file-access</code> and <code>file:list</code> over <code>before/</code> and <code>after/</code>.</p>
+        </item>
+        <item>
+          <p>call-chains-diff.md: chains from the entry points (<code>server.route</code>, <code>server.start</code>) to the leaves, made without recursion by a loop over a worklist (a <code>while</code> clause or fold) and with recursion (both correct; the book can show a recursive function here), the diff of edges and of chains (added, removed, now repeated), a text report and an HTML report, and the diff as <code>diagram.xml</code> with classes drawn by <code>../svg/draw.xqm</code> (symlink; <strong>after book-10 commits it</strong>). The report ends with the prediction the traces will check: one call to the registry becomes one plus one per door.</p>
+        </item>
+      </list>
+    </section>
+    <section id="12-project-comparing-traces-before-and-after-a-change-book-12-examples-traces">
+      <title>12. Project: Comparing Traces Before and After a Change (book-12) — <code>examples: traces</code></title>
+      <list>
+        <item>
+          <p>traces.md: what a trace, a span, a resource and a scope are; OTLP JSON; the two files; the plan.</p>
+        </item>
+        <item>
+          <p>traces-tree.md: flattening resourceSpans into span records (<code>for member</code>, <code>declare record span</code>), a map from span id to span, the tree from parent ids, durations from nanosecond strings, the tree as XML (<code>&lt;span service="…" name="…" duration="…"&gt;</code> nested): the normal form the later sections and the streaming section use (<code>trace.xqm</code>).</p>
+        </item>
+        <item>
+          <p>traces-cardinality.md: participants from client spans (the server span's service, else server.address), grouping by (route, caller, callee), counts as a map; <strong>windows</strong> (taught here, all of the old section): tumbling windows over a span's children in start order to find runs of the same call (the N+1 as a run of four <code>GET /doors/{id}</code>), windows with an end, sliding windows (calls in any 20 ms), choosing between them.</p>
+        </item>
+        <item>
+          <p>traces-diff.md: the diff of two cardinality maps (added and removed participants, changed counts, the service versions), matching traces by root route, errors when files share no route (a typed error); the output above, as text and JSON.</p>
+        </item>
+        <item>
+          <p>traces-rendering.md: an HTML report (XSLT over the diff as XML: a table with added/removed rows and the counts) and the participants as a <code>diagram.xml</code> with <code>added</code>/<code>removed</code>/<code>changed</code> classes, drawn with <code>../svg/draw.xqm</code> (symlink; <strong>after book-10 commits it</strong>).</p>
+        </item>
+        <item>
+          <p>traces-streaming.md: all of the old xslt-streaming.md, on traces: a query writes a large trace archive in the normal form (<code>make-traces.xq --param=count=100000</code>), a streamable mode counting spans per service, what can stream (the XTSE3430 example), accumulators (count per participant and the slowest span), <code>xsl:iterate</code> with <code>xsl:break</code> (the first trace slower than a threshold), more streaming (source-document, fork, merge of two archives by time), memory numbers measured again. Deletes <code>examples/xslt-streaming/</code>.</p>
+        </item>
+      </list>
+    </section>
+    <section id="13-working-with-text-book-8-examples-spec">
+      <title>13. Working with Text (book-8) — <code>examples: spec</code></title>
+      <p>Collations (author and reference names, M'Raihi, sorted with the UCA collation; terms), full-text search over requirements ("lock" with stemming finds "locks" and "locked"; phrases; <code>ftand</code>; scores), dates in other languages (the draft's date with <code>format-date</code> in German and French, and the date built from <code>year</code>, <code>month</code>, <code>day</code>), numbers in words (<code>format-integer(3, "w")</code> checks that the text says "three"). Deletes <code>examples/text/</code>.</p>
+    </section>
+    <section id="14-files-and-the-outside-world-book-8-examples-spec">
+      <title>14. Files and the Outside World (book-8) — <code>examples: spec</code></title>
+      <p>Resolvers; files and the sxml command (<code>doc("latch-00.xml")</code>, missing files, no network); external entities and DTDs as xml2rfc authors use them: <code>latch-entities.xml</code> whose references come from <code>bibxml/reference.RFC.2119.xml</code> and friends through external entities (<code>trust-external</code>), and a DTD default; writing files; EXPath File over <code>bibxml/</code> (never the directory root); EXPath Binary (the first bytes of a file, a hex dump of the UTF-8 BOM check). Deletes <code>examples/files/</code>.</p>
+    </section>
+    <section id="15-embedding-sxml-in-c-book-8-examples-c">
+      <title>15. Embedding sxml in C (book-8) — <code>examples: c</code></title>
+      <p>The same sections; the programs read <code>latch.xml</code> (symlink <code>c/latch.xml</code>) and print requirements by keyword; compile once and run for both drafts; resources and XQuery (the resolver serves the draft from memory); errors; memory; features; threads. File names change (<code>requirements.c</code> for <code>books.c</code>).</p>
+    </section>
+    <section id="16-sxml-in-javascript-book-12-examples-javascript-requires-javascript">
+      <title>16. sxml in JavaScript (book-12) — <code>examples: javascript</code>, requires javascript</title>
+      <p>The same sections with <code>traces/before.json</code> (symlink) and the draft (symlink): processors and values, XQuery over OTLP JSON, XSLT and XSD on the draft, resources and errors, code languages unchanged, large outputs and inputs with a generated trace archive.</p>
+    </section>
+    <section id="17-performance-and-memory-book-12-examples-traces">
+      <title>17. Performance and Memory (book-12) — <code>examples: traces</code></title>
+      <p>Build a release; compile once; lazy sequences (the first slow span of a large archive); look up instead of searching: parent lookup by scanning all spans vs a map by span id (the old slow-join/fast-join, now <code>slow-tree.xq</code> and <code>fast-tree.xq</code> over <code>make-traces.xq</code>'s output); memory; the step limit; habits. Deletes <code>examples/performance/</code>.</p>
+    </section>
+    <section id="18-project-generating-code-from-a-schema-unchanged">
+      <title>18. Project: Generating Code from a Schema — unchanged</title>
+      <p>Owned by nobody in this rewrite; book-13 only fixes "Chapter N" texts in it. (Book-22 moved it into the Vane story: book-28, section 9.)</p>
+    </section>
+  </section>
+  <section id="6-coverage-every-feature-the-book-teaches-today-and-where-it-goes">
+    <title>6. Coverage: every feature the book teaches today, and where it goes</title>
+    <table>
+      <row header="true">
+        <cell>Today (file: topics)</cell>
+        <cell>New place</cell>
+      </row>
+      <row>
+        <cell>getting-started, installation, hello-xpath, the-sxml-command: install, first expressions, check, validate, xquery, transform, serialize, exit status</cell>
+        <cell>Chapter 1, same files, tiny draft</cell>
+      </row>
+      <row>
+        <cell>xpath.md: expressions, the tree</cell>
+        <cell>xpath.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xpath-paths: steps, predicates, positions, axes, node kinds, union/intersect/except, node values</cell>
+        <cell>xpath-paths.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xpath-values: literals, arithmetic, untyped, comparisons, dates/durations, EBV, sequence types</cell>
+        <cell>xpath-values.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xpath-functions: strings, regex, numbers, sequences, arrow, conditions, variables/loops, function namespaces</cell>
+        <cell>xpath-functions.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xpath-maps-arrays: maps, maps from documents, arrays, JSON, records</cell>
+        <cell>xpath-maps-arrays.md (spec); JSON input in depth: formats.md (traces)</cell>
+      </row>
+      <row>
+        <cell>xpath-higher-order: inline, references, partial application, HOFs, function factories</cell>
+        <cell>xpath-higher-order.md (spec); used again in svg-layout.md</cell>
+      </row>
+      <row>
+        <cell>xquery.md: running, comments</cell>
+        <cell>xquery.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xquery-flwor: for/where/order/return, let, at, joins, group by, count, while</cell>
+        <cell>xquery-flwor.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xquery-grouping-windows: computed keys, several keys, after grouping</cell>
+        <cell>xquery-grouping.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xquery-grouping-windows: tumbling, windows with an end, sliding, choosing</cell>
+        <cell>traces-cardinality.md (traces)</cell>
+      </row>
+      <row>
+        <cell>xquery-constructors: direct, enclosed, computed, namespaces, other node kinds</cell>
+        <cell>xquery-constructors.md (spec, XHTML); in depth with the SVG namespace: svg-xquery.md</cell>
+      </row>
+      <row>
+        <cell>xquery-types-errors: switch, typeswitch, as, declare type/enum, error kinds, try/catch, error(), finally</cell>
+        <cell>xquery-types-errors.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xquery-modules: functions, library modules, external variables, typing, private, function values, failed import</cell>
+        <cell>xquery-modules.md (spec, spec.xqm)</cell>
+      </row>
+      <row>
+        <cell>xquery-inputs: context item, doc, many documents, external variables (and collections, cli-3)</cell>
+        <cell>xquery-inputs.md (spec, both drafts)</cell>
+      </row>
+      <row>
+        <cell>xquery-serialization: methods, declarations, XML, HTML, JSON, CSV, serialize(), --output</cell>
+        <cell>xquery-serialization.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xquery-updates: five updates, copy-modify, transform with, updating functions, XUST0001/XUTY0005/XUDY0015, fn:put</cell>
+        <cell>xquery-updates.md (spec: targeted edits)</cell>
+      </row>
+      <row>
+        <cell>xquery-4: syntax, pipelines, string templates, destructuring, clauses, types, functions</cell>
+        <cell>xquery-4.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xquery-project: library module, HTML, JSON, fn:put per member</cell>
+        <cell>xquery-project.md (spec: edit toolkit, check, draft diff); HTML report: xslt-project.md</cell>
+      </row>
+      <row>
+        <cell>xslt.md: built-in rules, identity with changes</cell>
+        <cell>xslt.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xslt-templates: rules, TVTs, priorities, modes, initial template/mode</cell>
+        <cell>xslt-templates.md (spec); svg-xslt.md, svg-transform.md</cell>
+      </row>
+      <row>
+        <cell>xslt-keys-grouping: keys, for-each-group, positional grouping, sort, xsl:number</cell>
+        <cell>xslt-keys-grouping.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xslt-packages: result documents, import, xsl:function, packages, fn:transform</cell>
+        <cell>xslt-packages.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xslt-streaming: streamable modes, XTSE3430, accumulators, iterate/break, source-document/fork/merge</cell>
+        <cell>traces-streaming.md (traces)</cell>
+      </row>
+      <row>
+        <cell>xsd.md: a first schema, validating, assertions across values, strict/lax, DTDs</cell>
+        <cell>xsd.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xsd-simple-types: built-ins, facets, lists, unions, value effects, bad facets</cell>
+        <cell>xsd-simple-types.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xsd-complex-types: declarations, sequence/choice/all, attributes, content kinds, errors, groups</cell>
+        <cell>xsd-complex-types.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xsd-derivation: extension, restriction, xsi:type, substitution groups, nil, block/final</cell>
+        <cell>xsd-derivation.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xsd-namespaces: target namespace, mistakes, include/import, schema hints, namespaces in queries</cell>
+        <cell>xsd-namespaces.md (scxml)</cell>
+      </row>
+      <row>
+        <cell>xsd-identity: key/keyref/unique, selector paths, keys vs IDs</cell>
+        <cell>xsd-identity.md (scxml)</cell>
+      </row>
+      <row>
+        <cell>xsd-11: assertions, CTA, open content, default attributes, override, smaller changes</cell>
+        <cell>xsd-11.md (scxml)</cell>
+      </row>
+      <row>
+        <cell>xsd-errors: message parts, schema errors, document errors, recovery, not well-formed, lax, JSON reports</cell>
+        <cell>xsd-errors.md (spec)</cell>
+      </row>
+      <row>
+        <cell>xsd-typed-data: typed values, validate, own types, untyped elements, signatures, typed copies, schema-aware XSLT, C/JS</cell>
+        <cell>xsd-typed-data.md (scxml); applied in scxml-checks.md</cell>
+      </row>
+      <row>
+        <cell>ixml (five files)</cell>
+        <cell>unchanged, plus the ABNF task in ixml-tasks.md</cell>
+      </row>
+      <row>
+        <cell>formats: JSON, json-to-xml, CSV, HTML, iXML pointer</cell>
+        <cell>formats.md (traces)</cell>
+      </row>
+      <row>
+        <cell>source-code: the bridge, highlights, positions, languages, injections, errors, own languages</cell>
+        <cell>source-code.md unchanged; call graphs and diffs: call-chains*.md</cell>
+      </row>
+      <row>
+        <cell>text: collations, full text, dates in languages, numbers in words</cell>
+        <cell>text.md (spec)</cell>
+      </row>
+      <row>
+        <cell>files: resolvers, local files, entities/DTDs, writing, EXPath File, Binary</cell>
+        <cell>files.md (spec, bibxml entities)</cell>
+      </row>
+      <row>
+        <cell>c: building, first program, compile once, resources, errors, memory, features, threads</cell>
+        <cell>c.md (spec)</cell>
+      </row>
+      <row>
+        <cell>javascript: package, values, languages, resources, code languages, streams, memory</cell>
+        <cell>javascript.md (traces, spec)</cell>
+      </row>
+      <row>
+        <cell>performance: release, compile once, laziness, lookups, memory, step limit, habits</cell>
+        <cell>performance.md (traces)</cell>
+      </row>
+      <row>
+        <cell>codegen (five files)</cell>
+        <cell>unchanged</cell>
+      </row>
+    </table>
+    <p>New teaching that no chapter has today: SVG and its namespace, a layout algorithm, SCXML, XHTML generation with copied foreign content, xml2rfc, OTLP and semantic conventions, call graphs, diffs of graphs.</p>
+  </section>
+  <section id="7-packets">
+    <title>7. Packets</title>
+    <p>Seven rewrite packets run in parallel; each owns its chapter files and the files it adds; book-13 runs after all of them.</p>
+    <table>
+      <row header="true">
+        <cell>Packet</cell>
+        <cell>Chapter files</cell>
+        <cell>Example files</cell>
+        <cell>Deletes</cell>
+        <cell>Order</cell>
+      </row>
+      <row>
+        <cell>book-6 Getting started and XPath</cell>
+        <cell>getting-started.md, installation.md, hello-xpath.md, the-sxml-command.md, xpath.md, xpath-paths.md, xpath-values.md, xpath-functions.md, xpath-maps-arrays.md, xpath-higher-order.md</cell>
+        <cell>getting-started/* (rewritten); new files in spec/ named <code>xpath-*</code> if any</cell>
+        <cell>examples/xpath</cell>
+        <cell>none</cell>
+      </row>
+      <row>
+        <cell>book-7 XQuery</cell>
+        <cell>xquery.md, xquery-flwor.md, xquery-grouping.md (from xquery-grouping-windows.md), xquery-constructors.md, xquery-types-errors.md, xquery-modules.md, xquery-inputs.md, xquery-serialization.md, xquery-updates.md, xquery-4.md, xquery-project.md</cell>
+        <cell>spec/: spec.xqm, edit.xqm, check.xq, changes.xq, index.xq, *.xq of its sections, drafts/</cell>
+        <cell>examples/xquery, examples/xquery-project</cell>
+        <cell>xquery-inputs.md after cli-3</cell>
+      </row>
+      <row>
+        <cell>book-8 XSLT, text, files, C, ABNF</cell>
+        <cell>xslt.md, xslt-templates.md, xslt-keys-grouping.md, xslt-packages.md, xslt-project.md (new), text.md, files.md, c.md, ixml-tasks.md (one section)</cell>
+        <cell>spec/: <em>.xsl, publish.sh, publish-check.xq, text-</em>.xq, latch-entities.xml, bibxml/; c/* (rewritten, latch.xml symlink); ixml/latch.xml symlink, ixml/abnf.ixml</cell>
+        <cell>examples/xslt, examples/text, examples/files</cell>
+        <cell>none</cell>
+      </row>
+      <row>
+        <cell>book-9 XSD and SCXML</cell>
+        <cell>xsd.md, xsd-simple-types.md, xsd-complex-types.md, xsd-derivation.md, xsd-namespaces.md, xsd-identity.md, xsd-11.md, xsd-errors.md, xsd-typed-data.md, scxml.md, scxml-checks.md, scxml-xhtml.md, scxml-drawing.md (new)</cell>
+        <cell>spec/: bad-<em>.xml, levels.xsd and other fragment schemas named <code>xsd-*</code> or <code>bad-*</code>; scxml/: everything new (check.xq, document.xsl, lock-fixed.scxml, bad-</em>.scxml, latch.xml symlink, draw.xqm symlink, machine-diagram.xq)</cell>
+        <cell>examples/xsd</cell>
+        <cell>scxml-drawing.md after book-10's draw.xqm</cell>
+      </row>
+      <row>
+        <cell>book-10 SVG</cell>
+        <cell>svg.md, svg-layout.md, svg-xquery.md, svg-xslt.md, svg-transform.md (new)</cell>
+        <cell>svg/: layout.xq, draw.xqm, draw.xq, layout.xsl, draw.xsl, dark.xsl, highlight.xsl, …; may regenerate diagram.svg</cell>
+        <cell>none</cell>
+        <cell>commit draw.xqm first</cell>
+      </row>
+      <row>
+        <cell>book-11 Call chains</cell>
+        <cell>call-chains.md, call-chains-graph.md, call-chains-diff.md (new), source-code.md (one sentence)</cell>
+        <cell>call-chains/: graph.xqm, graph.xq, chains.xq, diff.xq, report.xsl, draw.xqm symlink</cell>
+        <cell>none</cell>
+        <cell>the drawing after book-10's draw.xqm</cell>
+      </row>
+      <row>
+        <cell>book-12 Traces, formats, JavaScript, performance</cell>
+        <cell>traces.md, traces-tree.md, traces-cardinality.md, traces-diff.md, traces-rendering.md, traces-streaming.md (new; xslt-streaming.md removed), formats.md, javascript.md, performance.md</cell>
+        <cell>traces/: trace.xqm, <em>.xq, *.xsl, make-traces.xq, spans.csv, status.html, draw.xqm symlink; javascript/</em> (symlinks to before.json and latch.xml)</cell>
+        <cell>examples/xslt-streaming, examples/formats, examples/performance, docs/book/src/xslt-streaming.md</cell>
+        <cell>rendering after book-10's draw.xqm</cell>
+      </row>
+      <row>
+        <cell>book-13 Integration (after all), done</cell>
+        <cell>SUMMARY.md (section 4), appendix-cli.md (after cli-3), introduction.md (the Latch story, the projects, one directory per project), foreword.md (if needed), appendix-glossary.md (terms the packets report), appendix-differences.md, every "Chapter N" text, codegen*.md references only</cell>
+        <cell>removes orphaned example directories</cell>
+        <cell>—</cell>
+        <cell>after book-6 to book-12</cell>
+      </row>
+    </table>
+    <p><strong>book-13 done when</strong>: <code>tools/check-book-examples.sh</code> on a release build of HEAD passes for the whole book (with SXML_JAVASCRIPT for Chapters 16 and 18's Node section), <code>mdbook build docs/book</code> succeeds with no missing file, <code>grep -rn "Chapter [0-9]" docs/book/src</code> shows only correct numbers, and no example directory is unused.</p>
+    <p>book-13 is done (2026-10-21, on the Vane story): the whole book, 882 examples, matches on the release build of HEAD with SXML_JAVASCRIPT and SXML set; <code>mdbook build docs/book</code> succeeds and every internal link resolves; no "Chapter N" text is left; every example directory is used.</p>
+    <p>Every rewrite packet is <strong>done when</strong> its chapter files pass the check on a release build of HEAD, it deleted the directories it replaces, and its report lists new glossary terms and "Chapter N" texts it left for book-13.</p>
+  </section>
+  <section id="8-the-re-theme-latch-to-vane-book-14">
+    <title>8. The re-theme: Latch to Vane (book-14)</title>
+    <p>Book-6 to book-12 wrote the chapters on the Latch story. Book-14 replaced the story (sections 1 and 2) and its seed files; the chapters still show Latch until packets book-15 to book-21 carry them over, and their examples fail meanwhile (expected). The seed files are frozen again for those packets (rule 2 of section 3).</p>
+    <section id="files">
+      <title>Files</title>
+      <p>Seed files renamed by book-14 (old → new), with the symlinks that point to them (renamed with them, so none dangles):</p>
+      <table>
+        <row header="true">
+          <cell>Old</cell>
+          <cell>New</cell>
+        </row>
+        <row>
+          <cell>spec/latch.xml, spec/latch-00.xml, spec/latch.xsd</cell>
+          <cell>spec/vane.xml, spec/vane-00.xml, spec/vane.xsd</cell>
+        </row>
+        <row>
+          <cell>scxml/lock.scxml, scxml/latch-data.xsd</cell>
+          <cell>scxml/flag.scxml, scxml/vane-data.xsd</cell>
+        </row>
+        <row>
+          <cell>call-chains/before/doors.ts, call-chains/after/doors.ts</cell>
+          <cell>call-chains/before/flags.ts, call-chains/after/flags.ts</cell>
+        </row>
+        <row>
+          <cell>symlinks spec/lock.scxml, spec/drafts/latch-00.xml, spec/drafts/latch-01.xml</cell>
+          <cell>spec/flag.scxml, spec/drafts/vane-00.xml, spec/drafts/vane-01.xml</cell>
+        </row>
+        <row>
+          <cell>symlinks scxml/latch.xml, scxml/latch.xsd, c/latch.xml, c/latch-00.xml, ixml/latch.xml, javascript/latch.xml</cell>
+          <cell>scxml/vane.xml, scxml/vane.xsd, c/vane.xml, c/vane-00.xml, ixml/vane.xml, javascript/vane.xml</cell>
+        </row>
+      </table>
+      <p>Chapter files the packets rename (<code>git mv</code>) in the commit that changes their chapter, and every file a command writes:</p>
+      <table>
+        <row header="true">
+          <cell>Old</cell>
+          <cell>New</cell>
+          <cell>Packet</cell>
+        </row>
+        <row>
+          <cell>getting-started/draft.xml (content: a cut of latch.xml)</cell>
+          <cell>same name, a cut of vane.xml</cell>
+          <cell>book-15</cell>
+        </row>
+        <row>
+          <cell>spec/latch-entities.xml</cell>
+          <cell>spec/vane-entities.xml</cell>
+          <cell>book-17</cell>
+        </row>
+        <row>
+          <cell>spec/drafts/latch-02.xml, draft-example-latch-protocol-02 (written by commands)</cell>
+          <cell>spec/drafts/vane-02.xml, draft-example-vane-protocol-02</cell>
+          <cell>book-16</cell>
+        </row>
+        <row>
+          <cell>site/latch.html, site/latch.txt, latch.css, latch.html, sections/lockout.html (written)</cell>
+          <cell>site/vane.html, site/vane.txt, vane.css, vane.html, sections/pause.html</cell>
+          <cell>book-17</cell>
+        </row>
+        <row>
+          <cell>scxml/lock-fixed.scxml, scxml/latch-1.1.xsd</cell>
+          <cell>scxml/flag-fixed.scxml, scxml/vane-1.1.xsd</cell>
+          <cell>book-18</cell>
+        </row>
+        <row>
+          <cell>lock.html, lock.svg, lock.log, lock-diagram.xml (scxml, written)</cell>
+          <cell>flag.html, flag.svg, flag.log, flag-diagram.xml</cell>
+          <cell>book-18</cell>
+        </row>
+        <row>
+          <cell>call-chains/kinds/lock.ts (class Lock, open, check, openAll, log)</cell>
+          <cell>call-chains/kinds/flag.ts (class Flag, evaluate, check, evaluateAll, log)</cell>
+          <cell>book-20</cell>
+        </row>
+        <row>
+          <cell>traces/diff-doors.svg, traces/diff-unlock.svg</cell>
+          <cell>traces/diff-flags.svg, traces/diff-kill.svg</cell>
+          <cell>book-21</cell>
+        </row>
+        <row>
+          <cell>doors.json, unlock.json, doors.xml, doors.svg, unlock.xml, unlock.svg, lockout.json (traces, written)</cell>
+          <cell>flags.json, kill.json, flags.xml, flags.svg, kill.xml, kill.svg, pause.json</cell>
+          <cell>book-21</cell>
+        </row>
+      </table>
+    </section>
+    <section id="names-in-the-data">
+      <title>Names in the data</title>
+      <p>spec (vane.xml):</p>
+      <table>
+        <row header="true">
+          <cell>Old</cell>
+          <cell>New</cell>
+        </row>
+        <row>
+          <cell>docName draft-example-latch-protocol-00/-01/-02</cell>
+          <cell>draft-example-vane-protocol-00/-01/-02</cell>
+        </row>
+        <row>
+          <cell>draft-example-latch-brief-00 (bad-*.xml, xsd-review.xml)</cell>
+          <cell>draft-example-vane-brief-00</cell>
+        </row>
+        <row>
+          <cell>title "The Latch Protocol for Remote Door Locks", abbrev Latch</cell>
+          <cell>"The Vane Protocol for Feature Flag Rollouts", abbrev Vane</cell>
+        </row>
+        <row>
+          <cell>organization Example Locks</cell>
+          <cell>Example Software</cell>
+        </row>
+        <row>
+          <cell>keywords lock, access control</cell>
+          <cell>feature flag, progressive delivery</cell>
+        </row>
+        <row>
+          <cell>section anchors and names: states "Lock States", unlock "Unlock", lockout "Lockout"</cell>
+          <cell>states "Flag States", rollout "Rollout", pause "Pause" (intro, terminology, messages, status, security, iana unchanged)</cell>
+        </row>
+        <row>
+          <cell>term-lock Lock, term-controller Controller, term-code Code, term-lockout Lockout</cell>
+          <cell>term-flag Flag, term-sdk SDK, term-percentage Percentage, term-pause Pause</cell>
+        </row>
+        <row>
+          <cell>requirement anchors req-1…req-11, issue-1, issue-2, reference anchors</cell>
+          <cell>unchanged (meanings: section 2's table)</cell>
+        </row>
+        <row>
+          <cell>sourcecode name latch.abnf</cell>
+          <cell>vane.abnf</cell>
+        </row>
+        <row>
+          <cell>ABNF unlock-request "UNLOCK" SP door-id SP code CRLF</cell>
+          <cell>rollout-request "ROLLOUT" SP flag-key SP percentage CRLF</cell>
+        </row>
+        <row>
+          <cell>ABNF lock-request "LOCK" SP door-id CRLF</cell>
+          <cell>kill-request "KILL" SP flag-key CRLF</cell>
+        </row>
+        <row>
+          <cell>ABNF status-request "STATUS" SP door-id CRLF</cell>
+          <cell>status-request "STATUS" SP flag-key CRLF</cell>
+        </row>
+        <row>
+          <cell>ABNF door-id = 1<em>16(ALPHA / DIGIT / "-"), code = 4</em>8DIGIT</cell>
+          <cell>flag-key = 1<em>32(ALPHA / DIGIT / "-"), percentage = 1</em>3DIGIT</cell>
+        </row>
+        <row>
+          <cell>req-7 "five"/"three" rejected codes; req-8 "one minute"/"five minutes"</cell>
+          <cell>"five"/"three" failed checks; "one minute"/"five minutes"</cell>
+        </row>
+        <row>
+          <cell>req-9 TOTP codes from a controller</cell>
+          <cell>a one-time password asked of an owner before a rollout (RFC 6238 unchanged)</cell>
+        </row>
+        <row>
+          <cell>error code err:LATCH0001 (and other LATCH codes)</cell>
+          <cell>err:VANE0001</cell>
+        </row>
+      </table>
+      <p>scxml (flag.scxml, vane-data.xsd):</p>
+      <table>
+        <row header="true">
+          <cell>Old</cell>
+          <cell>New</cell>
+        </row>
+        <row>
+          <cell>namespace urn:example:latch, prefix latch:</cell>
+          <cell>urn:example:vane, prefix vane:</cell>
+        </row>
+        <row>
+          <cell>machine name door_lock</cell>
+          <cell>feature_flag</cell>
+        </row>
+        <row>
+          <cell>states locked (initial), checking, unlocked, lockout, jammed</cell>
+          <cell>stable (initial), checking, rolling-out, paused, archived</cell>
+        </row>
+        <row>
+          <cell>events unlock.request, code.accepted, code.rejected, lock.request</cell>
+          <cell>rollout.request, check.passed, check.failed, kill.request</cell>
+        </row>
+        <row>
+          <cell>events status.request, status.response</cell>
+          <cell>unchanged</cell>
+        </row>
+        <row>
+          <cell>events timeout.relock, lockout.expired, bolt.jammed (unused)</cell>
+          <cell>step.done, pause.expired, flag.archived (unused)</cell>
+        </row>
+        <row>
+          <cell>undeclared door.opened, <code>&lt;log label="door" expr="'opened'"/&gt;</code></cell>
+          <cell>flag.evaluated, <code>&lt;log label="flag" expr="'evaluated'"/&gt;</code></cell>
+        </row>
+        <row>
+          <cell>data attempts 0, maxAttempts 3, relockSeconds 10, lockoutSeconds 300</cell>
+          <cell>failures 0, maxFailures 3, stepSeconds 600, pauseSeconds 300</cell>
+        </row>
+        <row>
+          <cell>types attempt-count, attempt-limit, seconds</cell>
+          <cell>failure-count, failure-limit, seconds</cell>
+        </row>
+        <row>
+          <cell>types door-id <code>[A-Za-z0-9\-]{1,16}</code>, code <code>[0-9]{4,8}</code></cell>
+          <cell>flag-key <code>[A-Za-z0-9\-]{1,32}</code>, percentage <code>[0-9]{1,3}</code></cell>
+        </row>
+        <row>
+          <cell>state enumeration locked, unlocked, lockout</cell>
+          <cell>stable, rolling-out, paused</cell>
+        </row>
+        <row>
+          <cell>payload credentials (door, code, user?)</cell>
+          <cell>rollout (flag, percentage, owner?)</cell>
+        </row>
+        <row>
+          <cell>payload status (door, state, failed-attempts, retry-after?), assert on 'lockout'</cell>
+          <cell>status (flag, state, failed-checks, retry-after?), assert on 'paused'</cell>
+        </row>
+        <row>
+          <cell>chapter-made names latch:credential, latch:moment, latch:delay, latch:event-with-payload</cell>
+          <cell>a misspelt vane:rollout (vane:rolout) in the broken copy, vane:moment, vane:delay, vane:event-with-payload</cell>
+        </row>
+        <row>
+          <cell>links latch.html#req-N</cell>
+          <cell>vane.html#req-N</cell>
+        </row>
+      </table>
+      <p>svg (diagram.xml, diagram.svg; and the chapter's states.xml, change.xml, box.svg):</p>
+      <table>
+        <row header="true">
+          <cell>Old</cell>
+          <cell>New</cell>
+        </row>
+        <row>
+          <cell>title "Latch services" (change.xml: "Latch services after the change")</cell>
+          <cell>"Vane services" ("Vane services after the change")</cell>
+        </row>
+        <row>
+          <cell>node locks "lock-service"</cell>
+          <cell>flags "flag-service"</cell>
+        </row>
+        <row>
+          <cell>node registry "lock-registry", node cache "door-cache"</cell>
+          <cell>registry "flag-registry", cache "flag-cache" (ids unchanged)</cell>
+        </row>
+        <row>
+          <cell>svg ids node-locks, edge-gateway-locks, edge-locks-registry, edge-locks-cache</cell>
+          <cell>node-flags, edge-gateway-flags, edge-flags-registry, edge-flags-cache</cell>
+        </row>
+        <row>
+          <cell>states.xml: locked, checking, unlocked, jammed; unlock.request, code.accepted, code.rejected, timeout.relock, lock.request</cell>
+          <cell>stable, checking, rolling-out, archived; rollout.request, check.passed, check.failed, step.done, kill.request</cell>
+        </row>
+      </table>
+      <p>call-chains (TypeScript):</p>
+      <table>
+        <row header="true">
+          <cell>Old</cell>
+          <cell>New</cell>
+        </row>
+        <row>
+          <cell>module doors (doors.ts)</cell>
+          <cell>flags (flags.ts)</cell>
+        </row>
+        <row>
+          <cell>interface Door {id, name, state, codes}, DoorSummary</cell>
+          <cell>Flag {key, name, state, percentage, owners}, FlagSummary</cell>
+        </row>
+        <row>
+          <cell>Door state "locked" | "unlocked" | "lockout"</cell>
+          <cell>"stable" | "rolling-out" | "paused"</cell>
+        </row>
+        <row>
+          <cell>doors.listDoors, doors.unlockDoor, doors.codeMatches, doors.summarize</cell>
+          <cell>flags.listFlags, flags.killFlag, flags.isOwner, flags.summarize</cell>
+        </row>
+        <row>
+          <cell>registry.getDoors, registry.getDoorIds, registry.getDoor, registry.setState</cell>
+          <cell>registry.getFlags, registry.getFlagKeys, registry.getFlag, registry.setPercentage</cell>
+        </row>
+        <row>
+          <cell>cache.getDoor, audit.record(doorId, "unlock")</cell>
+          <cell>cache.getFlag, audit.record(flagKey, "kill")</cell>
+        </row>
+        <row>
+          <cell>door.codes.includes(code), doors.push, doors.map, ids</cell>
+          <cell>flag.owners.includes(owner), flags.push, flags.map, keys</cell>
+        </row>
+        <row>
+          <cell>routes /doors, /doors/{id}/unlock; body { code }; answer { unlocked }</cell>
+          <cell>/flags, /flags/{key}/kill; body { owner }; answer { killed }</cell>
+        </row>
+        <row>
+          <cell>variables unlock, door, doors, id, code</cell>
+          <cell>kill, flag, flags, key, owner</cell>
+        </row>
+        <row>
+          <cell>redis://door-cache:6379, key door:${id}</cell>
+          <cell>redis://flag-cache:6379, key flag:${key}</cell>
+        </row>
+        <row>
+          <cell>comments "the lock service", "the lock registry", "Latch system", "Every unlock"</cell>
+          <cell>"the flag service", "the flag registry", "Vane system", "Every kill"</cell>
+        </row>
+      </table>
+      <p>traces (OTLP JSON; ids, times and versions unchanged):</p>
+      <table>
+        <row header="true">
+          <cell>Old</cell>
+          <cell>New</cell>
+        </row>
+        <row>
+          <cell>services lock-service, lock-registry, door-cache</cell>
+          <cell>flag-service, flag-registry, flag-cache</cell>
+        </row>
+        <row>
+          <cell>routes GET /doors, POST /doors/{id}/unlock</cell>
+          <cell>GET /flags, POST /flags/{key}/kill</cell>
+        </row>
+        <row>
+          <cell>client calls GET /door-ids, GET /doors/{id}, PUT /doors/{id}/state</cell>
+          <cell>GET /flag-keys, GET /flags/{key}, PUT /flags/{key}/percentage</cell>
+        </row>
+        <row>
+          <cell>doors front, back, garage, office</cell>
+          <cell>flags new-checkout, dark-mode, fast-search, beta-banner</cell>
+        </row>
+        <row>
+          <cell>span names SELECT doors, UPDATE doors; db.collection.name doors</cell>
+          <cell>SELECT flags, UPDATE flags; flags</cell>
+        </row>
+        <row>
+          <cell>queries <code>SELECT id, name, state, codes FROM doors [WHERE id = $1]</code>, <code>SELECT id FROM doors</code>, <code>UPDATE doors SET state = $2 WHERE id = $1</code></cell>
+          <cell><code>SELECT key, name, state, percentage, owners FROM flags [WHERE key = $1]</code>, <code>SELECT key FROM flags</code>, <code>UPDATE flags SET percentage = $2 WHERE key = $1</code></cell>
+        </row>
+        <row>
+          <cell>redis <code>GET door:front</code>; audit columns (door, action, at)</cell>
+          <cell><code>GET flag:new-checkout</code>; (flag, action, at)</cell>
+        </row>
+      </table>
+    </section>
+    <section id="words-in-the-prose">
+      <title>Words in the prose</title>
+      <table>
+        <row header="true">
+          <cell>Latch</cell>
+          <cell>Vane</cell>
+        </row>
+        <row>
+          <cell>Latch, the Latch system</cell>
+          <cell>Vane, the Vane system</cell>
+        </row>
+        <row>
+          <cell>door lock, lock (the thing with states)</cell>
+          <cell>flag (a feature flag)</cell>
+        </row>
+        <row>
+          <cell>door (one of many in a building)</cell>
+          <cell>feature / flag (one of many in an application)</cell>
+        </row>
+        <row>
+          <cell>controller (sends messages)</cell>
+          <cell>SDK (sends messages); the side that answers is the evaluation service (<code>flag-service</code>)</cell>
+        </row>
+        <row>
+          <cell>lock service / lock registry / door cache</cell>
+          <cell>flag service (the evaluation service) / flag registry / flag cache</cell>
+        </row>
+        <row>
+          <cell>unlock, unlock request (spec, machine)</cell>
+          <cell>roll out, rollout request</cell>
+        </row>
+        <row>
+          <cell>unlock (call-chains, traces: unlockDoor)</cell>
+          <cell>kill, the kill switch (killFlag)</cell>
+        </row>
+        <row>
+          <cell>lock (verb), lock request</cell>
+          <cell>kill, kill request</cell>
+        </row>
+        <row>
+          <cell>locked / unlocked / lockout</cell>
+          <cell>stable / rolling out / pause, paused</cell>
+        </row>
+        <row>
+          <cell>jammed, bolt jammed</cell>
+          <cell>archived, flag archived</cell>
+        </row>
+        <row>
+          <cell>door opened</cell>
+          <cell>flag evaluated</cell>
+        </row>
+        <row>
+          <cell>code (digits a person presents)</cell>
+          <cell>percentage (spec, machine); owner (the TypeScript check)</cell>
+        </row>
+        <row>
+          <cell>attempts, failed attempts, rejected codes</cell>
+          <cell>failures, failed checks</cell>
+        </row>
+        <row>
+          <cell>relock, the relock timeout</cell>
+          <cell>the end of a rollout step (step.done, ten minutes)</cell>
+        </row>
+        <row>
+          <cell>credentials</cell>
+          <cell>the rollout payload</cell>
+        </row>
+        <row>
+          <cell>TOTP codes</cell>
+          <cell>a one-time password before a rollout</cell>
+        </row>
+        <row>
+          <cell>the four doors front, back, garage, office</cell>
+          <cell>the four flags new-checkout, dark-mode, fast-search, beta-banner</cell>
+        </row>
+        <row>
+          <cell>Example Locks</cell>
+          <cell>Example Software</cell>
+        </row>
+      </table>
+      <p>Search words for a packet: <code>latch</code>, <code>Latch</code>, <code>LATCH</code>, <code>lock</code> (but not <term name="block"/>, <term name="clock"/>, <code>statement_block</code>, <code>print:block</code>, <code>xs:block</code>), <code>door</code>, <code>unlock</code>, <code>attempt</code>, <code>controller</code>, <code>jam</code>, <code>bolt</code>, <code>relock</code>, <code>code</code> (only the Latch code, not source code), <code>front</code>, <code>garage</code>, <code>office</code>. A packet is done when <code>grep -niE 'latch|\block|unlock|door|attempt|controller|jammed|bolt|relock'</code> over its chapter files and example files finds nothing of the old story.</p>
+    </section>
+    <section id="packets-book-15-to-book-21">
+      <title>Packets book-15 to book-21</title>
+      <p>Each packet owns the same chapter and example files as the packet it follows (section 7), with every name of the old story replaced, and runs in parallel with the others; the order constraints of section 7 hold (draw.xqm first, from book-19):</p>
+      <table>
+        <row header="true">
+          <cell>Packet</cell>
+          <cell>Follows</cell>
+          <cell>Chapter files</cell>
+        </row>
+        <row>
+          <cell>book-15 Getting started and XPath</cell>
+          <cell>book-6</cell>
+          <cell>getting-started.md, installation.md, hello-xpath.md, the-sxml-command.md, xpath<em>.md; getting-started/</em></cell>
+        </row>
+        <row>
+          <cell>book-16 XQuery</cell>
+          <cell>book-7</cell>
+          <cell>xquery*.md; spec/ query files, edit.xqm, spec.xqm, drafts/</cell>
+        </row>
+        <row>
+          <cell>book-17 XSLT, text, files, C, ABNF</cell>
+          <cell>book-8</cell>
+          <cell>xslt<em>.md, text.md, files.md, c.md, the ABNF section of ixml-tasks.md; spec/</em>.xsl, publish<em>, text-</em>.xq, vane-entities.xml, bibxml/; c/*; ixml/abnf.ixml</cell>
+        </row>
+        <row>
+          <cell>book-18 XSD and SCXML</cell>
+          <cell>book-9</cell>
+          <cell>xsd<em>.md, scxml</em>.md; spec/bad-<em>, spec/xsd-</em>, levels.xsd; scxml/* but the seeds</cell>
+        </row>
+        <row>
+          <cell>book-19 SVG</cell>
+          <cell>book-10</cell>
+          <cell>svg<em>.md; svg/</em> but the seeds (commit draw.xqm's comments first if they change)</cell>
+        </row>
+        <row>
+          <cell>book-20 Call chains</cell>
+          <cell>book-11</cell>
+          <cell>call-chains<em>.md, source-code.md's sentence; call-chains/</em> but the seeds</cell>
+        </row>
+        <row>
+          <cell>book-21 Traces, formats, JavaScript, performance</cell>
+          <cell>book-12</cell>
+          <cell>traces<em>.md, formats.md, javascript.md, performance.md; traces/</em> but the seeds; javascript/*</cell>
+        </row>
+      </table>
+      <p>Rules for each of them:</p>
+      <list ordered="true">
+        <item>
+          <p>Apply the tables above to the chapter files and to every example file the packet owns: prose, file names (<code>git mv</code>), code, comments, ids, test data, file names that commands write. Nothing of the old story remains (the grep above).</p>
+        </item>
+        <item>
+          <p>Every example output is regenerated, never edited by hand: run <code>tools/check-book-examples.sh --update BUILD file.md…</code> on a release build of HEAD, then <strong>read each changed output</strong> and make the prose around it say what the output now says (counts, names, orders, line numbers, which requirement or state is meant, "three of four" and the like). Then run the check without <code>--update</code>; it passes.</p>
+        </item>
+        <item>
+          <p>Where the old text relied on a property of the Latch data that the Vane data lacks (a word for a full-text example, a line number, an ordering), choose the nearest example on the Vane data that teaches the same point, and say so in the report. Section 2 lists the properties the seed keeps on purpose.</p>
+        </item>
+        <item>
+          <p>A data change still goes under "Proposed data changes" (rule 2); do not edit the seeds.</p>
+        </item>
+        <item>
+          <p>The book never mentions Latch: the old story is gone from the text.</p>
+        </item>
+        <item>
+          <p>Report new or changed glossary terms and "Chapter N" texts for book-13.</p>
+        </item>
+      </list>
+      <p>Then <strong>book-13</strong> (integration) runs last, as section 7 says, on the Vane story: SUMMARY.md, introduction.md (the Vane story, the projects, one directory per project), foreword.md if needed, the appendices (glossary terms the packets report; appendix-differences), every "Chapter N" text, codegen*.md references only, and the check of the whole book.</p>
+    </section>
+  </section>
+  <section id="9-one-service-and-two-sdks-book-22">
+    <title>9. One service and two SDKs (book-22)</title>
+    <p>The owner, 2026-10-21: "the Vane service as it stands is pretty nonsensical — make it a monolithic service that's fully featured, and we want to offer client libraries/SDKs for frontend and backend, so it's a believable example." Book-22 redesigned the story (section 1) and rewrote the seeds (section 2); the chapters still show the services of book-14 until packets book-23 to book-29 carry them over, and their examples fail meanwhile (expected: 34 chapter files fail on the shared release build, plus javascript.md and codegen-running.md, which need SXML_JAVASCRIPT). The seed files are frozen again for those packets (rule 2 of section 3).</p>
+    <section id="the-story-in-one-table">
+      <title>The story in one table</title>
+      <table>
+        <row header="true">
+          <cell>Part</cell>
+          <cell>Book-14</cell>
+          <cell>Book-22</cell>
+        </row>
+        <row>
+          <cell>The system</cell>
+          <cell>five services: api-gateway, flag-service, flag-registry, flag-cache (Redis), audit-service, with postgresql</cell>
+          <cell>one service, <code>vane</code> (TypeScript on Node.js), with modules api, flags, registry, cache, rollout, audit (and db); PostgreSQL and Redis</cell>
+        </row>
+        <row>
+          <cell>Who calls it</cell>
+          <cell>"the SDK", through api-gateway</cell>
+          <cell>the frontend SDK <code>@vane/browser</code> (evaluateFlags: is each flag on for this user), the backend SDK <code>@vane/node</code> (getFlags: every flag with its rules, evaluated locally, cached, kept current by the update stream), and the console <code>vane-console</code> (the admin API: rollOutFlag, killFlag)</cell>
+        </row>
+        <row>
+          <cell>The APIs</cell>
+          <cell>REST routes <code>GET /flags</code>, <code>POST /flags/{key}/kill</code>, and the registry's <code>GET /flag-keys</code>, <code>GET /flags/{key}</code>, <code>PUT /flags/{key}/percentage</code></cell>
+          <cell>remote functions of the codegen project's api.xml: queries with GET <code>/api/NAME?input=JSON</code>, commands with POST <code>/api/NAME</code>: getFlags, evaluateFlags, getStatus (evaluation API), rollOutFlag, killFlag (admin API); the update stream (the draft's ABNF lines)</cell>
+        </row>
+        <row>
+          <cell>The change (2.3.0 → 2.4.0)</cell>
+          <cell>listFlags N+1 over flag-registry; killFlag drops the cache read and calls audit-service</cell>
+          <cell>the same in modules: listFlags N+1 against PostgreSQL; killFlag drops the Redis read (a kill must not trust a cached flag) and calls the audit module, which inserts into audit_events and posts to the owners' webhook</cell>
+        </row>
+        <row>
+          <cell>The new participant</cell>
+          <cell>audit-service (with a resource: "none -&gt; 0.3.1")</cell>
+          <cell>hooks.example.com, the owners' webhook (no resource, so no version line)</cell>
+        </row>
+        <row>
+          <cell>The state machine</cell>
+          <cell>the rollout lifecycle</cell>
+          <cell>unchanged; it runs in the rollout module, one machine per flag</cell>
+        </row>
+        <row>
+          <cell>Codegen</cell>
+          <cell>a library API (books, loans) outside the story</cell>
+          <cell>Vane's API: the SDK clients for the browser and Node.js, the console's client, the service's request validation and an OpenAPI document, from vane-api.xsd</cell>
+        </row>
+      </table>
+    </section>
+    <section id="files-2">
+      <title>Files</title>
+      <table>
+        <row header="true">
+          <cell>Old</cell>
+          <cell>New</cell>
+          <cell>Who</cell>
+        </row>
+        <row>
+          <cell>call-chains/{before,after}/server.ts</cell>
+          <cell>call-chains/{before,after}/api.ts</cell>
+          <cell>book-22 (seed)</cell>
+        </row>
+        <row>
+          <cell>call-chains/{before,after}/http.ts</cell>
+          <cell>call-chains/{before,after}/db.ts</cell>
+          <cell>book-22 (seed)</cell>
+        </row>
+        <row>
+          <cell>codegen/library.xsd, codegen/library-2.xsd</cell>
+          <cell>codegen/vane-api.xsd, codegen/vane-api-2.xsd (seeds, committed; the old files stay until book-28 deletes them)</cell>
+          <cell>book-22, book-28</cell>
+        </row>
+        <row>
+          <cell>codegen/library.ts (the implementation)</cell>
+          <cell>codegen/vane.ts</cell>
+          <cell>book-28</cell>
+        </row>
+        <row>
+          <cell>codegen/generated/client.ts</cell>
+          <cell>one module per client of api.xml's <code>clients</code>: generated/browser.ts, generated/node.ts, generated/console.ts (types.ts, server.ts, openapi.json, program.xml stay)</cell>
+          <cell>book-28</cell>
+        </row>
+        <row>
+          <cell>traces/diff-flags.svg, traces/diff-kill.svg and the files commands write (flags.json, kill.json, …)</cell>
+          <cell>the same names (the routes are still "flags" and "kill")</cell>
+          <cell>book-27</cell>
+        </row>
+      </table>
+    </section>
+    <section id="names-in-the-data-2">
+      <title>Names in the data</title>
+      <p>spec (vane.xml and vane-00.xml; anchors, keywords, counts unchanged):</p>
+      <table>
+        <row header="true">
+          <cell>Old</cell>
+          <cell>New</cell>
+        </row>
+        <row>
+          <cell>abstract "a line-based protocol between the SDKs that evaluate feature flags and the evaluation service that holds them … the messages that change them"</cell>
+          <cell>"the protocol between the SDKs that evaluate feature flags in applications and the Vane service that holds the flags … the messages of the update stream that keeps the cache of each SDK current"</cell>
+        </row>
+        <row>
+          <cell>intro "An SDK sends Vane messages to the evaluation service over the network and receives the state of the flags."</cell>
+          <cell>"An SDK in the application keeps the flags in a cache and evaluates them for each user. It holds an update stream open to the Vane service, which sends a message on it whenever a flag changes, and it asks the service for the status of a flag."</cell>
+        </row>
+        <row>
+          <cell>SDK: "The library in an application that sends Vane messages about flags."</cell>
+          <cell>"The library in an application that evaluates flags from its cache and keeps the cache current with Vane messages."</cell>
+        </row>
+        <row>
+          <cell>Percentage: "… to that share of users."</cell>
+          <cell>adds "An SDK puts a user in the share by a hash of the flag and the user, so the user stays in it while the percentage grows."</cell>
+        </row>
+        <row>
+          <cell>"Each message is one line of ASCII text."</cell>
+          <cell>"Each message is one line of ASCII text on the update stream: the service sends ROLLOUT and KILL, an SDK sends STATUS."</cell>
+        </row>
+        <row>
+          <cell>ABNF rollout-request, kill-request</cell>
+          <cell>rollout-update, kill-update (status-request unchanged; columns realigned)</cell>
+        </row>
+        <row>
+          <cell>req-10 "… per second for a flag."</cell>
+          <cell>"… per second for a flag; it uses its cached answer in between." (22 words)</cell>
+        </row>
+        <row>
+          <cell>Security "A rollout request travels in clear text on the network."</cell>
+          <cell>"Vane messages travel in clear text on the network."</cell>
+        </row>
+      </table>
+      <p>svg (diagram.xml, diagram.svg):</p>
+      <table>
+        <row header="true">
+          <cell>Old</cell>
+          <cell>New</cell>
+        </row>
+        <row>
+          <cell>title "Vane services"</cell>
+          <cell>"Vane" (the chapter's change.xml: "Vane after the change")</cell>
+        </row>
+        <row>
+          <cell>nodes gateway (api-gateway), flags (flag-service), registry (flag-registry), cache (flag-cache, store), database (postgresql, store)</cell>
+          <cell>browser (@vane/browser), node (@vane/node), api (vane/api), flags (vane/flags), registry (vane/registry), cache (vane/cache), postgresql (store), redis (store)</cell>
+        </row>
+        <row>
+          <cell>edges gateway→flags HTTP, flags→registry HTTP, flags→cache Redis, registry→database SQL</cell>
+          <cell>browser→api HTTP, node→api HTTP, api→flags, flags→registry, flags→cache (no label), registry→postgresql SQL, cache→redis Redis</cell>
+        </row>
+        <row>
+          <cell>360 x 380, four rows of 1, 1, 2, 1</cell>
+          <cell>360 x 480, five rows of 2, 1, 1, 2, 2</cell>
+        </row>
+        <row>
+          <cell>change.xml (chapter file): flags changed, cache removed, audit-service added, audit→database</cell>
+          <cell>proposed for book-25: flags changed, the edge flags→cache removed (the cache module and Redis stay: other modules use them), audit (vane/audit) added with audit→postgresql SQL and audit→hooks (hooks.example.com, HTTP) added, flags→registry changed</cell>
+        </row>
+        <row>
+          <cell>states.xml</cell>
+          <cell>unchanged</cell>
+        </row>
+      </table>
+      <p>call-chains (TypeScript):</p>
+      <table>
+        <row header="true">
+          <cell>Old</cell>
+          <cell>New</cell>
+        </row>
+        <row>
+          <cell>module server (server.ts): route(method, path, body) for /flags and /flags/{key}/kill; body { owner }; answers a list and { killed }</cell>
+          <cell>module api (api.ts): route for GET /api/getFlags (answers { flags }) and POST /api/killFlag (body { flag, owner }, answers { flag, killed }); else { problems }</cell>
+        </row>
+        <row>
+          <cell>module http (http.ts): interface Flag {key, name, state, percentage, owners}, request(service, path, init) with fetch</cell>
+          <cell>module db (db.ts): interfaces Rule {attribute, values, percentage}, Flag {key, name, state, percentage, rules, owners}; query(text, values) over pg.Pool</cell>
+        </row>
+        <row>
+          <cell>registry.* call request("flag-registry", …)</cell>
+          <cell>registry.* call query(SQL); getFlags, getFlagKeys, getFlag, setPercentage keep their names</cell>
+        </row>
+        <row>
+          <cell>cache: redis://flag-cache:6379</cell>
+          <cell>redis://redis:6379</cell>
+        </row>
+        <row>
+          <cell>FlagSummary {key, name, state}; summarize(flag)</cell>
+          <cell>FlagSummary {key, state, percentage, rules} ("what an SDK needs"); summarize({ key, state, percentage, rules })</cell>
+        </row>
+        <row>
+          <cell>audit.record: request("audit-service", "/events", POST)</cell>
+          <cell>audit.record: query("INSERT INTO audit_events …") and fetch("https://hooks.example.com/vane", POST)</cell>
+        </row>
+        <row>
+          <cell>chains server.start &gt; server.route &gt; … &gt; http.request</cell>
+          <cell>api.start &gt; api.route &gt; … &gt; db.query (cache.getFlag is a leaf: client.get is external)</cell>
+        </row>
+        <row>
+          <cell>externals JSON.parse, createServer, JSON.stringify, fetch</cell>
+          <cell>the same, plus pool.query</cell>
+        </row>
+        <row>
+          <cell>comments "the flag service", "the flag registry", "other services of the Vane system"</cell>
+          <cell>"the Vane service", "the registry module", "the cache module", "the audit module"</cell>
+        </row>
+      </table>
+      <p>traces (OTLP JSON; trace ids and start times unchanged, span ids new):</p>
+      <table>
+        <row header="true">
+          <cell>Old</cell>
+          <cell>New</cell>
+        </row>
+        <row>
+          <cell>resources api-gateway 1.4.0, flag-service 2.3.0/2.4.0, flag-registry 1.9.2, audit-service 0.3.1</cell>
+          <cell>storefront 5.2.0 (scope @vane/node 1.4.0), vane-console 1.8.0 (scope instrumentation-fetch), vane 2.3.0/2.4.0 (scopes instrumentation-http, vane, instrumentation-pg, instrumentation-redis, instrumentation-undici)</cell>
+        </row>
+        <row>
+          <cell>roots: api-gateway server spans</cell>
+          <cell>client spans: the backend SDK's GET /api/getFlags, the console's POST /api/killFlag</cell>
+        </row>
+        <row>
+          <cell>routes GET /flags, POST /flags/{key}/kill</cell>
+          <cell>GET /api/getFlags, POST /api/killFlag</cell>
+        </row>
+        <row>
+          <cell>HTTP client calls between services (GET /flags, GET /flag-keys, GET /flags/{key}, PUT /flags/{key}/percentage, POST /events)</cell>
+          <cell>internal spans per module function (flags.listFlags, registry.getFlags, registry.getFlagKeys, registry.getFlag, registry.setPercentage, cache.getFlag, flags.killFlag, audit.record; attributes code.function.name, vane.flag.key)</cell>
+        </row>
+        <row>
+          <cell>SQL SELECT/UPDATE flags, INSERT audit_events in flag-registry and audit-service</cell>
+          <cell>the same span names in vane; db.query.text as db.ts's callers write it (columns key, name, state, percentage, rules, owners; INSERT INTO audit_events (flag, action) VALUES ($1, $2)); server.port 5432</cell>
+        </row>
+        <row>
+          <cell>redis GET flag:new-checkout to flag-cache</cell>
+          <cell>the same to redis:6379</cell>
+        </row>
+        <row>
+          <cell>—</cell>
+          <cell>webhook client span POST to hooks.example.com:443</cell>
+        </row>
+        <row>
+          <cell>16 / 30 spans</cell>
+          <cell>14 / 23 spans</cell>
+        </row>
+        <row>
+          <cell>the N+1: four GET /flags/{key} under flag-service's server span</cell>
+          <cell>four registry.getFlag internal spans under flags.listFlags</cell>
+        </row>
+        <row>
+          <cell>diff: two version lines, five call rows</cell>
+          <cell>one version line (vane: 2.3.0 -&gt; 2.4.0), four call rows (section 2)</cell>
+        </row>
+      </table>
+      <p>codegen (book-28 carries it out; seeds api.xml, api.xsd, vane-api.xsd, vane-api-2.xsd):</p>
+      <table>
+        <row header="true">
+          <cell>Old</cell>
+          <cell>New</cell>
+        </row>
+        <row>
+          <cell>api name="library" types="library.xsd": getBook, searchBooks (queries), borrowBook (command)</cell>
+          <cell>name="vane" types="vane-api.xsd": queries getFlags (clients node), evaluateFlags (browser), getStatus (browser node); commands rollOutFlag, killFlag (console)</cell>
+        </row>
+        <row>
+          <cell>api.xsd: name, input, output</cell>
+          <cell>adds the required <code>clients</code> attribute, a list of identifiers (minLength 1)</cell>
+        </row>
+        <row>
+          <cell>types BookId, MemberId, Genre, LoanDays; Book, BookRequest, BookSearch, BookList, LoanRequest, Loan</cell>
+          <cell>FlagKey (pattern, maxLength 64), Owner (pattern), Environment, State (enumerations), Percentage (0–100), FailureCount (0–10), Seconds (1–3600); Rule, FlagConfig, FlagsRequest, FlagSet, Attribute, EvaluationContext, Evaluation, Evaluations, StatusRequest, FlagStatus, RolloutRequest, KillRequest, KillResult</cell>
+        </row>
+        <row>
+          <cell>library-2.xsd: LoanDays 28 → 21; new Rating, Book.rating</cell>
+          <cell>vane-api-2.xsd: FlagKey maxLength 64 → 32 (as the draft says); new Reason enumeration (rule, percentage, default, off), Evaluation.reason optional</cell>
+        </row>
+        <row>
+          <cell>demo: getBook dune, searchBooks science, borrowBook spqr; refused: member "ada", days 60; fetch with "SPQR" and renew</cell>
+          <cell>proposed: getFlags staging, evaluateFlags for one user, killFlag new-checkout by ada@example.com; refused by the client: rollOutFlag percentage 150, owner "ada"; refused by the server: a fetch of killFlag with "New Checkout" and force: true</cell>
+        </row>
+        <row>
+          <cell>SvelteKit remote functions as the idea</cell>
+          <cell>the same idea, and the generated clients are the transport of Vane's two SDKs: the hand-written SDK layer (cache, refresh from the update stream, at most one status request per second per flag) sits on them (book-28 may show a small one)</cell>
+        </row>
+      </table>
+    </section>
+    <section id="words-in-the-prose-2">
+      <title>Words in the prose</title>
+      <table>
+        <row header="true">
+          <cell>Book-14</cell>
+          <cell>Book-22</cell>
+        </row>
+        <row>
+          <cell>the evaluation service, flag-service, the flag service</cell>
+          <cell>the Vane service, <code>vane</code></cell>
+        </row>
+        <row>
+          <cell>the services of Vane, service (a part of Vane)</cell>
+          <cell>the modules of the Vane service, module</cell>
+        </row>
+        <row>
+          <cell>flag-registry, the flag registry</cell>
+          <cell>the registry module (vane/registry), PostgreSQL</cell>
+        </row>
+        <row>
+          <cell>flag-cache</cell>
+          <cell>the cache module (vane/cache), Redis</cell>
+        </row>
+        <row>
+          <cell>audit-service</cell>
+          <cell>the audit module, the audit log, the owners' webhook (hooks.example.com)</cell>
+        </row>
+        <row>
+          <cell>api-gateway</cell>
+          <cell>gone: the callers are the backend SDK in <code>storefront</code> and the console</cell>
+        </row>
+        <row>
+          <cell>the SDK</cell>
+          <cell>the frontend SDK (@vane/browser) or the backend SDK (@vane/node), as meant</cell>
+        </row>
+        <row>
+          <cell>GET /flags, POST /flags/{key}/kill</cell>
+          <cell>GET /api/getFlags, POST /api/killFlag (getFlags, killFlag)</cell>
+        </row>
+        <row>
+          <cell>flag-service -&gt; flag-registry 1 -&gt; 5</cell>
+          <cell>vane -&gt; postgresql 1 -&gt; 5</cell>
+        </row>
+        <row>
+          <cell>the library, books, loans, members (codegen)</cell>
+          <cell>Vane's API, flags, rollouts, owners</cell>
+        </row>
+      </table>
+      <p>Search words: <code>grep -nE 'flag-service|flag-registry|flag-cache|api-gateway|audit-service|evaluation service|line-based|rollout-request|kill-request|flag-keys|/flags/\{key\}|GET /flags\b|POST /flags|http\.ts|server\.ts|Vane services'</code> over the packet's chapter and example files finds nothing (the codegen packet adds <code>-iE 'librar|loan|borrow|genre|BookId|MemberId|LoanDays|Rating|dune|sicp|spqr'</code>). "service" alone stays a word: the Vane service is one.</p>
+    </section>
+    <section id="packets-book-23-to-book-29">
+      <title>Packets book-23 to book-29</title>
+      <p>Same rules as book-15 to book-21 (section 8): apply the tables above to the chapter files and every example file the packet owns; regenerate every example output with <code>tools/check-book-examples.sh --update BUILD file.md…</code> on a release build of HEAD, <strong>read each changed output</strong> and make the prose say what it now says; run the check without <code>--update</code> (it passes); a needed seed change goes under "Proposed data changes"; the book never mentions the old services, Latch, packets or decisions; report glossary terms for book-29. They run in parallel (no two own the same file); <code>svg/draw.xqm</code> and <code>svg/draw.xq</code> stay unchanged (the scxml, call-chains and traces diagrams use them; a change goes under "Proposed data changes").</p>
+      <table>
+        <row header="true">
+          <cell>Packet</cell>
+          <cell>Chapter files</cell>
+          <cell>Example files</cell>
+          <cell>Notes</cell>
+        </row>
+        <row>
+          <cell>book-23 XPath and XQuery wording</cell>
+          <cell>xpath-paths.md, xquery-flwor.md, xquery-project.md, xquery-serialization.md, xquery-types-errors.md, xquery-updates.md, and any other xpath<em>.md or xquery</em>.md the grep finds</cell>
+          <cell>spec/: the .xq and .xqm files but text-*.xq and publish-check.xq; spec/drafts/</cell>
+          <cell>outputs that quote the abstract, req-10, Security or the ABNF; req-10 now has 22 words (xquery-flwor's "more than 15 words" list)</cell>
+        </row>
+        <row>
+          <cell>book-24 XSLT, XSD, text and ABNF wording</cell>
+          <cell>xslt.md, xslt-templates.md, xslt-keys-grouping.md, xslt-packages.md, xslt-project.md, xsd.md, xsd-errors.md, xsd-identity.md, xsd-simple-types.md, text.md, the ABNF section of ixml-tasks.md, and any other xslt<em>/xsd</em>.md, files.md or c.md the grep finds</cell>
+          <cell>spec/: <em>.xsl, publish.sh, publish-check.xq, text-</em>.xq, vane-entities.xml, bibxml/, bad-<em>, xsd-</em>, levels.xsd; ixml/abnf.ixml</cell>
+          <cell>xslt.md and xslt-templates.md quote the abstract and introduction; ixml-tasks lists rollout-update and kill-update; text.md's score order changed (req-10 0.15)</cell>
+        </row>
+        <row>
+          <cell>book-25 SVG</cell>
+          <cell>svg.md, svg-layout.md, svg-xquery.md, svg-xslt.md, svg-transform.md</cell>
+          <cell>svg/* but the seeds and draw.xq/draw.xqm: change.xml (the table above), box.svg, legend.svg, states.xml if needed, the outputs</cell>
+          <cell>eight nodes in five rows; module boxes <code>vane/…</code> and why they are not a group; svg-xslt keeps node-flags and node-cache</cell>
+        </row>
+        <row>
+          <cell>book-26 Call chains</cell>
+          <cell>call-chains.md, call-chains-graph.md, call-chains-diff.md, source-code.md's sentence</cell>
+          <cell>call-chains/* but the seeds (graph.xqm's comment names node:http and redis: add pg), kinds/</cell>
+          <cell>the story of the monolith's modules; api.ts and db.ts; pool.query is external; the prediction "1 -&gt; 1 + n" now against the database</cell>
+        </row>
+        <row>
+          <cell>book-27 Traces, formats, JavaScript, performance</cell>
+          <cell>traces.md, traces-tree.md, traces-cardinality.md, traces-diff.md, traces-rendering.md, traces-streaming.md, formats.md, javascript.md (with SXML_JAVASCRIPT), performance.md</cell>
+          <cell>traces/* but the seeds (make-traces.xq writes the new shape: client root, vane server span, internal module spans, pg; spans.csv, status.html, diff-<em>.svg, participants.xq); javascript/</em></cell>
+          <cell>roots are client spans; windows over the children of flags.listFlags; no "none -&gt;" version line (teach <code>otherwise "none"</code> with a short example or say when it shows); the webhook is not a store in the participants drawing; streaming and performance numbers measured again</cell>
+        </row>
+        <row>
+          <cell>book-28 Codegen</cell>
+          <cell>codegen.md, codegen-typescript.md, codegen-printer.md, codegen-running.md (with SXML_JAVASCRIPT), codegen-pipeline.md</cell>
+          <cell>codegen/* but the seeds: typescript.xqm and print.xsl write one client module per name in <code>clients</code> (and server.ts validates every function), check.xq checks each client, openapi.xsl, runtime.ts, demo.ts, vane.ts (new), generate.sh, generated/, typo.xml, twice.xml, edited/, next/; deletes library.ts, library.xsd, library-2.xsd</cell>
+          <cell>in scope: Vane's SDKs and the service's request validation generated from vane-api.xsd; the chapter joins the Vane story (its opening, a sentence that the call-chain and trace routes are these remote functions); proposes a chapter title for SUMMARY (e.g. "Project: Generating Vane's SDKs from a Schema")</cell>
+        </row>
+        <row>
+          <cell>book-29 Integration (after all), done</cell>
+          <cell>introduction.md (the story of section 1; codegen is now the sixth Vane project: "The book ends with one more project, outside the Vane story" goes), appendix-glossary.md (the Vane entry; terms the packets report: update stream, frontend SDK, backend SDK, remote function if missing), SUMMARY.md (book-28's title), foreword.md if needed</cell>
+          <cell>—</cell>
+          <cell>the whole book with SXML_JAVASCRIPT and SXML: every example matches; <code>mdbook build docs/book</code>; the search words over docs/book find nothing</cell>
+        </row>
+      </table>
+    </section>
+  </section>
+  <section id="10-the-schematron-part-book-30">
+    <title>10. The Schematron part (book-30)</title>
+    <p>The owner (2026-10-28): "Add a chapter to the book about Schematron and where/how to use it. Don't mention enterprise-y things like eInvoice." The single chapter <code>schematron.md</code>, built on an invoice, becomes the part "Checking Rules with Schematron" after the state-machine project, on the Vane story: where Schematron fits beside XSD and XQuery, and how to write, run and embed it. The book never names invoices or their standards.</p>
+    <table>
+      <row header="true">
+        <cell>Packet</cell>
+        <cell>Chapter files</cell>
+        <cell>Example files</cell>
+        <cell>Notes</cell>
+      </row>
+      <row>
+        <cell>book-30 Schematron, done</cell>
+        <cell>schematron.md (<code>spec</code>), schematron-rules.md (<code>spec</code>), schematron-machine.md (<code>scxml</code>), schematron-documents.md (<code>codegen</code>), schematron-reuse.md (<code>scxml</code>), schematron-reports.md (<code>scxml</code>), schematron-c.md (<code>c</code>); SUMMARY.md, introduction.md, appendix-glossary.md, appendix-cli.md; links from scxml-checks.md, xquery-project.md, codegen.md, codegen-typescript.md, xsd-11.md</cell>
+        <cell>spec/draft.sch, spec/review.sch; scxml/flag.sch, names.sch, vane-rules.sch, reachable.sch, broken.sch, vane-00.xml (link); codegen/api.sch; c/schematron.c, c/review.sch (link), c/CMakeLists.txt; deletes examples/schematron</cell>
+        <cell>flag.sch is check.xq's checks, the value check through xsl:import-schema and an xsl:function with xsl:try; api.sch is the generator's type check as a cross-document rule; no <code>documents</code> example (see the LOG: its findings carry the FILE's name)</cell>
+      </row>
+    </table>
+    <p><strong>book-30 done</strong> (2026-10-29): the seven chapters' 54 examples and the whole book, 928 examples, match on a release build of HEAD (2c9e82ec9) with SXML set, javascript.md and codegen-running.md skipped (no SXML_JAVASCRIPT); <code>mdbook build docs/book</code> (0.4.52) succeeds with no missing include, and the part's links resolve.</p>
+  </section>
+  <section id="proposed-data-changes">
+    <title>Proposed data changes</title>
+    <p>(Packets add requests here, one line each, for book-13 to decide. This file is a shared ledger: stage only your hunk and commit the index without a pathspec, as BRIEF.md says.)</p>
+    <list>
+      <item>
+        <p>book-9: latch-data.xsd's simple types have no <code>xs:documentation</code>, which the plan for scxml-xhtml.md expected; document.xsl uses it when present and describes the facets otherwise. Adding a sentence of documentation to <code>seconds</code>, <code>door-id</code> and <code>code</code> would show it on the page. (book-14: done in vane-data.xsd, on <code>seconds</code>, <code>flag-key</code> and <code>percentage</code>.)</p>
+      </item>
+    </list>
+  </section>
+</document>

@@ -1,0 +1,4 @@
+<term id="content_sequence" source="docs/GLOSSARY.md">
+  <name>content_sequence</name>
+  <definition>The nodes an element or document constructor adds to its new node: the value of its content with arrays flattened, adjacent atomic items made into one text node and document nodes replaced by their children (XQuery 4.0, "Content"; XSLT 4.0, 5.7.1)</definition>
+</term>

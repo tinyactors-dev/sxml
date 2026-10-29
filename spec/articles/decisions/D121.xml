@@ -1,0 +1,23 @@
+<decision id="D121" status="accepted" source="docs/DECISIONS.md">
+  <title>The XQuery front end (packet <ref kind="packet" to="3.2"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, extending <ref kind="decision" to="D29"/>, <ref kind="decision" to="D59"/> and <ref kind="decision" to="D111"/>. <code>src/xquery_parse.c</code> defines <code>sxml_xquery_build_ast</code>: the XQuery parser part on the XPath walker; <code>sxml_grammar_xquery</code> joins the <code>sxml</code> link line.</p>
+    <list>
+      <item>
+        <p><strong>Tables and tokens</strong>: the 66 node types and 23 fields XQuery adds; the module's child takes field MODULE. <term name="mode"/> and <code>kind</code> tokens become the keyword detail, a decimal-format property name its detail, the other token fields flags. The <code>empty</code> token of order_specification is claimed before the XPath rules, which read <code>empty</code> as the empty-sequence occurrence.</p>
+      </item>
+      <item>
+        <p><strong>Decoding</strong> (describe_payload): XQuery string literals and BracedURILiterals replace references; direct element text also "{{" and "}}"; attribute value text also the doubled delimiter, read from the DIRECT_ATTRIBUTE_VALUE node (the first node containing the text on the parent chain of the last added node), then attribute value normalization (literal tab, line feed, carriage return to a space). Every decoded text (also CDATA, comments, PI content, pragma contents, string constructor characters and string template fixed parts) gets the end-of-line handling of A.3.3.1. A reference to a character outside XML 1.0 Char, or above U+10FFFF, is XQST0090. "(# r #)" has an empty PRAGMA_CONTENTS.</p>
+      </item>
+      <item>
+        <p><strong>Checks</strong> (finish_node): XQST0118 and XQST0040/XQST0071 on names as written (pairwise up to 32 attributes, else a heapsort of node indices in one work array from the AST's allocator); namespace declaration attributes are flagged, XQST0022 for an enclosed expression, XQST0070 for the reserved bindings of 4.12.1.2, XQST0085 for a prefix bound to "" (XML Names 1.0, xgc: xml-version); BOUNDARY_WHITESPACE on text written as whitespace only with no CDATA section or text next to it; a version other than 1.0, 3.0, 3.1, 4.0 is XQST0031, an encoding that is no EncName XQST0087; a string field name in a record declaration annotated <code>%constructor</code> (unprefixed or Q{http://www.w3.org/2012/xquery}) is XPST0003, the third <ref kind="decision" to="D29"/> false accept. A direct comment ending in "-" is already rejected by the scanner.</p>
+      </item>
+      <item>
+        <p><strong>Left to later packets</strong>: duplicate expanded names under different prefixes (XQST0040, lowering), the prolog's XQST0070 for namespace declarations, imports and default namespaces and its duplicate declarations (3.10), a prefixed <code>%constructor</code>.</p>
+      </item>
+      <item>
+        <p><strong>Results</strong> (a scratch harness over the case loader of <code>tools/qt4-parse-check.py</code>, which itself checks only the grammar): all 43,663 valid XQ40 queries build, 70 of them with the static error their test expects (XQST0022 16, XQST0031 5, XQST0040 4, XQST0070 8, XQST0071 9, XQST0085 5, XQST0087 4, XQST0090 13, XQST0118 6); the 145 parsable library modules build; all 772 XPST0003 queries fail statically.</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="abstract_rule" source="docs/GLOSSARY.md">
+  <name>abstract_rule</name>
+  <definition>A sch:rule with abstract="true", in sch:rules or (as older schemas write) in a schematron pattern: variables and assertions that a sch:extends rule="ID" puts into a rule in its place (5.4.15, 5.4.16; <ref kind="decision" to="D315"/>)</definition>
+</term>

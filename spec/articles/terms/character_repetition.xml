@@ -1,0 +1,4 @@
+<term id="character_repetition" source="docs/GLOSSARY.md">
+  <name>character_repetition</name>
+  <definition>A greedy unbounded repetition (<code>x*</code>, <code>x+</code>, <code>x{n,}</code>) of one regex instruction that reads one character, run as one instruction: it reads as many characters as match and gives them back one at a time on backtracking, two backtrack entries in all instead of two per character (internal, <code>src/regex.c</code>, <ref kind="decision" to="D310"/>)</definition>
+</term>

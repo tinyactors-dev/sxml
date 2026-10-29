@@ -1,0 +1,4 @@
+<term id="field_key" source="docs/GLOSSARY.md">
+  <name>field_key</name>
+  <definition>The xs:string key item of one record field, made by a record on first need</definition>
+</term>

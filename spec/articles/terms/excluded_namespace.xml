@@ -1,0 +1,4 @@
+<term id="excluded_namespace" source="docs/GLOSSARY.md">
+  <name>excluded_namespace</name>
+  <definition>A namespace whose namespace nodes literal result elements do not copy (XSLT 4.0, 11.1.3)</definition>
+</term>

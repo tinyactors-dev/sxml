@@ -1,0 +1,4 @@
+<term id="codepoint_iterator" source="docs/GLOSSARY.md">
+  <name>codepoint_iterator</name>
+  <definition>Walks the codepoints of a string in order</definition>
+</term>

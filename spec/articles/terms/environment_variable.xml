@@ -1,0 +1,4 @@
+<term id="environment_variable" source="docs/GLOSSARY.md">
+  <name>environment_variable</name>
+  <definition>A name and value the host exposes to <code>fn:environment-variable</code>; sxml never reads the platform's environment</definition>
+</term>

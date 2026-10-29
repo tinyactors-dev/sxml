@@ -1,0 +1,57 @@
+<decision id="D313" status="accepted" source="docs/DECISIONS.md">
+  <title>The owner's decisions of 2026-10-28: Schematron, source locations, the CLI's step limit</title>
+  <body>
+    <p><recorded date="2026-10-28"/> by the orchestrator, from the owner's answers to the open points of packet <ref kind="packet" to="7.27"/> and of the "Source locations for parsed input documents" item that was under "## Proposed" (moved here).</p>
+    <p>
+      <strong>Schematron (packet <ref kind="packet" to="7.27"/>, its design follows these):</strong>
+    </p>
+    <list ordered="true">
+      <item>
+        <p>The edition is ISO/IEC 19757-3:2025 (4th edition, with <code>group</code>, <code>library</code> and <code>rules</code>, and the XSLT 3.1 and XQuery 3.1 binding); older schemas are read as the 4th edition reads them.</p>
+      </item>
+      <item>
+        <p>Query bindings: <code>xslt2</code>, <code>xslt3</code> and <code>xpath2</code>, <code>xpath3</code>, <code>xpath31</code> are accepted; a schema without <code>queryBinding</code> is read as <code>xslt3</code> (not XSLT 1.0, whose stylesheets sxml refuses with XTDE0160 until backwards compatibility lands); <code>xquery3</code> is rejected in one place with the error the standard gives. <em>Amended by the owner on 2026-10-28 (<ref kind="decision" to="D315"/>, point B): a missing attribute, <code>xslt</code> and <code>xpath</code> are read as XSLT 4.0 and XPath 4.0.</em></p>
+      </item>
+      <item>
+        <p>Outputs: text and <code>--format=json</code> as for XSD, and <code>--format=svrl</code>.</p>
+      </item>
+      <item>
+        <p>Exit status 1 for a failed <code>assert</code> or a fired <code>report</code> whose role or flag is <code>fatal</code> or <code>error</code>, or that has neither; findings with other roles (warning, info) are printed and leave the status 0.</p>
+      </item>
+      <item>
+        <p><code>--schema</code> with <code>--schematron</code>: XSD validation first, then the Schematron rules over the typed result; both reported, also when XSD validation fails.</p>
+      </item>
+      <item>
+        <p>SchXslt 1.10.1 (MIT) is vendored in <code>third_party/</code> as the reference of a differential test only; nothing of it ships.</p>
+      </item>
+    </list>
+    <p><strong>Source locations for parsed input documents</strong> (the owner's direction: optional, and on by default where it matters):</p>
+    <list>
+      <item>
+        <p>A processor setting with three values, <code>AUTOMATIC</code> (the zero value), <code>ALWAYS</code>, <code>NEVER</code>, for the documents sxml parses: by <code>sxml_processor_parse_document</code>, <code>fn:doc</code>, <code>fn:parse-xml</code>, <code>fn:collection</code>.</p>
+      </item>
+      <item>
+        <list ordered="true" start="7">
+          <item>
+            <p>Under <code>AUTOMATIC</code> a document that a host parses before any program is compiled keeps its locations. Where sxml parses on a program's behalf, the compiled program decides: locations are kept when it calls <code>fn:location</code>, can reach functions dynamically (<code>fn:function-lookup</code>, <code>fn:load-xquery-module</code>, <code>fn:transform</code>, <code>xsl:evaluate</code>), or is a Schematron or XSD validation. <code>xpath</code> and <code>xquery</code> in the sxml command compile before they parse <code>--context-item</code>.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <list ordered="true" start="8">
+          <item>
+            <p>A dynamic error that names an input node prints its line and column when the node's document kept its locations.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><code>--locations=always|never|automatic</code> in the sxml command; the same three values in the JavaScript package.</p>
+      </item>
+      <item>
+        <p>Cost measured: 32 bytes a node; a 26 MB document of about 2.5 million nodes, release build, x86_64 Xeon 2.1 GHz: peak memory 171 MB without, 248 MB with (+45 %), time 3.0–3.2 s against 3.2–3.3 s. Streamed input builds no tree and pays nothing. Packet <ref kind="packet" to="7.29"/>.</p>
+      </item>
+    </list>
+    <p><strong>The sxml command's step limit</strong> (9): the sxml command sets no evaluation step limit; a long run is stopped by the person running it. The library's default (<ref kind="decision" to="D89"/>, <ref kind="decision" to="D259"/>) stays for embedders and the JavaScript package; the conformance drivers keep their own bounds (<ref kind="decision" to="D166"/>, <ref kind="decision" to="D178"/>). Packet <ref kind="packet" to="cli-4"/>.</p>
+    <p><strong>SchXslt upstream</strong> (10): the sort-once fix for <code>schxslt:replace-params</code> is not offered upstream.</p>
+  </body>
+</decision>

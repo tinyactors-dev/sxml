@@ -1,0 +1,26 @@
+<decision id="D256" status="accepted" source="docs/DECISIONS.md">
+  <title>Distribution archives: mise, zig cc, seven targets (packet <ref kind="packet" to="dist-1"/>)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D10"/>, <ref kind="decision" to="D44"/>, <ref kind="decision" to="D209"/>, <ref kind="decision" to="D255"/>. <code>mise run dist</code> builds the <code>sxml</code> command for every supported platform as installable archives (<code>docs/tasks/distribution.md</code>; README.md, "Install").</p>
+    <list>
+      <item>
+        <p><strong>Tools</strong>: <code>mise.toml</code> pins cmake 3.31.9, ninja 1.13.1, zig 0.15.2, node 22.22.0 and the WASI SDK 34 (<code>github:WebAssembly/wasi-sdk</code>). The tasks are <code>dist</code>, <code>dist:&lt;target&gt;</code>, <code>dist:checksums</code>, <code>dist:verify</code> and <code>install [-- PREFIX]</code> (default <code>~/.local</code>: <code>bin/sxml</code>, <code>share/doc/sxml/</code>); <code>tools/dist.sh</code> is the one implementation.</p>
+      </item>
+      <item>
+        <p><strong>Cross-compiling</strong>: one toolchain file, <code>cmake/toolchains/zig.cmake</code>, for every native target, chosen by <code>SXML_ZIG_TARGET</code>. Zig carries the C library headers and link stubs for musl, macOS and MinGW-w64, so no sysroot or SDK is downloaded. CMake wants one program per tool and its platform modules rewrite the archiver rules after the toolchain file, so <code>zig cc</code>, <code>zig ar</code> and <code>zig ranlib</code> get two-line shell wrappers in the build tree; the build machine is Linux or macOS. CMake 3.27's <code>--dependency-file</code> link option is turned off (zig's linker rejects it). wasm32-wasi uses <code>cmake/wasi-sdk.cmake</code> with the SDK mise installed. Native builds are Release, wasm32-wasi MinSizeRel (the presets' types), all linked with <code>-s</code>.</p>
+      </item>
+      <item>
+        <p><strong>Targets</strong>: x86_64-linux and aarch64-linux (static musl executables, any distribution), x86_64-macos and aarch64-macos (macOS 11 and later, libSystem only; zig signs the arm64 one ad hoc), x86_64-windows and aarch64-windows (MinGW-w64; only KERNEL32 and the Universal C Runtime, which Windows 10 and later include), wasm32-wasi (the CLI module). Every target builds the library and the CLI with <code>-Werror</code> as they are: no portability fix was needed (the platform layer already had its <code>_WIN32</code> paths, <code>_getcwd</code> among them).</p>
+      </item>
+      <item>
+        <p><strong>Archives</strong>: <code>sxml-&lt;version&gt;-&lt;target&gt;.tar.gz</code>, <code>.zip</code> for Windows, the version from <code>include/sxml/version.h</code>. Each holds one directory with the program (<code>sxml</code>, <code>sxml.exe</code>, <code>sxml.wasm</code>), LICENSE, README.md and USAGE.md (<code>apps/sxml/README.md</code>, renamed so the two READMEs do not collide). Owners and times are fixed, so the same tree gives the same SHA-256; <code>SHA256SUMS</code> is in sha256sum's format.</p>
+      </item>
+      <item>
+        <p><strong>Verified here</strong> (<code>mise run dist:verify</code>: <code>sxml --version</code> and an <code>sxml xpath</code> query over a small document): x86_64-linux natively, aarch64-linux under qemu-user 8.2, x86_64-windows under wine 9.0, wasm32-wasi under Node.js with <code>tools/run-wasi.mjs</code>. <code>file</code> reports Mach-O x86_64 and arm64 for the macOS programs and PE32+ Aarch64 for aarch64-windows, which nothing here runs.</p>
+      </item>
+      <item>
+        <p><strong>The owner's machine</strong>: running the macOS programs (and aarch64-windows) at all; Developer ID signing and notarization of the macOS programs, as Gatekeeper quarantines an unsigned download (<code>xattr -d com.apple.quarantine</code> works around it); Authenticode signing of the Windows programs if wanted; publishing the archives with a release (<code>docs/RELEASE.md</code>). The macOS programs keep their symbol table (zig's <code>-s</code> does not strip Mach-O; stripping afterwards would break the arm64 signature). The time zones come from <code>/usr/share/zoneinfo</code> (<ref kind="decision" to="D209"/>), which Windows does not have.</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="stream_availability" source="docs/GLOSSARY.md">
+  <name>stream_availability</name>
+  <definition>What fn:stream-available finds by a streamed open of a document read to the end of its document element's start tag: available, unavailable, or unknown without a processor's loader (<code>sxml_stream_availability</code>, XSLT 4.0, 18.2; <ref kind="decision" to="D273"/>)</definition>
+</term>

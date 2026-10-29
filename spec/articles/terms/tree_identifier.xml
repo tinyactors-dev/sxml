@@ -1,0 +1,4 @@
+<term id="tree_identifier" source="docs/GLOSSARY.md">
+  <name>tree_identifier</name>
+  <definition>Identifies a tree; with <term name="node_index"/>, identifies a node</definition>
+</term>

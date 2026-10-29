@@ -1,0 +1,18 @@
+<packet id="6.9" source="docs/tasks/phase-6.md">
+  <title>Apple builds and iOS tests (owner's machine)</title>
+  <body>
+    <p><status value="paused" date="2026-10-20"/> (<ref kind="decision" to="D255"/>): not started. The steps, in order, are in <code>bindings/swift/DESIGN.md</code>, section 3.1. After <ref kind="packet" to="6.8"/>. Owns:</p>
+    <list>
+      <item>
+        <p><code>cmake/apple.cmake</code> (CMake's <code>CMAKE_SYSTEM_NAME</code> iOS with <code>CMAKE_OSX_SYSROOT</code> iphoneos and iphonesimulator, and macOS);</p>
+      </item>
+      <item>
+        <p><code>tools/build-xcframework.sh</code> (static <code>sxml_host</code> for ios-arm64, ios-arm64_x86_64-simulator and macos-arm64_x86_64, then <code>xcodebuild -create-xcframework</code>);</p>
+      </item>
+      <item>
+        <p>the manifest's <code>binaryTarget</code> for Apple platforms (a local path, and the release URL and checksum once releases exist).</p>
+      </item>
+    </list>
+    <p>An agent may write the scripts here; they are not run here. Done when <code>xcodebuild test</code> passes on an iOS simulator and one device, and <code>swift test</code> passes on macOS, with 0 leaks. This is also the first macOS build of the library (<ref kind="decision" to="D123"/>'s known risk).</p>
+  </body>
+</packet>

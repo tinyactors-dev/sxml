@@ -1,0 +1,4 @@
+<term id="effective_child" source="docs/GLOSSARY.md">
+  <name>effective_child</name>
+  <definition>A child of a Schematron element after inclusion: an sch:include is replaced by the element it names, an sch:extends href by the children of its external declaration, and (when rules are expanded) an sch:extends rule by the children of the abstract rule; a cursor yields them in order with an explicit stack (<ref kind="decision" to="D323"/>)</definition>
+</term>

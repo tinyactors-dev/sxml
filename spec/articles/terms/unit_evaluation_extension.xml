@@ -1,0 +1,4 @@
+<term id="unit_evaluation_extension" source="docs/GLOSSARY.md">
+  <name>unit_evaluation_extension</name>
+  <definition>What a language adds to the shared evaluation of a unit (<code>src/xpath_api_internal.h</code>): XSLT's function table, document preparation and result writer (<ref kind="decision" to="D157"/>); a unit evaluation a native step asks for carries one in its global table, which the unit's code reads (fn:transform, <ref kind="decision" to="D203"/>)</definition>
+</term>

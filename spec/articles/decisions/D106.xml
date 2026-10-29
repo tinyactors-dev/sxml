@@ -1,0 +1,26 @@
+<decision id="D106" status="accepted" source="docs/DECISIONS.md">
+  <title>The XQuery and serialization API (packet <ref kind="packet" to="3.0"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. <code>include/sxml/xquery.h</code> is new; <code>serialize.h</code> grows by new constants at the end of <code>sxml_serialization_method</code> and new fields in <code>sxml_serialization_parameters</code>, regrouped by size (enumerations, presence flags, views) because clang-tidy's padding check rejects the interleaved order. Callers initialize by field name, so Phase 1 and 2 code compiles unchanged (zero is still the adaptive method with its defaults); nothing is ABI-stable before 0.2.0 (<ref kind="decision" to="D99"/>).</p>
+    <list>
+      <item>
+        <p><strong>Methods</strong>: XML, XHTML, HTML, TEXT, JSON, CSV after ADAPTIVE. No constant for implementation-defined (namespaced) methods; the readers raise SEPM0016 for them. A method not implemented yet returns UNSUPPORTED_FEATURE (the header's contract); <code>src/serialize.c</code> still returns INVALID_ARGUMENT for non-adaptive methods until 3.3 changes it.</p>
+      </item>
+      <item>
+        <p><strong>Parameters</strong>: one struct with every Serialization 4.0 parameter, including the 4.0 additions (canonical, csv-<em>, escape-solidus, indent-unit, indent-attributes, json-lines, line-ending), field names the parameter names with <code>_</code>. Booleans are <code>sxml_serialization_flag</code> (DEFAULT, NO, YES), because several defaults are "yes" (escape-solidus, escape-uri-attributes, include-content-type, omit-xml-declaration) and a zero struct must mean "defaults"; DEFAULT is fn:serialize's default (F&amp;O 4.0 table), so omit-xml-declaration defaults to yes; XSLT sets NO itself. Enumerations have their default as constant 0 (UTF-8, standalone omit, normalization none, LF, json-node-output-method xml). Parameters the spec lets be absent (doctype-</em>, html-version, indent-unit, item-separator, media-type, version) are <code>has_</code> + text; html-version stays text (an xs:decimal lexical form) because the HTML method also falls back on version. csv-separator and csv-quote-character are codepoints, 0 the default. Element-name lists are name pool identifiers (<code>sxml_element_name_view</code>, in serialize.h because name.h is frozen); character maps are codepoint/replacement pairs. Encodings: UTF-8, UTF-16 (big endian), US-ASCII, ISO-8859-1 (<code>sxml_character_encoding</code>); other names SESU0007. Indent unit default two spaces.</p>
+      </item>
+      <item>
+        <p><strong>Errors</strong>: a value Serialization 4.0 does not permit is SEPM0016 (a dynamic error) when serialized, so fn:serialize sees the spec code; what XDM cannot even express (ill-formed UTF-8, unknown constants, name 0, a repeated character-map codepoint) is INVALID_ARGUMENT.</p>
+      </item>
+      <item>
+        <p><strong>Parameter reader</strong>: <code>sxml_serialization_parameter_reader</code> (lifecycle quintet; allocator and item heap) reads fn:serialize's <code>$options</code> (empty, a map, or an <code>output:serialization-parameters</code> element) into the struct and owns the copied text and lists until its next read. Map: XPTY0004 for wrong types, SEPM0016 for bad values; element: SEPM0017, SEPM0018, SEPM0019 (Serialization 4.0, 3.1); method xml when none is given. The textual forms of XQuery output declarations and xsl:output (yes/no/1/0, <code>\t</code>, QName lists) are read by internal code of 3.10 and Phase 4, not by a public function.</p>
+      </item>
+      <item>
+        <p><strong>XQuery</strong>: <code>sxml_xquery_query</code> (quintet, like <code>sxml_xpath_expression</code>; the main module's text is <term name="expression_text"/>, glossary) compiled with the shared <code>sxml_static_context_configuration</code>, evaluated with <code>sxml_xquery_evaluation_request</code> holding the shared dynamic context. Host variable declarations are in scope in the main module only (a prolog declaration of the same name is XQST0049); bindings also bind every module's external variables. Library modules come from the resolver, kind XQUERY_MODULE, one request per location hint (an empty uri_reference for none); the parameter document of output:parameter-document is an XML_DOCUMENT request, read at compile time (XQST0119/XQST0115). Output declaration errors (XQST0108-0110, SEPM0016) are compile errors. <code>sxml_xquery_query_get_serialization_parameters</code> returns the struct by value: declarations over the parameter document over XQuery defaults (method xml); the host overrides fields of the copy (CLI <code>--method</code>).</p>
+      </item>
+      <item>
+        <p>Left out, each a later field: XQuery-only static context settings from the host (boundary-space, construction, ordering), a list of the query's external variables, fn:load-xquery-module options (3.11 is internal), implementation-defined serialization parameters.</p>
+      </item>
+    </list>
+  </body>
+</decision>

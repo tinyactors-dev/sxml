@@ -1,0 +1,4 @@
+<term id="hash_index" source="docs/GLOSSARY.md">
+  <name>hash_index</name>
+  <definition>An open-addressing table from key hash to entry index, built for an entry block</definition>
+</term>

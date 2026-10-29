@@ -1,0 +1,4 @@
+<term id="xslt_test_environment" source="docs/GLOSSARY.md">
+  <name>xslt_test_environment</name>
+  <definition>The environment of an XSLT 4.0 test case: what a QT4 environment holds, plus inline source documents, stylesheets, packages, static parameters and an output element</definition>
+</term>

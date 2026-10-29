@@ -1,0 +1,4 @@
+<term id="schematron" source="docs/GLOSSARY.md">
+  <name>schematron</name>
+  <definition>A compiled Schematron schema (ISO/IEC 19757-3:2025): the schematron patterns of a schematron document that its phase can make active, read into a stylesheet AST and compiled as XSLT, then run over many documents (<code>sxml_schematron</code>, include/sxml/schematron.h, <ref kind="decision" to="D313"/>, <ref kind="decision" to="D315"/>)</definition>
+</term>

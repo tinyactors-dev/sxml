@@ -1,0 +1,4 @@
+<term id="schematron_edition" source="docs/GLOSSARY.md">
+  <name>schematron_edition</name>
+  <definition>A schema's schematronEdition attribute (5.5.15): the edition it says it conforms to; any value accepted, never an error, and reported by <code>sxml_schematron_describe</code>, the CLI's JSON and SVRL (<ref kind="decision" to="D315"/>)</definition>
+</term>

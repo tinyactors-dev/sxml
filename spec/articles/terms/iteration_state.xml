@@ -1,0 +1,4 @@
+<term id="iteration_state" source="docs/GLOSSARY.md">
+  <name>iteration_state</name>
+  <definition>The array <code>xsl:iterate</code> lowering passes from one item to the next: control (0 go on, 1 broken), the item's output, the parameter values (<ref kind="decision" to="D145"/>)</definition>
+</term>

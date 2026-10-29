@@ -1,0 +1,4 @@
+<term id="result_document_instruction" source="docs/GLOSSARY.md">
+  <name>result_document_instruction</name>
+  <definition>What one <code>xsl:result-document</code> reads when it runs: its attribute value templates in a fixed order, its namespaces, base URI and character maps</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="xquery_slice" source="docs/GLOSSARY.md">
+  <name>xquery_slice</name>
+  <definition>The QT4 test cases of <code>tests/qt4/xquery-slice.txt</code>, run with <code>--spec=XQ40</code> by ctest <code>qt4/xquery-slice</code> against <code>tests/qt4/xquery-slice-baseline.txt</code>, which only goes up (packet <ref kind="packet" to="3.13"/>)</definition>
+</term>

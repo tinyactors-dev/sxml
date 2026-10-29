@@ -1,0 +1,17 @@
+<packet id="perf-12" source="docs/tasks/phase-7.md">
+  <title>Compiling large stylesheets (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D224"/>, <ref kind="decision" to="D259"/> and <ref kind="decision" to="D322"/>. Validating one EN 16931 invoice with the official pre-compiled stylesheet (900 KB of XSLT, from ConnectingEurope/eInvoicing-EN16931) costs 2.68 x 10^9 instructions, about 0.5 s, and 79 % of it is compiling the stylesheet: reading 41 % (tree-sitter's XML parse 23 %), XPath parsing 25 %, IR passes 32 %; the validation itself 20 %. Two passes dominate on their own: <code>sxml_ir_shorten_descendant_paths</code> 12.5 % (self) and <code>sxml_ir_read_globals_lazily</code> 8.6 % (self), which suggests work that grows with the square of the unit (each template or global revisits the whole unit). Every <code>sxml transform</code> and, after <ref kind="packet" to="7.28"/>, every Schematron compile pays this.</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: profile first (callgrind on the invoice run above and on a stylesheet of growing size made by repeating templates, to show the growth); make each pass linear (or n log n) in the unit's size with the same result; then the next largest compile cost the profile shows in the files below. The IR after the passes must be the same: compare the IR text form (<code>src/ir.c</code>'s printer) before and after on the EN 16931 stylesheet and the XT40 suite's stylesheets.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/ir_loop_passes.c</code>, <code>src/ir_global_read.c</code>, <code>src/ir.c</code> (the pass list and helpers), <code>src/ir_internal.h</code> and <code>src/ir_pass_internal.h</code> (their pass parts), <code>src/xpath_parse.c</code>, <code>src/xpath_lower.c</code>, <code>tests/ir_loop_passes_test.c</code>, <code>tests/bench/</code>. Not <code>src/xslt*.c</code> (7.28).</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: each change measured before and after (instructions and seconds) in a D-record and the commit messages, on the invoice run, a growth series showing linear passes, xmark-all and SchXslt's expand stage; the IR text form identical; QT4 XP40, XQ40 and XT40 whole, base and change built and run in the same setup: no outcome changes, case by case. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D324"/>): descendant and global-read passes and the lowerer's declaration check linear; fusion skips functions without a QUANTIFIED; AST kinds kept per grammar symbol. Invoice 2.680 to 2.076 x 10^9 instructions; growth N = 128 57.1 to 6.2; IR text identical; XP40, XQ40, XT40 0 outcomes differ.</p>
+      </item>
+    </list>
+  </body>
+</packet>

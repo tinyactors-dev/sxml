@@ -1,0 +1,4 @@
+<term id="stylesheet" source="docs/GLOSSARY.md">
+  <name>stylesheet</name>
+  <definition>An XSLT 4.0 stylesheet: a principal module with every module it includes and imports, compiled together</definition>
+</term>

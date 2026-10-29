@@ -1,0 +1,79 @@
+<document id="RELEASE" source="docs/RELEASE.md">
+  <title>Releasing sxml</title>
+  <p>How a release is cut. The owner tags it and publishes it, and agents prepare everything up to that point (<ref kind="decision" to="D138"/>). The first public release is 0.2.0, made at the end of Phase 2 (PLAN.md, phase 2 gate).</p>
+  <section id="what-a-version-promises">
+    <title>What a version promises</title>
+    <p>sxml follows Semantic Versioning (<code>include/sxml/version.h</code>). The public headers (<code>include/sxml/</code>) are stable from 0.2.0 on (<ref kind="decision" to="D47"/>):</p>
+    <list>
+      <item>
+        <p>A release that only adds declarations raises the minor version (the patch version for fixes that add nothing). It also raises <code>SXML_API_VERSION</code> to the release that added them.</p>
+      </item>
+      <item>
+        <p>A release that changes or removes a declaration needs a decision record in <code>docs/DECISIONS.md</code>. Before 1.0.0 it raises the minor version, and from 1.0.0 the major version. The changelog lists the change under "Changed" or "Removed".</p>
+      </item>
+      <item>
+        <p>The frozen substrate headers (<ref kind="decision" to="D99"/>) change only additively, and each change has a record.</p>
+      </item>
+      <item>
+        <p><code>xquery.h</code>, <code>xslt.h</code> and <code>schema.h</code> were provisional until the Phase 3, 4 and 5 gates (<ref kind="decision" to="D151"/>, <ref kind="decision" to="D165"/>) and are stable since (<ref kind="decision" to="D161"/>, <ref kind="decision" to="D169"/>, <ref kind="decision" to="D182"/>).</p>
+      </item>
+    </list>
+    <p>The JavaScript package (<code>bindings/javascript/</code>) has the same version as the library. Its API grows only additively within a minor version, as the headers do.</p>
+  </section>
+  <section id="checklist">
+    <title>Checklist</title>
+    <list ordered="true">
+      <item>
+        <p><strong>Gate.</strong> The phase gate's boxes in <code>docs/tasks/</code> are ticked, except the box for the tag.</p>
+      </item>
+      <item>
+        <p><strong>Version.</strong> Set the same version in four places:</p>
+        <list>
+          <item>
+            <p><code>SXML_VERSION_MAJOR</code>, <code>_MINOR</code> and <code>_PATCH</code> in <code>include/sxml/version.h</code>, and <code>SXML_API_VERSION</code> when the release adds declarations;</p>
+          </item>
+          <item>
+            <p><code>project(sxml VERSION ...)</code> in <code>CMakeLists.txt</code>;</p>
+          </item>
+          <item>
+            <p><code>"version"</code> in <code>bindings/javascript/package.json</code> and its <code>package-lock.json</code>;</p>
+          </item>
+          <item>
+            <p>the expected version in <code>tests/version_test.c</code>, <code>tests/cli/expected/version_*.stdout</code> and <code>bindings/javascript/test/package.test.ts</code>.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Changelog.</strong> In <code>CHANGELOG.md</code>, the section for the release gets the date in place of "unreleased", and its link at the bottom names the tag.</p>
+      </item>
+      <item>
+        <p><strong>Build and test</strong> from a clean tree. The definition of done (CLAUDE.md) must hold:</p>
+        <pre language="sh">for preset in debug debug-gcc wasm release; do
+    cmake --preset $preset &amp;&amp; cmake --build --preset $preset &amp;&amp; ctest --preset $preset
+done
+tools/lint.sh
+npm ci --prefix bindings/javascript &amp;&amp; ctest --preset wasm -R javascript</pre>
+        <p><code>javascript/size_budget</code> must pass (<ref kind="decision" to="D93"/>, <ref kind="decision" to="D138"/>). Regenerate <code>docs/CONFORMANCE.md</code> (<ref kind="decision" to="D94"/>) and quote its XP40 line in the release notes.</p>
+      </item>
+      <item>
+        <p><strong>Commit</strong> the version and the changelog as "Release X.Y.Z", then push to <code>main</code>.</p>
+      </item>
+      <item>
+        <p><strong>Tag</strong> (owner): <code>git tag -a vX.Y.Z -m "sxml X.Y.Z"</code>, then <code>git push origin vX.Y.Z</code>. Create a GitHub release from the tag with the changelog section as its notes. Attach <code>sxml.wasm</code> and the package tarball from step 7.</p>
+      </item>
+      <item>
+        <p><strong>Publish the JavaScript package</strong> (owner). Do this from the tagged commit:</p>
+        <pre language="sh">cmake --preset wasm &amp;&amp; cmake --build --preset wasm --target sxml_javascript_module
+cd bindings/javascript
+npm ci
+SXML_WASM_PATH=../../build/wasm/bindings/javascript/sxml.wasm npm run build
+npm pack            # check the tarball: dist/*.js, dist/*.d.ts, dist/sxml.wasm, dist/allkeys.txt
+npm publish         # needs the npm account and the package name</pre>
+        <p>The npm name <code>sxml</code> belongs to another project. The package is named <code>@tinyactors/sxml</code> (<ref kind="decision" to="D239"/>).</p>
+      </item>
+      <item>
+        <p><strong>After the release</strong>, open a new "unreleased" section in <code>CHANGELOG.md</code>.</p>
+      </item>
+    </list>
+  </section>
+</document>

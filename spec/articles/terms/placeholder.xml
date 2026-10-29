@@ -1,0 +1,4 @@
+<term id="placeholder" source="docs/GLOSSARY.md">
+  <name>placeholder</name>
+  <definition><code>$name</code> in an expression where name, the whole name token after <code>$</code>, is a parameter in scope: a pattern instance's, else a schema parameter; replaced by its value in one scan, the value not scanned again (Annexes C, H, J; <ref kind="decision" to="D315"/>)</definition>
+</term>

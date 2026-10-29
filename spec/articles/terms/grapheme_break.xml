@@ -1,0 +1,4 @@
+<term id="grapheme_break" source="docs/GLOSSARY.md">
+  <name>grapheme_break</name>
+  <definition>The Grapheme_Cluster_Break property value of a codepoint (CR, LF, Extend, ZWJ, L, V, ...; UAX #29, section 3.1)</definition>
+</term>

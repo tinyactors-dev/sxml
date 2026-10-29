@@ -1,0 +1,4 @@
+<term id="comparison_pair" source="docs/GLOSSARY.md">
+  <name>comparison_pair</name>
+  <definition>Two items, or two runs of children, waiting to be compared on the explicit stack of deep equality</definition>
+</term>

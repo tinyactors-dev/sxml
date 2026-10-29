@@ -1,0 +1,4 @@
+<term id="chameleon_inclusion" source="docs/GLOSSARY.md">
+  <name>chameleon_inclusion</name>
+  <definition>Including (or redefining, overriding) a schema document without a targetNamespace from one with a target namespace: its components take the includer's namespace (XSD 1.1 Part 1, 4.2.3)</definition>
+</term>

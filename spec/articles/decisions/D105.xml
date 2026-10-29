@@ -1,0 +1,26 @@
+<decision id="D105" status="accepted" source="docs/DECISIONS.md">
+  <title>The regex engine: the whole F&amp;O 4.0 dialect (packet <ref kind="packet" to="2.3"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. <ref kind="decision" to="D9"/> is met by growing the <ref kind="decision" to="D53"/> seed in place, behind the same <code>src/regex_internal.h</code> (compile, match at, find, find next), not by a rewrite: its parser, emitted program and backtracking machine already follow Saxon HE's design.</p>
+    <list>
+      <item>
+        <p><strong>Syntax</strong> (F&amp;O 4.0, section 6.1.3): category escapes <code>\p{Lu}</code> (no <code>Cs</code>, as the grammar), block escapes <code>\p{IsX}</code> by the Blocks.txt name without spaces plus the four renamed XSD 1.0 names (<code>IsGreek</code>, <code>IsCombiningMarksforSymbols</code>, <code>IsCyrillicSupplementary</code>, <code>IsPrivateUse</code>); unknown names are FORX0002 (6.1.7). <code>\i \c</code> are XML 1.0 fifth edition NameStartChar and NameChar. XSD 1.1 hyphens: a "-" that separates no range is a character (<code>[a-d-b-c]</code>, QT4 re00056a). <code>\b \B</code>, <code>(?=) (?!) (?&lt;=) (?&lt;!)</code> and the <code>(*positive_lookahead:...)</code> spellings; <code>(?&lt;name&gt;...)</code>, <code>\k&lt;name&gt;</code>. Assertions take no quantifier.</p>
+      </item>
+      <item>
+        <p><strong>Lookaround</strong> without recursion: LOOK_START pushes an assertion entry on the backtrack stack; LOOK_END of a positive assertion drops the choices above it but keeps the slot-restoring entries (captures stay, and are undone if matching later backtracks past the assertion; first match wins, 6.1.8.3), of a negative one undoes them and fails; backtracking onto the entry fails a positive assertion and resumes a negative one after it. A lookbehind branch is fixed-length (6.1.8.5), so it starts with STEP_BACK n.</p>
+      </item>
+      <item>
+        <p><strong>Case-blind</strong> matching (6.2): variants by <code>fn:lower-case</code>/<code>upper-case</code> through <code>sxml_function_library_map_case</code> (the tables of <code>src/function_library_case.c</code>, shared), plus 94 pairs those mappings do not reach (KELVIN SIGN, final sigma, ...), generated with the same code as the case tables. A literal becomes a class of its variants at compile time; a range checks the input's variants at match time; back-references compare codepoint by codepoint.</p>
+      </item>
+      <item>
+        <p><strong>Names</strong>: the compiled regex keeps each group's name and whether it is in a lookahead (new <code>sxml_regex_group_name</code>, <code>_find_named_group</code>, <code>_group_is_in_lookahead</code>); while compiling, names live in a table that grows through the stack allocator like the group stack.</p>
+      </item>
+      <item>
+        <p><strong>Tables</strong> (<code>tools/generate-regex-tables.py</code>, Unicode 16.0: UnicodeData, SpecialCasing, Blocks): 4,099 category runs packed in <code>uint32_t</code> (\d and \w now derive from them), 342 blocks, 94 pairs; about 25 KB of read-only data.</p>
+      </item>
+      <item>
+        <p>Not done: counted repetition is still expanded, so <code>a{2147483647}</code> is LIMIT_EXCEEDED (QT4 cbcl-matches-004, -038).</p>
+      </item>
+    </list>
+  </body>
+</decision>

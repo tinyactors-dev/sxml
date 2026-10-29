@@ -1,0 +1,4 @@
+<term id="qt4_test_case" source="docs/GLOSSARY.md">
+  <name>qt4_test_case</name>
+  <definition>One <code>&lt;test-case&gt;</code> of a QT4 test set: query, environment, dependencies, result (never <term name="test_case"/>, which is a unit test)</definition>
+</term>

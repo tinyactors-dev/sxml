@@ -1,0 +1,4 @@
+<term id="with_parameter" source="docs/GLOSSARY.md">
+  <name>with_parameter</name>
+  <definition>The value one <code>xsl:with-param</code> supplies, with its name and whether it is a tunnel parameter</definition>
+</term>

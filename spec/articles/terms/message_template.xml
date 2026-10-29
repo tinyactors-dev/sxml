@@ -1,0 +1,4 @@
+<term id="message_template" source="docs/GLOSSARY.md">
+  <name>message_template</name>
+  <definition>A validation error's description as static text with placeholders (%e an element, %a an attribute, %v a value, %t a type, %x the expected terms of a content model cursor, %f the facet a value breaks, ...) that the error's fields fill</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="lowering_part" source="docs/GLOSSARY.md">
+  <name>lowering_part</name>
+  <definition>A file defining <code>sxml_xpath_lowering_part_&lt;part&gt;</code>: AST kinds and the procedures or leaf functions lowering them for some languages, found by CMake's glob (<ref kind="decision" to="D103"/>)</definition>
+</term>

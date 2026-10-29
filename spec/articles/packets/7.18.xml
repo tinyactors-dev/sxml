@@ -1,0 +1,46 @@
+<packet id="7.18" source="docs/tasks/phase-7.md">
+  <title>Invisible XML (implementation)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: Invisible XML Specification 1.0 (invisiblexml.org, 2022: the ixml grammar, marks and insertions, ambiguity reported as <code>ixml:state="ambiguous"</code>, failures as <code>ixml:state="failed"</code>); F&amp;O 4.0, fn:invisible-xml (the grammar argument, options fail-on-error; the result function; FOIX0001, FOIX0002).</p>
+      </item>
+      <item>
+        <p><strong>Unlocks</strong>: QT4 fn-invisible-xml 10 (of 16); and the iXML community test suite, if vendored (owner question 4: several hundred grammar and parse tests).</p>
+      </item>
+      <item>
+        <p><strong>Replaces</strong>: the function is absent (XPST0017), and supports-invisible-xml is false.</p>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong>:</p>
+        <list>
+          <item>
+            <p>one Earley parser (glossary <term name="parse_forest"/>) over a compiled iXML grammar (glossary <term name="ixml_grammar"/>), with explicit item sets in allocator memory;</p>
+          </item>
+          <item>
+            <p>the iXML grammar of iXML itself is compiled in as constant tables, so the same engine reads grammars and inputs;</p>
+          </item>
+          <item>
+            <p>the first parse tree is serialized as builder events with marks applied.</p>
+          </item>
+        </list>
+        <p>Grammars are run-time data, so <ref kind="decision" to="D12"/> gives way to <ref kind="decision" to="D53"/>'s reasoning, recorded in the packet's D-record.</p>
+      </item>
+      <item>
+        <p><strong>Header</strong>: none.</p>
+      </item>
+      <item>
+        <p><strong>After</strong>: 7.2.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: new <code>src/ixml.c</code>, <code>src/ixml_internal.h</code>, <code>src/ixml_earley.c</code> and <code>src/function_library_ixml.c</code>; the suite under <code>third_party/ixml-tests</code> if the owner agrees.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: 40–70 KB.</p>
+      </item>
+      <item>
+        <p><strong>Gate</strong>: all 16 QT4 cases; ≥ 90 % of the suite's correct-grammar tests. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D215"/>), gate met: QT4 fn-invisible-xml 16 of 16 (XP40, XQ40); the iXML community suite (vendored, <code>third_party/ixml-tests</code>) 886 of 907, test cases with a correct grammar 711 of 715 (99.4 %), grammar tests 142 of 142. <code>sxml-full.wasm</code> +39,704 bytes (stripped); <code>sxml.wasm</code> unchanged but for 4 bytes.</p>
+      </item>
+    </list>
+  </body>
+</packet>

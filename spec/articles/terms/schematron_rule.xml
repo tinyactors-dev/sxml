@@ -1,0 +1,4 @@
+<term id="schematron_rule" source="docs/GLOSSARY.md">
+  <name>schematron_rule</name>
+  <definition>A sch:rule: a context (an XSLT pattern, or an expression rule context), optionally a visit-each expression, variables and schematron assertions; compiled into one template rule (<ref kind="decision" to="D315"/>)</definition>
+</term>

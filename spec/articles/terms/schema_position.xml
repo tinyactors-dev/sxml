@@ -1,0 +1,4 @@
+<term id="schema_position" source="docs/GLOSSARY.md">
+  <name>schema_position</name>
+  <definition>Where a component's XML representation starts: its schema document's index, line and column</definition>
+</term>

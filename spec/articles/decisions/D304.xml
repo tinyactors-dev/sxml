@@ -1,0 +1,17 @@
+<decision id="D304" status="accepted" source="docs/DECISIONS.md">
+  <title>The website: sxml.tinyactors.dev on GitHub Pages</title>
+  <body>
+    <p><recorded date="2026-10-21"/>, at the owner's request, after the repository moved to tinyactors-dev/sxml.</p>
+    <list>
+      <item>
+        <p><strong>The site</strong> is a VitePress landing page in <code>website/</code> (what sxml is, its design rules, streaming, conformance, where it runs) with the book at <code>/book/</code>, built by mdbook beside it. <code>mise run site</code> builds both into <code>build/site</code>. Every claim on the landing page is the README's (Conformance, Design, Examples); change them together. Its pipeline example (<code>website/pipeline/</code>) checks a coding agent's TypeScript against the rules of an AGENTS.md: <code>sxml:parse-code</code> and Invisible XML read the rules, XSD checks them, XPath and XQuery find violations in the syntax trees, and XSLT writes the message a hook gives the agent. Its <code>AGENTS.md</code> is example data, not instructions for this repository. <code>node website/pipeline/run.mjs</code> re-runs it with the release build and records the outputs the page shows.</p>
+      </item>
+      <item>
+        <p><strong>The look</strong> is the tinyactors design system (vellum, graphite, pine; Newsreader and IBM Plex, self-hosted in <code>website/public/fonts/</code>). <code>docs/book/style/</code> gives the book the same colours and type.</p>
+      </item>
+      <item>
+        <p><strong>Hosting</strong>: <code>mise run site:publish</code> (<code>tools/publish-site.sh</code>) builds the site locally and force-pushes it as one commit to the <code>gh-pages</code> branch, which GitHub Pages serves under the custom domain in <code>website/public/CNAME</code>. No GitHub Actions: they are off (<ref kind="decision" to="D123"/>), so whoever changes <code>website/</code> or the book publishes by hand.</p>
+      </item>
+    </list>
+  </body>
+</decision>

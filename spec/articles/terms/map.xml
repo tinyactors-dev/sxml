@@ -1,0 +1,4 @@
+<term id="map" source="docs/GLOSSARY.md">
+  <name>map</name>
+  <definition>An XDM 4.0 map; entries keep insertion order</definition>
+</term>

@@ -1,0 +1,17 @@
+<packet id="perf-10" source="docs/tasks/phase-7.md">
+  <title>Casts that keep the string, and the coercions perf-8 left (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D316"/> (perf-8). With perf-5 to perf-9, SchXslt's expand stage of EN 16931 (sort-once fix, no step bound in the CLI since <ref kind="decision" to="D314"/>) takes 7.7–8.5 s; unpatched SchXslt takes 4 min 51 s (8 min 56 s this morning). <ref kind="decision" to="D316"/> left three costs: a cast of xs:untypedAtomic to xs:string costs about 1,600 instructions, though the result is the same string (XPath 4.0, 19.1 casting from xs:untypedAtomic; F&amp;O 4.0, 19.1.1); about 0.7 million single items against unions, choices and enumerations still run the coercion engine; about 0.7 million multi-item values still run the full matcher, some twice when a slice base fails <ref kind="decision" to="D309"/>'s whole-base match and is matched again item by item.</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: profile first (callgrind on SchXslt's expand stage and <code>tests/bench/coercion.xq</code>); a cast between string-like types whose lexical form does not change (xs:untypedAtomic, xs:string, and the derived types whose facets the value already satisfies) relabels the item instead of rebuilding it; then the next largest of <ref kind="decision" to="D316"/>'s remaining costs, measured. Outcomes, error codes and step counts unchanged.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/cast.c</code> and its internal header, <code>src/evaluator_function.c</code> (the matcher and the coercion engine), <code>tests/cast_test.c</code>, <code>tests/evaluator_test.c</code>, <code>tests/bench/</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: each change measured before and after (instructions and seconds) in a D-record and the commit messages, on SchXslt's expand stage, coercion.xq and xmark-all; QT4 XP40, XQ40 and XT40 run whole with no outcome changes, case by case. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D319"/>): relabelled casts (a cast that keeps the text is the source's cell under the target's annotation), one item against a choice kept by its first matching alternative, untyped items cast without a match. SchXslt's expand stage 52.19 to 47.78 x 10^9 instructions (coercion 11.14 to 6.63), coercion.xq 2.845 to 2.716, xmark-all 8.735 to 8.746; QT4 XP40, XQ40 and XT40 whole: 0 outcomes differ, case by case.</p>
+      </item>
+    </list>
+  </body>
+</packet>

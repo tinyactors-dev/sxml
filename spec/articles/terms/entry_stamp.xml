@@ -1,0 +1,4 @@
+<term id="entry_stamp" source="docs/GLOSSARY.md">
+  <name>entry_stamp</name>
+  <definition>The number a persistent map gives a key when it enters; entry order is stamp order</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="item_span" source="docs/GLOSSARY.md">
+  <name>item_span</name>
+  <definition>Consecutive items of a sequence, from a first index up to an end index or to the end (<code>sxml_item_span</code>, <code>sxml_sequence_make_slice</code>)</definition>
+</term>

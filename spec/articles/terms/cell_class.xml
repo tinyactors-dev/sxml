@@ -1,0 +1,4 @@
+<term id="cell_class" source="docs/GLOSSARY.md">
+  <name>cell_class</name>
+  <definition>The static const operations of one kind of cell: its name, <term name="release_contents"/> and, for sequence cells, the read interface (<code>src/xdm_internal.h</code>)</definition>
+</term>

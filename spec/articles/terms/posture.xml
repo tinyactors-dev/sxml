@@ -1,0 +1,4 @@
+<term id="posture" source="docs/GLOSSARY.md">
+  <name>posture</name>
+  <definition>How a construct's value relates to a streamed input: grounded, climbing, striding, crawling or roaming (XSLT 4.0, 19.1)</definition>
+</term>

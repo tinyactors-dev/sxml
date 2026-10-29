@@ -1,0 +1,4 @@
+<term id="iteration_step" source="docs/GLOSSARY.md">
+  <name>iteration_step</name>
+  <definition>What one call to an iterator yields: whether there was an item, and the item</definition>
+</term>

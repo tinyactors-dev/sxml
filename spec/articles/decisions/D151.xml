@@ -1,0 +1,32 @@
+<decision id="D151" status="accepted" source="docs/DECISIONS.md">
+  <title>Phase 2 gate review (packet <ref kind="packet" to="2.20"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/> by the review agent (<ref kind="decision" to="D11"/>), after <ref kind="decision" to="D95"/>, <ref kind="decision" to="D97"/>, <ref kind="decision" to="D123"/>, <ref kind="decision" to="D132"/>. Checked locally (<ref kind="decision" to="D123"/>): <code>tools/check-main.sh</code> on a clean HEAD (c7c0c35) builds and tests <term name="release"/>, <code>debug</code> (ASan, UBSan), <code>debug-gcc</code> and <code>wasm</code> (Node.js package tests and size budget included) and lints clean, with no call cycle.</p>
+    <list>
+      <item>
+        <p><strong>Numbers</strong> (code of ed225c2, <term name="release"/>, <code>tools/run-qt4.sh</code>): XP40 30,630 of 47,313 passed, 0 errors, no crash, every test set finished; in scope (<ref kind="decision" to="D95"/>) 30,612 of 31,543, <strong>97.0 %</strong>; by area, in scope: fn 95.5 %, op 99.2 %, prod 97.8 %, map 99.7 %, array 99.8 %, math 100 %, xs 99.5 %. Slice 198/198. XQ40 for the record: 39,541 passed, in scope 96.0 %, XQ-only 83.9 %, 1,568 errors (all module import, 3.11 running; 1,379 of them misc-HtmlTestSuite). Fuzzing, 300 s per target, all five at once, then the two XPath targets 300 s more: cast_fuzz 564,842 runs, regex_fuzz 320,438, xml_parse_fuzz 29,846, xpath_compile_fuzz 7,679, xpath_evaluate_fuzz 3,097 (fork mode, 12 to 16 runs a second on a loaded machine); no crash, leak, sanitizer report or timeout.</p>
+      </item>
+      <item>
+        <p><strong>Functions</strong>: every function of F&amp;O 4.0's signatures (282 names, looked up at arities 0 to 7) is in the library but <ref kind="decision" to="D97"/>'s non-goals (html-doc, parse-html, invisible-xml, xsd-validator, transform) and fn:load-xquery-module, which <ref kind="decision" to="D97"/> gives to 3.11.</p>
+      </item>
+      <item>
+        <p><strong><ref kind="decision" to="D71"/> through function pointers</strong>: native bodies that call function items are resumable (<ref kind="decision" to="D75"/>); the function-body, generator and resolver operations re-enter the evaluator only through <code>sxml_evaluator_call_function_item</code>, which refuses a running context (<code>is_running</code>); part tasks return to the machine. The lowering machine has no such guard: see the follow-ups.</p>
+      </item>
+      <item>
+        <p><strong>Merged</strong> (the owner's principle of conceptual smallness): the options of fn:element-to-map, fn:map-to-element, fn:unparsed-text and fn:unparsed-text-lines are read by <code>sxml_function_library_read_options</code> (two private readers removed; an unknown key that is not a QName in a namespace is now XPTY0004 there too, F&amp;O 4.0, section 1.7); one <code>SXML_FUNCTION_OPTION</code> macro for option tables instead of five; one calendar rule, <code>sxml_year_is_leap</code> and <code>sxml_days_in_month</code> (<code>src/cast_internal.h</code>), instead of four copies; the unused <code>sxml_function_library_check_collation</code> removed. XP40 and XQ40 outcomes are identical before and after, case by case.</p>
+      </item>
+      <item>
+        <p><strong>Headers for 0.2.0</strong> (<ref kind="decision" to="D47"/>, <ref kind="decision" to="D104"/>, <ref kind="decision" to="D138"/>): consistent and documented (one undocumented declaration, <code>sxml_sequence_get_representation</code>, got its comment). <code>xquery.h</code> and <code>xslt.h</code> are <strong>provisional</strong> until the gates of Phases 3 and 4: their implementations are not done, and a Proposed item already changes <code>xquery.h</code>'s contract. A minor release may change them, each change with a record (<code>version.h</code>, <code>docs/RELEASE.md</code>, <code>CHANGELOG.md</code>).</p>
+      </item>
+      <item>
+        <p><strong>Proposed</strong>, the Phase 2 items: collations in min/max, highest/lowest, sort-by and array:sort were done by <ref kind="decision" to="D136"/>; only the evaluator's SORT (order by with a collation, XQuery) still takes the codepoint collation alone, for Phase 3. The item axis (<ref kind="decision" to="D113"/>) is accepted: <code>SXML_AXIS_ITEM</code> appended to <code>sxml_axis</code> (additive, <ref kind="decision" to="D99"/>) with XPath 4.0, 4.7.4's STEP semantics, and the JNode key test reading the EQName form, for the next sweep. The XSLT driver's report name and areas (<ref kind="decision" to="D117"/>) are accepted for 4.17. The three are out of Proposed. Left there: the owner's (the two WebAssembly budgets, XQuery's omit-xml-declaration default) and Phase 3 design work (<ref kind="decision" to="D135"/>'s prolog follow-ups, <ref kind="decision" to="D148"/>'s three items), for the Phase 3 gate.</p>
+      </item>
+      <item>
+        <p><strong>Numbering</strong>: two records were <ref kind="decision" to="D120"/>; the 3.3 one is D120b now, with its references. <ref kind="decision" to="D127"/> follows <ref kind="decision" to="D128"/> (recorded in finishing order); kept.</p>
+      </item>
+      <item>
+        <p><strong>Follow-ups</strong> (not done here): fn:deep-equal still reads its twenty-odd options itself (raise <code>SXML_FUNCTION_OPTION_LIMIT</code> from 10 and merge); two calendar arithmetics (<code>days_from_civil</code> in <code>src/format_date.c</code>, the cycle days of <code>src/operator_temporal.c</code>); the evaluator's navigation analysis finds fn:root by its local name (a native-function property would say it); the lowering machine (<code>run_machine</code> in <code>src/xpath_lower.c</code>) should refuse to run inside a step, as the evaluator does, since XQuery and XSLT lowering run procedures and embedded lowerings "outside a machine" by convention only and the call-cycle check cannot see through step pointers (a probe that aborts on a nested run passed all 193 <code>debug</code> tests at c7c0c35, so the guard breaks nothing; <code>src/xpath_lower.c</code> was being edited by a running packet); size products <code>count * sizeof(type)</code> are mostly unchecked, safe where the count mirrors an array already allocated (a lint rule could require <code>sxml_size_multiply</code> for the others).</p>
+      </item>
+    </list>
+  </body>
+</decision>

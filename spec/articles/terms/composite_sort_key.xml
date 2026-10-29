@@ -1,0 +1,4 @@
+<term id="composite_sort_key" source="docs/GLOSSARY.md">
+  <name>composite_sort_key</name>
+  <definition>A sort key whose value is a sequence of atomic items compared item by item, the shorter first when one starts the other (XSLT 4.0, 13.1.2)</definition>
+</term>

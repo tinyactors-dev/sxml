@@ -1,0 +1,4 @@
+<term id="static_scope" source="docs/GLOSSARY.md">
+  <name>static_scope</name>
+  <definition>The static variables and function definitions every static expression of one stylesheet sees (<code>sxml_xslt_static_scope</code>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="item_set_number" source="docs/GLOSSARY.md">
+  <name>item_set_number</name>
+  <definition>The number of an Earley item set among the sets the parser made, in input order; sets are made only for positions some item reaches, so a token's inside has none, and an item's origin is a set number (<ref kind="decision" to="D290"/>)</definition>
+</term>

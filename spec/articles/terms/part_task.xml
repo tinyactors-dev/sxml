@@ -1,0 +1,4 @@
+<term id="part_task" source="docs/GLOSSARY.md">
+  <name>part_task</name>
+  <definition>An evaluator task whose step function an evaluator part supplies, with state the part owns (<ref kind="decision" to="D101"/>)</definition>
+</term>

@@ -1,0 +1,32 @@
+<decision id="D122" status="accepted" source="docs/DECISIONS.md">
+  <title>Date and time functions (packet <ref kind="packet" to="2.8"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. New part <code>src/function_library_temporal.c</code> (test <code>function_library_temporal</code>): adjust-dateTime/date/time-to- timezone, civil-timezone, days-in-month, parts-of-dateTime, build-dateTime, seconds, duration-to-seconds, unix-dateTime and parse-ietf-date. <code>src/operator_temporal.c</code> is unchanged.</p>
+    <list>
+      <item>
+        <p><strong>Gregorian components</strong> (PR 1481): the seven <code>*-from-dateTime</code> rows of <code>src/function_library_context.c</code> (2.12's file, edited because no other packet runs on it; two hunks) take the union of the eight Gregorian types and give the empty sequence for a component the type lacks (absent components are zero in the datum).</p>
+      </item>
+      <item>
+        <p><strong>Shifts</strong>: a dateTime or date moves by whole minutes through <code>sxml_operator_make_temporal_value</code> (<ref kind="decision" to="D72"/>: every int64_t year, FODT0001 beyond); a time moves within its day. The implicit timezone and the clock come from the dynamic context, read once per evaluation (<ref kind="decision" to="D88"/>).</p>
+      </item>
+      <item>
+        <p><strong>build-dateTime</strong> declares <code>map(*)?</code>: the row text cannot spell the record's optional fields, so the body coerces each field by XPath 4.0, 3.4.3: xs:untypedAtomic cast, an integral xs:decimal relabeled to xs:integer, xs:double/xs:float cast to xs:decimal (seconds only), an xs:duration without months relabeled to xs:dayTimeDuration; other types, extra keys or two items are XPTY0004. Then FODT0005 (field set), FORG0001 (ranges, gMonthDay against 1972), FODT0003 (timezone). parts-of-dateTime returns a plain map with the record's keys in order.</p>
+      </item>
+      <item>
+        <p><strong>Seconds</strong> keep nine fraction digits, truncated like casts (<ref kind="decision" to="D36"/>), so <code>seconds(3.14159265358979323846) eq xs:dayTimeDuration('PT3.14159265358979323846S')</code>; fn:seconds builds the duration from the decimal's digits (FODT0002 beyond int64_t seconds), not by duration arithmetic, which rounds.</p>
+      </item>
+      <item>
+        <p><strong>unix-dateTime</strong>: milliseconds beyond uint64_t are FODT0001.</p>
+      </item>
+      <item>
+        <p><strong>civil-timezone</strong> (<ref kind="decision" to="D97"/>, no database): no place gives the implicit timezone (the default place is taken to be one whose civil timezone it is); "UTC", "Etc/UTC", "GMT", "Etc/GMT" give PT0S; any other place FODT0004.</p>
+      </item>
+      <item>
+        <p><strong>parse-ietf-date</strong>: hand-written scanner of the grammar of 9.10.1 (<ref kind="decision" to="D97"/>), ASCII case-insensitive, longest names first; a tzoffset of one to four digits is H, HH, HMM, HHMM, with a colon minutes are 0 or 2 digits; hour 24 only as 24:00:00 (next day); FORG0010 otherwise.</p>
+      </item>
+      <item>
+        <p><strong>Open</strong>: fn-parts-of-dateTime 8/20 (assert-type needs the named record type, Proposed); civil-timezone 4/9 (<ref kind="decision" to="D97"/>); days-in-month-006/007 need fn:format-integer (2.9).</p>
+      </item>
+    </list>
+  </body>
+</decision>

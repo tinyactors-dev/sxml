@@ -1,0 +1,132 @@
+<document id="tasks/phase-1" source="docs/tasks/phase-1.md">
+  <title>Phase 1: Torture slice</title>
+  <p>Goal (PLAN.md): a minimal XML parser and XPath 4.0 subset exercising all of the value model, native and WebAssembly, passing the 198 tests of <code>tests/qt4/torture-slice.txt</code> under sanitizers; then the substrate freezes. Packets of one agent session each run in parallel in one working tree; each names the files it <strong>owns</strong>, and concurrent packets never share one. <strong>Design</strong> packets may change headers; <strong>implementation</strong> packets must not (they write the need under "Proposed" in <code>docs/DECISIONS.md</code>). Until the gate, substrate headers change only through a decision record.</p>
+  <section id="rules-for-parallel-packets-d45">
+    <title>Rules for parallel packets (<ref kind="decision" to="D45"/>)</title>
+    <list>
+      <item>
+        <p><strong>Registration is by glob.</strong> After <ref kind="packet" to="1.0"/>, <code>src/*.c</code> is the library, each <code>tests/&lt;name&gt;_test.c</code> is ctest test <code>&lt;name&gt;</code>, and <code>tests/qt4/driver</code>, <code>tests/fuzz</code>, <code>third_party/mpdecimal</code> join when their <code>CMakeLists.txt</code> exists. Packets add files, never lines to a shared list.</p>
+      </item>
+      <item>
+        <p><strong>Module prefixes own files</strong>, <code>src/</code> stays flat: <code>src/&lt;module&gt;.c</code>, <code>src/&lt;module&gt;_&lt;part&gt;.c</code>, <code>src/&lt;module&gt;_internal.h</code>, <code>tests/&lt;module&gt;*_test.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Ledgers are shared</strong> (<code>docs/DECISIONS.md</code>, <code>GLOSSARY.md</code>, <code>LOG.md</code>): one small insertion, committed at once and alone; re-read before claiming a D-number. Glossary terms come before code. Root <code>CMakeLists.txt</code>, <code>CMakePresets.json</code>, <code>ci.yml</code>: only the owning packet edits them. <code>apps/</code> and <code>docs/CLI.md</code> belong to the CLI (<ref kind="decision" to="D44"/>).</p>
+      </item>
+      <item>
+        <p><strong>Every packet</strong> imitates <code>src/memory.c</code> and <code>tests/memory_test.c</code> (lifecycle, allocation-failure loops, <ref kind="decision" to="D23"/>) unless it names another golden file; checks leaks with <code>sxml_item_heap_read_counts</code> where values are made; cites the specification in comments; is done when <code>debug</code>, <code>debug-gcc</code> and <code>wasm</code> pass, <code>tools/lint.sh</code> is clean and the slice count (after <ref kind="packet" to="1.25"/>) has not dropped.</p>
+      </item>
+    </list>
+  </section>
+  <section id="parallelism-plan">
+    <title>Parallelism plan</title>
+    <table>
+      <row header="true">
+        <cell>Wave</cell>
+        <cell>Packets (run together)</cell>
+      </row>
+      <row>
+        <cell>0</cell>
+        <cell>1.0 scaffolding</cell>
+      </row>
+      <row>
+        <cell>1</cell>
+        <cell>1.1 name pool, 1.2 decimal, 1.3 public API, 1.4 AST, 1.5 IR, 1.17 regex</cell>
+      </row>
+      <row>
+        <cell>2</cell>
+        <cell>1.6 types, 1.16 XPath front end</cell>
+      </row>
+      <row>
+        <cell>3</cell>
+        <cell>1.7 heap and atomics, 1.12 static analysis and lowering</cell>
+      </row>
+      <row>
+        <cell>4</cell>
+        <cell>1.8 sequences, 1.9 maps, 1.10 arrays, functions, 1.11 tree, 1.15 cast</cell>
+      </row>
+      <row>
+        <cell>5</cell>
+        <cell>1.13 node items and JNodes, 1.14 XML parser, 1.19 operators</cell>
+      </row>
+      <row>
+        <cell>6</cell>
+        <cell>1.18 evaluator, 1.22 JSON, 1.24 driver catalog, 1.26 fuzzing</cell>
+      </row>
+      <row>
+        <cell>7</cell>
+        <cell>1.20 core functions, 1.21 higher-order functions</cell>
+      </row>
+      <row>
+        <cell>8</cell>
+        <cell>1.23 processor and XPath API</cell>
+      </row>
+      <row>
+        <cell>9</cell>
+        <cell>1.25 driver assertions</cell>
+      </row>
+      <row>
+        <cell>10</cell>
+        <cell>1.27 dashboard, 1.28 WebAssembly slice</cell>
+      </row>
+      <row>
+        <cell>11</cell>
+        <cell>1.29 review (gate)</cell>
+      </row>
+    </table>
+    <p>A packet starts once those after "After" are committed. Critical path: 1.0 1.1 1.6 1.7 1.11 1.13 1.18 1.20 1.23 1.25 1.27 1.29. The CLI (not a packet) adds <code>sxml check</code> after <ref kind="packet" to="1.14"/> and <code>sxml xpath</code> after <ref kind="packet" to="1.23"/>.</p>
+  </section>
+  <section id="packets">
+    <title>Packets</title>
+    <include kind="packet" to="1.0"/>
+    <include kind="packet" to="1.1"/>
+    <include kind="packet" to="1.2"/>
+    <include kind="packet" to="1.3"/>
+    <include kind="packet" to="1.4"/>
+    <include kind="packet" to="1.5"/>
+    <include kind="packet" to="1.6"/>
+    <include kind="packet" to="1.7"/>
+    <include kind="packet" to="1.8"/>
+    <include kind="packet" to="1.9"/>
+    <include kind="packet" to="1.10"/>
+    <include kind="packet" to="1.11"/>
+    <include kind="packet" to="1.12"/>
+    <include kind="packet" to="1.13"/>
+    <include kind="packet" to="1.14"/>
+    <include kind="packet" to="1.15"/>
+    <include kind="packet" to="1.16"/>
+    <include kind="packet" to="1.17"/>
+    <include kind="packet" to="1.18"/>
+    <include kind="packet" to="1.19"/>
+    <include kind="packet" to="1.20"/>
+    <include kind="packet" to="1.21"/>
+    <include kind="packet" to="1.22"/>
+    <include kind="packet" to="1.23"/>
+    <include kind="packet" to="1.24"/>
+    <include kind="packet" to="1.25"/>
+    <include kind="packet" to="1.26"/>
+    <include kind="packet" to="1.27"/>
+    <include kind="packet" to="1.28"/>
+    <include kind="packet" to="1.29"/>
+  </section>
+  <section id="gate">
+    <title>Gate</title>
+    <list>
+      <item checked="false">
+        <p>198/198 slice tests pass in CI: <code>debug</code>, <code>debug-gcc</code>, <code>wasm</code>. <strong>Blocked</strong>: GitHub Actions refuses every job (account billing, <ref kind="decision" to="D100"/>). Locally 198/198 under <code>debug</code>, <code>debug-gcc</code>, <term name="release"/> and <code>wasm</code> on <code>09e1fed</code>; macOS, Windows and MSVC unverified.</p>
+      </item>
+      <item checked="true">
+        <p>XML and XPath fuzz targets run clean (agent review: all five targets 300 s each on <code>09e1fed</code>, no crash, leak, OOM or timeout, <ref kind="decision" to="D100"/>).</p>
+      </item>
+      <item checked="false">
+        <p>CI generates <code>docs/CONFORMANCE.md</code>; Phase 2 and 3 targets proposed. <strong>Blocked</strong> for the CI part (<ref kind="decision" to="D100"/>); targets proposed in <ref kind="decision" to="D95"/>; the dashboard was regenerated locally on <code>09e1fed</code> (XP40 23,146 passed).</p>
+      </item>
+      <item checked="true">
+        <p>"Proposed" substrate changes decided; a record freezes the substrate (agent review: <ref kind="decision" to="D98"/>, <ref kind="decision" to="D99"/>).</p>
+      </item>
+      <item checked="true">
+        <p>Review agent pass (<ref kind="decision" to="D11"/>), findings fixed (agent review: <ref kind="decision" to="D98"/>, <ref kind="decision" to="D100"/>).</p>
+      </item>
+    </list>
+  </section>
+</document>

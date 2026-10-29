@@ -1,0 +1,23 @@
+<decision id="D70" status="accepted" source="docs/DECISIONS.md">
+  <title>Node items, accessors and JNodes (packet <ref kind="packet" to="1.13"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. <code>src/xdm_node.c</code>, <code>src/xdm_json_node.c</code>.</p>
+    <list>
+      <item>
+        <p><strong>Node items</strong> are inline (<ref kind="decision" to="D60"/> layout) and retain their tree.</p>
+      </item>
+      <item>
+        <p><strong>String value</strong> of a document or element walks the index range up to <term name="last_descendant"/> (<ref kind="decision" to="D39"/>) for text nodes; one text node is passed as is, more are joined in heap scratch memory released before returning.</p>
+      </item>
+      <item>
+        <p><strong>Typed value</strong>: derived (xs:untypedAtomic for documents, text, elements, attributes; xs:string for comments, PIs, namespace nodes) when the annotation is none, xs:untyped or xs:untypedAtomic, or the tree has no <code>get_typed_value</code>; otherwise the tree answers.</p>
+      </item>
+      <item>
+        <p><strong>Base URI</strong>: the xml:base values of the element and its ancestors, up to the first absolute one, resolved outermost-in against the tree's base URI (RFC 3986, section 5.2.2, strict; checked on all 42 examples of section 5.4). A relative value with no base is kept as written. No base URI for namespace nodes and for parentless attributes, text and comments; a parentless PI has the tree's. xml:base values are not percent-encoded first (XML Base, section 3.1).</p>
+      </item>
+      <item>
+        <p><strong>JNodes</strong>: one cell holds parent (retained), key, value, child position, child count (computed at make), depth and JTree identifier (issued last, so a failed root uses none). Under a map: one child per entry; an array: per member; two or more items: per item, keyed by position from 1; anything else is a leaf. Identity and order compare the paths of child positions from the root in O(depth) without memory: equal positions under one parent select the same key, so this is XDM's "same parent and atomic-equal key". The generic node functions live in <code>src/xdm_json_node.c</code>.</p>
+      </item>
+    </list>
+  </body>
+</decision>

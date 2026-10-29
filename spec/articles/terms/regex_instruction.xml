@@ -1,0 +1,4 @@
+<term id="regex_instruction" source="docs/GLOSSARY.md">
+  <name>regex_instruction</name>
+  <definition>One operation of a compiled regex, run by the backtracking matcher</definition>
+</term>

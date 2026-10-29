@@ -1,0 +1,4 @@
+<term id="codepoint_class" source="docs/GLOSSARY.md">
+  <name>codepoint_class</name>
+  <definition>The distinct terminals a codepoint matches, as a bit set; codepoints of one class are alike to the Earley parser. The classes of ASCII are computed once per grammar, the others when the input has them (<ref kind="decision" to="D283"/>)</definition>
+</term>

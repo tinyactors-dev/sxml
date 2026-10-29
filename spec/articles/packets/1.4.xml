@@ -1,0 +1,6 @@
+<packet id="1.4" source="docs/tasks/phase-1.md">
+  <title>XPath abstract syntax tree (design)</title>
+  <body>
+    <p>After <ref kind="packet" to="1.0"/>. Owns <code>src/xpath_ast_internal.h</code>. Index-addressed nodes in an arena (<ref kind="decision" to="D24"/>), one kind per visible production of <code>grammars/xpath</code> (<ref kind="decision" to="D29"/>), names as written (1.12 resolves them), a source location per node. Covers every construct the slice uses, notably inline functions with types, EQName function references, <code>?</code> placeholders, static and dynamic <code>=&gt;</code>, <code>map{}</code> and <code>{}</code>, square and curly arrays, <code>?*</code>, <code>?(expr)</code>, unary lookup, and sequence types such as <code>map(K, V)</code>, <code>function(T) as U</code>, <code>array(empty-sequence())</code>. Spec: XPath 4.0 Appendix A. <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D52"/>).</p>
+  </body>
+</packet>

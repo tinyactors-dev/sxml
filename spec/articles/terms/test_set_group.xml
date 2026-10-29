@@ -1,0 +1,4 @@
+<term id="test_set_group" source="docs/GLOSSARY.md">
+  <name>test_set_group</name>
+  <definition>The directory under <code>tests/</code> of the XSLT 4.0 suite that holds a test set (<code>attr</code>, <code>decl</code>, <code>expr</code>, <code>fn</code>, <code>insn</code>, <code>misc</code>, <code>strm</code>, <code>type</code>, <code>sandp</code>); <ref kind="decision" to="D95"/> leaves <code>strm</code> and <code>sandp</code> out of scope</definition>
+</term>

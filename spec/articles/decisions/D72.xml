@@ -1,0 +1,23 @@
+<decision id="D72" status="accepted" source="docs/DECISIONS.md">
+  <title>Arithmetic and comparison operators (packet <ref kind="packet" to="1.19"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. <code>src/operator_internal.h</code>; <code>src/operator.c</code> (operands, promotion, numbers, unary), <code>src/operator_temporal.c</code> (durations, dates, times), <code>src/operator_compare.c</code> (value, general and GNode comparisons).</p>
+    <list>
+      <item>
+        <p><strong>Interface</strong>: own enums (<code>sxml_arithmetic_operator</code>, <code>sxml_comparison_operator</code>, <code>sxml_node_comparison_operator</code>), not the IR's, so the function library and later front ends share them; operands are atomized sequences (atomizing is the evaluator's), results owned; the implicit timezone and, for untyped-to-QName casts, namespace bindings travel in the request. Non-atomic items are INVALID_ARGUMENT.</p>
+      </item>
+      <item>
+        <p><strong>Numbers</strong>: int64 fast paths with checked arithmetic, else libmpdec; integer div gives xs:decimal; xs:float computed in double and rounded once; idiv and mod of doubles are exact (int64 within 2^53, else exact decimals; no libm). Decimal LIMIT_EXCEEDED (digit or heap byte limit) is FOAR0002.</p>
+      </item>
+      <item>
+        <p><strong>Durations</strong> (PR2628): any xs:duration times/div a number cast to xs:decimal (shortest digits, <ref kind="decision" to="D57"/>); months by fn:round#1, nanoseconds half to even; NaN FOCA0005, times INF or div 0 FODT0002, div INF zero. <strong>Dates</strong>: 400-year cycle days (Hinnant), so every int64 year works; results beyond it FODT0001, differences beyond int64 seconds FODT0002.</p>
+      </item>
+      <item>
+        <p><strong>Comparisons</strong>: value = NaN rule + fn:compare (<code>sxml_atomic_item_compare</code> with the heap's name pool, <ref kind="decision" to="D68"/>); general: untyped vs number cast to the number's primitive type, else xs:double; vs string or untyped compared as text; else cast to the other primitive type; left outer, first error ends. GNode: document order (equal only for the same node).</p>
+      </item>
+      <item>
+        <p><strong>Known problem (fixed by <ref kind="decision" to="D74"/>)</strong>: libmpdec's large-number multiplication (<code>six_step_fnt</code>/<code>transpose_pow2</code>, stack buffers of up to 128 KiB) overflowed the 64 KiB WebAssembly stack: 10^6000 * 10^6000 trapped under <code>wasm</code>. <ref kind="decision" to="D74"/> moves the buffers to the heap; the operator tests may now multiply at the digit limit.</p>
+      </item>
+    </list>
+  </body>
+</decision>

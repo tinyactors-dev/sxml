@@ -1,0 +1,4 @@
+<term id="default_collection" source="docs/GLOSSARY.md">
+  <name>default_collection</name>
+  <definition>The collection (or URI collection) for a call without a URI (XPath 4.0, section 2.2.2)</definition>
+</term>

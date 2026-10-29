@@ -1,0 +1,4 @@
+<term id="expected_term" source="docs/GLOSSARY.md">
+  <name>expected_term</name>
+  <definition>A term a content model cursor would accept next, for error messages ("expected 'shipTo'")</definition>
+</term>

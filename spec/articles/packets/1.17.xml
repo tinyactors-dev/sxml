@@ -1,0 +1,6 @@
+<packet id="1.17" source="docs/tasks/phase-1.md">
+  <title>Regular expression seed (implementation)</title>
+  <body>
+    <p>After <ref kind="packet" to="1.0"/>. Owns <code>src/regex.c</code>, <code>src/regex_internal.h</code>, <code>tests/regex_test.c</code>. <ref kind="decision" to="D48"/>: a backtracking matcher for a subset of the dialect (classes, <code>\s \d \w</code>, quantifiers, groups, alternation; flags <code>s i x m</code>) with a step limit, behind the interface the <ref kind="decision" to="D9"/> engine keeps. Done when fn-tokenize-1a, -35 pass and unsupported syntax raises FORX0002. Spec: F&amp;O 4.0 "Regular expression syntax". <strong>Done</strong> 2026-10-16: hand-written parser, not tree-sitter (<ref kind="decision" to="D53"/>); also <code>src/regex_unicode.c</code> (\d, \w from Unicode 16.0) and <code>tools/generate-regex-tables.py</code>.</p>
+  </body>
+</packet>

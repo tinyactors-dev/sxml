@@ -1,0 +1,4 @@
+<term id="dynamic_attribute_value" source="docs/GLOSSARY.md">
+  <name>dynamic_attribute_value</name>
+  <definition>A flag, role or severity attribute whose value is a variable reference (5.5.6, 5.5.14, 5.5.16) or, under an xslt query binding, an attribute value template (Annexes C, H, J): evaluated for each finding, its string given to the schematron report (<ref kind="decision" to="D315"/>)</definition>
+</term>

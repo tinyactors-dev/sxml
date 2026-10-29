@@ -1,0 +1,4 @@
+<term id="library_part" source="docs/GLOSSARY.md">
+  <name>library_part</name>
+  <definition>The native functions of one <code>src/function_library_&lt;part&gt;.c</code> file: one <code>sxml_native_function_view</code>, named in a function library's configuration</definition>
+</term>

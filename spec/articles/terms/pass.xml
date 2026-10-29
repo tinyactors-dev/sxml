@@ -1,0 +1,4 @@
+<term id="pass" source="docs/GLOSSARY.md">
+  <name>pass</name>
+  <definition>An IR-to-IR function over a unit, run in a fixed list before the unit is sealed</definition>
+</term>

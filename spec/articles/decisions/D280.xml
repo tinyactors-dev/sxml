@@ -1,0 +1,38 @@
+<decision id="D280" status="accepted" source="docs/DECISIONS.md">
+  <title>XPath and XQuery conformance sweep: JNode Q{}N tests, listed modules, run-time type constructors (packet <ref kind="packet" to="2.26"/>)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D99"/>, <ref kind="decision" to="D148"/>, <ref kind="decision" to="D190"/>, <ref kind="decision" to="D197"/>, <ref kind="decision" to="D258"/>, <ref kind="decision" to="D263"/>, <ref kind="decision" to="D275"/>, <ref kind="decision" to="D276"/>. One public contract extended additively (processor.h and xquery.h, below); one internal IR field (sxml_ir_step.has_qualified_name_test). Verified as <ref kind="decision" to="D181"/> asks: the debug preset (every unit and CLI test but evaluator_stream, 387 tests, under ASan and UBSan), clang-tidy on the changed files, the call-cycle check, the book examples (399 match), and whole XP40, XQ40 and XT40 runs with the release drivers, case by case.</p>
+    <list>
+      <item>
+        <p><strong>Start</strong> (whole runs at db00b4e): XP40 32,797 passed (30 wrong error), 36 failed, 14,480 not run; XQ40 46,101 (44), 107 failed, 1,105 not run. Most failures are <ref kind="decision" to="D263"/>'s and <ref kind="decision" to="D275"/>'s kept groups (whitespace-only assert-xml: fn-analyze-string, the ft- use cases, upd-propagateNamespace; recordTypeDecl/ paths; EXPath Binary's types in wrong errors); the rest are singletons, fixed below or listed.</p>
+      </item>
+      <item>
+        <p><strong>JNode name tests</strong> (XPath 4.0, 4.7.5.4; <ref kind="decision" to="D258"/>'s and <ref kind="decision" to="D263"/>'s open item): an NCName selects string, xs:anyURI and xs:untypedAtomic keys, any other EQName (Q{}a, p:a) xs:QName keys. sxml_name_test stays frozen; the step records how its name was written (sxml_ir_step.has_qualified_name_test, set for PREFIXED_NAME and URI_QUALIFIED_NAME tests, through sxml_step_request). An NCName under a default element namespace selects the string of its local name. A union of name tests keeps the old reading (JAxes-292, PathExpr-J-157).</p>
+      </item>
+      <item>
+        <p><strong>Modules listed by a resolver</strong> (XQuery 4.0, 5.12; <ref kind="decision" to="D275"/>'s open item): an import without hints may be answered with SXML_RESOURCE_FORM_SEQUENCE of xs:string or xs:anyURI locations, each asked for as a hint. Such an answer was INVALID_ARGUMENT before, so the contract only grows (include/sxml/processor.h, the XQUERY_MODULE kind; include/sxml/xquery.h). The QT4 driver lists a test case's modules of the namespace when it has several (modules-collide-var-001, -fn-001, XQST0093a).</p>
+      </item>
+      <item>
+        <p><strong>Type constructors at run time</strong> (5.19; <ref kind="decision" to="D263"/>'s and <ref kind="decision" to="D275"/>'s open item): each module's named atomic item type gets a top-level IR function of its name and arity 1, the cast, so fn:function-lookup finds it as record constructors (itemTypeDecl-058).</p>
+      </item>
+      <item>
+        <p><strong>Option parameter conventions</strong> (F&amp;O 4.0, 1.7): fn:deep-equal rejects a key that is neither an option nor a QName in a namespace and coerces string options; fn:collation atomizes node values.</p>
+      </item>
+      <item>
+        <p><strong>Smaller fixes</strong>: fn:slice without clamped bounds (slice-195); fn:op's comparisons under the default collation (fn-op-vc-006, array-for-each-pair-420); XQST0134 for an XQuery namespace-node() step without an axis (Axes112); adaptive INF, -INF, NaN of xs:double as fn:string gives them (Serialization 4.0, 11; -22a, -25a, -27a; the book's example changed); the driver's assert-eq takes an array of one atomic item, and lists moduleImport and six format-integer sequences (24 cases ran that were not run).</p>
+      </item>
+      <item>
+        <p><strong>XPath 1.0 compatibility and xs:numeric</strong> (<ref kind="decision" to="D276"/>'s proposal): not done; <ref kind="decision" to="D197"/> stands. The draft of 13 October 2026 restricts the fn:number conversion to xs:double and xs:double? (XPath 4.0, 3.4.1: "does not apply where T is derived from xs:double"), and F&amp;O 4.0's change notes of fn:substring (PR 2626) and fn:subsequence (PR 2543) say that, with xs:numeric parameters, "when running in XPath 1.0 compatibility mode, it is no longer possible to supply either of these arguments as a string". fn:format-number's $value is xs:numeric?, so the eight XT40 cases expect 3.1's behaviour.</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (whole runs at b0fc1fe against db00b4e, XT40 against 86ad244; no case lost): XP40 32,797 to 32,809 passed (36 to 31 failed, 14,480 to 14,473 not run); XQ40 46,101 to 46,138 (107 to 90 failed, 1,105 to 1,085 not run), of which xml-to-json-057 is 4.29's commit a6ec5ad; XT40 12,250 to 12,256, all six from 4.29's commits. CONFORMANCE.md is not regenerated (other packets' commits are in the runs).</p>
+      </item>
+      <item>
+        <p><strong>Not run, cheap to add</strong> (CONFORMANCE.md's categories, static typing excluded, <ref kind="decision" to="D263"/>): XInclude for fn:doc and fn:parse-xml (xinclude-option and fn-doc-available-40-051/051a; the XML parser already resolves external entities through the resolver: about 300 lines); use-xsi-schema-location for fn:doc (fn-doc-40-065, fn-doc-available-40-065; fn:xsd-validator's per-call schema of <ref kind="decision" to="D258"/> over the document's xsi:schemaLocation pairs: about 150 lines); the CJK numerals of fn:format-integer (format-integer-052: about 80 lines). Not cheap or not applicable: xsd-version 1.0 (59, XSD 1.1 only), unicode-version below 16 (5), the construction-mode default (sxml strips, XQuery 4.0's table says preserve: K2-DirectConElemContent-35a; changing it touches every constructed element's annotation).</p>
+      </item>
+      <item>
+        <p><strong>Not done, with causes</strong>: function items fn:function-lookup makes for context-dependent rows keep the caller's static context, not the lookup's (xqhof18: a native function item has no module; it would need a run-time closure carrying a module number); format-number's decimal format name with a direct constructor's namespaces (eqname-007: a call reads its module's namespaces; a module per constructor would need the static base URI to stay dynamic, or a namespace list on static calls as CAST has); cyclic imports of named item types (modules-43); the IR keeps <ref kind="decision" to="D57"/>'s shortest decimal for float casts (same-key-008, -025 expect exact values); format-number of 4.9e-324 (F&amp;O 4.9.5 asks for the shortest decimal, the test for 4.9); Serialization-adaptive-41/-42 (xs:duration names, <ref kind="decision" to="D190"/>) and -88 ("&gt;" in attribute values); deep-equal of partial applications (4); fn:transform (3); the kept groups above.</p>
+      </item>
+    </list>
+  </body>
+</decision>

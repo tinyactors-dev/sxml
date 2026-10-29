@@ -1,0 +1,4 @@
+<term id="html_working_tree" source="docs/GLOSSARY.md">
+  <name>html_working_tree</name>
+  <definition>The HTML parser's mutable node table during tree construction (adoption agency, foster parenting), sent to the tree builder once the document ends</definition>
+</term>

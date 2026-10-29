@@ -1,0 +1,4 @@
+<term id="escape_style" source="docs/GLOSSARY.md">
+  <name>escape_style</name>
+  <definition>How the character pipeline escapes text for a method: XML, Canonical XML, HTML, none (text), JSON strings or CSV fields</definition>
+</term>

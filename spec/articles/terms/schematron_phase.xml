@@ -1,0 +1,4 @@
+<term id="schematron_phase" source="docs/GLOSSARY.md">
+  <name>schematron_phase</name>
+  <definition>A sch:phase: a named set of active patterns with its variables, and optionally a from expression (the nodes its patterns are applied to, 5.5.7) and a when expression (5.5.22); a compilation chooses one, or "#ALL", "#DEFAULT" (the defaultPhase attribute, else "#ALL"), or "#ANY" (<ref kind="decision" to="D315"/>)</definition>
+</term>

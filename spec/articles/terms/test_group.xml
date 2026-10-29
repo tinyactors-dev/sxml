@@ -1,0 +1,4 @@
+<term id="test_group" source="docs/GLOSSARY.md">
+  <name>test_group</name>
+  <definition>A <code>testGroup</code> of an XSD test set: at most one schema test and the instance tests validated against that test's schema (or the built-in components alone when there is none)</definition>
+</term>

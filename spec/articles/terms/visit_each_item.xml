@@ -1,0 +1,4 @@
+<term id="visit_each_item" source="docs/GLOSSARY.md">
+  <name>visit_each_item</name>
+  <definition>An item a rule's visit-each expression gives for one context node (5.5.21): the context item of the rule's assertions in place of the context node (the rule's variables are evaluated once per context node, before); with none, the rule has fired and no assertion is evaluated (<ref kind="decision" to="D315"/>)</definition>
+</term>

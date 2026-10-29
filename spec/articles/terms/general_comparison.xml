@@ -1,0 +1,4 @@
+<term id="general_comparison" source="docs/GLOSSARY.md">
+  <name>general_comparison</name>
+  <definition><code>=</code>, <code>!=</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code>: true when some pair of atomized items has the relationship (XPath 4.0, section 4.11.2)</definition>
+</term>

@@ -1,0 +1,20 @@
+<decision id="D114" status="accepted" source="docs/DECISIONS.md">
+  <title>The regex library part (packet <ref kind="packet" to="2.3"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D101"/> made parts files of their own.</p>
+    <list>
+      <item>
+        <p><code>src/function_library_regex.c</code> holds every function of F&amp;O 4.0, section 6.3: fn:matches, fn:replace and fn:tokenize move there from the string part (removal only; no wave-0 packet owned that file), plus fn:analyze-string, fn:matching-segments and fn:regex. Named groups reach results: <code>$&lt;name&gt;</code> in replacement strings (FORX0004 when no group has the name), name keys in the groups maps of fn:replace and fn:matching-segments, <code>name</code> attributes in fn:analyze-string.</p>
+      </item>
+      <item>
+        <p>fn:analyze-string builds a parentless untyped element in an arena tree, as fn:json-to-xml does; fn:group elements nest by range and by the regex's own nesting of parentheses (new <code>sxml_regex_group_parent</code>, so <code>(b)(x?)</code> and <code>(b(x?))</code> differ, QT4 analyzeString-017/-017a); lookahead groups follow as fn:lookahead-group.</p>
+      </item>
+      <item>
+        <p>fn:regex returns a map (no static context knows the named record types yet, so <code>fn:compiled-regex-record</code> assert-types fail) whose functions are anonymous function items of hidden rows capturing pattern and flags; their signatures reuse the resolved parameter types of fn:matches#3 and fn:replace#4 from the evaluation's function table. Each call compiles again (no cache).</p>
+      </item>
+      <item>
+        <p><code>tests/function_library_test.c</code> (owned by 2.17 later, by nobody now) names the regex part in its fixture so its regex cases keep running; new cases and an allocation-failure loop over the new functions.</p>
+      </item>
+    </list>
+  </body>
+</decision>

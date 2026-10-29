@@ -1,0 +1,4 @@
+<term id="principal_stream" source="docs/GLOSSARY.md">
+  <name>principal_stream</name>
+  <definition>The principal result of a transformation that streams its principal source, built as it is made into the result writer's tree builder and serialized as it is built when it is serialized as XML or text, so its tree is never held (<ref kind="decision" to="D231"/>, <ref kind="decision" to="D295"/>)</definition>
+</term>

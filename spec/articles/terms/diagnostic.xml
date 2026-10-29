@@ -1,0 +1,4 @@
+<term id="diagnostic" source="docs/GLOSSARY.md">
+  <name>diagnostic</name>
+  <definition>Caller-supplied record receiving position and context of a failure</definition>
+</term>

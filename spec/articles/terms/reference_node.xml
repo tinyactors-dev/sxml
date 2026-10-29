@@ -1,0 +1,4 @@
+<term id="reference_node" source="docs/GLOSSARY.md">
+  <name>reference_node</name>
+  <definition>For the preceding and following axes from an attribute or namespace node: its parent element, whose position decides which nodes come before and after</definition>
+</term>

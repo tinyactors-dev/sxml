@@ -1,0 +1,4 @@
+<term id="function_body" source="docs/GLOSSARY.md">
+  <name>function_body</name>
+  <definition>Interface that runs a function item: native C code or an evaluator for the IR</definition>
+</term>

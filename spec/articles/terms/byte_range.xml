@@ -1,0 +1,4 @@
+<term id="byte_range" source="docs/GLOSSARY.md">
+  <name>byte_range</name>
+  <definition>A byte offset plus a byte count within a view</definition>
+</term>

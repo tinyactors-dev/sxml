@@ -1,0 +1,20 @@
+<decision id="D239" status="accepted" source="docs/DECISIONS.md">
+  <title>MIT license; the tinyactors-dev organization and its names (owner)</title>
+  <body>
+    <p><recorded date="2026-10-20"/> on the owner's word: "MIT, we'll move this under the tinyactors-dev organization once done, so the npm package will be @tinyactors/sxml". Settles the open items of <ref kind="decision" to="D138"/>, <ref kind="decision" to="D208"/> and <ref kind="decision" to="D238"/>.</p>
+    <list>
+      <item>
+        <p><strong>License:</strong> MIT, in <code>LICENSE</code> at the root, copyright "The sxml authors" (the owner may name a holder). Vendored third-party code keeps its own licenses (third_party/*).</p>
+      </item>
+      <item>
+        <p><strong>npm:</strong> the JavaScript package is <code>@tinyactors/sxml</code> (was <code>sxml-js</code>).</p>
+      </item>
+      <item>
+        <p><strong>Repository:</strong> moves to the <code>tinyactors-dev</code> GitHub organization once the owner says so; URLs that name <code>dhamidi/sxml</code> (the grammars' <code>tree-sitter.json</code>) change with the move, not before.</p>
+      </item>
+      <item>
+        <p><strong>Kotlin and Maven (default under <ref kind="decision" to="D208"/>, to match):</strong> package <code>dev.tinyactors.sxml</code>, coordinates <code>dev.tinyactors:sxml-android</code> and <code>dev.tinyactors:sxml-jvm</code>; the Swift module stays <code>Sxml</code>. Amends <ref kind="decision" to="D238"/>.</p>
+      </item>
+    </list>
+  </body>
+</decision>

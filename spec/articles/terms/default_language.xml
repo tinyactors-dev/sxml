@@ -1,0 +1,4 @@
+<term id="default_language" source="docs/GLOSSARY.md">
+  <name>default_language</name>
+  <definition>The language of the dynamic context, for <code>fn:default-language</code> and the formatting functions</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="record" source="docs/GLOSSARY.md">
+  <name>record</name>
+  <definition>A map whose keys are fixed by a record type</definition>
+</term>

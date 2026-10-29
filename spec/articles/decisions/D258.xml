@@ -1,0 +1,50 @@
+<decision id="D258" status="accepted" source="docs/DECISIONS.md">
+  <title>XPath and XQuery conformance sweep (packet <ref kind="packet" to="2.23"/>)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D113"/>, <ref kind="decision" to="D143"/>, <ref kind="decision" to="D174"/>, <ref kind="decision" to="D190"/>, <ref kind="decision" to="D226"/>. Takes the "XPath and XQuery" leftovers of <code>docs/agents/QUEUE.md</code> and the largest clusters of fresh whole runs. No public header changed; no IR expression kind added.</p>
+    <list>
+      <item>
+        <p><strong>Clusters at the start</strong> (release driver, whole runs at ee7f101; XP40 82 failed and 34 wrong-error passes, XQ40 239 and 55), by root cause: <code>{ E }</code> over JNodes (12 cases and 4 wrong errors); the item axis's JNode parent (<ref kind="decision" to="D113"/>, 12); fn:xsd-validator's schema options (12, FODC0009); "||" over sequences (8); pure union types (5, XPST0051); deep-equal of declared functions' items (4); partial-application names (6); pattern facets of casts from non-string types (4); XQTY0086 (3); dynamic partial-application arity (4); fn:resolve-uri's FORG0002 (5); function-lookup with <code>$a := .</code> (1); assert-xml whitespace (about 25, kept: <ref kind="decision" to="D205"/>'s strict canonical comparison); EXPath Binary's 4.0 types (46 wrong errors, <ref kind="decision" to="D198"/>, kept); the suite's <code>recordTypeDecl/</code> paths (11, a suite error: the directory is <code>RecordTypeDecl/</code>); small groups and singletons (below).</p>
+      </item>
+      <item>
+        <p><strong>Map constructors</strong> (XPath 4.0, 4.15.1.1, PR 2541): an item of a <code>{ E }</code> entry that is a JNode with a jkey is the single-entry map of its jkey and jvalue, any other JNode its jvalue's maps; then merged as before (XQDY0137 for duplicates).</p>
+      </item>
+      <item>
+        <p><strong>The item axis</strong> (4.7.5.1; replaces <ref kind="decision" to="D113"/>'s deviation): for an origin G whose jvalue is one item, J has jkey 1, jvalue jvalue(G) and parent G, and is no child of G. <code>sxml_json_node_make_item_node</code> (<code>src/xdm_internal.h</code>) makes it, through the internal row fn:item-node (<code>sxml_item_node_function</code>, in no table), and a self step applies the node test. J's child_index is G's child count: J is the same node each time it is made, sorts directly after G (before G's children) in document order, and has no siblings (the sibling axes, fn:siblings); the preceding axis ends at the first node not before its origin.</p>
+      </item>
+      <item>
+        <p><strong>"||"</strong> is fn:concat (4.10.1): every item of each operand.</p>
+      </item>
+      <item>
+        <p><strong>Partial applications</strong> (4.6.4): the closure of a static partial application has the function's name when every parameter is a placeholder; a dynamic one with another number of arguments than the function item's arity is XPTY0004 (fn:function-arity compared in the MAP body; fn:partial-apply does not check it).</p>
+      </item>
+      <item>
+        <p><strong>deep-equal of function items</strong> (F&amp;O 4.0, 1.9.5, names ignored): a top-level IR function's (a declared function's) name does not count; a native row's (<ref kind="decision" to="D143"/>: fn:last#0 and fn:position#0 share one body) and a lowering closure's do (<code>implementation_name_of</code>).</p>
+      </item>
+      <item>
+        <p><strong>Pure union types</strong> (XPath 4.0, 3.2.3): a union with facets, its own or a union base's, is not one (XPST0051).</p>
+      </item>
+      <item>
+        <p><strong>XQTY0086</strong> (XQuery 4.0, 4.12.1.3) under construction preserve: a copied attribute without its element, or with copy-namespaces no-preserve a copied element subtree, whose typed value has an xs:QName or xs:NOTATION item. XSLT's rules do not apply it.</p>
+      </item>
+      <item>
+        <p><strong>Pattern facets of a cast from a non-string type</strong> (F&amp;O 4.0, 23.3.5) match XSD 1.1's canonical mapping: xs:float and xs:double always in the exponent form (<code>sxml_canonical_text_request. uses_schema_mapping</code>).</p>
+      </item>
+      <item>
+        <p><strong>fn:function-lookup and a declared function's defaults</strong> (13.1.1, PR 2941): a declared function's shorter arity has its focus in the three slots after its parameters; fn:function-lookup's search of the unit (<code>sxml_unit_function_query.caller_focus</code>) captures its caller's focus there. Made otherwise (a reference without a focus, the functions of fn:load-xquery-module) the slots stay absent: XPDY0002 as before.</p>
+      </item>
+      <item>
+        <p><strong>fn:xsd-validator's schema options</strong> (17.2.5; replaces <ref kind="decision" to="D174"/>'s FODC0009 for schema, schema-location and target-namespace): V compiles, per call, one schema from the schema nodes, the schema-location URIs (against the static base URI of the call of fn:xsd-validator) and the target namespaces (by namespace alone), validates with it and, under use-imported-schema, the caller's in-scope schemas, then destroys it (validated trees stay valid; nothing joins the static context). FODC0015 when it cannot be assembled. The compiler is reached through the builtin-schemas feature (new create_schema, destroy_schema; <ref kind="decision" to="D225"/>), FODC0009 without it; use-xsi-schema-location stays FODC0009. The QT4 driver serves SCHEMA_DOCUMENT requests for an environment source's URI with its file.</p>
+      </item>
+      <item>
+        <p><strong>fn:resolve-uri</strong>: FORG0002 for an $href or $base that is no IRI reference (a "%" without two hex digits, a ":" before the first "/" ending no scheme).</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release driver, whole runs, ee7f101 against 7849df6): XP40 32,689 passed (34 wrong errors), 82 failed to 32,716 (32), 55 failed; XQ40 45,969 (55), 239 failed to 46,017 (53), 191 failed; 0 errors; no case lost, case by case. CONFORMANCE.md's XP40 and XQ40 sections are regenerated from the runs at 7849df6.</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong> (for later sweeps; QUEUE): a library module's context value type checked against the context value (XQuery 4.0, 5.17; contextDecl-050/051/064/066); fn:string-length and fn:normalize-space atomize an explicit argument (<code>:= fn:string(.)</code> defaults; string-length-23, normalize-space-24); casts to xs:QName with the namespaces of an enclosing direct constructor (the IR's CAST uses the unit's static namespaces, <ref kind="decision" to="D84"/>; K2-NamespaceURIFromQNameFunc-1/3/4, K2-SeqExprCast-479) and <code>$e:code</code> with xmlns:e on the same element (try-catch-err-code-variable-13); is-id of list and union ID types (fn-element-with-id-4/5); use-xsi-schema-location; NCName vs <code>Q{}N</code> name tests (frozen sxml_name_test); xpath-1.0-compatibility format- number (<ref kind="decision" to="D208"/>); the deep-equal of partial-apply against static partial applications and of closures with folded constants (deep-equal-40-function-items-092/106/119/120).</p>
+      </item>
+    </list>
+  </body>
+</decision>

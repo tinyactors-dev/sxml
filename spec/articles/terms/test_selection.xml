@@ -1,0 +1,4 @@
+<term id="test_selection" source="docs/GLOSSARY.md">
+  <name>test_selection</name>
+  <definition>The QT4 test cases one driver run covers: a test list, one test set, or every test set</definition>
+</term>

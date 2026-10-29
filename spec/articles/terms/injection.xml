@@ -1,0 +1,4 @@
+<term id="injection" source="docs/GLOSSARY.md">
+  <name>injection</name>
+  <definition>A node's text parsed with another source code language, as its injections query says: its tree is written inside the node's element, its document element with a <code>language</code> attribute (<ref kind="decision" to="D288"/>)</definition>
+</term>

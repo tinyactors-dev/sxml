@@ -1,0 +1,4 @@
+<term id="copy_namespaces_mode" source="docs/GLOSSARY.md">
+  <name>copy_namespaces_mode</name>
+  <definition><code>preserve</code> or <code>no-preserve</code>, <code>inherit</code> or <code>no-inherit</code> (XQuery 4.0 copy-namespaces declaration): which in-scope namespaces a copied element keeps and whether it takes those of its new parent</definition>
+</term>

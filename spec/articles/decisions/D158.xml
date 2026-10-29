@@ -1,0 +1,44 @@
+<decision id="D158" status="accepted" source="docs/DECISIONS.md">
+  <title>XQuery conformance sweep 2 (packet <ref kind="packet" to="3.14"/>)</title>
+  <body>
+    <p><recorded date="2026-10-18"/>, after <ref kind="decision" to="D135"/>, <ref kind="decision" to="D148"/>, <ref kind="decision" to="D154"/>. Closes <ref kind="decision" to="D135"/> (b) to (g) and <ref kind="decision" to="D154"/>'s "Not done" but where said. No public header changed; no IR kind.</p>
+    <list>
+      <item>
+        <p><strong>Default functions</strong> (glossary <term name="default_function"/>, <ref kind="decision" to="D135"/> (b), (g)): a declared function's optional parameter whose default is not <code>:= .</code> is <code>SXML_PARAMETER_DEFAULT_EXPRESSION</code> with a <code>default_function_number</code> (<code>sxml_function_parameter</code>): an IR function of three parameters, the caller's context value, position and size, whose body is the default coerced to the parameter's type, lowered with those slots as its focus; its IR function's <term name="focus"/> names the parts it reads (the lowering focus records <code>parts_read</code>). Static calls go to the full arity and call the default functions of the omitted parameters with their own focus (<code>sxml_xpath_lowerer_call_default_function</code>), so keyword arguments after omitted parameters work (modules-40) and <code>$x := string()</code> sees the caller's context value (5.18.3). A reference F#N whose omitted defaults read the focus is a closure that captures those parts and calls the defaults when called (so <code>$x := (., local:f#0)</code> ends); a reference made without a focus is the shorter arity's IR function, which calls the defaults with its absent focus. Defaults are lowered first in every module; one that calls a default not lowered yet passes all parts without reading them, and a fixpoint over the default functions' calls adds the parts they pass on.</p>
+      </item>
+      <item>
+        <p><strong>Closures of XQuery globals</strong> (<ref kind="decision" to="D135"/> (c)): <code>find_free_variables</code> captures no global in XQuery (the unit's global table is read at call time, <ref kind="decision" to="D154"/>); the dependency walk ignores a variable's edge to itself (a read while it is computed is BEING_COMPUTED, XQDY0054). XPath and XSLT still capture (function items outlive their evaluation there).</p>
+      </item>
+      <item>
+        <p><strong>fn:function-lookup</strong> (<ref kind="decision" to="D135"/> (d)): <code>sxml_evaluator_find_unit_function</code> finds a top-level named IR function of the calling task's unit (XQuery declared functions, XSLT stylesheet functions) before the host's table.</p>
+      </item>
+      <item>
+        <p><strong>"##any"</strong> (<ref kind="decision" to="D135"/> (e)): <code>has_any_default_element_namespace</code> in the XPath static context; prefix 0 is bound to no namespace (constructed elements); an unprefixed name test or element test is <code>*:local</code>, an unprefixed type name is in xs (<code>sxml_xpath_resolved_name</code>'s <code>is_any_namespace</code>).</p>
+      </item>
+      <item>
+        <p><strong>QT4 driver</strong> (<ref kind="decision" to="D135"/> (f)): assert-eq atomizes a single node.</p>
+      </item>
+      <item>
+        <p><strong>IR modules</strong> (glossary <term name="ir_module"/>; <ref kind="decision" to="D148"/>'s Proposed): a unit keeps one (source name, static base URI) per library module (<code>sxml_ir_unit_add_module</code>); every IR function a library module's lowering makes carries its <code>module_number</code>; the evaluator's static base URI and error locations read the function's module.</p>
+      </item>
+      <item>
+        <p><strong>Trust</strong> (F&amp;O 4.0, 18.2): <code>trusted</code> (default false) marks the loaded unit untrusted (<code>sxml_ir_unit_set_untrusted</code>), as is every unit an untrusted call loads; fn:doc, unparsed-text(-lines), unparsed-binary, collection and uri-collection raise FODC0016 when the running unit is untrusted (<code>sxml_dynamic_context_check_trust</code>).</p>
+      </item>
+      <item>
+        <p><strong>A library module's context value type</strong> (<ref kind="decision" to="D148"/>): without a main module declaration, the first library module's type is the context global's (fn:load-xquery-module checks it, FOQM0005).</p>
+      </item>
+      <item>
+        <p><strong>Function annotations</strong>: IR functions carry their %annotations, copied into the unit (<code>sxml_ir_unit_add_function_annotations</code>, <code>sxml_xpath_lowerer_read_annotations</code>) for inline and declared functions; partial applications keep them (static and fn:partial-apply).</p>
+      </item>
+      <item>
+        <p>Also: keyword placeholders take their written order (FunctionCall-416); an xs:untypedAtomic array lookup key is cast to xs:integer (4.7.3).</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong>: hintless imports of a namespace split over modules (needs a resolver contract in <code>include/sxml/xquery.h</code>, kept as <ref kind="decision" to="D148"/> says); a fixed default's one value for every call (function-decl-40-060); the focus of fn:function-lookup (XP and XQ, 47 cases); static-base-uri#0 made in a library module and called elsewhere (xqhof16, 18); "fixed" default element namespaces; both main and library context value types at once (contextDecl-050, -051).</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release, all 737 sets of each spec; before at 01cf728, after at 5611dd2): XQ40 39,928 to 40,025 passed, in scope 96.9 % to 97.2 %, XQ-only 9,325 to 9,404 of 9,523 (97.9 % to 98.8 %), failed 518 to 422, "error" outcomes 1 to 0 (the Phase 3 gate's last open count); none lost; prod-FunctionDecl 211 to 227, fn-function-annotations 14 to 23, fn-load-xquery-module 103 to 111, prod-DefaultNamespaceDecl 71 to 78, app-Demos 4 to 11; method-* 97.5 %. XP40 30,630 to 30,646, in scope 97.0 % to 97.1 %, 0 errors, none lost. Slice 198/198.</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# tools/spec/spec: read and write the spec's articles (spec/README.md).
+#
+# Every command is an XQuery of spec/queries/ run by the sxml command
+# ($SXML, else build/release/apps/sxml, else sxml on PATH) from the
+# repository root. Reads print text; writes store articles through
+# spec:store, which validates them and refuses a change that adds an
+# error to `check`. Run `tools/spec/spec help` for the commands.
+set -euo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+cd "$root"
+if [[ -n ${SXML:-} ]]; then sxml=$SXML
+elif [[ -x build/release/apps/sxml ]]; then sxml=build/release/apps/sxml
+elif command -v sxml > /dev/null; then sxml=sxml
+else
+  echo "spec: no sxml command; build it (cmake --preset release && cmake --build --preset release --target sxml_cli) or set SXML" >&2
+  exit 2
+fi
+
+usage() {
+  cat << 'EOF'
+usage: tools/spec/spec COMMAND [ARGUMENT...]
+
+Read (NAME is D238, 6.2, host_shim, PLAN, tasks/phase-6#packets, or KIND:ID):
+  show NAME [--depth=0|1|2]   what it is, its state and summary; 1: what it
+                              cites and what cites it; 2: and its text
+  refs NAME                   every reference to NAME, with its context
+  brief NAME                  all a packet's text, and one line on each
+                              decision, packet and term it cites
+  status [DOCUMENT]           packets and gate boxes of docs/tasks/
+  list [KIND] [--status=WORD] [--since=DATE] [--missing-summary]
+  find WORDS... [--limit=N]   full-text search (all words, stemmed)
+  query EXPRESSION [--method=M]
+                              any XQuery, with $spec (spec:load()) and
+                              $articles bound and spec.xqm imported
+  markdown NAME [--output=FILE]
+                              NAME as Markdown, includes expanded
+  check                       references, keys and placement; exit 1 on error
+  roundtrip [DOCUMENT]        do the documents assemble to their docs/ sources?
+
+Write (prose arguments are Markdown: `code` (a term when it is one), **, *,
+[text](url), [[kind:id]], and D238; "-" reads standard input):
+  add decision --title=T [--summary=S] [--after='D1 D2'] [--body=TEXT]
+  add proposal --title=T [--summary=S] [--body=TEXT]
+  add term NAME --definition=TEXT [--after=TERM]
+  add packet ID --document=tasks/phase-7 --title=T [--summary=S] [--body=TEXT]
+  amend NAME --title=T | --summary=S | --body=TEXT | --definition=TEXT [--number=N]
+  supersede DECISION --by=DECISION
+  rename TERM NEW-NAME        renames the term and every use of it
+  set-status PACKET VALUE [--date=YYYY-MM-DD]
+                              VALUE: done, paused, design, designed, revised
+  update NAME EXPRESSION      an XQuery Update expression applied to a copy
+                              of NAME (the context item), then stored
+  apply EXPRESSION            an XQuery expression ($spec bound) whose value
+                              is the new versions of the articles to store
+EOF
+}
+
+# Run sxml; show its errors without the location in our own queries.
+run() {
+  local errors status=0
+  errors=$(mktemp)
+  "$sxml" xquery "$@" 2> "$errors" || status=$?
+  sed -E 's/^spec\/(lib|queries)\/[a-z.]+:[0-9]+:[0-9]+: (spec:[a-z-]+: )?/spec: /; s/^spec: refused: refused: /spec: refused: /' "$errors" >&2
+  rm -f "$errors"
+  return $status
+}
+
+read_query() { run --method=text "spec/queries/$1.xq" "${@:2}"; }
+
+# --name=value options become --param=name=value; "-" reads standard input.
+parameters=()
+positional=()
+parse() {
+  local argument key value
+  for argument in "$@"; do
+    case $argument in
+      --*=*)
+        key=${argument%%=*}; key=${key#--}; value=${argument#*=}
+        [[ $value == - ]] && value=$(cat)
+        parameters+=("--param=$key=$value") ;;
+      --missing-summary) parameters+=("--param=missing-summary=yes") ;;
+      --*) echo "spec: unknown option '$argument'" >&2; exit 2 ;;
+      *) positional+=("$argument") ;;
+    esac
+  done
+}
+
+need() {
+  if (( ${#positional[@]} < $1 )); then echo "spec: $command needs $2" >&2; exit 2; fi
+}
+
+option() {  # option NAME: the value of --NAME, renamed for write.xq
+  local entry
+  for entry in "${parameters[@]}"; do
+    [[ $entry == "--param=$1="* ]] && { printf '%s' "${entry#--param=$1=}"; return; }
+  done
+  return 0
+}
+
+write() { run --allow-put --force spec/queries/write.xq "--param=verb=$1" "${@:2}"; }
+
+command=${1:-help}
+shift || true
+parse "$@"
+
+case $command in
+  help|-h|--help) usage ;;
+  show) need 1 "a NAME"; read_query show "--param=name=${positional[0]}" "${parameters[@]}" ;;
+  refs|brief|markdown)
+    need 1 "a NAME"
+    output=$(option output)
+    if [[ -n $output ]]; then
+      read_query "$command" "--param=name=${positional[0]}" --output="$output" --force
+    else
+      read_query "$command" "--param=name=${positional[0]}"
+    fi ;;
+  status) read_query status "--param=name=${positional[0]:-}" ;;
+  list) read_query list "--param=kind=${positional[0]:-}" "${parameters[@]}" ;;
+  find) need 1 "WORDS"; read_query find "--param=words=${positional[*]}" "${parameters[@]}" ;;
+  check)
+    status=0
+    find spec/articles -name '*.xml' -print0 | xargs -0 "$sxml" validate --schema=spec/schema/spec.xsd || status=1
+    result=$(read_query check)
+    printf '%s\n' "$result"
+    if grep -q '^error:' <<< "$result"; then status=1; fi
+    exit $status ;;
+  roundtrip)
+    result=$(read_query roundtrip "--param=document=${positional[0]:-}")
+    printf '%s\n' "$result" | sed 's/^ //'
+    ! grep -q 'differs:' <<< "$result" ;;
+  query)
+    need 1 "an EXPRESSION"
+    method=$(option method)
+    run --method="${method:-adaptive}" --expression="import module namespace spec = \"urn:sxml:spec\" at \"spec/lib/spec.xqm\";
+declare variable \$spec := spec:load();
+declare variable \$articles := \$spec?articles;
+${positional[0]}" ;;
+  add)
+    need 1 "a kind: decision, proposal, term or packet"
+    case ${positional[0]} in
+      decision|proposal) write "add-${positional[0]}" "${parameters[@]}" ;;
+      term) need 2 "a term name"; write add-term "--param=name=${positional[1]}" "${parameters[@]}" ;;
+      packet) need 2 "a packet identifier"; write add-packet "--param=name=${positional[1]}" "${parameters[@]}" ;;
+      *) echo "spec: cannot add a '${positional[0]}'" >&2; exit 2 ;;
+    esac ;;
+  amend)
+    need 1 "a NAME"
+    for field in title summary body definition; do
+      text=$(option "$field")
+      if [[ -n $text ]]; then
+        write amend "--param=name=${positional[0]}" "--param=field=$field" "--param=text=$text" "--param=value=$(option number)"
+        exit
+      fi
+    done
+    echo "spec: amend needs --title, --summary, --body or --definition" >&2; exit 2 ;;
+  supersede) need 1 "a DECISION"; write supersede "--param=name=${positional[0]}" "--param=by=$(option by)" ;;
+  rename) need 2 "a TERM and its NEW-NAME"; write rename-term "--param=name=${positional[0]}" "--param=to=${positional[1]}" ;;
+  set-status) need 2 "a PACKET and a VALUE"; write set-status "--param=name=${positional[0]}" "--param=value=${positional[1]}" "--param=date=$(option date)" ;;
+  update)
+    need 2 "a NAME and an EXPRESSION"
+    run --allow-put --force "--param=name=${positional[0]}" --expression="import module namespace spec = \"urn:sxml:spec\" at \"spec/lib/spec.xqm\";
+declare variable \$name as xs:string external;
+declare variable \$spec := spec:load();
+spec:store(\$spec, spec:one(\$spec, \$name) transform with { ${positional[1]} })" ;;
+  apply)
+    need 1 "an EXPRESSION"
+    run --allow-put --force --expression="import module namespace spec = \"urn:sxml:spec\" at \"spec/lib/spec.xqm\";
+declare variable \$spec := spec:load();
+declare variable \$articles := \$spec?articles;
+spec:store(\$spec, (${positional[0]}))" ;;
+  *) echo "spec: no command '$command'; see tools/spec/spec help" >&2; exit 2 ;;
+esac

@@ -1,0 +1,17 @@
+<packet id="perf-11" source="docs/tasks/phase-7.md">
+  <title>Cheaper node atomization (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D316"/> and <ref kind="decision" to="D319"/>. In SchXslt's expand stage of EN 16931 (47.78 x 10^9 instructions after <ref kind="packet" to="perf-10"/>), node atomization in coercion is the largest coercion cost: 3.19 x 10^9 (6.7 %), in <code>src/xdm_node.c</code>.</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: profile first (callgrind on the expand stage, <code>tests/bench/coercion.xq</code> and xmark-all); a general fast path for the common case (an attribute or a text-only element of an untyped tree: one xs:untypedAtomic from the string value, without building a sequence), and whatever else the profile shows in atomization (XPath 4.0, 2.4.2 atomization; XDM 4.0, typed-value).</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/xdm_node.c</code>, its internal header, the tree's typed value and string value paths (<code>src/arena_tree.c</code> only for those), <code>tests/</code> for them, <code>tests/bench/</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: before and after in a D-record and the commit messages (instructions and seconds) on the expand stage, coercion.xq and xmark-all; QT4 XP40, XQ40 and XT40 whole: no outcome changes, case by case. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D322"/>): a typed value describes its node once; text walks step over attributes by count. SchXslt's expand stage 47.78 to 47.45 x 10^9 instructions, coercion.xq 2.716 to 2.695, xmark-all 8.747 to 8.643; QT4 XP40, XQ40 and XT40 whole: 0 outcomes differ, case by case. The atomic cell's costs (70 % of what is left) are outside the packet's files: proposed in <ref kind="decision" to="D322"/>.</p>
+      </item>
+    </list>
+  </body>
+</packet>

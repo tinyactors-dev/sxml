@@ -1,0 +1,4 @@
+<term id="index_probe" source="docs/GLOSSARY.md">
+  <name>index_probe</name>
+  <definition>The other operand of a filter index's comparison, computed once per evaluation of the FILTER without the focus</definition>
+</term>

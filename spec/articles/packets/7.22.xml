@@ -1,0 +1,22 @@
+<packet id="7.22" source="docs/tasks/phase-7.md">
+  <title>Source code as XML: tree-sitter trees with highlights (design and implementation)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Order</strong> (owner): the book first, then the grammars' own tests, then the implementation.</p>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong>: tree-sitter grammars vendored with their highlights queries and tests (third_party/tree-sitter-grammars, <ref kind="decision" to="D13"/>); one walk of a TSTreeCursor with an explicit stack (<ref kind="decision" to="D71"/>) into tree builder events; the highlights query through ts_query_* with the text predicates evaluated by sxml; the step limit through the progress callbacks.</p>
+      </item>
+      <item>
+        <p><strong>API</strong>: sxml:parse-code and sxml:code-languages in urn:sxml, an optional feature in every build (<ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>, <ref kind="decision" to="D272"/>); no new CLI command (<ref kind="decision" to="D44"/>).</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: src/source_code.c, src/source_code_internal.h, src/source_code_languages.c, src/function_library_source_code.c, tools/vendor-tree-sitter-grammar.sh, tools/generate-source-code-languages.py, tests/tree-sitter/, tests/source_code_test.c, docs/book/src/source-code.md.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the chapter's examples match; the grammars' corpus and highlight tests run with a baseline; the size growth reported. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D285"/>): the chapter (18 examples match); seven grammars (JSON, JavaScript, Python, C, CSS, HTML, Go); tree-sitter/suite 630 of 639 (corpus 452 of 452, highlights 178 of 187: locals 7, injections 2); sxml.wasm +1,990,621 to 9,693,235 bytes, budgets raised.</p>
+      </item>
+    </list>
+  </body>
+</packet>

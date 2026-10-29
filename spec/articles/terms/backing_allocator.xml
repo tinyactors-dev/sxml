@@ -1,0 +1,4 @@
+<term id="backing_allocator" source="docs/GLOSSARY.md">
+  <name>backing_allocator</name>
+  <definition>The allocator another allocator passes its requests on to</definition>
+</term>

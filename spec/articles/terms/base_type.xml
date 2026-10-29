@@ -1,0 +1,4 @@
+<term id="base_type" source="docs/GLOSSARY.md">
+  <name>base_type</name>
+  <definition>The type a schema type is derived from by restriction, list or union</definition>
+</term>

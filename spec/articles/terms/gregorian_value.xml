@@ -1,0 +1,4 @@
+<term id="gregorian_value" source="docs/GLOSSARY.md">
+  <name>gregorian_value</name>
+  <definition>A value of one of the eight Gregorian types: xs:dateTime, xs:date, xs:time, xs:gYear, xs:gYearMonth, xs:gMonth, xs:gMonthDay, xs:gDay (F&amp;O 4.0, section 9.3)</definition>
+</term>

@@ -1,0 +1,6 @@
+<decision id="D19" status="accepted" source="docs/DECISIONS.md">
+  <title>View types in their own header</title>
+  <body>
+    <p><recorded date="2026-10-16"/> (task 0.5). <code>sxml_byte_view</code> and <code>sxml_memory_view</code> live in <code>include/sxml/view.h</code>, with <code>SXML_BYTE_VIEW_INITIALIZER</code> (brace form, for static tables) and <code>SXML_BYTE_VIEW_FROM_LITERAL</code> (compound literal). <code>status.h</code> needs byte views and <code>memory.h</code> needs <code>sxml_status</code>, so the views cannot live in either without a cycle. <code>memory.h</code> includes <code>view.h</code>, so "memory.h provides the views" still holds. The view functions (<code>sxml_byte_view_equals</code>, <code>sxml_memory_view_slice</code>, ...) are in <code>memory.h</code>. The header <code>sxml/string.h</code> shares its file name with <code>&lt;string.h&gt;</code>; it is only ever included as <code>"sxml/string.h"</code> and <code>include/sxml/</code> is never put on an include path itself.</p>
+  </body>
+</decision>

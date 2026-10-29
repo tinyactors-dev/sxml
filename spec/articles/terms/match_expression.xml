@@ -1,0 +1,4 @@
+<term id="match_expression" source="docs/GLOSSARY.md">
+  <name>match_expression</name>
+  <definition>The XPath AST of xs:boolean, over the item as context value, that is true exactly when the item matches a pattern (<ref kind="decision" to="D118"/>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="pending_element" source="docs/GLOSSARY.md">
+  <name>pending_element</name>
+  <definition>The start of an element that the schema validator holds back, with its namespace bindings and attributes, until its first content or its end: xsi:type, xsi:nil and the attributes decide its governing type and annotation first</definition>
+</term>

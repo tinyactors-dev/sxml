@@ -1,0 +1,4 @@
+<term id="qt4_catalog" source="docs/GLOSSARY.md">
+  <name>qt4_catalog</name>
+  <definition>The QT4 suite's <code>catalog.xml</code> as the driver holds it: its test-set entries and global environments</definition>
+</term>

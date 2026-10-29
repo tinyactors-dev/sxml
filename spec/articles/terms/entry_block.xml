@@ -1,0 +1,4 @@
+<term id="entry_block" source="docs/GLOSSARY.md">
+  <name>entry_block</name>
+  <definition>A map made from an entry list: its entries in entry order in one cell, with a hash index (<ref kind="decision" to="D61"/>)</definition>
+</term>

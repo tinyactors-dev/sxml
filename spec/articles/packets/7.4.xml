@@ -1,0 +1,47 @@
+<packet id="7.4" source="docs/tasks/phase-7.md">
+  <title>XSLT backwards-compatible behaviour and XPath 1.0 compatibility mode (implementation)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>:</p>
+        <list>
+          <item>
+            <p>XPath 4.0, 2.2.1 (XPath 1.0 compatibility mode in the static context) and the rules that depend on it: general comparisons, arithmetic, and the coercion rules (first item, fn:number and fn:string conversions);</p>
+          </item>
+          <item>
+            <p>F&amp;O 4.0, fn:format-number in 1.0 mode;</p>
+          </item>
+          <item>
+            <p>XSLT 4.0, 3.8 "Backwards Compatible Processing" and the 1.0 rules it names (xsl:value-of and attribute value templates take the first item, xsl:number, sort keys, xsl:call-template and parameter conversions); XTDE0160 is no longer raised.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Unlocks</strong>: XT40 backwards_compatibility 124 (backwards 47, xpath-compat 18, xslt-compat 13, and others) and QT4 xpath-1.0-compatibility 5. It also unlocks every real-world <code>version="1.0"</code> stylesheet.</p>
+      </item>
+      <item>
+        <p><strong>Replaces</strong>: <code>asks_xslt_1_behaviour</code> and its XTDE0160 raise in <code>src/xslt_lower.c</code> (<ref kind="decision" to="D162"/>'s place), and supports-backwards-compatibility.</p>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong>: a flag of the static context that the XPath lowering reads. It inserts the 1.0 conversions as ordinary IR (the first item, then fn:number or fn:string), so the evaluator does not change. XSLT sets the flag for elements whose effective version is below 2.0.</p>
+      </item>
+      <item>
+        <p><strong>Header</strong>: <code>xpath.h</code>, additive: a last field of <code>sxml_static_context_configuration</code> (for hosts and the QT4 driver), with a record. <code>xslt.h</code>: none.</p>
+      </item>
+      <item>
+        <p><strong>After</strong>: nothing.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/xpath_lower.c</code> (the conversions), <code>src/xslt_lower.c</code> (the XTDE0160 place), <code>src/xslt_lower_construct.c</code> (value-of and attribute value templates), <code>src/xslt_lower_number.c</code>, and new <code>tests/xslt_compatibility_test.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: 5–10 KB in <code>sxml.wasm</code>, so it waits for 7.2 or for a budget raise; the XSLT part is in the CLI only.</p>
+      </item>
+      <item>
+        <p><strong>Gate</strong>: ≥ 80 % of the 124 and all 5 QT4 cases.</p>
+      </item>
+    </list>
+    <p><strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D197"/>), gate met for XT40, not for QT4: XT40 111 of the 124 (89.5 %); QT4 1 of 5, the four others and ten XT40 cases expect fn:number conversion for xs:numeric parameters (fn:format-number, fn:round, fn:floor), which XPath 4.0, 3.4.1 gives only to xs:double. <code>xpath_compatibility.c</code> is in the core module (a few KB).</p>
+    <p><strong>7.4b</strong> (<ref kind="decision" to="D206"/>, follow-ups to 7.4): exsl:node-set and exsl:object-type (EXSLT common, a new well-known namespace), exsl:document as xsl:result-document, docbook-002's XPST0003, text value templates in 1.0 elements without the mode (3.8.1), xsl:result-document's xhtml default in a 1.0 stylesheet (backwards-019b), the size of <code>xpath_compatibility.c</code> in <code>sxml.wasm</code>; the xs:numeric question put to the owner. <strong>Done</strong> 2026-10-19: XT40 8,940 to 8,943 (docbook-001, docbook-002 and backwards-019b pass); <code>xpath_compatibility.c</code> is about 7.2 KB, the EXSLT part 1.2 KB of the core module.</p>
+  </body>
+</packet>

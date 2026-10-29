@@ -1,0 +1,4 @@
+<term id="json_node" source="docs/GLOSSARY.md">
+  <name>json_node</name>
+  <definition>A JNode: a wrapper that lets maps and arrays be navigated with axes</definition>
+</term>

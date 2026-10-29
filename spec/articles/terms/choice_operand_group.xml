@@ -1,0 +1,4 @@
+<term id="choice_operand_group" source="docs/GLOSSARY.md">
+  <name>choice_operand_group</name>
+  <definition>Operands of which at most one is evaluated (the branches of a conditional), which may each consume a streamed input (XSLT 4.0, 19.8)</definition>
+</term>

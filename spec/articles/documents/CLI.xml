@@ -1,0 +1,173 @@
+<document id="CLI" source="docs/CLI.md">
+  <title>The sxml command: design</title>
+  <p>This page is for developers of the <code>sxml</code> program. The user reference, with every command, its options and examples, is <link href="../apps/sxml/README.md">apps/sxml/README.md</link> (<ref kind="decision" to="D181"/>).</p>
+  <section id="design-rules">
+    <title>Design rules</title>
+    <p>These rules are binding for every command (<ref kind="decision" to="D44"/>). Sources: Command Line Interface Guidelines (https://clig.dev), POSIX.1-2024 XBD 12.2 "Utility Syntax Guidelines", GNU coding standards "Command-Line Interfaces", NO_COLOR (https://no-color.org).</p>
+    <section id="one-intent-one-action">
+      <title>One intent, one action</title>
+      <p>Every invocation does exactly what its words say, and nothing else.</p>
+      <list>
+        <item>
+          <p><strong>Each command is one verb doing one thing.</strong> <code>sxml check</code> never also prints the document. Two behaviours get two commands or an explicit flag, never a mode guessed from the input (file or expression, XML or JSON).</p>
+        </item>
+        <item>
+          <p><strong>The command line fully determines behaviour.</strong> No configuration files. The environment changes presentation only (color, once there is any).</p>
+        </item>
+        <item>
+          <p><strong>No hidden side effects.</strong> sxml writes a file only when the command line names it (see "Written files" below), refuses to replace an existing file unless <code>--force</code> is given, never deletes anything, and never touches the network: <code>fn:doc</code>, <code>fn:unparsed-text</code> and friends resolve local files only.</p>
+        </item>
+        <item>
+          <p><strong>Standard input is read only when <code>-</code> is given</strong> as a file operand.</p>
+        </item>
+        <item>
+          <p><strong>Nothing is advertised that is not implemented.</strong> A command or option enters the program's table with its working code; planned ones are listed only under "Planned commands" below.</p>
+        </item>
+        <item>
+          <p><strong>No abbreviations, no auto-correction.</strong> <code>--form</code> is not <code>--format</code> (unlike GNU getopt_long); a typo gets a "did you mean" suggestion and exit code 2, never a guess. An unknown option with no close match among the command's own that another command has is named as theirs: <code>sxml xpath: unknown option '--expression'; it is an option of 'sxml xquery'</code>. Commands have no aliases except <code>help</code>/<code>--help</code> and <code>version</code>/<code>--version</code>, which the guidelines ask for.</p>
+        </item>
+        <item>
+          <p><strong>No repeated single options.</strong> <code>--format=json --format=text</code> is a usage error, not "last one wins"; collecting options (<code>--param</code>) say "repeatable", and one that must be given at least once (<code>--schema</code>) says "required; repeatable".</p>
+        </item>
+      </list>
+    </section>
+    <section id="syntax">
+      <title>Syntax</title>
+      <list>
+        <item>
+          <p><code>sxml [-h | --help | --version] COMMAND [ARGUMENT...]</code>. Options before the command belong to <code>sxml</code>; after it, to the command.</p>
+        </item>
+        <item>
+          <p>Long options: <code>--name</code>, <code>--name=value</code>, <code>--name value</code>. Short options: <code>-q</code>, combined <code>-qv</code>, <code>-o FILE</code> or <code>-oFILE</code> (POSIX guidelines 3, 5, 6). Every short option has a long form.</p>
+        </item>
+        <item>
+          <p>Options and operands may be mixed after the command (GNU argument permutation). <code>--</code> ends options: everything after it is an operand. <code>-</code> alone is an operand meaning standard input. An argument that starts with <code>-</code> (such as <code>-1</code>) must follow <code>--</code> to be an operand.</p>
+        </item>
+        <item>
+          <p>A value-taking option always consumes the next argument: <code>--expression -1</code>.</p>
+        </item>
+        <item>
+          <p><code>-h</code>/<code>--help</code> works on every level and wins over everything else on the command line before <code>--</code>, including errors: <code>sxml version --bogus --help</code> shows help. <code>sxml help COMMAND</code> equals <code>sxml COMMAND --help</code>.</p>
+        </item>
+        <item>
+          <p><code>sxml</code> with no arguments is a usage error (exit 2) that prints the usage line: a script that forgot the command must not succeed.</p>
+        </item>
+      </list>
+    </section>
+    <section id="written-files">
+      <title>Written files</title>
+      <p>Decided in <ref kind="decision" to="D217"/> (packet <ref kind="packet" to="cli-2"/>). Three options name files to write; nothing else writes one, except the EXPath File functions that <code>--allow-file-access</code> grants (<ref kind="decision" to="D200"/>).</p>
+      <list>
+        <item>
+          <p><strong><code>--output=FILE</code> (<code>-o FILE</code>)</strong> on <code>xpath</code>, <code>xquery</code>, <code>transform</code> and <code>serialize</code>: the result goes to FILE instead of standard output, byte for byte what standard output would get. <code>-</code> and the empty name are usage errors (standard output is the default).</p>
+        </item>
+        <item>
+          <p><strong><code>--result-directory=DIR</code></strong> on <code>transform</code>, for <code>xsl:result-document</code> with an <code>href</code>: DIR's file URI is the base output URI (XSLT 4.0, 2.4.6), so relative hrefs resolve against it; a result document whose absolute URI is not a file below DIR (<code>..</code>, another directory, another scheme, an escaped <code>/</code>) is an error, exit 3. DIR must exist; directories below it are made as hrefs need. Without the option, each result document is evaluated, reported on standard error ("not written; give --result-directory") and dropped. <code>--output</code> alone does not write result documents next to FILE: two intents, two options.</p>
+        </item>
+        <item>
+          <p><strong><code>--allow-put</code></strong> on <code>xquery</code>, for <code>fn:put</code> (XQUF 3.0, 6.1; <ref kind="decision" to="D205"/>): the document goes to the local file its <code>file:</code> URI names, resolved against the static base URI (the working directory), serialized with fn:put's <code>$params</code>. Other schemes are an error, exit 3. Without the flag fn:put raises FOUP0002, as the library does for a host that stores nothing. <code>--allow-file-access</code> does not imply it: that flag grants the EXPath File functions, a different feature.</p>
+        </item>
+      </list>
+      <p>Every written file:</p>
+      <list>
+        <item>
+          <p>is written to a temporary file beside it and moved into place in one step (POSIX <code>rename</code>, or <code>link</code> when not replacing, so a file that appeared meanwhile is not overwritten; <code>MoveFileEx</code> on Windows), so no reader sees it half written;</p>
+        </item>
+        <item>
+          <p>is committed only when the whole command succeeds; on any error every temporary file is removed and no file changes;</p>
+        </item>
+        <item>
+          <p>replaces an existing file only with <code>--force</code> (exit 3 otherwise, checked before the work starts and again when committing). <code>--force</code> without one of these options is a usage error.</p>
+        </item>
+      </list>
+    </section>
+    <section id="collections">
+      <title>Collections</title>
+      <p>Decided in <ref kind="decision" to="D298"/> (packet cli-3). F&amp;O 4.0 (17.1.3, 17.1.4) leaves what a collection URI names to the implementation; in <code>sxml</code> it names a local directory, read as <code>fn:doc</code> reads a file: no flag, no network.</p>
+      <list>
+        <item>
+          <p><strong>A collection URI is a directory</strong>, relative to the static base URI (the working directory, or the stylesheet's or module's location), with optional parameters after <code>?</code>, separated by <code>;</code> or <code>&amp;</code>: <code>select=PATTERN</code> (file names; <code>*</code> any characters, <code>?</code> one; default <code>*.xml</code>), <code>recurse=yes|no</code> (subdirectories too; default <code>no</code>) and <code>on-error=fail|ignore</code> (default <code>fail</code>). Another parameter, a fragment, another scheme than <code>file:</code> or a path that is not a directory raise FODC0002 with the reason.</p>
+        </item>
+        <item>
+          <p><strong><code>fn:uri-collection</code></strong> gives the <code>xs:anyURI</code> of every selected file, sorted by path relative to the directory (byte order, which is code point order); nothing is read. The URI is the directory's URI and the relative path, the form <code>fn:doc</code> maps back to the same file.</p>
+        </item>
+        <item>
+          <p><strong><code>fn:collection</code></strong> gives the document node of each of those files, in the same order, parsed as XML as <code>fn:doc</code> parses a file (external entities through the same resolver). Their document URIs are those URIs, and <code>fn:doc</code> of one gives the same node, whichever is called first. A file that cannot be read or is not well-formed makes the collection unavailable (FODC0002, naming <code>FILE:LINE:COLUMN</code>), or with <code>on-error=ignore</code> is left out. A collection holds documents only: JSON, text and other files are reached through <code>fn:uri-collection</code> and <code>fn:json-doc</code>, <code>fn:unparsed-text</code> or <code>fn:unparsed-binary</code>, one intent each, never a format guessed from a file name.</p>
+        </item>
+        <item>
+          <p><strong>The default collection</strong> (<code>fn:collection()</code>, <code>fn:uri-collection()</code>, XPath 4.0, 2.2.2) is the one <code>--collection=DIR</code> names on <code>xpath</code>, <code>xquery</code> and <code>transform</code>: DIR relative to the working directory, optionally followed by the parameters above (<code>--collection='docs?recurse=yes'</code>). A DIR that is not a directory exits 3, an unknown parameter is a usage error; without the option there is no default collection (FODC0002).</p>
+        </item>
+        <item>
+          <p>Symbolic links are followed; with <code>recurse=yes</code> a directory reached twice (a link back up) is listed once.</p>
+        </item>
+        <item>
+          <p>Listing needs the platform's file system (<code>apps/sxml/platform_file_system.c</code>); where it has none (Windows today, <ref kind="decision" to="D200"/>), every collection raises FODC0002.</p>
+        </item>
+      </list>
+    </section>
+    <section id="limits">
+      <title>Limits</title>
+      <list>
+        <item>
+          <p><strong>The person running a command bounds its time, not sxml.</strong> The commands set no bound on evaluation steps (their one processor configuration is in <code>query_command.c</code>): a query runs to its end, and a run that takes too long is stopped with Ctrl-C (SIGINT) like any other program. The library's default bound of 10^8 steps is for programs that embed sxml and the JavaScript package; the conformance drivers set their own. <code>sxml_processor_limits</code> has no value for "no bound" (0 means the default), so the command asks for the largest count (<ref kind="decision" to="D314"/>).</p>
+        </item>
+        <item>
+          <p><strong>Input stays bounded.</strong> Entity expansion is bounded to 4 MiB in every command that parses XML; a limit that is exceeded exits 4.</p>
+        </item>
+      </list>
+    </section>
+    <section id="source-locations">
+      <title>Source locations</title>
+      <list>
+        <item>
+          <p><strong>A document keeps the line and column of its nodes when the program can ask for them</strong> (<ref kind="decision" to="D313"/>, <ref kind="decision" to="D318"/>). <code>xpath</code>, <code>xquery</code> and <code>transform</code> take <code>--locations=automatic|always|never</code>, the processor's <code>sxml_source_location_policy</code>: <code>automatic</code>, the default, keeps them for the documents a program reads (<code>--context-item</code>, INPUT, <code>fn:doc</code>, <code>fn:parse-xml</code>, <code>--collection</code>) when it calls <code>fn:location</code>, can reach functions dynamically (<code>fn:function-lookup</code>, <code>fn:load-xquery-module</code>, <code>fn:transform</code>, <code>xsl:evaluate</code>) or imports a schema; they cost 32 bytes a node (+45 % peak memory on a large document). <code>always</code> keeps them for every program, <code>never</code> for none.</p>
+        </item>
+        <item>
+          <p><strong>Compile first, then parse.</strong> <code>xpath</code> and <code>xquery</code> compile before they parse <code>--context-item</code>, as <code>transform</code> does before INPUT, so the program decides; a static error is reported before a context document that does not parse.</p>
+        </item>
+        <item>
+          <p><strong>An error that names a node says where it is.</strong> When the value of a dynamic error (<code>$err:value</code>: the third argument of <code>fn:error</code>, an <code>xsl:message</code>'s select) holds a node whose document kept its locations, a second line follows the error: <code>books.xml:4:3: the node the error names</code>. For a program that cannot ask for locations, <code>--locations=always</code> gives it.</p>
+        </item>
+      </list>
+    </section>
+    <section id="output">
+      <title>Output</title>
+      <list>
+        <item>
+          <p>Results go to standard output; diagnostics, warnings and usage errors to standard error. Help requested with <code>--help</code> or <code>help</code> goes to standard output (it is the result) and exits 0.</p>
+        </item>
+        <item>
+          <p>Usage errors: <code>sxml version: unknown option '--fromat'; did you mean '--format'?</code>, the usage line, <code>Try 'sxml version --help'.</code> Control bytes from arguments are shown as <code>\xHH</code>.</p>
+        </item>
+        <item>
+          <p>Commands whose output another program may parse offer <code>--format=json</code> (sxml's own reports) next to the default <code>--format=text</code>. The JSON shape is a stable interface: fields are only ever added. Query results are not reports: they are serialized with <code>--method=</code> (Serialization 4.0 methods).</p>
+        </item>
+        <item>
+          <p>Help texts: a one-line summary that starts with a verb, a description in short paragraphs ending with the command's exit status, and examples that work on the sample files of <code>apps/sxml/README.md</code>. That page and the help agree: a change to one is a change to the other.</p>
+        </item>
+        <item>
+          <p>No color, no pager, no progress output today. When color arrives it is off unless the stream is a terminal, off when <code>NO_COLOR</code> is set and not empty or <code>TERM=dumb</code>, and <code>--color=auto|always|never</code> overrides both.</p>
+        </item>
+      </list>
+    </section>
+  </section>
+  <section id="planned-commands">
+    <title>Planned commands</title>
+    <p>None today. The options the commands share: <code>--format=text|json</code> (report format), <code>--context-item=FILE</code> (parse FILE, or stdin for <code>-</code>, as the context item), <code>--param=NAME=VALUE</code> (repeatable; binds external variable <code>$NAME</code> to <code>xs:untypedAtomic(VALUE)</code>), <code>--method=adaptive|xml|xhtml|html|text|json|csv</code> (serialization of results), <code>--output=FILE</code> and <code>--force</code> (write results to a file; replace it), <code>--locations=automatic|always|never</code> (source locations of input documents, <ref kind="decision" to="D318"/>). <code>--output</code>, <code>--force</code> and result documents arrived with packet <ref kind="packet" to="cli-2"/> (<ref kind="decision" to="D217"/>).</p>
+    <p>The QT4 and XSLT 4.0 conformance drivers are not <code>sxml</code> commands but developer tools under <code>tests/</code> built with the same framework (<ref kind="decision" to="D44"/>).</p>
+  </section>
+  <section id="implementation-map">
+    <title>Implementation map</title>
+    <list>
+      <item>
+        <p><code>apps/cli_framework/</code>: declarative command tables (<code>cli_command.h</code>), the argument parser (<code>cli_arguments.h</code>), help and usage errors (<code>cli_help.h</code>), "did you mean" (<code>cli_suggestion.h</code>), output streams and writers (<code>cli_output.h</code>), dispatch and exit codes (<code>cli_run.h</code>). It never prints or opens files: all I/O goes through <code>sxml_cli_output_stream</code>.</p>
+      </item>
+      <item>
+        <p><code>apps/sxml/</code>: the program table with the program's description and examples (<code>program.c</code>), the command handlers (<code>command_&lt;name&gt;.c</code>), <code>main.c</code>, and the platform layer: <code>platform_stdio.c</code> (stdio and the working directory, for the URIs of relative file names), <code>platform_file_system.c</code> (EXPath File) and <code>platform_file_writer.c</code> (the file writer of <code>--output</code>, <code>--result-directory</code> and <code>--allow-put</code>). The query commands <code>xpath</code>, <code>xquery</code> and <code>serialize</code> share (and <code>transform</code> reuses) their processor, the local-file resolver, <code>--param</code>, <code>--context-item</code>, <code>--locations</code>, the <code>--method</code> choices, error reports and result writing through <code>query_command.h</code>. A new command is one <code>command_&lt;name&gt;.c</code> plus one table entry, imitating <code>command_version.c</code>. Files are read through the invocation's <code>sxml_cli_file_reader</code> (<code>cli_command.h</code>), which the platform layer implements over stdio (<code>command_check.c</code> uses it), and written through its <code>sxml_cli_file_writer</code> (begin, commit, abandon; <code>query_command.h</code>'s <code>sxml_query_run_begin_file</code> and <code>sxml_query_run_finish</code>).</p>
+      </item>
+      <item>
+        <p>Tests, all in <code>tests/cli/</code> (registered from <code>apps/CMakeLists.txt</code>, outside the <code>tests/*_test.c</code> glob): framework unit tests <code>cli_*_test.c</code>, and end-to-end golden tests (<code>sxml_add_cli_test</code>: arguments, exit code, <code>expected/&lt;name&gt;.stdout</code> and <code>.stderr</code>; <code>SXML_UPDATE_GOLDEN=1</code> rewrites; <code>WORKSPACE</code> runs in an empty directory and compares the files written with <code>expected/&lt;name&gt;.files</code>). They run in <code>tests/cli/input/</code>, which holds the input files. The help texts have golden files too (<code>expected/*_help.stdout</code>): a change to a help text updates its golden file and <code>apps/sxml/README.md</code> together, and the README's examples are re-run on a release build and their true output pasted.</p>
+      </item>
+    </list>
+  </section>
+</document>

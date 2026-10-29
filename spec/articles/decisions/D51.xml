@@ -1,0 +1,35 @@
+<decision id="D51" status="accepted" source="docs/DECISIONS.md">
+  <title>The Phase 1 public API (packet <ref kind="packet" to="1.3"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>, completing <ref kind="decision" to="D47"/>. Headers: <code>xml.h</code> (needs <code>tree.h</code>) &lt; <code>processor.h</code> (<code>xdm.h</code>, <code>xml.h</code>) &lt; <code>xpath.h</code>; <code>serialize.h</code> needs only <code>xdm.h</code> (it serializes from an item heap).</p>
+    <list>
+      <item>
+        <p><strong>XML parser</strong>: a reusable object (allocator, name pool, <code>sxml_xml_limits</code>: depth, entity expansion bytes) that parses a whole document in memory into any <code>sxml_tree_builder</code>, or only checks it (<code>sxml check</code>). Failures are interface statuses (<code>MALFORMED_INPUT</code>, <code>INVALID_UTF8</code>, <code>UNSUPPORTED_FEATURE</code> for other encodings, <code>LIMIT_EXCEEDED</code>) with a diagnostic naming the failed production or WFC: well-formedness errors have no QName codes; fn:doc and fn:parse-xml turn them into FODC0002 and FODC0006. Nothing outside the input is read.</p>
+      </item>
+      <item>
+        <p><strong>Processor</strong>: pool, registry and heap in its memory, one allocator for everything, one limits struct, a resource resolver and a clock; <code>sxml_processor_parse_document</code> gives an owned document node whose arena tree destroys itself when unreferenced.</p>
+      </item>
+      <item>
+        <p><strong>Resource resolver</strong>: one <code>resolve</code> operation with an <code>sxml_resource_kind</code> (only <code>XML_DOCUMENT</code> now; text, XQuery modules and XSLT stylesheet modules later), after Saxon's ResourceResolver, so later phases add kinds instead of publishing new interfaces. It answers bytes (sxml parses them with the processor's limits), a document node, or none. "Not available" (a missing file, a refused URI, a failed read) is <code>SXML_RESOURCE_FORM_NONE</code>, which fn:doc raises as FODC0002; a failure status (<ref kind="decision" to="D50"/> included) stops the evaluation. The null resolver makes nothing available (the library does no I/O); the default implementation and test double is <code>sxml_table_resource_resolver</code> over in-memory entries.</p>
+      </item>
+      <item>
+        <p><strong>Clock</strong>: read at most once per evaluation, so fn:current-dateTime is stable; <code>sxml_system_clock</code> (C17 <code>timespec_get</code>, implicit timezone UTC) and <code>sxml_fixed_clock</code>.</p>
+      </item>
+      <item>
+        <p><strong>Contexts</strong>: <code>sxml_static_context_configuration</code> and <code>sxml_dynamic_context_configuration</code> are plain structs embedded by value in requests; zero means the default context. XQuery and XSLT reuse them. Names are name pool identifiers and types registry identifiers, as in the substrate. External variables are declared with a type and bound by name (coerced, XPTY0004; unbound XPDY0002); the context value is a sequence (XPath 4.0) with a presence flag; available documents make <code>fn:doc(uri)</code> the very node bound elsewhere (QT4 sources with a <code>uri</code>). A namespace binding with prefix 0 is the default namespace for elements and types.</p>
+      </item>
+      <item>
+        <p><strong>Expressions</strong>: <code>sxml_xpath_expression</code> follows the lifecycle quintet; initialize compiles. The compiled form is allocated from the processor and counted, so inline function items in a result outlive the expression (<ref kind="decision" to="D38"/>). Results are complete: nothing lazy that can fail later. Evaluations may nest. <code>sxml_xpath_parse_sequence_type</code> turns declared types given as text (279 QT4 <code>param ... as=</code>) into sequence types.</p>
+      </item>
+      <item>
+        <p><strong>Serialization</strong>: <code>sxml_output_stream</code> (one <code>write</code>, which returns <ref kind="decision" to="D50"/>'s status when the platform refuses), the <code>sxml_output_buffer</code> as default and test double, and <code>sxml_serialize_sequence</code> with the adaptive method; the method enum and parameters struct grow in Phase 3.</p>
+      </item>
+      <item>
+        <p><strong>Limits</strong>: 0 means no bound, except <code>maximum_expression_depth</code> and <code>maximum_evaluation_depth</code>, where 0 means sxml's default: no bound would mean a C stack overflow.</p>
+      </item>
+      <item>
+        <p>Left out until needed, each a new field that designated initializers keep source-compatible: host extension functions in the static context (meanwhile a function item bound to a variable), decimal formats, collations, default language, fn:trace output, cancellation, a seed for fn:random-number-generator.</p>
+      </item>
+    </list>
+  </body>
+</decision>

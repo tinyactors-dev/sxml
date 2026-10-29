@@ -1,0 +1,4 @@
+<term id="counter_operation" source="docs/GLOSSARY.md">
+  <name>counter_operation</name>
+  <definition>What a content model transition does to a counter: set it to one (entering the counted particle) or add one (repeating it)</definition>
+</term>

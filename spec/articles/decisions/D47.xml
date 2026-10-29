@@ -1,0 +1,6 @@
+<decision id="D47" status="accepted" source="docs/DECISIONS.md">
+  <title>Phase 1 public API headers</title>
+  <body>
+    <p><recorded date="2026-10-16"/> (Phase 1 planning; designed in packet <ref kind="packet" to="1.3"/>). Four new public headers, outside the substrate: <code>xml.h</code> (XML parser into any <code>sxml_tree_builder</code>), <code>processor.h</code> (the processor of <ref kind="decision" to="D30"/>, owning name pool, type registry and item heap, plus the host resolver interface for <code>fn:doc</code> and the implicit timezone and current dateTime), <code>xpath.h</code> (static context configuration, compile, evaluate) and <code>serialize.h</code> (adaptive method only in Phase 1; XML, JSON and text methods arrive with XQuery in Phase 3). The CLI and the QT4 driver use only these and the substrate headers. They are not frozen at the Phase 1 gate; they become stable with the first public release (Phase 2). The TypeScript package of <ref kind="decision" to="D10"/> also waits for Phase 2: Phase 1 runs the slice under Node.js WASI only.</p>
+  </body>
+</decision>

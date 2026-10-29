@@ -1,0 +1,20 @@
+<decision id="D62" status="accepted" source="docs/DECISIONS.md">
+  <title>Ranges, concatenations and lazy sequences (packet <ref kind="packet" to="1.8"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. <code>src/xdm_sequence.c</code> adds three sequence cell classes and <code>sxml_sequence_test_emptiness</code>; xdm.h and src/xdm.c are unchanged.</p>
+    <list>
+      <item>
+        <p><strong>Ranges</strong> store the two <code>int64_t</code> bounds; an empty range is the empty sequence and a one-integer range an inline item, so a range cell always has two or more items. Members are computed in <code>uint64_t</code>; every index below 2^64 is readable. Only the count of <code>INT64_MIN to INT64_MAX</code> (2^64 items) does not fit: <code>sxml_sequence_count</code> raises XPDY0130 (XPath 4.0, implementation-dependent limit), as for a concatenation whose total passes 2^64 - 1.</p>
+      </item>
+      <item>
+        <p><strong>Concatenations</strong> drop empty inputs, flatten nested concatenations and return a lone remaining part itself (retained). Part ends (items up to and including each part) are a cache filled in order as reads count the parts; <code>get_item</code> binary-searches the counted parts and asks each further part for the item before counting it, so a lazy part is read only as far as needed. Iteration uses <code>part_index</code>/<code>next_index_in_part</code>: O(1) per item.</p>
+      </item>
+      <item>
+        <p><strong>Lazy sequences</strong> keep produced items in a doubling array (room is made before calling the generator, so an item is never lost and an allocation failure is retryable). The generator always gets the cell's own error record; a failure is final: its error is copied into the cell (the kept error, <ref kind="decision" to="D41"/>) and raised again through the heap by every later read that needs an item past the last produced one; items before it stay readable. A non-error status (out of memory in the generator) is kept and returned the same way. The generator's state is released only when the cell is freed, as xdm.h says. A generator that reads its own lazy sequence gets <code>SXML_STATUS_INVALID_ARGUMENT</code> instead of reentry.</p>
+      </item>
+      <item>
+        <p><strong>Emptiness</strong> is <code>get_item(0)</code>: at most one item of a lazy sequence is produced, and its error is reported (<ref kind="decision" to="D43"/>).</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="nilled_marker" source="docs/GLOSSARY.md">
+  <name>nilled_marker</name>
+  <definition>The xs:QName <code>fn:null</code> that stands for a nilled element in an element map</definition>
+</term>

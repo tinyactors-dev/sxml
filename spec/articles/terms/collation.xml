@@ -1,0 +1,4 @@
+<term id="collation" source="docs/GLOSSARY.md">
+  <name>collation</name>
+  <definition>Rules for comparing strings, named by a URI; Phase 1 knows only the Unicode codepoint collation (F&amp;O 4.0, section 5.3)</definition>
+</term>

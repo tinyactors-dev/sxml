@@ -1,0 +1,4 @@
+<term id="serialization_parameter_text" source="docs/GLOSSARY.md">
+  <name>serialization_parameter_text</name>
+  <definition>A serialization parameter given as text, as an output declaration gives it: the parameter's local name and a value in the lexical form of a parameter document (<ref kind="decision" to="D146"/>)</definition>
+</term>

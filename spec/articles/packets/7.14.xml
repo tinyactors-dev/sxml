@@ -1,0 +1,81 @@
+<packet id="7.14" source="docs/tasks/phase-7.md">
+  <title>DTD processing: entities, defaults, validation (design and implementation, two packets; proposed, <ref kind="decision" to="D183"/>)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: XML 1.0 (Fifth Edition):</p>
+        <list>
+          <item>
+            <p>2.8 (the external subset and its conditional sections), 4.1 to 4.4 (parameter entities in the external subset, external parsed entities, text declarations), 3.2 to 3.4 (element type, attribute list and conditional section declarations), 3.3.2 (attribute defaults), 3.3.3 (attribute value normalization by declared type);</p>
+          </item>
+          <item>
+            <p>validity constraints (2.8 VC: Root Element Type, 3 VC: Element Valid, ID, IDREF, Entity Name, Notation, Enumeration, Fixed Attribute Default);</p>
+          </item>
+          <item>
+            <p>F&amp;O 4.0, fn:doc and fn:parse-xml's dtd-validation option (FODC0013 today);</p>
+          </item>
+          <item>
+            <p>XDM 4.0, 6 (the infoset mapping: is-id, unparsed entities, attribute types).</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Unlocks</strong>: QT4 infoset-dtd 32 XQ40 and 27 XP40 (fn-id, fn-idref), and the 7 FODC0013 failures; XT40 dtd 78 (id 42, unparsed-entity-uri 20, and others); xmlconf 265 cases with external entities (127 valid, 54 invalid, 66 not-wf, 18 error); and validity checking of the 175 invalid cases.</p>
+      </item>
+      <item>
+        <p><strong>Replaces</strong>: two places today. External entities are skipped in content and the external subset is not read (<code>src/xml.c</code>, <ref kind="decision" to="D81"/>). The dtd-validation option raises FODC0013 (<code>src/function_library_json.c</code>); supports-dtd-validation and supports-dtd-attribute-typing are false.</p>
+      </item>
+      <item>
+        <p><strong>7.14a Entities and defaults</strong>:</p>
+        <list>
+          <item>
+            <p>the external subset and parameter-entity references between declarations: a grammar change to <code>grammars/xml</code> (<ref kind="decision" to="D28"/> left the external subset without a grammar), with text declarations;</p>
+          </item>
+          <item>
+            <p>external entities read through the resolver (a new resource kind, EXTERNAL_ENTITY, form BYTES);</p>
+          </item>
+          <item>
+            <p>attribute defaults and normalization sent as builder events (as the XSD validator sends them, <ref kind="decision" to="D165"/>);</p>
+          </item>
+          <item>
+            <p>entity limits stay those of <code>xml.h</code>.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>7.14b Validation</strong>:</p>
+        <list>
+          <item>
+            <p>the DTD's declarations become schema components (content models as model groups; attribute types as simple types: ID, IDREF(S), ENTITY, NMTOKEN(S), NOTATION, enumerations);</p>
+          </item>
+          <item>
+            <p>one validator, the schema validator, checks the document as it is parsed; XML's validity constraints map to its errors, and the DTD's own codes are kept in the description;</p>
+          </item>
+          <item>
+            <p>no second content-model engine.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>7.14c Follow-ups</strong> (<ref kind="decision" to="D199"/>'s open items, <ref kind="decision" to="D210"/>): the QT4 driver claims infoset-dtd and dtd-validation-option and reads environment sources through the entity resolver, with supports-dtd-validation true; <code>sxml check --external-entities</code> and <code>--validate-dtd</code> (<ref kind="decision" to="D44"/>); XT40's dtd failures: XTDE1370/1380 codes, a parse-xml source in the driver (id-043), unparsed entities kept by xsl:copy and xsl:copy-of (unparsed-entity-05 to 08), an element base URI from external entities (base-uri-051, 051b; additive <code>tree.h</code>, <ref kind="decision" to="D99"/>); the clang-tidy finding in <code>src/processor.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Header</strong>: <code>xml.h</code>, additive (options for the external subset, external entities and DTD validation, and the validator hook), and <code>processor.h</code> (the resource kind), with records.</p>
+      </item>
+      <item>
+        <p><strong>After</strong>: 7.13 (both use <code>grammars/xml</code> and <code>src/xml.c</code>); 7.14b after 7.14a.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>grammars/xml</code>, <code>src/xml.c</code>, <code>src/xml_entity.c</code>, new <code>src/dtd.c</code>, <code>src/dtd_internal.h</code> and <code>src/schema_from_dtd.c</code>, the FODC0013 place, and <code>tests/xml_conformance_test.c</code> (the entity selection).</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: 30–60 KB.</p>
+      </item>
+      <item>
+        <p><strong>Gate</strong>: ≥ 95 % of the 265 xmlconf entity cases and of the 175 invalid cases checked as invalid; ≥ 90 % of the QT4 and XT40 dtd cases.</p>
+      </item>
+    </list>
+    <p><strong>Done</strong> 2026-10-19, 7.14a and 7.14b (<ref kind="decision" to="D199"/>): xmlconf entity cases 265 of 265 run as expected (valid 127/127, invalid 54/54, not-wf 66/66, 18 error), DTD validation of the invalid cases 173 of 173 standalone and 54 of 54 external; QT4 fn-doc and fn-parse-xml gained 11 XQ40 and 11 XP40; XT40 dtd 68 of 79 (86 %, under the gate), left to 7.14c.</p>
+    <p><strong>Done</strong> 2026-10-19, 7.14c (<ref kind="decision" to="D210"/>), gate met: XT40 dtd 76 of 79 (96 %; whole suite 8,944 to 8,952, none lost); QT4 infoset-dtd sets XQ40 fn-id 61 of 61, fn-idref 51 of 54, app-FunctxFunctx 627 of 627, XP40 fn-id 30, fn-idref 24 (all run cases but 3 schema-typed fn-idref ones); xmlconf unchanged.</p>
+  </body>
+</packet>

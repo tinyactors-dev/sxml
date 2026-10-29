@@ -1,0 +1,23 @@
+<log-entry id="open-questions-at-the-phase-4-gate-packet-4-18" source="docs/LOG.md">
+  <title>Open questions at the Phase 4 gate (packet <ref kind="packet" to="4.18"/>)</title>
+  <body>
+    <p>For the owner. Every gate box is ticked (<ref kind="decision" to="D169"/>).</p>
+    <list ordered="true">
+      <item>
+        <p><strong>0.2.0, XQuery and XSLT.</strong> 0.2.0 is still untagged; <code>CHANGELOG.md</code> lists XQuery and XSLT under "Unreleased". Tag 0.2.0 at the Phase 2 commit, or fold both into one release.</p>
+      </item>
+      <item>
+        <p><strong>WebAssembly budgets</strong> (Proposed, three items): the CLI with XQuery and XSLT against its 5,000,000 / 1,100,000 budget, <code>sxml.wasm</code> against 2,000,000 / 700,000, and <code>compileQuery()</code> and XSLT still not in the JavaScript package. Confirm the budgets, or ask for optional modules.</p>
+      </item>
+      <item>
+        <p><strong>XQuery's omit-xml-declaration default</strong> (Proposed, <ref kind="decision" to="D146"/>): no (write the declaration, as QT4 expects) or keep yes.</p>
+      </item>
+      <item>
+        <p><strong>Phase 7 plan</strong> (<ref kind="decision" to="D162"/>): <code>docs/tasks/phase-7.md</code> is due after this gate, one packet per delayed feature.</p>
+      </item>
+      <item>
+        <p><strong>CI</strong> (<ref kind="decision" to="D123"/>): still local only; macOS, Windows and MSVC have not been built since the Phase 0 gate (the CLI's new working-directory read is <code>_getcwd</code> there, untested).</p>
+      </item>
+    </list>
+  </body>
+</log-entry>

@@ -1,0 +1,21 @@
+<packet id="6.10" source="docs/tasks/phase-6.md">
+  <title>Device CI (write here; the owner enables it)</title>
+  <body>
+    <p>After <ref kind="packet" to="6.6"/> and <ref kind="packet" to="6.9"/>'s scripts. Owns new <code>.github/workflows/bindings.yml</code>, disabled as <ref kind="decision" to="D123"/> asks (<code>workflow_dispatch</code> only) until the owner turns CI back on. The jobs:</p>
+    <list>
+      <item>
+        <p>Linux: the <code>kotlin/jvm</code> and <code>swift/linux</code> ctests;</p>
+      </item>
+      <item>
+        <p>Android: <code>reactivecircus/android-emulator-runner</code> on an ubuntu runner with KVM, x86_64, API 24 and 35;</p>
+      </item>
+      <item>
+        <p>macOS: <code>xcodebuild test</code> on an iOS simulator, and <code>swift test</code>;</p>
+      </item>
+      <item>
+        <p>device farms (Firebase Test Lab for Android, a physical iOS device) as jobs that need secrets the owner adds.</p>
+      </item>
+    </list>
+    <p>The workflow is checked here with <code>actionlint</code>, if that can be fetched, and not run.</p>
+  </body>
+</packet>

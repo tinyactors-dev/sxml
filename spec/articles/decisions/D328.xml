@@ -1,0 +1,26 @@
+<decision id="D328" status="accepted" source="docs/DECISIONS.md">
+  <title>Union patterns keep one default priority, the lowest of their alternatives' (packet <ref kind="packet" to="fix-5"/>)</title>
+  <body>
+    <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D118"/>, <ref kind="decision" to="D144"/>, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D276"/>, <ref kind="decision" to="D327"/>. No source change and no public header; one new unit test case.</p>
+    <list>
+      <item>
+        <p><strong>Question</strong> (perf-15 found it): <code>&lt;xsl:template match="a[@n] | b"&gt;</code> with a later <code>&lt;xsl:template match="a"&gt;</code>, applied to <code>&lt;r&gt;&lt;a n="1"/&gt;&lt;a/&gt;&lt;/r&gt;</code>, prints "plain plain" in sxml; XSLT 3.0 (6.5 of 3.0) makes the union one rule per alternative, <code>a[@n]</code> at 0.5, and gives "union plain".</p>
+      </item>
+      <item>
+        <p><strong>What 4.0 says</strong> (the editor's draft of 28 October 2026, the same text as qtspecs master's <code>specifications/xslt-40/src/xslt.xml</code>): 6.4.1, "If the pattern is a UnionExprP then the default priority is the minimum of the default priorities of the alternatives", with a note calling it "a backwards incompatible change from XSLT 3.0 and earlier versions, which treated a template rule using a union pattern as equivalent to multiple template rules with different priorities"; a union rule is one rule, so next-match never runs it twice for an item both branches match. 6.4's changes list and the changes appendix (Issue 1770, PR 1772, 2025-02-11): "The default priority for a template rule using a union pattern has changed." 3.8.3 defines no difference for an effective version of 3.0, so <code>version="3.0"</code> gets the same answer. sxml already computes this (<ref kind="decision" to="D118"/>, <code>sxml_xslt_pattern_compute_default_priority</code>), and <ref kind="decision" to="D327"/>'s rule buckets put the one rule under both alternatives' kinds and names: the reproduction's "plain plain" is 4.0's answer. Nothing to change.</p>
+      </item>
+      <item>
+        <p><strong>Reading taken</strong> (<ref kind="decision" to="D208"/>): 6.4 also says "The default priority of a pattern containing one or more predicates is +0.5"; read literally of the whole pattern it would make <code>a[@n] | b</code> 0.5 (and "union plain"). sxml reads it of a pattern whose own form has predicates (a predicated step, <code>.[p]</code>), with the union rule applied first, as 6.4.1's note requires: <code>A | B</code> "always has the same or lower priority as either alternative", and a branch's priority is "lowered to that of the other branch".</p>
+      </item>
+      <item>
+        <p><strong>XT40</strong> (the cases covering PR 1772): next-match-021a, -023a and -039a pass; next-match-025a and -026a (<code>node()|element(x)</code> against <code>*:x</code>) and conflict-resolution-1901a fail, as <ref kind="decision" to="D276"/> recorded: their expectations need the union above its lowest alternative (0.5 would give all three), against 6.4.1's text; the draft decides (<ref kind="decision" to="D245"/>).</p>
+      </item>
+      <item>
+        <p><strong>Test</strong>: <code>union_priority</code> in <code>tests/evaluator_template_test.c</code>: the reproduction under versions 3.0 and 4.0 ("plain plain"), the union declared after <code>a</code> ("union plain": the tie at 0 goes to the later rule), <code>node() | element(a)</code> below <code>*:a</code>, and next-match from an item both branches match running the rule once. <code>rule_buckets</code>' comment cites 6.4.1.</p>
+      </item>
+      <item>
+        <p><strong>Verified</strong>: debug-gcc and release, evaluator_template 10 of 10; clang-tidy clean. XT40 whole, base e4d928c2e and the change built alike (preset <term name="release"/>, snapshots), run one after the other on the same machine with TZ, LANG and LC_ALL unset, from each snapshot's root, <code>sxml-xslt-test run --format=json</code> (default catalog): 12,185 passed, 235 failed, 98 wrong error, 1,349 not run (13,867 cases) in both, 0 outcomes differ case by case; no gains (no source change). 7.30's suite (<code>sxml-schematron-test run</code>): 463 passed, 3 failed, 43 implementation-defined, 5 not applicable, as before; VEFA (<code>run_vefa.py</code> with the official EN 16931 UBL XSLT over the Invoice and CreditNote unit tests) 1,133 of 1,133 checks.</p>
+      </item>
+    </list>
+  </body>
+</decision>

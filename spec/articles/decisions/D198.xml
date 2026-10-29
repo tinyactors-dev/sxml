@@ -1,0 +1,32 @@
+<decision id="D198" status="accepted" source="docs/DECISIONS.md">
+  <title>EXPath Binary (packet <ref kind="packet" to="7.8"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D51"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D163"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>. The EXPath Binary Module 4.0 is the optional feature <code>sxml_expath_binary_feature()</code> ("expath-binary").</p>
+    <list>
+      <item>
+        <p><strong>Public, additive</strong>: <code>include/sxml/processor.h</code> declares the feature function. <code>include/sxml/name.h</code> (frozen by <ref kind="decision" to="D99"/>) gains the well-known namespace <code>SXML_NAMESPACE_EXPATH_BINARY</code> = 13 (http://expath.org/ns/binary), so rows name their namespace as the fn, map and math rows do. <code>SXML_NAMESPACE_WELL_KNOWN_COUNT</code> is now 14: interned URIs start one later, which no caller sees.</p>
+      </item>
+      <item>
+        <p><strong>Rows</strong>: 33 functions in <code>src/function_library_binary.c</code>, whose view is not named as a part, so they are the definition's <code>library_functions</code> (<ref kind="decision" to="D191"/>). The kind's operations table is that same view. Every binary parameter is <code>(xs:hexBinary | xs:base64Binary)</code>; results are xs:base64Binary (1.2). The 4.0 types are kept: <code>xs:unsignedByte</code> for octets and the <code>enum(...)</code> octet order, so bad values are XPTY0004 as 4.0 says (appendix F), where the QT4 cases still expect bin:octet-out-of-range and bin:unknown-significance-order (26 wrong error codes, which count as passes).</p>
+      </item>
+      <item>
+        <p><strong>Errors</strong> are in the bin namespace, prefix bin, filled into the error record directly (static text, <ref kind="decision" to="D21"/>).</p>
+      </item>
+      <item>
+        <p><strong>Text</strong>: the decoder of fn:unparsed-text moves to <code>src/text_decoding.c</code> (<code>sxml_text_decoding_choose</code>, <code>sxml_text_decode</code>). Its encoding choice was already written after bin:infer-encoding, so bin:infer-encoding and bin:decode-string use it unchanged. bin:encode-string encodes UTF-8, UTF-16 (big-endian, no mark), UTF-16BE/LE, ISO-8859-1 and US-ASCII. Encoding names are classified by <code>sxml_xml_classify_encoding_name</code>.</p>
+      </item>
+      <item>
+        <p><strong>Integers</strong> beyond int64_t are packed and unpacked through their decimal text on base 10^9 limbs. bin:integer-too-large is raised past 4,096 octets (9,865 digits, inside the heap's decimal limit).</p>
+      </item>
+      <item>
+        <p><strong>System property</strong>: the value kind DYNAMIC_XQUERY becomes KNOWN_FUNCTION, with a function name and arity in the row. supports-dynamic-xquery asks for fn:load-xquery-module#1 and supports-binary-library for bin:hex#1, so the property follows the configuration.</p>
+      </item>
+      <item>
+        <p><strong>Hosts</strong>: the feature is in <code>sxml_all_optional_features()</code>, so the sxml command, the drivers and <code>sxml-full.wasm</code> have it, and <code>sxml.wasm</code> does not. The QT4 driver supports the dependency feature binary, and bin-* is no longer a non-goal set.</p>
+      </item>
+      <item>
+        <p><strong>Counts</strong> (release driver, XP40 and XQ40 alike): bin-* 0 to 646 of 646, of which 26 have the wrong error code; fn-serialize 200 to 224 (XP40) and 258 to 282 (XQ40), the canonical-JSON cases that call bin:unpack-double; fn-system-properties 23 to 23 (the -false case is now not run, the true case passes).</p>
+      </item>
+    </list>
+  </body>
+</decision>

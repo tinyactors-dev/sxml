@@ -1,0 +1,4 @@
+<term id="schematron_assertion" source="docs/GLOSSARY.md">
+  <name>schematron_assertion</name>
+  <definition>A sch:assert or sch:report: a test and a message; an assert fails when its test is false, a report succeeds when it is true (<ref kind="decision" to="D315"/>)</definition>
+</term>

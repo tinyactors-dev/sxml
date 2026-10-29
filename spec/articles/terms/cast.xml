@@ -1,0 +1,4 @@
+<term id="cast" source="docs/GLOSSARY.md">
+  <name>cast</name>
+  <definition>Converting an atomic item to a target type (F&amp;O 4.0, section 19 "Casting"): <code>cast as</code>, constructor functions, and the untypedAtomic casting and promotion of coercion</definition>
+</term>

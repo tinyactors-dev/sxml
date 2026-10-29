@@ -1,0 +1,4 @@
+<term id="suffix_state" source="docs/GLOSSARY.md">
+  <name>suffix_state</name>
+  <definition>The content model state that suffix open content moves to once the content may end: it accepts only the open content wildcard</definition>
+</term>

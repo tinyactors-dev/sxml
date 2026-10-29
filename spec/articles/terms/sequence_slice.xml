@@ -1,0 +1,4 @@
+<term id="sequence_slice" source="docs/GLOSSARY.md">
+  <name>sequence_slice</name>
+  <definition>A sequence cell for consecutive items of a vector, its <term name="slice_base"/>, that shares the base's items instead of copying them (<code>src/xdm_sequence.c</code>); reported as a vector. "Slice" alone names <code>fn:slice</code> and the QT4 test lists (<term name="xquery_slice"/>)</definition>
+</term>

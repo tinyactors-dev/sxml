@@ -1,0 +1,4 @@
+<term id="pre_descent_value" source="docs/GLOSSARY.md">
+  <name>pre_descent_value</name>
+  <definition>The value of an xslt accumulator just after the start event of a node (fn:accumulator-before)</definition>
+</term>

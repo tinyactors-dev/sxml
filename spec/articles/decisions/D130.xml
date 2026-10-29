@@ -1,0 +1,20 @@
+<decision id="D130" status="accepted" source="docs/DECISIONS.md">
+  <title>Elements to maps and back (packet <ref kind="packet" to="2.10"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. <code>src/function_library_element_map.c</code> (part <code>element_map</code>) implements fn:element-to-map-plan, fn:element-to-map and fn:map-to-element (F&amp;O 4.0, section 14.6).</p>
+    <list>
+      <item>
+        <p><strong>No recursion, no new machinery</strong> (<ref kind="decision" to="D71"/>). fn:element-to-map keeps one element slot per node of the subtree and walks the node indices twice: in document order it chooses layouts (a child is converted only when its parent's layout converts children, so a plan's <code>error</code> below an <code>xml</code> element is never reached), in reverse document order it builds values, whose children are then done. fn:element-to-map-plan walks the same ranges once. fn:map-to-element keeps a stack of frames and sends tree builder events to a new arena tree that destroys itself (<ref kind="decision" to="D40"/>, <ref kind="decision" to="D110"/>); the <code>xml</code> layout parses through the document loader and copies with <code>sxml_tree_builder_copy_node</code>. Grouping, duplicate keys and plan lookup use XDM maps (<ref kind="decision" to="D37"/>) as indices, nothing of its own.</p>
+      </item>
+      <item>
+        <p><strong>Untyped input only</strong>: sxml is not schema-aware, so the schema-based layouts (14.6.6) and the nilled forms on the element-to-map side never apply; xsi attributes are ignored, and plan analysis skips xsi:nil="true" elements as 14.6.4 says.</p>
+      </item>
+      <item>
+        <p><strong>Choices the text leaves open</strong>, following QT4: without a plan entry, attributes stay xs:untypedAtomic while simple element content gets the inferred type (14.6.3, <code>&lt;a x="1"&gt;2&lt;/a&gt;</code> gives <code>{"a":{"@x":"1", "#content":2}}</code>); a cast failure under a prescribed type is FOJS0010 even with a fallback; a leading zero after an optional sign makes a string. In fn:map-to-element, matching a value against a layout looks one level down only (list members against the child name's candidates by form), so it needs no recursion; elements in a namespace from <code>Q{uri}</code> keys use the default namespace, attributes made-up prefixes <code>ns0</code>, <code>ns1</code>, ...; prefixes of <code>p:local</code> keys resolve against the static namespaces of the innermost unit (as the static base URI, <ref kind="decision" to="D91"/>).</p>
+      </item>
+      <item>
+        <p>QT4: fn-element-to-map 179/181 run, fn-element-to-map-plan 20/20, fn-map-to-element 223/228. Open: element-to-map-101 and -507 assert <code>?a?…</code> on the context value, which the driver does not set (XPDY0002); map-to-element-014 and -021 expect XQuery's decoding of <code>&amp;amp;</code> in string literals under XP40; -120 and -121 need fn:serialize.</p>
+      </item>
+    </list>
+  </body>
+</decision>

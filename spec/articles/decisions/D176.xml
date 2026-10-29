@@ -1,0 +1,29 @@
+<decision id="D176" status="accepted" source="docs/DECISIONS.md">
+  <title>sxml validate (packet <ref kind="packet" to="5.10"/>)</title>
+  <body>
+    <p><recorded date="2026-10-18"/>. The command of the 5.10 design (<code>docs/tasks/phase-5.md</code>), in <code>apps/sxml/command_validate.c</code>; golden <code>apps/sxml/command_check.c</code>. Public API only (<code>schema.h</code>, <code>xml.h</code>).</p>
+    <list>
+      <item>
+        <p><strong>One pass per FILE</strong>: the XML parser feeds a validator whose result builder is the null builder; the processor and its local-file resolver are <code>query_command.h</code>'s (<code>SXML_PARAMETER_BINDING_NONE</code>). SCHEMA documents are TEXT documents with file URIs, so includes and imports resolve relative to the referring document; report locations are named back by <code>sxml_query_file_of_uri</code>, moved with <code>sxml_query_make_file_uri</code> from <code>command_transform.c</code> to <code>query_command.c</code> (one helper for both commands).</p>
+      </item>
+      <item>
+        <p><strong>Schema location hints are not followed, and there is no flag for them.</strong> The schema is what the command line names (<ref kind="decision" to="D44"/>: the command line fully determines behaviour; XSD 1.1 Part 1, 4.3.2 leaves hints to the processor; <code>schema.h</code> does not follow them either). A hinted document is named with another <code>--schema</code>. An explicit flag can be added later if the owner wants one; it would be a second, visible way to name schema documents, never a default.</p>
+      </item>
+      <item>
+        <p><strong>Required options in the CLI framework</strong>: <code>SXML_CLI_OPTION_AT_LEAST_ONCE</code> (<code>cli_command.h</code>) is a repeatable option the parser requires (<code>SXML_CLI_USAGE_ERROR_MISSING_OPTION</code>, "missing option '--schema'"); help shows <code>--schema=SCHEMA [--schema=SCHEMA]...</code> and "(required; repeatable)", so the usage line and docs/CLI.md agree.</p>
+      </item>
+      <item>
+        <p><strong>Reports</strong>: text errors go to standard error as they arrive; JSON keeps a file's errors in an arena until its object is written, so <term name="status"/> comes before <code>errors</code>. A description that starts with its constraint name (the facet errors of <ref kind="decision" to="D173"/>) is shown without it. In text, a file whose validity is not known gets one line on standard error. A FILE the parser rejects is reported as <code>sxml check</code> does; a failure of the validator (a limit, UNSUPPORTED_FEATURE of the 5.8 and 5.9 seams) is <code>failed</code>, exit 4.</p>
+      </item>
+      <item>
+        <p><strong>Deviation from the design</strong>: a document an include names that cannot be read is reported as src-resolve where its components are used, not src-include (<ref kind="decision" to="D173"/>, XSD 1.1 4.2.3 clause 2.4); docs/CLI.md says so.</p>
+      </item>
+      <item>
+        <p><strong>WebAssembly</strong>: the CLI module grows to 4,877,565 bytes stripped (1,126,567 gzipped); its ctest budget is raised to 5,500,000 / 1,250,000 and the growth reported under "Proposed".</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong>: the instance tests of <code>msData/particles</code> (ms-Particles_w3c, 514 run by both) give the same validity through <code>sxml validate</code> as through sxml-xsd-test, the 16 that need location hints with the hinted documents passed as <code>--schema</code>.</p>
+      </item>
+    </list>
+  </body>
+</decision>

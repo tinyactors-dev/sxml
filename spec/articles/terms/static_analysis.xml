@@ -1,0 +1,4 @@
+<term id="static_analysis" source="docs/GLOSSARY.md">
+  <name>static_analysis</name>
+  <definition>Resolving the names of an AST against the static context and reporting static errors (XPath 4.0, section 2.3.3.1)</definition>
+</term>

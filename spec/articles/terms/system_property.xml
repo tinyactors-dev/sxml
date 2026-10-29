@@ -1,0 +1,4 @@
+<term id="system_property" source="docs/GLOSSARY.md">
+  <name>system_property</name>
+  <definition>A processor capability or fact, under its F&amp;O 4.0 name (fn:system-properties, 17.1.9) and its XSLT 4.0 name (fn:system-property, 24.2.1); one table holds both</definition>
+</term>

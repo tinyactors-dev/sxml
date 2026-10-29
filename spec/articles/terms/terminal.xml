@@ -1,0 +1,4 @@
+<term id="terminal" source="docs/GLOSSARY.md">
+  <name>terminal</name>
+  <definition>A leaf of a concrete syntax tree: one token of the source text (XPath 4.0, A.3)</definition>
+</term>

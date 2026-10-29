@@ -1,0 +1,4 @@
+<term id="disable_output_escaping" source="docs/GLOSSARY.md">
+  <name>disable_output_escaping</name>
+  <definition>A text node's request to be serialized unescaped (XSLT 4.0, 26.1.8: the disable-output-escaping attribute of xsl:text and xsl:value-of), ignored in temporary output state; a builder and serializer property, not part of XDM (<code>disables_output_escaping</code>, <ref kind="decision" to="D188"/>)</definition>
+</term>

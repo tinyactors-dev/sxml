@@ -1,0 +1,4 @@
+<term id="serialization" source="docs/GLOSSARY.md">
+  <name>serialization</name>
+  <definition>Turning a sequence into bytes (Serialization 4.0)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="element_declaration" source="docs/GLOSSARY.md">
+  <name>element_declaration</name>
+  <definition>The schema component that governs elements of one name: type, nillable, abstract, value constraint, substitution group, identity constraints, type alternatives (XSD 1.1 Part 1, 3.3)</definition>
+</term>

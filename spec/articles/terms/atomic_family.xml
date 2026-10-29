@@ -1,0 +1,4 @@
+<term id="atomic_family" source="docs/GLOSSARY.md">
+  <name>atomic_family</name>
+  <definition>The atomic items that compare with one another: numbers, strings (with <code>xs:anyURI</code>, <code>xs:untypedAtomic</code>), binary, or one other primitive type</definition>
+</term>

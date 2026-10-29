@@ -1,0 +1,43 @@
+<decision id="D195" status="accepted" source="docs/DECISIONS.md">
+  <title>XML 1.1 input (packet <ref kind="packet" to="7.13"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D81"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>. Supersedes <ref kind="decision" to="D81"/>'s "version 1.1 documents are parsed by the 1.0 rules".</p>
+    <list>
+      <item>
+        <p><strong>Version</strong>: read from the XML declaration of the decoded text before parsing (<code>sxml_xml_read_declared_version</code>, the pseudo-attribute reader that already finds the encoding name); <code>1.1</code> is XML 1.1, every other version, <code>1.x</code> included, and no declaration are XML 1.0 (XML 1.1, 4.3.4; XML 1.0, 2.8).</p>
+      </item>
+      <item>
+        <p><strong>A pre-pass, not scanner state</strong> (deviation from 7.13's mechanism): for a 1.1 document the parser refuses a [2a] RestrictedChar written literally (XML 1.1, [1] document) and translates NEL, CR NEL and LINE SEPARATOR after the declaration into LF in its copy of the text (2.11; CR LINE SEPARATOR stays two line ends). Translation must come before tokenizing, because NEL is whitespace in 1.1 markup (a NEL between attributes), which the grammar would otherwise have to know per version in every whitespace and text token. The grammar stays the 1.0 grammar for 7.14; NEL and LINE SEPARATOR in the declaration stay and are an ERROR, as 2.11 requires. Cost: a copy only for 1.1 documents with such line ends; diagnostic positions after them are positions in the translated text (the byte offset can be off by one or two per translated character in UTF-8 input).</p>
+      </item>
+      <item>
+        <p><strong>Characters and names</strong>: character references may denote the C0 controls in 1.1 (4.1, <code>sxml_xml_codepoint_is_version_1_1_char</code>); U+0000 never. Names need nothing: XML 1.0 Fifth Edition has 1.1's name characters. <code>xmlns:p=""</code> undeclares p in 1.1 (<ref kind="decision" to="D81"/>, unchanged).</p>
+      </item>
+      <item>
+        <p><strong>Serialization</strong>: version 1.1 already wrote the C0 and C1 controls as references and undeclare-prefixes (packets <ref kind="packet" to="3.3"/>, <ref kind="packet" to="3.4"/>); unchanged.</p>
+      </item>
+      <item>
+        <p><strong>Drivers</strong>: QT4 claims <code>xml-version 1.1</code> (sxml reads both versions); XT40 supports <code>XML_1.1</code> and xml-version="1.1" sources, and keeps it among <ref kind="decision" to="D95"/>'s non-goals so the gate rates keep their meaning; assert-xml with xml-version="1.1" writes the result with version 1.1 and parses both texts as 1.1 documents (<code>tests/qt4/driver/assertion.c</code>, shared). XSD: the suite names no XML-1.1 test; the XmlVersions set's 1.1 documents now parse.</p>
+      </item>
+      <item>
+        <p><strong>Query texts stay XML 1.0</strong> (not this packet; Proposed below): XQuery's xgc: xml-version leaves the version of query lexing implementation-defined; sxml's is 1.0 (XQST0090 for <code>&amp;#1;</code>, XQST0085 for <code>xmlns:p=""</code> in a direct constructor, no NEL line ends, version 1.0 as the default serialization version). QT4's 1.1 cases that need 1.1 query lexing fail honestly; the 1.0 cases that need 1.0 lexing keep passing (the two sets conflict case by case).</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release drivers, before at 2459034 / after):</p>
+        <list>
+          <item>
+            <p>xmlconf XML 1.1 (<code>tests/xml_conformance_test.c</code> now selects the ibm and eduni xml-1.1 catalogs, eduni's NS 1.1 tests and the 1.1 erratum test, Fifth Edition rules for EDITION; 271 cases): 202 to 242 passed (valid 84/84, invalid 13/13, not-wf 140/169, error 5). All 29 failures are not-wf cases whose fault lies in an external entity or DTD, which sxml does not read (<ref kind="decision" to="D81"/>): 7.14's. Of the 242 cases that need none, all pass. The 1.0 selection is unchanged (601/175/948).</p>
+          </item>
+          <item>
+            <p>QT4 (the 15 test sets with xml-version dependencies): XQ40 2,497 to 2,798 passed, XP40 1,944 to 2,235; fn-graphemes 918 to 1,189 in both. Of XQ40's 313 1.1 cases 300 pass (95.8 %); the 13 that fail need 1.1 query lexing (above). No case that passed fails.</p>
+          </item>
+          <item>
+            <p>XT40: xml-version 0 to 40 of 42, namespace 206 to 221, catalog 5 to 7, xml-to-json 112 to 115, no case lost. Left: xml-version-007 (a value template), -016 and namespace-2606, -6202 (namespace undeclaration in XSLT, <code>src/xslt*</code>).</p>
+          </item>
+          <item>
+            <p>XSD saxon-XmlVersions 48 to 51 of 51.</p>
+          </item>
+        </list>
+      </item>
+    </list>
+  </body>
+</decision>

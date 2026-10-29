@@ -1,0 +1,4 @@
+<term id="field_index" source="docs/GLOSSARY.md">
+  <name>field_index</name>
+  <definition>Position of a field in a record type, from 0</definition>
+</term>

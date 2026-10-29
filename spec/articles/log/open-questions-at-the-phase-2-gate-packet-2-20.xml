@@ -1,0 +1,23 @@
+<log-entry id="open-questions-at-the-phase-2-gate-packet-2-20" source="docs/LOG.md">
+  <title>Open questions at the Phase 2 gate (packet <ref kind="packet" to="2.20"/>)</title>
+  <body>
+    <p>For the owner. Only the first is a gate box.</p>
+    <list ordered="true">
+      <item>
+        <p><strong>Tag 0.2.0.</strong> Every other box is ticked (<ref kind="decision" to="D151"/>). <code>CHANGELOG.md</code> says "unreleased"; <code>docs/RELEASE.md</code> lists the steps (tag, npm name <code>sxml-js</code> while <code>sxml</code> is taken on npm).</p>
+      </item>
+      <item>
+        <p><strong>WebAssembly budgets</strong> (Proposed): <code>sxml.wasm</code> is 1,865,152 bytes stripped and 647,721 gzipped against 2,000,000 / 700,000 (7 % left); the CLI with XQuery 3,480,962 / 780,893 against 3,700,000 / 820,000. Phases 3 and 4 are likely to pass them: confirm higher budgets, or ask for optional modules (XQuery and XSLT grammars, Unicode and collation tables).</p>
+      </item>
+      <item>
+        <p><strong>XQuery's omit-xml-declaration default</strong> (Proposed, <ref kind="decision" to="D146"/>): no (write the declaration, as QT4 expects) or keep yes.</p>
+      </item>
+      <item>
+        <p><strong>Provisional headers</strong> (<ref kind="decision" to="D151"/>): <code>xquery.h</code> and <code>xslt.h</code> may change in a minor release until the Phase 3 and 4 gates. Accept, or declare them stable now.</p>
+      </item>
+      <item>
+        <p><strong>CI</strong> (<ref kind="decision" to="D123"/>): still local only; macOS, Windows and MSVC have not been built since the Phase 0 gate.</p>
+      </item>
+    </list>
+  </body>
+</log-entry>

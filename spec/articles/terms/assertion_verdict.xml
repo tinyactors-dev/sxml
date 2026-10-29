@@ -1,0 +1,4 @@
+<term id="assertion_verdict" source="docs/GLOSSARY.md">
+  <name>assertion_verdict</name>
+  <definition>What one QT4 result assertion, or a combination of them (<code>all-of</code>, <code>any-of</code>, <code>not</code>), says about a test's result: pass, wrong error, fail or unsupported</definition>
+</term>

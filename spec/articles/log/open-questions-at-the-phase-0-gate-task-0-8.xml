@@ -1,0 +1,35 @@
+<log-entry id="open-questions-at-the-phase-0-gate-task-0-8" source="docs/LOG.md">
+  <title>Open questions at the Phase 0 gate (task 0.8)</title>
+  <body>
+    <p>Questions the review left open, for the owner or a later phase. None blocks Phase 1.</p>
+    <list ordered="true">
+      <item>
+        <p><strong>Thread-local scope for libmpdec (<ref kind="decision" to="D42"/>).</strong> It keeps heaps independent and leaves no state between calls, but it is the one thread-local in sxml. Accept it, or require the own-decimal fallback?</p>
+      </item>
+      <item>
+        <p><strong>Phase 0 time box (<ref kind="decision" to="D3"/>).</strong> Recorded by the review agent because the original <ref kind="decision" to="D3"/> was never written; the owner may want another length.</p>
+      </item>
+      <item>
+        <p><strong>Typed values (from 0.7).</strong> Kept as one optional <code>get_typed_value</code> operation in <code>sxml_tree_operations</code>. Phase 5 publishes a separate schema interface only if validated trees need more than typed values and the <code>is_id</code>/<code>is_idrefs</code>/<code>is_nilled</code> flags; "interfaces are not extended in place" applies.</p>
+      </item>
+      <item>
+        <p><strong>Inline decimals (from 0.7).</strong> Not added: integers that fit <code>int64_t</code> are inline already (<ref kind="decision" to="D36"/>); a scaled-integer fast path for short decimals can be a later cell format without an interface change.</p>
+      </item>
+      <item>
+        <p><strong>Sharing one parsed document between threads (<ref kind="decision" to="D35"/>).</strong> Still deferred; the likely shape is an immortal, frozen tree with a read-only name pool.</p>
+      </item>
+      <item>
+        <p><strong>Error record lifetime for host bindings (from 0.5).</strong> Kept as borrowed views (<ref kind="decision" to="D21"/>, <ref kind="decision" to="D41"/>); bindings copy what they keep.</p>
+      </item>
+      <item>
+        <p><strong>Strings without a copy.</strong> <code>sxml_atomic_item_make</code> copies text, so <code>fn:substring</code> and string concatenation cannot share or adopt a buffer. If profiling in Phase 2 shows the cost, add a constructor that adopts a heap buffer, with a decision record (the substrate is frozen at the Phase 1 gate).</p>
+      </item>
+      <item>
+        <p><strong>Schema-derived atomic types (Phase 5).</strong> The registry has no function to register them yet; it will be a new function, with a record.</p>
+      </item>
+      <item>
+        <p><strong>Document and collection resolution (<ref kind="decision" to="D30"/>).</strong> Designed with the dynamic context in Phase 1, outside the substrate headers.</p>
+      </item>
+    </list>
+  </body>
+</log-entry>

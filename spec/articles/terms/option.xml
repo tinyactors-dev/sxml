@@ -1,0 +1,4 @@
+<term id="option" source="docs/GLOSSARY.md">
+  <name>option</name>
+  <definition>A named command-line argument: <code>long_name</code> (<code>--format</code>), optional <code>short_name</code> (<code>-f</code>), <code>value_kind</code>, <code>value_name</code> (<code>FORMAT</code>), <code>choices</code>, <code>default_value</code></definition>
+</term>

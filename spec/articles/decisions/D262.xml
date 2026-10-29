@@ -1,0 +1,35 @@
+<decision id="D262" status="accepted" source="docs/DECISIONS.md">
+  <title>XSLT conformance sweep: dynamic captured groups and <ref kind="decision" to="D260"/>'s leftovers (packet 4.25)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D84"/>, <ref kind="decision" to="D153"/>, <ref kind="decision" to="D252"/>, <ref kind="decision" to="D260"/>, <ref kind="decision" to="D261"/>. Verified as <ref kind="decision" to="D181"/> asks: the debug and debug-gcc presets, the touched unit tests (xslt, xslt_key, xslt_package, xslt_lower<em>, xpath</em>, xquery<em>, cli), clang-tidy on the changed files, the call-cycle check, the book examples (<ref kind="decision" to="D257"/>), and the whole XT40 suite with the release driver after each change, case by case. *</em>XT40 12,157 to 12,187 passed (120 to 118 wrong error), 361 to 331 failed, 0 errors, no case lost.** Commits 205e937, 03cf112, f611f74, aaa0dbe, 7b9dd14, b4a4769, 926eae5.</p>
+    <list>
+      <item>
+        <p><strong>One mechanism for XSLT's dynamic context through template calls</strong>: a template function puts its tunnel parameters in scope as the context variables it received (scope entry Q{XSLT}context-variables, <code>sxml_xpath_lowerer_receive_context_variables</code>); a context variable not lexically in scope there is read from that map by name, the LOOKUP made only where it is read. An instruction that calls templates puts in its tunnel map what it changed (<code>sxml_xslt_lowering_pass_dynamic_context</code>, as 26.2.6's output-state mark): the captured groups that xsl:matching-substring and xsl:non-matching-substring set (Q{XSLT}regex-groups; 17.2.2: unaffected through apply-templates, call-template, apply-imports, next-match and attribute sets), and true as Q{XSLT}current-output-uri where the current output URI is cleared (26.3.1: it stays cleared in templates a stylesheet function calls). The XSLT namespace is reserved (XTSE0080), so no stylesheet parameter collides. <code>sxml_xpath_lowerer_clear_output_uri</code> (functions, globals, patterns) also hides the received map, and the inline patterns of xsl:for-each-group and xsl:number now clear the dynamic context (6.5).</p>
+      </item>
+      <item>
+        <p><strong>fn:apply-templates</strong> (6.9.3.1): a stylesheet function of the XSLT function table (<code>src/xslt_key.c</code>), per package, made on first use; its body dispatches the mode option over #current, #unnamed and the named modes the package declares with conditionals holding APPLY_TEMPLATES (no IR or evaluator change); XTDE0565 for another name, XPTY0004 for another string; tunnel parameters received pass on, overlaid by tunnel-params. <strong>Reading of the draft</strong>: a private mode of the package may be selected, as the suite does (fn-apply-templates-003, -004); the draft's note that modes must be public is read as for modes of used packages. The functions are lowered once more before the templates are released, so a global may call it. Left: the captured groups do not pass through fn:apply-templates (its call puts no tunnel entry).</p>
+      </item>
+      <item>
+        <p><strong>Absent-focus codes</strong>: fn:key#2 with an absent focus raises XTDE1270 through a parameter's <code>absent_focus_error_code</code> (<code>src/function_library_internal.h</code>, which perf-4 committed with its own change), fn:key#3 checks the root of $top (20.2.2). The draft gives XPDY0002 for unparsed-entity-uri and -public-id (20.2.3, 20.2.4), so error-1370a and -1380a stay.</p>
+      </item>
+      <item>
+        <p><strong>The draft decides, left as they are</strong> (<ref kind="decision" to="D245"/>): FORG0001 for a failed cast in a coercion (5.3 note on the coercion rules: a dynamic error; variable-0115, sequence-0132, as-1602, call-template-ext-2102); the draft has no XTTE0600 (error-0600a, function-40-903: XTTE0590 and XPTY0004); copy-5405, -5501, -5502 (11.9.1.2: a Sequence JNode's copy is a for-each of xsl:copy over its items, which for atomic items ignores the sequence constructor; the suite expects it evaluated); format-number-014, -035, -038 to -041 (XPath 4.0, 3.4.1: XPath 1.0 compatibility converts with fn:number only for xs:double, the argument is xs:numeric?); regex-syntax-0056, -0086, -0102 (F&amp;O 4.0 regexes are XSD 1.1's).</p>
+      </item>
+      <item>
+        <p><strong>Suite errors</strong>: function-40-012 ($node ! @code on an attribute is empty); copy-5405's assertion does not match its input; sf-snapshot-0201 to -0209 and on-non-empty-004, -005 expect results without the whitespace the input or the stylesheet makes, and the reference runner (runner/compare.xsl) compares text nodes exactly.</p>
+      </item>
+      <item>
+        <p><strong>Smaller fixes</strong>: XPath's own <code>declare default element namespace "##any"</code> and XSLT's xpath-default-namespace="##any" (5.1.2.1) reach name tests and element tests (<code>src/xpath_static.c</code>, <code>src/xslt_lower.c</code>); system-property and the *-available functions check NCNames (XTDE1390, XTDE1400, XTDE1440, XTDE1428); computed boolean attributes raise XTDE0030 for other values (2.3); an xsl:function default of current() is the caller's context value (10.3.2); XTSE3060 for template rules in xsl:override in a final or private mode, XTSE3050 for a rule outside xsl:override in an accepted mode, XTSE3070 compares xsl:context-item types (3.4.6, 3.4.5.3).</p>
+      </item>
+      <item>
+        <p><strong><ref kind="decision" to="D261"/>'s run-time QName cast</strong> (done): each XSLT static context binds the predeclared prefixes it does not declare (xs, xsi, fn, map, array, math, err) to no namespace, which undeclares them for run-time casts (<ref kind="decision" to="D84"/>) without telling the evaluator the language; statically nothing changes. CHANGELOG says so.</p>
+      </item>
+      <item>
+        <p><strong>Left, with causes</strong>: fn:stream-available on documents well-formed only to the first start tag (004, 005: needs a streamed open of the resource); casts to xs:QName and default collations of an inner element's static context (choose-0106, type-0150, collations-0121 to -0124): a CAST and a comparison read the function's module; 2.24's <code>add_cast_namespaces</code> (uncommitted in <code>src/xpath_lower.c</code> when this ended) records a cast's namespaces for XQuery and would fix the casts for XSLT too; fn:load-xquery-module is not in XSLT's function table (load-xquery-module-001 to -004; a library part serving XSLT would link XQuery into XSLT builds, <ref kind="decision" to="D189"/>); XTSE3155 is not in the draft; date-094e/f, -095e/f expect an implementation's year limit; and <ref kind="decision" to="D260"/>'s single cases (xml-version-007, namespace-2606, docbook-004, document-4066, fn-transform-27/-82e/-94).</p>
+      </item>
+      <item>
+        <p>The XT40 section of <code>docs/CONFORMANCE.md</code> was not regenerated: the file had another packet's uncommitted changes.</p>
+      </item>
+    </list>
+  </body>
+</decision>

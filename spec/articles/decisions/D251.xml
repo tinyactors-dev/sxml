@@ -1,0 +1,72 @@
+<decision id="D251" status="accepted" source="docs/DECISIONS.md">
+  <title>The Android build: two API 24 fallbacks, NDK presets, build and fetch scripts (packet <ref kind="packet" to="6.3"/>, paused)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D208"/>, <ref kind="decision" to="D238"/>, <ref kind="decision" to="D247"/>, <ref kind="decision" to="D250"/>. The work stopped at <ref kind="decision" to="D255"/>, after the code was committed (fb76abe). <code>bindings/kotlin/DESIGN.md</code> has the resume plan.</p>
+    <list>
+      <item>
+        <p><strong>Fallbacks</strong>, one branch each, next to the <code>_WIN32</code> branch:</p>
+        <list>
+          <item>
+            <p><code>src/allocator.c</code>: below <code>__ANDROID_API__</code> 28, the over-aligned case uses <code>posix_memalign</code> instead of <code>aligned_alloc</code>. <code>free</code> releases both.</p>
+          </item>
+          <item>
+            <p><code>src/processor.c</code>: one helper, <code>sxml_platform_utc_time</code>, reads the clock. Below API 29 it uses <code>clock_gettime(CLOCK_REALTIME)</code> instead of <code>timespec_get</code> (C17 7.27.2.5).</p>
+          </item>
+        </list>
+        <p>Both are checked by the undefined symbols of the arm64 object files. <code>docs/C_GUIDELINES.md</code> has the platform note.</p>
+      </item>
+      <item>
+        <p><strong>Presets</strong>: <code>android-arm64-v8a</code>, <code>android-armeabi-v7a</code>, <code>android-x86_64</code> and <code>android-x86</code>. The toolchain is <code>$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake</code>, at android-24, MinSizeRel. Each has a configure preset and a build preset, and no test preset: nothing runs.</p>
+      </item>
+      <item>
+        <p><strong><code>tools/build-android.sh [DIR] [ABI...]</code></strong> builds every target per ABI: the library, the unit tests (built, not run), the apps and <code>libsxml_kotlin.so</code>. It then:</p>
+        <list>
+          <item>
+            <p>fails when a 64-bit library's LOAD alignment is not 0x4000;</p>
+          </item>
+          <item>
+            <p>fails when the library exports anything but <code>Java_*</code> and <code>JNI_OnLoad</code>;</p>
+          </item>
+          <item>
+            <p>writes <code>DIR/sizes.txt</code>.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong><code>tools/fetch-binding-toolchains.sh DIR TOOL...</code></strong> fetches <code>ndk</code> (r28c), <code>android-sdk</code> (cmdline-tools 13114758, platform 35, build-tools 35.0.0), <code>kotlin</code> (2.2.20) and <code>swift</code> (6.2, Ubuntu 24.04). Each download is checked against a SHA-256 sum. Tested here: <code>ndk</code>, <code>android-sdk</code> and <code>kotlin</code>. The Swift sum was taken from a streamed download; the archive was not unpacked.</p>
+      </item>
+      <item>
+        <p><strong>Results</strong> (NDK r28c, <code>-Werror</code>, 568 targets per ABI). <code>libsxml_kotlin.so</code> sizes, stripped / gzip -9:</p>
+        <list>
+          <item>
+            <p>arm64-v8a 7,558,944 / 1,859,972, LOAD 0x4000;</p>
+          </item>
+          <item>
+            <p>armeabi-v7a 6,591,092 / 1,747,590, LOAD 0x1000;</p>
+          </item>
+          <item>
+            <p>x86_64 7,789,056 / 1,928,181, LOAD 0x4000;</p>
+          </item>
+          <item>
+            <p>x86 7,599,348 / 1,980,055, LOAD 0x1000.</p>
+          </item>
+        </list>
+        <p>These are within the proposed budget for arm64-v8a (9,000,000 / 2,400,000). They are below the probe's numbers, which measured <code>libsxml.so</code> with the JavaScript shim. Needed libraries: libc, libm and libdl.</p>
+      </item>
+      <item>
+        <p><strong>Not done here: devices.</strong> There is no <code>/dev/kvm</code>, and ARM images do not run on x86 hosts. Emulator and device runs need the owner's machine or CI with KVM (6.6, 6.10).</p>
+      </item>
+      <item>
+        <p><strong>Open</strong>:</p>
+        <list>
+          <item>
+            <p><ref kind="decision" to="D238"/>'s ctest <code>android/build</code> has no owner (proposed: 6.6).</p>
+          </item>
+          <item>
+            <p><code>SXML_BUILD_KOTLIN</code>, named in 6.6's text, does not exist. <code>sxml_kotlin</code> is built whenever <code>ANDROID</code> is set.</p>
+          </item>
+        </list>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,49 @@
+<decision id="D323" status="accepted" source="docs/DECISIONS.md">
+  <title>Schematron implemented: what 7.28 built and the readings it took (packet <ref kind="packet" to="7.28"/>)</title>
+  <body>
+    <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D313"/>, <ref kind="decision" to="D315"/> (revised and accepted), <ref kind="decision" to="D317"/>, <ref kind="decision" to="D318"/> and <ref kind="decision" to="D320"/>. Implements <code>include/sxml/schematron.h</code> as <ref kind="decision" to="D315"/> designs it; no public header changes beyond <ref kind="decision" to="D320"/>'s.</p>
+    <list>
+      <item>
+        <p><strong>Whom it serves</strong>: the embedder and the user of the sxml command, who validate documents against Schematron rules (EN 16931, XRechnung, their own) with both places of each finding. <strong>Pays</strong>: about 9,500 lines of library C (<code>src/schematron*</code>), a driver, a CLI option set, five host-shim entry points.</p>
+      </item>
+      <item>
+        <p><strong>What was built</strong>: reading (documents, <code>sch:include</code>, <code>sch:extends</code> href and rule, libraries, Annex A's grammar and Annex B's constraints, every error to the compile report sink, the query binding), the placeholder scan with expansion segments, the stylesheet AST (one mode per active pattern, groups, visit-each, phases with from, when and <code>#ANY</code>, expression rule contexts, dynamic flag, role and severity, variables and their scopes), compile, describe, validate, SVRL. <code>sxml validate --schematron</code> (<ref kind="decision" to="D315"/> "The CLI"); the host shim's <code>sxml_host_schematron_*</code> and <code>sxml_host_compile_reports_of</code>, the package's <code>Processor.compileSchematron</code> and <code>Schematron.validate</code>, and <code>compileStylesheet</code> throwing a <code>SchemaError</code> with every error (<ref kind="decision" to="D320"/>).</p>
+      </item>
+      <item>
+        <p><strong>Readings and choices made on the way</strong> (none changes the header):</p>
+        <list ordered="true">
+          <item>
+            <p><em>Pattern variables are in scope in their pattern only</em> (3.23, 5.4.7): every <code>let</code> of a compiled pattern is a global under a synthesized name; the pattern's expressions reach it as a placeholder is replaced (the rename table follows the instance and schema parameter tables in the one scan), its templates through a local binding of the written name; the <code>documents</code> attribute sees none of them (5.4.12). SVRL and reports show the text as written.</p>
+          </item>
+          <item>
+            <p><em>Errors of the grammar and of the expressions in one compile</em>: with a report sink, building runs after reading errors and reports the expressions' syntax errors too; the XSLT compile then does not run (its static analysis needs a correct schema).</p>
+          </item>
+          <item>
+            <p><em>An include where the grammar has none</em> (Annex A, <code>inclusion</code>; in <code>rules</code>, <code>properties</code>) and an <code>ns</code> of a library that <code>extends href</code> inserts are syntax errors; an abstract rule with <code>visit-each</code> too (Annex A).</p>
+          </item>
+          <item>
+            <p><em><code>name path</code> selecting more than one item</em> raises XPTY0004, as <code>fn:node-name</code> would (Annexes H, J).</p>
+          </item>
+          <item>
+            <p><em>An expression rule context is typed <code>node()*</code></em>: a context such as <code>count(item)</code> fails at validation (XTTE0570) instead of matching nothing.</p>
+          </item>
+          <item>
+            <p><em>A validation of a document node uses the compiled unit</em>: the default initial match selection, not a given one, which lowered the stylesheet once per validation (EN 16931's 1,131 unit tests: 281 s before, 9.4 s after).</p>
+          </item>
+          <item>
+            <p><em>Documents through a byte reader</em> (<ref kind="decision" to="D233"/>, the sxml command's resolver) are read whole, then parsed.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Deviations</strong> of 7.30's suite (the driver's list, <code>tests/schematron/driver/deviations.txt</code>): <code>edition-other-value</code> (<ref kind="decision" to="D315"/> 8b); <code>binding-xpath2-no-maps</code> (<ref kind="decision" to="D315"/> "Query bindings": xpath2 is read by the 4.0 front end); <code>error-context-is-expression</code> (<ref kind="decision" to="D315"/> 3a as amended: a context that is an expression is wrapped under every binding, so the error is dynamic). One suite case changed, a 2020 case: <code>abstract-in-phase</code> gave its phase the id of its pattern instance, which Annex A's <code>xsd:ID</code> forbids; the phase is now <code>tables-phase</code>, the expected findings unchanged.</p>
+      </item>
+      <item>
+        <p><strong>Evidence</strong>: suite 463 of 463 applicable normative cases, 3 deviations, 43 implementation-defined, 5 refused bindings (xquery*); <code>schematron_test</code> (placeholders, errors with places, bindings, parameters, both locations, 2025 constructs, SVRL, every allocation failure); EN 16931 UBL 1,133 of 1,133 checks from the <code>.sch</code> sources (ctest <code>schematron/en16931-ubl</code>); compile of <code>EN16931-UBL-validation.sch</code> 0.53 to 0.59 s in a release build within the default step bound, peak 79 MB for compile and all 1,131 tests, against SchXslt 1.10.1 on sxml 280 s (10.5 s on Saxon, <ref kind="decision" to="D313"/>); differential against SchXslt (<code>tests/schematron/driver/ differential.py</code>): EN 16931 UBL over 255 instances, EN 16931 CII, XRechnung UBL and CII (patched as under "Proposed") over 128, 226 and 128 instances: findings (id, kind, location) and fired-rule contexts identical once contexts are whitespace-normalized (SchXslt writes a context as written, sxml stripped, 5.3). CLI tests for text, JSON, SVRL, includes, an EN 16931 invoice with its line, exit statuses 0 to 4; host-shim tests natively. The JavaScript package was not built (no WASI SDK); its additions typecheck.</p>
+      </item>
+      <item>
+        <p><strong>Open</strong>: the EN 16931 CII unit tests and XRechnung's rule sets need the owner's decision ("Proposed"); with <code>--schema</code>, findings over the validated copy have paths, not lines (the copy keeps no locations); a dynamic error in an expression rule context names no place.</p>
+      </item>
+    </list>
+  </body>
+</decision>

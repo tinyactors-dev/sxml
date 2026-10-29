@@ -1,0 +1,4 @@
+<term id="streamed_template_rule" source="docs/GLOSSARY.md">
+  <name>streamed_template_rule</name>
+  <definition>A template rule of a streamed mode whose motionless parameters and body read its node's content only through one stream point, so it runs on the node's shallow window (<ref kind="decision" to="D228"/>)</definition>
+</term>

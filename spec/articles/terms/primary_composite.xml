@@ -1,0 +1,4 @@
+<term id="primary_composite" source="docs/GLOSSARY.md">
+  <name>primary_composite</name>
+  <definition>A codepoint with a canonical decomposition of two codepoints that is not Full_Composition_Exclusion; canonical composition joins such pairs (UAX #15)</definition>
+</term>

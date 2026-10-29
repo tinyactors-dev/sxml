@@ -1,0 +1,26 @@
+<decision id="D116" status="accepted" source="docs/DECISIONS.md">
+  <title>Collations and comparison options (packet <ref kind="packet" to="2.13"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. Completes <ref kind="decision" to="D97"/>'s collations in <code>src/collation.c</code> (<code>src/collation_internal.h</code>), used through one resolver.</p>
+    <list>
+      <item>
+        <p><strong>Four collations</strong>: codepoint, HTML ASCII case-insensitive, and also the Unicode case-insensitive collation (F&amp;O 4.0, section 5.2.5, which every processor must recognize; <ref kind="decision" to="D97"/> predates it), and UCA URIs with fallback. fallback=no, and a fallback value other than yes/no, is not supported (FOCH0002); unknown keywords and values are ignored, the last value of a keyword wins, <code>maxVariable</code>, <code>caseFirst</code> and <code>caseLevel</code> also in their <code>max-variable</code> spellings.</p>
+      </item>
+      <item>
+        <p><strong>UCA fallback</strong> (glossary <term name="uca_fallback"/>): every codepoint's full compatibility decomposition gives collation elements: a base character primary = its lower-case codepoint + 1 (codepoint order without case), secondary common, tertiary 1/2 for lower/upper (swapped by caseFirst= upper) + 2 for a compatibility variant; a combining mark (combining class &gt; 0) only secondary = 2 + codepoint. Variable characters (whitespace, then P, Sm/Sk/So, Sc up to maxVariable) are shifted to a quaternary weight or blanked. Levels: primary, secondary (backwards reverses it), case (caseLevel), tertiary, quaternary (shifted only), identical (codepoints). lang, version, normalization, numeric and reorder are ignored. QT4 fn-collation, misc-UCACollation and fn-compare pass with it; the tables of advanced-uca-fallback stay out (<ref kind="decision" to="D97"/>).</p>
+      </item>
+      <item>
+        <p><strong>Keys and matching</strong>: a key lists each compared level's nonzero weights in three bytes, levels separated by three zero bytes, so keys compare as bytes (<code>fn:collation-key</code> returns them as xs:base64Binary) and strings compare by keys. Substring matching (contains, starts-with, ends-with, substring-before/-after/-before-last/-after-last) compares collation units and accepts matches at codepoint boundaries only; the codepoint collation stays a byte search. distinct-values, duplicate-values, all-equal and all-different hash collation keys.</p>
+      </item>
+      <item>
+        <p><strong>One resolver</strong> (<code>sxml_function_library_find_collation</code> / <code>_resolve_collation</code>, <code>src/function_library.c</code>): empty is the default collation, which is the codepoint collation until the static context's <code>default_collation_uri</code> and <code>collation_bindings</code> reach the evaluator (Proposed); a relative URI resolves against the static base URI (none: FOCH0002); FOCH0002 only for URIs sxml does not support. Bodies outside the string, sequence and deep-equal parts keep <code>sxml_function_library_check_collation</code>, which now also raises FOCH0002 for supported collations other than codepoint (Proposed: <code>sxml_function_library_compare_collated</code>).</p>
+      </item>
+      <item>
+        <p><strong><code>sxml_collation_is_supported</code></strong> (<ref kind="decision" to="D104"/>) is defined in <code>src/collation.c</code>, not <code>src/xpath.c</code>: the lookup lives there and 2.12 has not run; 2.12 must not define it again. The QT4 driver's collation check calls it; its dependency table now also lists unicode-normalization-form FULLY-NORMALIZED (accepting 2.4's proposal).</p>
+      </item>
+      <item>
+        <p><strong>fn:deep-equal 4.0</strong> (<code>src/function_library_deep_equal.c</code>): every option. A resumable body (<ref kind="decision" to="D75"/>) for <code>items-equal</code> (asked before each item pair, attributes and single text nodes included; a leaf entry stays for array:index-of). "ordered": false and <code>unordered-elements</code> are unordered cursors on the explicit stack: each unit tries the unmatched candidates, a difference inside a trial truncates the stack to the cursor and tries the next (first fit). Function items: same item, or same body, arity, name and signature with deep-equal captured values; separately written inline functions are not compared for equivalence (Proposed). Without schemas typed-values and type-variety change nothing; debug writes nothing; options are coerced (a node or xs:untypedAtomic for a boolean).</p>
+      </item>
+    </list>
+  </body>
+</decision>

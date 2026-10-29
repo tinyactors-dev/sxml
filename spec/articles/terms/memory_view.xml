@@ -1,0 +1,4 @@
+<term id="memory_view" source="docs/GLOSSARY.md">
+  <name>memory_view</name>
+  <definition>A writable pointer plus <term name="byte_count"/></definition>
+</term>

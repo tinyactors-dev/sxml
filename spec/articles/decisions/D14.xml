@@ -1,0 +1,26 @@
+<decision id="D14" status="accepted" source="docs/DECISIONS.md">
+  <title>Build layout and presets</title>
+  <body>
+    <p><recorded date="2026-10-16"/> (task 0.1). CMake 3.24+, Ninja. Presets: <code>debug</code> (Clang, ASan + UBSan), <code>debug-gcc</code>, <term name="release"/> (default compiler), <code>msvc</code> (Visual Studio 2022, Windows only), <code>wasm</code> (<code>cmake/wasi-sdk.cmake</code>, wrapping the SDK's <code>wasi-sdk-p1.cmake</code>; SDK from <code>WASI_SDK_PREFIX</code> or <code>/opt/wasi-sdk</code>; WASI SDK 34 in CI). Build trees go to <code>build/&lt;preset&gt;</code>.</p>
+    <list>
+      <item>
+        <p>One library target <code>sxml</code>, static by default; <code>-DSXML_BUILD_SHARED=ON</code> builds it shared. Public functions are marked <code>SXML_EXPORT</code> (<code>include/sxml/export.h</code>); project code has hidden visibility.</p>
+      </item>
+      <item>
+        <p><code>sxml_apply_project_flags(target)</code> applies C17 and the guideline flags (MSVC: <code>/W4 /WX</code>) to project targets only; <code>sxml_apply_third_party_flags</code> builds vendored and generated code as C11 with warnings off.</p>
+      </item>
+      <item>
+        <p>Sanitizers (<code>SXML_ENABLE_SANITIZERS</code>) apply to every target, third-party included, so instrumentation sees all memory accesses.</p>
+      </item>
+      <item>
+        <p>Each public header is compiled alone, twice included, by the <code>sxml_header_check</code> target (self-containment and include guard).</p>
+      </item>
+      <item>
+        <p>WASI test executables run under Node.js (<code>tools/run-wasi.mjs</code>, set as <code>CMAKE_CROSSCOMPILING_EMULATOR</code>), so <code>ctest --preset wasm</code> runs the tests.</p>
+      </item>
+      <item>
+        <p><code>sxml_version_text</code> returns a NUL-terminated string: an external boundary.</p>
+      </item>
+    </list>
+  </body>
+</decision>

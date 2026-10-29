@@ -1,0 +1,4 @@
+<term id="array_node" source="docs/GLOSSARY.md">
+  <name>array_node</name>
+  <definition>A cell of an array's persistent balanced tree (<code>src/xdm_array.c</code>): a flat node, a run node or a branch node; an array item's cell is the root array node</definition>
+</term>

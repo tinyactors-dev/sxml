@@ -1,0 +1,20 @@
+<decision id="D137" status="accepted" source="docs/DECISIONS.md">
+  <title>Group by and window clauses (packet <ref kind="packet" to="3.8"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D55"/> and <ref kind="decision" to="D126"/> for these clauses. No IR kind added; contract in <code>src/xquery_flwor_internal.h</code>: lowering in <code>src/xquery_lower_window.c</code>, two internal native rows in <code>src/xquery_flwor.c</code> in no function table (a STATIC_CALL targets the row: <code>Q{}group-by#3</code>, <code>Q{}window#4</code>).</p>
+    <list>
+      <item>
+        <p><strong>group by</strong> stays a tuple stream clause. Its grouping specifications are bindings of the segment before it (a value is a let, 4.13.8's rewrite); after the last, each grouping variable is rebound to its grouping key: coerced to <code>xs:anyAtomicType?</code> (atomized, XPTY0004 for two items), and to a declared type again (so <code>as attribute(*)</code> is XPTY0004); XQST0094 when no variable of the FLWOR has the name. Tuple arrays before a group by pack every variable, constants too. The row takes the tuple arrays, the key member numbers and one collation URI per key ("" = default collation; XQST0076 for one <code>sxml_collation_find</code> does not know, relative URIs against the static base URI) and returns one tuple array per group, same layout, groups in the order of their first tuples: the first tuple's keys, every other member the concatenation of its values. Keys are equal when both empty or atomic-equal, strings under a non-codepoint collation by collation key, dates and times without timezone given the implicit one (fn:deep-equal); hashed as fn:distinct-values does.</p>
+      </item>
+      <item>
+        <p><strong>Window clauses</strong> are not tuple stream clauses (glossary): a clause of a segment like for (4.13.4.3), a MAP over the window arrays (glossary <term name="window_array"/>) the window row returns; the body binds the declared variables by LOOKUP ($w with its type) and lowers the rest of the segment. XQST0103 for two variables of one name. The row's kind bits: sliding, has end, only end. Without end clause a tumbling window ends before the next start; tumbling <code>only end</code> without an end item stops.</p>
+      </item>
+      <item>
+        <p><strong>Condition closures</strong> (glossary): one lowering procedure for window start and end conditions (4 and 8 parameters named by the window variables; the row takes the effective boolean value) and the while clause (<ref kind="decision" to="D126"/>: tuple unpacked from parameter 1; its body is now <code>conditional(C, true(), false())</code>, not <code>fn:boolean(C)</code>), so capture analysis and focus capture exist once; <code>sxml_xquery_unpack_tuple</code> is shared.</p>
+      </item>
+      <item>
+        <p>Measured (3.13's <code>--spec=XQ40</code>, release): prod-GroupByClause 35/40 (not run 2; group-020 is a prolog, group-025 a UCA tailoring, use-case-groupby-Q4 an evaluator SORT over an empty input: <code>sxml_sort_finish</code> allocates 0 bytes, INVALID_ARGUMENT); prod-WindowClause 125/158 (19 not run, the 14 errors are prologs). The FLWOR sets are as <ref kind="decision" to="D126"/> measured.</p>
+      </item>
+    </list>
+  </body>
+</decision>

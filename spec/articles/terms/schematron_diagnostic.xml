@@ -1,0 +1,4 @@
+<term id="schematron_diagnostic" source="docs/GLOSSARY.md">
+  <name>schematron_diagnostic</name>
+  <definition>A sch:diagnostic that an assertion names in its diagnostics attribute: more text, evaluated for the same context item, in each schematron report of it (<ref kind="decision" to="D315"/>)</definition>
+</term>

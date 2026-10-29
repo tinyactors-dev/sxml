@@ -1,0 +1,4 @@
+<term id="kept_error" source="docs/GLOSSARY.md">
+  <name>kept_error</name>
+  <definition>The copy of a generator's error that a lazy sequence keeps and raises again on every later read (<ref kind="decision" to="D41"/>)</definition>
+</term>

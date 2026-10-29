@@ -1,0 +1,4 @@
+<term id="captured_variable" source="docs/GLOSSARY.md">
+  <name>captured_variable</name>
+  <definition>An atom of the defining function whose value a function item made from an IR function keeps (its <term name="captured_value"/>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="compositor" source="docs/GLOSSARY.md">
+  <name>compositor</name>
+  <definition>How a model group combines its particles: sequence, choice or all</definition>
+</term>

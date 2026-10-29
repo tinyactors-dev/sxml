@@ -1,0 +1,26 @@
+<decision id="D112" status="accepted" source="docs/DECISIONS.md">
+  <title>The XSLT API (packet <ref kind="packet" to="4.0"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. <code>include/sxml/xslt.h</code> is new, header only, after <code>xquery.h</code> (<ref kind="decision" to="D106"/>); 4.15 implements it in <code>src/xslt.c</code>.</p>
+    <list>
+      <item>
+        <p><strong>Stylesheet</strong>: <code>sxml_xslt_stylesheet</code> (lifecycle quintet, like <code>sxml_xquery_query</code>) compiled from the principal module's bytes, or fetched through the resolver as an XSLT_MODULE (a URI reference) or an XSLT_PACKAGE (name and package-version), chosen by <code>sxml_xslt_principal_module_source</code>. Includes, imports and used packages always come from the resolver (XTSE0165, XTSE3000, XTSE0180). Static parameters are <code>sxml_variable_binding_view</code> values given at compile time (XTDE0050 is then a compile failure with DYNAMIC_ERROR). Of the shared static context only static_base_uri, the default collation and collation bindings are read; namespaces, variable declarations and decimal formats must be empty, since the stylesheet declares its own.</p>
+      </item>
+      <item>
+        <p><strong>Output definitions</strong>: <code>sxml_xslt_output_definition</code> = the <ref kind="decision" to="D106"/> parameters struct + <term name="build_tree"/> (a serialization flag) + <code>has_serialization_method</code> (false: method chosen from the raw result, XSLT 4.0 26.1.2, which serialize.h cannot express). Read by name with <code>sxml_xslt_stylesheet_get_output_definition</code> (0 = unnamed); XSLT's omit-xml-declaration default is filled in as NO, indent stays DEFAULT and means yes for html/xhtml when sxml serializes.</p>
+      </item>
+      <item>
+        <p><strong>Transformation</strong>: one call, <code>sxml_xslt_stylesheet_transform</code>, primes and invokes (one execution scope per call; a primed object for several invocations is left out). The request embeds the shared dynamic context: context value = global context item (one item or absent), variable bindings = stylesheet parameters, trace sink = xsl:message (terminating events end in XTMM9000/XTMM9001 or the given code, <ref kind="decision" to="D104"/>). <code>sxml_xslt_invocation_kind</code> APPLY_TEMPLATES (0; initial match selection defaulting to the global context item, initial mode 0 = default mode, <code>selects_unnamed_mode</code> for the spec's note), CALL_TEMPLATE (name 0 = xsl:initial-template, focus on the global context item), CALL_FUNCTION (arguments by position, arity = count). Template and tunnel parameters are two binding views. Fields are grouped by size (no padding).</p>
+      </item>
+      <item>
+        <p><strong>Delivery</strong>: <code>sxml_xslt_result_delivery</code> DEFAULT (by build-tree), RAW, TREE (sequence normalization, base URI = result URI), SERIALIZED (to an <code>sxml_output_stream</code>); the principal result is the call's output sequence (empty when serialized) and its URI the base output URI.</p>
+      </item>
+      <item>
+        <p><strong>Result documents</strong>: <code>sxml_xslt_result_document_handler</code> with <code>open</code> (request: href, absolute URI against the base output URI, effective output definition, processor; the handler fills a target: delivery and output stream) and <code>close</code> (URI, value, <code>is_abandoned</code>), called once per successful open; XTDE1490 is checked before open, a failing open (<ref kind="decision" to="D50"/> statuses) stops the transformation. The null handler evaluates and discards. Default implementation and test double: <code>sxml_xslt_result_document_collector</code> (quintet; keeps values or bytes by URI, <code>_get_result_document_count</code>, <code>_get_result_document</code>, <code>_clear</code>) for the 4.1 driver's assert-result-document and the WebAssembly host.</p>
+      </item>
+      <item>
+        <p>Left out, each a later field or function: a primed transformer for several invocations, a context item for the initial template other than the global context item, initial function arguments by name, the stylesheet's parameter list, xsl:message output other than the trace sink, warnings, host extension functions and instructions, schema awareness and streaming (<ref kind="decision" to="D97"/>).</p>
+      </item>
+    </list>
+  </body>
+</decision>

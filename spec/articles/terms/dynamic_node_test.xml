@@ -1,0 +1,4 @@
+<term id="dynamic_node_test" source="docs/GLOSSARY.md">
+  <name>dynamic_node_test</name>
+  <definition>A node test <code>{E}</code>: a node passes when its name, local name or ·jkey· is atomic-equal to an item of E's value (XPath 4.0, section 4.7.5)</definition>
+</term>

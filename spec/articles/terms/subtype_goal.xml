@@ -1,0 +1,4 @@
+<term id="subtype_goal" source="docs/GLOSSARY.md">
+  <name>subtype_goal</name>
+  <definition>One question in the and/or tree a subtype question is reduced to: an answer, an item or sequence type pair, or a conjunction or disjunction of sub-goals (<ref kind="decision" to="D58"/>)</definition>
+</term>

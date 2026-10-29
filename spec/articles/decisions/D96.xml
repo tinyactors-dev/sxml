@@ -1,0 +1,20 @@
+<decision id="D96" status="accepted" source="docs/DECISIONS.md">
+  <title>Phases 2 to 4 overlap</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. To reach working XQuery and XSLT sooner (<ref kind="decision" to="D11"/>), packets marked <strong>Early</strong> in <code>docs/tasks/phase-3.md</code> and <code>phase-4.md</code> may start once the Phase 1 gate has closed (the substrate freeze) and the packets in their "After" lists are committed, while earlier phases still run. All other packets of a phase wait for the previous phase's gate.</p>
+    <list>
+      <item>
+        <p>Ownership rules of <ref kind="decision" to="D45"/> hold across phases: packets that run at the same time never own the same file; a file named by packets of two phases belongs to whichever runs first, and the other waits.</p>
+      </item>
+      <item>
+        <p>Seams first: Phase 2 wave 0 makes library parts, evaluator parts for the reserved IR kinds and lowering parts register by glob (packets <ref kind="packet" to="2.0"/>, <ref kind="packet" to="2.1"/>), so XQuery and XSLT packets add files instead of editing the evaluator, the lowering machine or the processor's lists.</p>
+      </item>
+      <item>
+        <p>Gates stay sequential: the Phase 3 review needs the Phase 2 gate, and a phase's review counts only its own targets. Early packets do not move their phase's gate forward.</p>
+      </item>
+      <item>
+        <p><code>CLAUDE.md</code> names the current phase; at each gate the review names the next phase file and the Early packets that may run with it.</p>
+      </item>
+    </list>
+  </body>
+</decision>

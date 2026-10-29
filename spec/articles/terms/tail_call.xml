@@ -1,0 +1,4 @@
+<term id="tail_call" source="docs/GLOSSARY.md">
+  <name>tail_call</name>
+  <definition>A call whose value is the value of the function making it; the evaluator reuses that function's frame</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="conditional_inclusion" source="docs/GLOSSARY.md">
+  <name>conditional_inclusion</name>
+  <definition>Ignoring an element of a schema document with its attributes and descendants, as its vc: attributes say (vc:minVersion, vc:maxVersion, vc:typeAvailable, ...), before it is read (XSD 1.1 Part 1, 4.2.2)</definition>
+</term>

@@ -1,0 +1,6 @@
+<packet id="7.19" source="docs/tasks/phase-7.md">
+  <title>Phase 7 review (review)</title>
+  <body>
+    <p>After every packet the owner accepted. Owns the gate boxes. A separate agent (<ref kind="decision" to="D11"/>) runs the rubric and re-checks each "done when" and the size budgets. Open items go under "Proposed". <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D237"/>): the gate below, with whole release runs of the four suites; three gate boxes ticked by agent review, one open for 7.11's XT40 cases, the fuzzing box deferred to the owner's machine (<ref kind="decision" to="D181"/>). Fixed: an undefined pointer offset found by fuzzing (<code>src/xml_input.c</code>), the iXML driver's four error outcomes, EXPath File's four-parameter functions and its clang-tidy findings, Full Text's copy of the XML buffer, two stale record citations; added the fuzz targets <code>ixml_fuzz</code> and <code>full_text_fuzz</code>.</p>
+  </body>
+</packet>

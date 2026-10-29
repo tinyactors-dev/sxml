@@ -1,0 +1,4 @@
+<term id="sequence_normalizer" source="docs/GLOSSARY.md">
+  <name>sequence_normalizer</name>
+  <definition>Gives the children of the result tree one at a time (<code>normalized_event</code>: text or a node to copy), without building the tree</definition>
+</term>

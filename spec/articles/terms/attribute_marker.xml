@@ -1,0 +1,4 @@
+<term id="attribute_marker" source="docs/GLOSSARY.md">
+  <name>attribute_marker</name>
+  <definition>The string put before the key of an attribute in an element map (<code>@</code> by default)</definition>
+</term>

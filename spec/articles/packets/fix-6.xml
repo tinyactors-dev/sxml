@@ -1,0 +1,17 @@
+<packet id="fix-6" source="docs/tasks/phase-7.md">
+  <title>The book's memory example counts allocations differently (book, tests)</title>
+  <body>
+    <p>After <ref kind="decision" to="D257"/> (the book shows real output). <code>docs/book/src/c.md</code> shows <code>allocations: 195, still live: 0</code> for its memory example; agents in this session saw 197 (7.28, cli-4) and 196 (perf-17) on different commits, and the same on base commits without their changes, so the count has drifted with later packets and may also depend on the setup (allocator growth, a cache's first use, the environment).</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: first find out why the count is what it is and whether it is stable for one build (run the example many times, under the release and the debug-gcc builds, with and without TZ and LANG); if it varies within one build, find the cause and make the example deterministic or show only what is stable (a count that matters to the reader, <ref kind="decision" to="D257"/>); if it only drifted, update the book with <code>tools/check-book-examples.sh --update</code> and check that the text around it is still true.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>docs/book/src/c.md</code>, <code>docs/book/examples/c/</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: <code>tools/check-book-examples.sh</code> matches on <code>c.md</code> in the release build; the cause recorded in the LOG (a D-record only if a decision is made). <strong>Done</strong> 2026-10-28: the count is stable for one build (194 at HEAD, release and debug-gcc, any TZ, LANG and directory); it drifted with perf-5 (197), perf-12 (196) and perf-16 (194). The book shows 194; its prose no longer repeats the number.</p>
+      </item>
+    </list>
+  </body>
+</packet>

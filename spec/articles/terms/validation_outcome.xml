@@ -1,0 +1,4 @@
+<term id="validation_outcome" source="docs/GLOSSARY.md">
+  <name>validation_outcome</name>
+  <definition>What a schema validator reports once its tree has ended: the validity of the validation root and the count of errors</definition>
+</term>

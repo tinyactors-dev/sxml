@@ -1,0 +1,4 @@
+<term id="run_time_closure" source="docs/GLOSSARY.md">
+  <name>run_time_closure</name>
+  <definition>A function item that calls the function item it wraps at the place it was made: the IR function and expression of that place give the static context (its module) the callee reads, and a row that takes the caller's focus gets the focus kept there; made by named references to context-dependent functions and by fn:function-lookup (<ref kind="decision" to="D287"/>)</definition>
+</term>

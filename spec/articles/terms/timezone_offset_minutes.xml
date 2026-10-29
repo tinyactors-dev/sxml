@@ -1,0 +1,4 @@
+<term id="timezone_offset_minutes" source="docs/GLOSSARY.md">
+  <name>timezone_offset_minutes</name>
+  <definition>A timezone as minutes east of UTC, from -840 to 840</definition>
+</term>

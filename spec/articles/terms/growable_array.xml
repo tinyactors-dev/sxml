@@ -1,0 +1,4 @@
+<term id="growable_array" source="docs/GLOSSARY.md">
+  <name>growable_array</name>
+  <definition>An array in allocator memory that doubles its capacity when it must hold more, kept by its owner as elements, count and capacity and grown by the one helper <code>sxml_allocator_reserve_array</code> (<ref kind="decision" to="D249"/>)</definition>
+</term>

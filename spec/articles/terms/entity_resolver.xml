@@ -1,0 +1,4 @@
+<term id="entity_resolver" source="docs/GLOSSARY.md">
+  <name>entity_resolver</name>
+  <definition>The host's interface through which the XML parser retrieves external entities (<code>sxml_xml_entity_resolver</code>); the null resolver reads nothing outside the input</definition>
+</term>

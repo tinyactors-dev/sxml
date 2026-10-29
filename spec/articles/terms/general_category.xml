@@ -1,0 +1,4 @@
+<term id="general_category" source="docs/GLOSSARY.md">
+  <name>general_category</name>
+  <definition>The Unicode general category of a codepoint (Lu, Nd, ...), what a category escape <code>\p{..}</code> tests (XSD 1.1 Part 2, appendix G)</definition>
+</term>

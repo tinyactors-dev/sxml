@@ -1,0 +1,4 @@
+<term id="is_derived_from" source="docs/GLOSSARY.md">
+  <name>is_derived_from</name>
+  <definition>Schema type derivation: the base type chain reaches the other type (XSD 1.1 Part 1, section 3.16.6)</definition>
+</term>

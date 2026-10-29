@@ -1,0 +1,4 @@
+<term id="output_declaration" source="docs/GLOSSARY.md">
+  <name>output_declaration</name>
+  <definition>An XQuery option declaration in the serialization namespace (<code>declare option output:indent "yes"</code>, XQuery 4.0, section 5.22)</definition>
+</term>

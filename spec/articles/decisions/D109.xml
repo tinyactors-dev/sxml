@@ -1,0 +1,26 @@
+<decision id="D109" status="accepted" source="docs/DECISIONS.md">
+  <title>try/catch in the evaluator (packet <ref kind="packet" to="3.6"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D101"/> for TRY_CATCH (<code>src/evaluator_try.c</code>; XQuery 4.0, section 4.20).</p>
+    <list>
+      <item>
+        <p><strong>One catching task</strong> per TRY_CATCH, phases start, body, handler, finally. The try clause's value is read completely before it counts, so a lazy sequence's error is caught by the try that made it. Catch clauses are tried in order, the first whose name tests match wins (<code>*</code>, EQName, <code>p:*</code>/<code>Q{uri}*</code>, <code>*:local</code>); an error with no code in the record counts as err:FOER0000.</p>
+      </item>
+      <item>
+        <p><strong>Error details</strong> (glossary <term name="error_details"/>): a clause's <term name="error_details"/> slot is bound to <code>$err:map</code>, entries keyed by xs:string in table order: "code" (xs:QName, prefix kept only with a namespace), "description", "value", "module", "line-number", "column-number"; none for an empty value. <code>$err:stack-trace</code> and <code>$err:additional</code> are always <code>()</code> in sxml, so they have no entry. Lowering (3.7) reads each <code>$err:</code> variable as <code>map:get($slot, "local-name")</code> and <code>$err:map</code> is the slot. They are copied out of the record before anything else runs (<ref kind="decision" to="D41"/>).</p>
+      </item>
+      <item>
+        <p><strong>Own error record</strong>: when the caller passed none, the outermost try points the context's record at one in its task state while it runs and puts NULL back when it ends or unwinds; inner tries use it. Uncaught errors are still reported nowhere. Done inside the part because <code>src/evaluator.c</code> belongs to 2.6 in this wave; the machine may later keep its own record instead, with no visible change.</p>
+      </item>
+      <item>
+        <p><strong>finally</strong>: an error of the try clause that no clause matches, and an error of the catch clause, are caught only to run the finally clause; their details are kept (glossary <term name="pending_error"/>) and raised again through the heap when it succeeds (the finally clause may raise and catch errors on the same heap). An error of the finally clause replaces them; a non-empty value is XQTY0153 (type error). Limits, memory and invalid arguments run no catch or finally clause.</p>
+      </item>
+      <item>
+        <p>XPath 4.0 has no try/catch (checked in the 4.0 draft): nothing for 2.5. XSLT's xsl:try (4.x) can lower to the same kind.</p>
+      </item>
+      <item>
+        <p><code>tests/evaluator_machine_test.c</code> no longer expects UNSUPPORTED_FEATURE for TRY_CATCH (list <code>evaluated_kinds</code>, where 3.5 adds the constructors).</p>
+      </item>
+    </list>
+  </body>
+</decision>

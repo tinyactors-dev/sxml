@@ -1,0 +1,29 @@
+<decision id="D128" status="accepted" source="docs/DECISIONS.md">
+  <title>The HTML, text, JSON and CSV methods; fn:serialize (packet <ref kind="packet" to="3.4"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. Every method runs on the 3.3 pipeline (D120b); no second writer or escaper was added.</p>
+    <list>
+      <item>
+        <p><strong>Escape styles</strong>: <code>sxml_escape_style</code> grows HTML, NONE (text), JSON and CSV; a method picks one in <code>sxml_serializer_resolve_pipeline</code>, so character maps, normalization, line endings and the encoding apply to all of them in one place. A new character context RAW_TEXT (glossary <term name="raw_text"/>) writes mapped, normalized, unescaped text (HTML script and style; SERE0008 for an unencodable character). Character maps now apply to every method but adaptive and the canonical forms (section 12).</p>
+      </item>
+      <item>
+        <p><strong>HTML</strong> is a mode of the XML node writer in <code>src/serialize_xml.c</code> (<code>is_html</code>, with <code>has_html_rules</code> for what XHTML and HTML share); <code>src/serialize_html.c</code> holds what HTML adds: void and HTML 4 empty elements (one table, also used by XHTML), boolean attributes (the HTML 4.01 and HTML5 lists), raw text elements, processing instructions (<code>&lt;?t d&gt;</code> before HTML5, SERE0015 for "&gt;"; <code>&lt;!--?t d?--&gt;</code> with HTML5). Requested version: html-version, else version, else 5.0. No-namespace elements are HTML elements (unknown names inline, as span); with HTML5 also XHTML-namespace ones (unprefixed, prefix normalization of D120b); others are XML islands. Doctype <code>&lt;!DOCTYPE html ...&gt;</code>. SERE0014 for controls before HTML5.</p>
+      </item>
+      <item>
+        <p><strong>Text and CSV</strong> (<code>src/serialize_text.c</code>): text writes the string value of the result tree with escape style NONE. CSV takes a map (rows, columns) or a sequence of arrays; members atomize (one-member arrays unwrapped, nodes by string value), else SERE0025; a field is quoted when it, or a replacement of one of its mapped characters, holds the separator, the quote or a line end; separator equal to the quote or a line end is SEPM0016.</p>
+      </item>
+      <item>
+        <p><strong>JSON</strong> (<code>src/serialize_json.c</code>): frames on a heap stack (<ref kind="decision" to="D71"/>); nodes by a sub-serialization (<code>sxml_serializer_write_node_as_string</code>, which calls only the XML and text methods, so no cycle); doubles by their xs:double cast text, NaN null, infinities 1e9999 (SERE0020 when canonical); canonical: keys sorted by UTF-16 units (heapsort), numbers as ECMAScript from the shortest digits; SERE0022 checked by sorting only when some key is not string-like; indentation off with json-lines.</p>
+      </item>
+      <item>
+        <p><strong>SERE0006</strong> (left by D120b): XML and XHTML with version 1.0 (the default) raise it for C0 controls in text and attributes; 1.1 writes references. <strong>SERE0003</strong> for comments with "--" or a final "-" and PIs with "?&gt;" (XML, XHTML). A character map may map any XML 1.1 Char (U+0001 included; serialize.h says XML 1.0's production, D120b already writes the 1.1 repertoire).</p>
+      </item>
+      <item>
+        <p><strong>Parameter reader</strong> (<code>src/serialize_parameters.c</code>): both forms decode each parameter into one value and assign it the same way. Two arenas: a read fills the spare one and swaps on success. Map: unknown string keys are XPTY0004 (F&amp;O 4.0 option conventions, QT4 serialize-xml-107-40, deviating from serialize.h's "ignored"), a QName key in no namespace XPTY0004, in a namespace ignored; nodes atomize for character map values. Document: unknown output:* children, attributes other than value (character-map: character, map-string), non-whitespace text and children in no namespace are SEPM0017; two children with one name SEPM0019; element lists use the default namespace (the spec's example), method names do not. fn:serialize (<code>src/function_library_serialize.c</code>) skips the encoding phase: UTF-16 is written as UTF-8, ISO-8859-1 bytes decoded, no byte order mark.</p>
+      </item>
+      <item>
+        <p>Not done: SERE0005 (names of the XML version), the text of nodes inside the JSON method beyond the four node methods, records omitting empty entries in JSON (no record marker on maps).</p>
+      </item>
+    </list>
+  </body>
+</decision>

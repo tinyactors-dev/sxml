@@ -1,0 +1,6 @@
+<packet id="6.1" source="docs/tasks/phase-6.md">
+  <title>Phase 6 plan (design)</title>
+  <body>
+    <p><status value="done" date="2026-10-20"/> (<ref kind="decision" to="D238"/>): this file, the probe above, glossary terms <term name="host_shim"/>, <term name="jni_glue"/>, <term name="native_request"/>, <term name="kotlin_package"/>, <term name="swift_package"/>, <term name="device_test"/>, and the PLAN.md row.</p>
+  </body>
+</packet>

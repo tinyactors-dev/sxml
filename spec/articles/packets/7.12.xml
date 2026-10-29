@@ -1,0 +1,93 @@
+<packet id="7.12" source="docs/tasks/phase-7.md">
+  <title>XQuery and XPath Full Text 3.0 (design and implementation, three packets)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: XQuery and XPath Full Text 3.0 (W3C Recommendation, 2015):</p>
+        <list>
+          <item>
+            <p>2 (the grammar: FTContainsExpr, FTSelection, FTPosFilter, FTMatchOptions, FTScoreVar);</p>
+          </item>
+          <item>
+            <p>3 and 4 (semantics through the AllMatches model, glossary <term name="all_matches"/>);</p>
+          </item>
+          <item>
+            <p>5 (conformance: the optional features, such as ignore option, units, defaults, extension selections, and scoring);</p>
+          </item>
+          <item>
+            <p>Unicode UAX #29 (word boundaries) for the default tokenizer.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Unlocks</strong>: XQ40 ft-* 685, including fullText-ignore 14, fullText-units 10 and fullText-defaults 4. The QT4 cases are XQuery only.</p>
+      </item>
+      <item>
+        <p><strong>Replaces</strong>: <code>contains text</code> is not in the grammar today (XPST0003), and the driver lists fullText* as a non-goal.</p>
+      </item>
+      <item>
+        <p><strong>7.12a Grammar and AST</strong>: the Full Text productions in <code>grammars/xquery</code> only (XPath hosts and <code>sxml.wasm</code> do not pay for them); the AST kinds.</p>
+      </item>
+      <item>
+        <p><strong>7.12b Matching</strong>:</p>
+        <list>
+          <item>
+            <p>a full-text selection (glossary <term name="full_text_selection"/>) compiles into a match program, as a regex compiles (<ref kind="decision" to="D53"/>): words, any/all/phrase, ftor, ftand, mild not and not, and the positional filters (ordered, window, distance, scope, content), evaluated over token positions by a loop with an explicit stack;</p>
+          </item>
+          <item>
+            <p>the tokenizer: UAX #29 words, sentences and paragraphs, over the existing Unicode tables;</p>
+          </item>
+          <item>
+            <p>the score variables of for and let.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>7.12c Match options</strong>:</p>
+        <list>
+          <item>
+            <p>case and diacritics, through the case and normalization tables;</p>
+          </item>
+          <item>
+            <p>wildcards, through the regex engine;</p>
+          </item>
+          <item>
+            <p>language;</p>
+          </item>
+          <item>
+            <p>stop words and thesaurus, through the resolver: new resource kinds FULL_TEXT_STOP_WORDS and FULL_TEXT_THESAURUS (the QT4 catalog supplies them as files);</p>
+          </item>
+          <item>
+            <p>stemming: a built-in English stemmer (Snowball English, BSD), with other languages as implementation-defined fallbacks.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Header</strong>: <code>processor.h</code>, additive (the two resource kinds); <code>xquery.h</code> none.</p>
+      </item>
+      <item>
+        <p><strong>After</strong>: 7.12b after 7.12a; 7.12c after 7.12b.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>grammars/xquery</code> (the Full Text productions), and new <code>src/full_text.c</code>, <code>src/full_text_internal.h</code>, <code>src/full_text_match.c</code>, <code>src/full_text_tokenize.c</code>, <code>src/xquery_lower_full_text.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: 0 in <code>sxml.wasm</code>; 150–250 KB in the CLI (most of it grammar tables).</p>
+      </item>
+      <item>
+        <p><strong>Gate</strong>: ≥ 75 % of the 685. Scoring and thesaurus results are partly implementation-dependent. <strong>7.12a done</strong> 2026-10-19 (<ref kind="decision" to="D214"/>): the grammar, AST, static rules, tokenizer, the match program over AllMatches rows with every connective, FTWords variant and positional filter, case, diacritics, wildcards and explicit stop words, score variables, as the optional feature full-text; QT4 ft-* 624 of 685 pass (91 %), gate met. <code>sxml.wasm</code> +2 KB, the CLI and <code>sxml-full.wasm</code> +540 KB (grammar 500 KB). 7.12b/c: stemming, stop word lists and thesauri by URI (the two resource kinds; fullText-defaults), scores from the matches. <strong>7.12b and 7.12c done</strong> 2026-10-19 (<ref kind="decision" to="D214"/>, amended): Snowball stemmers for en, de, fr, it, es and nl, interpreted from the vendored .sbl files (all 210,829 snowball-data words stem as Snowball 3.1.1 does); stop word lists and thesauri by URI through the resolver (the two resource kinds of <code>processor.h</code>, FTST0008 and FTST0018, relationships and levels, the defaults; fullText-defaults); scores from the matches and their weights (let score and for score); zh and ja by UAX #29's one-character words. QT4 ft-* 624 to 672 of 685 (98.1 %), XQ40 45,839 to 45,868; the 13 left are expected-result whitespace (9), stemmer-dependent (2) and fullText-units (2). <code>sxml.wasm</code> +2 KB (it was over its budget before), <code>sxml-full.wasm</code> and the CLI +19 KB.</p>
+      </item>
+      <item>
+        <p><strong>7.12d XPath Full Text; EXPath prefixes in the JavaScript package</strong> (after 7.12c): (1) the Full Text productions for XPath (Appendix B), with XQuery's contextual keywords, sharing XQuery's lowering and the feature full-text; without the feature the syntax stays XPST0003 in one place; the core <code>sxml.wasm</code> grows by a few KB at most, or a cleaner split is found (<ref kind="decision" to="D208"/>); the QT4 ft-* cases that run under XP40 measured. (2) The package binds the EXPath prefixes wherever the feature is present, as the CLI does; its README without the <code>namespaces</code> workaround.</p>
+        <list>
+          <item>
+            <p>Owns: new <code>grammars/xpath/full_text.js</code>, <code>grammars/xpath_full_text</code>, <code>src/full_text_parse.c</code>; <code>grammars/xquery/grammar.js</code>, <code>src/xquery_parse.c</code>, <code>src/xpath_parse.c</code>, <code>src/xpath_ast_internal.h</code> (the parser part), single hunks in <code>src/xpath_lower.c</code>, <code>src/full_text.c</code>, <code>src/full_text_internal.h</code>, <code>src/xquery_lower_full_text.c</code>, <code>tests/qt4/driver/applicability.c</code>; <code>bindings/javascript/src/index.ts</code>, its README and tests, the size budgets.</p>
+          </item>
+          <item>
+            <p><strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D235"/>): grammars/xpath_full_text, a parser of its own that only the feature links (the productions in grammars/xpath would have added 194,561 bytes to the core); the productions once in grammars/xpath/full_text.js, Full Text's parser tables once in src/full_text_parse.c (a parser part extension); score variables in XPath's for. <code>sxml.wasm</code> +1,215 bytes; the full module and the CLI +502 KB (budgets raised to 8,000,000 / 2,800,000 and 9,500,000 / 2,100,000). XP40 32,655 and XQ40 45,914 passed, unchanged case by case; no ft-* case runs under XP40 (all XQ10+): through the XPath API the 48 written as XPath pass, the other 637 are XQuery syntax. The package binds bin with expath-binary. Left: the comment of <code>sxml_full_text_feature()</code> in <code>xquery.h</code> (Proposed).</p>
+          </item>
+        </list>
+      </item>
+    </list>
+  </body>
+</packet>

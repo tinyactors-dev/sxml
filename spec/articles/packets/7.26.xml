@@ -1,0 +1,18 @@
+<packet id="7.26" source="docs/tasks/phase-7.md">
+  <title>tree-sitter functions in a tree-sitter namespace (design and implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D285"/>, <ref kind="decision" to="D288"/>, <ref kind="decision" to="D293"/> and <ref kind="decision" to="D306"/>. The owner (2026-10-22): expose tree-sitter as <code>tree-sitter:</code>, not as <code>sxml:code-*</code>. Today <code>sxml:parse-code</code> and <code>sxml:code-languages</code> live in <code>urn:sxml</code> (<ref kind="decision" to="D285"/>).</p>
+    <list>
+      <item>
+        <p><strong>Design</strong>: a well-known namespace for the tree-sitter functions, bound to the prefix <code>tree-sitter</code> as <code>bin</code> and <code>file</code> are (name.h, additive after <ref kind="decision" to="D99"/>, as <ref kind="decision" to="D206"/> and <ref kind="decision" to="D285"/> added theirs); the functions' names in it (proposed: <code>tree-sitter:parse</code> and <code>tree-sitter:languages</code>, same signatures and options); where the unknown-language error goes. <code>sxml:parse-code</code> and <code>sxml:code-languages</code> are removed, not kept as aliases. Recorded as a decision that amends <ref kind="decision" to="D285"/>'s API paragraph; the glossary updated.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: 7.22's, 7.23's and 7.25's files, the namespace part of include/sxml/name.h and the comments of include/sxml that name the functions, the prefix bindings of apps/sxml, bindings/host and bindings/javascript, every test and book page that calls the functions (source-code.md, ixml-performance.md, the codegen chapter's check.xq, the examples under docs/book/examples).</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the CLI, XQuery prologs and stylesheets reach the functions through the <code>tree-sitter</code> prefix; tree-sitter/suite unchanged (1,410 of 1,438); the book's examples match; no <code>sxml:parse-code</code> or <code>sxml:code-languages</code> left in code, tests or docs (decision records excepted).</p>
+      </item>
+    </list>
+    <p><strong>Done</strong> 2026-10-22 (<ref kind="decision" to="D307"/>): <code>tree-sitter:parse</code> and <code>tree-sitter:languages</code> in <code>urn:sxml:tree-sitter</code> (name.h SXML_NAMESPACE_TREE_SITTER = 17), errors <code>tree-sitter:unknown-language</code> and <code>tree-sitter:invalid-query</code>; the sxml command and the JavaScript package bind <code>tree-sitter</code>; tree-sitter/suite 1,410 of 1,438, unchanged; the book's affected examples match. The old names remain only in records (DECISIONS, LOG, QUEUE's history, the 0.2.0 CHANGELOG section, the 7.22 and 7.26 entries here).</p>
+  </body>
+</packet>

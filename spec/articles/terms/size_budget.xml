@@ -1,0 +1,4 @@
+<term id="size_budget" source="docs/GLOSSARY.md">
+  <name>size_budget</name>
+  <definition>The most bytes a WebAssembly module may have, stripped and gzipped, checked by a ctest (<ref kind="decision" to="D93"/>)</definition>
+</term>

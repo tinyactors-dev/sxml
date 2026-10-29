@@ -1,0 +1,4 @@
+<term id="extension_namespace" source="docs/GLOSSARY.md">
+  <name>extension_namespace</name>
+  <definition>A namespace whose elements are extension instructions (XSLT 4.0, 24.3)</definition>
+</term>

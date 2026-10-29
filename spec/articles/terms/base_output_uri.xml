@@ -1,0 +1,4 @@
+<term id="base_output_uri" source="docs/GLOSSARY.md">
+  <name>base_output_uri</name>
+  <definition>The URI relative <code>href</code> values of <code>xsl:result-document</code> are resolved against; the URI of the principal result (XSLT 4.0, 2.4.6)</definition>
+</term>

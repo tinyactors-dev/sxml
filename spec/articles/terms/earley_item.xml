@@ -1,0 +1,4 @@
+<term id="earley_item" source="docs/GLOSSARY.md">
+  <name>earley_item</name>
+  <definition>A state of the Earley parser: a production, the dot (how much of it is read), the input position it started at, and the first way it was derived (its predecessor and child items; <ref kind="decision" to="D215"/>)</definition>
+</term>

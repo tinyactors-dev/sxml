@@ -1,0 +1,4 @@
+<term id="last_descendant" source="docs/GLOSSARY.md">
+  <name>last_descendant</name>
+  <definition>The node index of the last node in a node's subtree (the node itself when it has none)</definition>
+</term>

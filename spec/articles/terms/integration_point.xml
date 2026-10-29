@@ -1,0 +1,4 @@
+<term id="integration_point" source="docs/GLOSSARY.md">
+  <name>integration_point</name>
+  <definition>A MathML or SVG element whose content is parsed as HTML (an HTML integration point) or whose text is (a MathML text integration point; 13.2.6)</definition>
+</term>

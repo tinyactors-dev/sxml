@@ -1,0 +1,4 @@
+<term id="cdata_section" source="docs/GLOSSARY.md">
+  <name>cdata_section</name>
+  <definition>A text node's request to be serialized as CDATA sections (XSLT 4.0, 11.4.3: the cdata attribute of xsl:text and xsl:value-of); a builder and serializer property, not part of XDM (<code>is_cdata_section</code>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="import_precedence" source="docs/GLOSSARY.md">
+  <name>import_precedence</name>
+  <definition>The rank of a stylesheet level: an importing level above what it imports, a later import above an earlier one (post-order of the import tree, XSLT 4.0, 3.10.3)</definition>
+</term>

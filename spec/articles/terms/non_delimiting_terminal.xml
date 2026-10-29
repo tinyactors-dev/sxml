@@ -1,0 +1,4 @@
+<term id="non_delimiting_terminal" source="docs/GLOSSARY.md">
+  <name>non_delimiting_terminal</name>
+  <definition>A name, keyword or numeric literal terminal; two of them must not touch (XPath 4.0, A.3.2)</definition>
+</term>

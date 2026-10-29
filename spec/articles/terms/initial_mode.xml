@@ -1,0 +1,4 @@
+<term id="initial_mode" source="docs/GLOSSARY.md">
+  <name>initial_mode</name>
+  <definition>The mode an apply-templates invocation selects template rules in (XSLT 4.0, 2.4.3)</definition>
+</term>

@@ -1,0 +1,96 @@
+<decision id="D247" status="accepted" source="docs/DECISIONS.md">
+  <title>The Kotlin core: the JNI glue, the cleaner and the JVM test (packet <ref kind="packet" to="6.4"/>)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D23"/>, <ref kind="decision" to="D35"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D138"/>, <ref kind="decision" to="D213"/>, <ref kind="decision" to="D238"/>, <ref kind="decision" to="D239"/>, <ref kind="decision" to="D240"/>. Packet <ref kind="packet" to="6.4"/> added <code>bindings/kotlin/</code> (package <code>dev.tinyactors.sxml</code>; the API of <code>docs/tasks/phase-6.md</code>, XPath half) and <code>tools/run-kotlin-tests.sh</code>. (<ref kind="decision" to="D242"/> to <ref kind="decision" to="D244"/> were left free: other running packets may have claimed them.)</p>
+    <list>
+      <item>
+        <p><strong>Glue</strong> (<code>src/main/c/sxml_kotlin_jni.c</code>, the only C):</p>
+        <list>
+          <item>
+            <p>Ten entry points, <code>Java_dev_tinyactors_sxml_Native_*</code>, each <code>(JNIEnv *, jclass, jobject request)</code>, plus <code>JNI_OnLoad</code> (JNI 1.6). The version script <code>sxml_kotlin.map</code> exports only these. JNI's names carry a <code>NOLINT(readability-identifier-naming)</code>.</p>
+          </item>
+          <item>
+            <p>Request classes (<code>Native.kt</code>): <code>NativeRequest</code> (processor, handle, error), <code>ProcessorRequest</code>, <code>TextRequest</code> (parse and string), <code>CompileRequest</code>, <code>EvaluateRequest</code>, <code>SerializeRequest</code>, <code>ReleaseRequest</code>, <code>LibraryRequest</code>. Namespaces and variables are <code>Array&lt;ByteArray&gt;</code> in pairs.</p>
+          </item>
+          <item>
+            <p>The field table is looked up when a processor is made and lives in its glue state (from the default allocator, since the resolver state precedes the processor). Each entry point needs one <code>GetFieldID</code>, for <term name="processor"/>, to find that state.</p>
+          </item>
+          <item>
+            <p>A request's texts are copied into one block from the processor's allocator, so the failure loop also fails them.</p>
+          </item>
+          <item>
+            <p>With an exception pending (a JVM allocation), the glue makes no further JNI call, releases what it made, and returns. The resolver bridge <code>ProcessorState.resolve(kind, uriReference, absoluteUri): Int</code> catches the resolver's exception; its answer is left in <code>resolverAnswer</code>.</p>
+          </item>
+          <item>
+            <p><code>libsxml_kotlin.so</code> sets <code>sxml_host</code> position-independent.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Deviation: no <code>java.lang.ref.Cleaner</code>.</strong> Android has it only from API 33, and <code>minSdk</code> is 24. <code>NativeCleaner</code> does the same over a <code>PhantomReference</code>, a <code>ReferenceQueue</code> and one daemon thread. Actions run under the processor's monitor, and <code>close()</code> runs the same action at once.</p>
+      </item>
+      <item>
+        <p><strong>API choices</strong> (defaults under <ref kind="decision" to="D208"/>):</p>
+        <list>
+          <item>
+            <p><code>Processor(..., failingAllocationNumber: Int = 0)</code> is public, as in JavaScript and Swift (<ref kind="decision" to="D241"/>).</p>
+          </item>
+          <item>
+            <p><code>Value.serialize(options = emptyMap())</code> is fn:serialize (method xml); <code>toString()</code> and <code>Processor.serialize(value, null)</code> are adaptive.</p>
+          </item>
+          <item>
+            <p><code>CollationData.Bundled</code> reads the class path resource <code>dev/tinyactors/sxml/allkeys.txt</code>. 6.6 packs it; without it, UCA falls back.</p>
+          </item>
+          <item>
+            <p><code>ResourceKind</code> has all 15 kinds of <code>sxml_resource_kind</code>, the two Full Text kinds included (the JavaScript package lists 13).</p>
+          </item>
+          <item>
+            <p>Misuse: <code>IllegalStateException</code> (closed, resolver uses its processor), <code>IllegalArgumentException</code> (unknown feature, value of another processor, input that is not JSON-shaped, NaN).</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>ctest <code>kotlin/jvm</code></strong>: <code>tools/run-kotlin-tests.sh</code> compiles <code>src/main/kotlin</code> and <code>src/test/kotlin</code> with kotlinc (only when a source is newer) and runs <code>TestMainKt</code> with <code>-Xcheck:jni</code>; a JNI warning fails the test.</p>
+        <list>
+          <item>
+            <p>Under the sanitizer presets it preloads the compiler's ASan runtime, with <code>ASAN_OPTIONS=detect_leaks=0:handle_segv=0</code>.</p>
+          </item>
+          <item>
+            <p>It is skipped (77) with the reason without JNI headers at configure time, kotlinc (<code>SXML_KOTLINC</code>, else <code>PATH</code>) or java (<code>JAVA_HOME</code>, else <code>PATH</code>). It is not registered under WASI, Android or cross builds.</p>
+          </item>
+          <item>
+            <p>Lint leaves the glue out where <code>sxml_kotlin</code> is not built.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Tests</strong>: 36 cases, a small named-case runner over <code>kotlin.test</code> (no JUnit), all passing under <code>debug</code> with 0 leaks.</p>
+        <list>
+          <item>
+            <p>26 have the names of <code>test/package.test.ts</code>, the allocation-failure loop among them.</p>
+          </item>
+          <item>
+            <p>10 are the binding's own: the task file's example, UTF-8 crossing, input conversion, close and the cleaner (4), and threads (two threads sharing a processor, parallel processors, the cleaner under the lock).</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Found</strong>:</p>
+        <list>
+          <item>
+            <p>The task file's example serializes a two-item result with the JSON method, which raises SERE0023. The test expects that.</p>
+          </item>
+          <item>
+            <p><code>sxml_host_string</code> accepts U+0000, although <code>sxml_host.h</code> says it refuses characters XML does not allow. The test checks that U+0000 crosses intact. The header or the shim should change (owner of <code>bindings/host</code>).</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Toolchain</strong>: Kotlin 2.2.20 (kotlin-compiler-2.2.20.zip from the GitHub release, SHA-256 81f0264c...4420), OpenJDK 21.0.12, Clang 18.1.3, CMake 3.28.</p>
+      </item>
+      <item>
+        <p><strong>For 6.5 and 6.6</strong>: 6.5 adds request classes and their fields to the table, and <code>HandleKind</code>s for query, stylesheet and schema. 6.6 runs the suites (<code>packageSuites</code>, <code>bindingSuites</code>) from a JUnit test, links <code>sxml_kotlin</code> from an Android preset (<code>ANDROID</code> takes jni.h from the sysroot), and adds the DUCET resource.</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="result_writer" source="docs/GLOSSARY.md">
+  <name>result_writer</name>
+  <definition>The object of one transformation that delivers its result documents and principal result: the stylesheet outputs, the result document handler, the base output URI, the URIs written (XTDE1490) and the current output URI</definition>
+</term>

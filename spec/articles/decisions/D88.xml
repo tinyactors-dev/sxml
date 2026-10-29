@@ -1,0 +1,29 @@
+<decision id="D88" status="accepted" source="docs/DECISIONS.md">
+  <title>The processor and the XPath API (packet <ref kind="packet" to="1.23"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. <code>src/processor.c</code>, <code>src/processor_internal.h</code>, <code>src/xpath.c</code>, <code>src/function_library_uri.c</code>; tests <term name="processor"/>, <code>xpath</code>.</p>
+    <list>
+      <item>
+        <p><strong>Processor</strong>: one block holds the processor, name pool, type registry, item heap and the function library over every part (numeric, string, sequence, node, context, error, higher_order, map, array, json, uri); member requirements are queried with stand-in pointers (they only check for NULL). A null clock means <code>sxml_system_clock</code> (C17 <code>timespec_get</code>, civil date by Hinnant's algorithm); <code>sxml_clock_read</code> checks the whole reading contract (components, leap years, offsets) and the evaluator now reads through it. Parsed documents: arena trees from the processor's allocator with its tree and XML limits, no locations, destroyed with their last reference.</p>
+      </item>
+      <item>
+        <p><strong>Limits</strong> (comments in <code>processor.h</code> fixed): both depths bound heap, not C stack (<ref kind="decision" to="D71"/>); 0 means 10,000 for <code>maximum_expression_depth</code> (<ref kind="decision" to="D63"/>) and 1,000,000 for <code>maximum_evaluation_depth</code> (<ref kind="decision" to="D75"/>); new <code>maximum_evaluation_step_count</code> (<ref kind="decision" to="D89"/>).</p>
+      </item>
+      <item>
+        <p><strong>Expressions</strong>: compile is <code>sxml_xpath_compile</code> with the processor's function table; identifiers of the static context are checked against the pool and registry (INVALID_ARGUMENT), the static base URI must have a scheme and is copied. Each evaluation allocates its own dynamic context, global slots (bound by name to the unit's globals) and document loader, and frees them before returning, so evaluations nest (tested through a host function body).</p>
+      </item>
+      <item>
+        <p><strong>Document loader</strong> (per evaluation): <code>fn:doc</code> resolves its argument against the static base URI (<code>sxml_uri_resolve</code>, RFC 3986 5.2, now in <code>src/xdm_internal.h</code> over the resolver of <code>src/xdm_node.c</code>), then looks in the available documents, then the documents loaded so far, then asks the resolver; a resource that does not parse or a non-document node is FODC0002, the resolver's description goes into the error. fn:parse-xml makes a new tree per call (FODC0006).</p>
+      </item>
+      <item>
+        <p><strong>Static base URI</strong> reaches functions through the dynamic context (<code>sxml_evaluation_request.static_base_uri</code>, <code>sxml_dynamic_context_get_static_base_uri</code>): fn:doc, fn:parse-xml (when no <code>base-uri</code> option), fn:json-to-xml (document base URI), and the new rows fn:static-base-uri and fn:resolve-uri (FONS0005, FORG0002). A function item called after its evaluation sees the caller's.</p>
+      </item>
+      <item>
+        <p><strong>CLI</strong>: <code>sxml xpath</code> (docs/CLI.md): file resolver over the invocation's file reader (paths and <code>file://</code> only), <code>--param</code> as <code>xs:untypedAtomic</code> exactly one, <code>--method=adaptive</code> the only choice; errors as <code>expression:LINE:COLUMN: err:CODE: description</code>. 19 golden tests.</p>
+      </item>
+      <item>
+        <p><code>tests/fuzz/fuzz_fixture.c</code> names the json and uri parts too.</p>
+      </item>
+    </list>
+  </body>
+</decision>

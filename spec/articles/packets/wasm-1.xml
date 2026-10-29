@@ -1,0 +1,17 @@
+<packet id="wasm-1" source="docs/tasks/phase-7.md">
+  <title>Build and test the JavaScript package after this round (tests)</title>
+  <body>
+    <p>The owner (2026-10-29): sxml.wasm can be built in this environment. wasi-sdk-34, the version <code>mise.toml</code> pins, is installed at <code>/opt/wasi-sdk</code> (the toolchain file's default); the <code>wasm</code> preset configures. Since 7.29, 7.28, fix-7 and perf-17, the JavaScript package was written and typechecked but never built or run here: the <code>locations</code> option (<ref kind="decision" to="D318"/>), the Schematron API and its warnings and documents (<ref kind="decision" to="D323"/>, <ref kind="decision" to="D331"/>), and the size budget after <ref kind="packet" to="perf-17"/>'s parser tables (about +206 KB, <ref kind="decision" to="D329"/>).</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: build the <code>wasm</code> preset; run the package's tests and <code>javascript/size_budget</code> the way the repository does (ctest and the package's own scripts); fix what fails in the files of the packets that introduced it, each fix with its cause; if the size budget is exceeded, report the module's growth by the linker map (<ref kind="decision" to="D225"/>) and raise the budget only in the same change that says why (<ref kind="decision" to="D208"/>, <ref kind="decision" to="D272"/>). The book's JavaScript examples (<code>SXML_JAVASCRIPT</code>) run and match.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>bindings/javascript/</code>, <code>bindings/host/</code> (fixes), the size baseline, the JavaScript pages of the book.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the wasm build, every JavaScript test, the size budget and the book's JavaScript examples pass; the setup (wasi-sdk-34 at /opt/wasi-sdk, node version) recorded in the LOG.</p>
+      </item>
+    </list>
+  </body>
+</packet>

@@ -1,0 +1,5 @@
+<term id="unit_evaluation" source="docs/GLOSSARY.md">
+  <name>unit_evaluation</name>
+  <definition>One evaluation of a sealed IR unit with the host's dynamic context: what the XPath and XQuery APIs share (<code>sxml_evaluate_unit</code>, <ref kind="decision" to="D146"/>)</definition>
+  <definition>A native step that asks the machine to evaluate another unit's main function, its global table first, and to hand the value to the next step (<ref kind="decision" to="D154"/>)</definition>
+</term>

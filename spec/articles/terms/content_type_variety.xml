@@ -1,0 +1,4 @@
+<term id="content_type_variety" source="docs/GLOSSARY.md">
+  <name>content_type_variety</name>
+  <definition>What a complex type allows as content: empty, simple, element-only or mixed (XSD 1.1 Part 1, 3.4.1, {content type} {variety})</definition>
+</term>

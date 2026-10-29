@@ -1,0 +1,4 @@
+<term id="item_representation" source="docs/GLOSSARY.md">
+  <name>item_representation</name>
+  <definition>How an <code>sxml_item</code> is stored: which inline value or which kind of cell its payload holds (<code>SXML_ITEM_REPRESENTATION_*</code>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="error_finding" source="docs/GLOSSARY.md">
+  <name>error_finding</name>
+  <definition>A finding whose schematron severity is <code>fatal</code> or <code>error</code>; without a severity, one whose role or a flag token is <code>fatal</code> or <code>error</code>, or that has neither role nor flag: it makes the validation fail (<code>is_error</code>, <ref kind="decision" to="D313"/>, <ref kind="decision" to="D315"/>)</definition>
+</term>

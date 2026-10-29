@@ -1,0 +1,43 @@
+<packet id="6.4" source="docs/tasks/phase-6.md">
+  <title>Kotlin core (implementation, here)</title>
+  <body>
+    <p><status value="done" date="2026-10-20"/> (<ref kind="decision" to="D247"/>): <code>bindings/kotlin/</code> (glue, <code>sxml_kotlin.map</code>, the binding, 36 tests), <code>tools/run-kotlin-tests.sh</code>, ctest <code>kotlin/jvm</code>; Kotlin 2.2.20 on JDK 21, 0 leaks. The JVM half only; Android is 6.6's. After <ref kind="packet" to="6.2"/> and <ref kind="packet" to="6.3"/>. Owns new <code>bindings/kotlin/</code>: <code>CMakeLists.txt</code> (target <code>sxml_kotlin</code>, a shared library of the library, the host shim and the glue, with a version script exporting <code>Java_*</code> and <code>JNI_OnLoad</code> only), <code>src/main/c/sxml_kotlin_jni.c</code>, <code>src/main/kotlin/</code> (Processor, Value, XPathExpression, Resolver, ResourceKind, Status, SxmlException, the internal <code>Native</code> object and request classes), <code>src/test/kotlin/</code> (the package tests), and <code>tools/run-kotlin-tests.sh</code>.</p>
+    <list>
+      <item>
+        <p><strong>JNI rules</strong> (<ref kind="decision" to="D238"/>): every native is <code>(JNIEnv *environment, jclass owner, jobject request)</code>, three parameters, where <term name="request"/> is an internal <term name="native_request"/> object.</p>
+        <list>
+          <item>
+            <p>Its fields are read with field IDs that a per-processor table caches. The table lives in the processor's glue state, not in globals.</p>
+          </item>
+          <item>
+            <p>Results and failures go back into the same object: the handle, a <code>NativeError</code> and the side results.</p>
+          </item>
+          <item>
+            <p>Text is <code>ByteArray</code> UTF-8.</p>
+          </item>
+          <item>
+            <p>The resolver bridge is a Kotlin method on the processor's internal state. It catches what the user's resolver throws, keeps it, and returns a failure. The call then rethrows it from Kotlin, so the glue never handles a pending JVM exception.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p>The glue follows <code>docs/C_GUIDELINES.md</code> (spelled-out names, no globals, no recursion). It is linted like the rest of <code>bindings/</code>.</p>
+      </item>
+      <item>
+        <p>Done when:</p>
+        <list>
+          <item>
+            <p>ctest <code>kotlin/jvm</code> passes the XPath half of the parity list, the close and Cleaner tests and a two-thread test, with 0 leaks;</p>
+          </item>
+          <item>
+            <p>the allocation-failure loop passes;</p>
+          </item>
+          <item>
+            <p>clang-tidy is clean on the glue.</p>
+          </item>
+        </list>
+      </item>
+    </list>
+    <p>Golden: <code>bindings/javascript/src/index.ts</code> for the shape and the host shim for the C.</p>
+  </body>
+</packet>

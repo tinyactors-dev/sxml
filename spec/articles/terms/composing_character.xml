@@ -1,0 +1,4 @@
+<term id="composing_character" source="docs/GLOSSARY.md">
+  <name>composing_character</name>
+  <definition>A codepoint of combining class above 0, or the second codepoint of the canonical decomposition of a character not in CompositionExclusions.txt (F&amp;O 4.0, <code>fn:normalize-unicode</code>)</definition>
+</term>

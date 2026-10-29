@@ -1,0 +1,4 @@
+<term id="synthesized" source="docs/GLOSSARY.md">
+  <name>synthesized</name>
+  <definition>Made by the stylesheet reader rather than read from an element (the root and template of a simplified stylesheet)</definition>
+</term>

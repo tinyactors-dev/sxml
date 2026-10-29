@@ -1,0 +1,4 @@
+<term id="immortal" source="docs/GLOSSARY.md">
+  <name>immortal</name>
+  <definition>A cell or tree that is never released (static data); retain and release do nothing to it</definition>
+</term>

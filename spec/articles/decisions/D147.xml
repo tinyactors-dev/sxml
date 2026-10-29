@@ -1,0 +1,20 @@
+<decision id="D147" status="accepted" source="docs/DECISIONS.md">
+  <title>Counted repetition with counters (packet 2.19b)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D53"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D105"/>. Closes <ref kind="decision" to="D105"/>'s "Not done". (Completed by the Phase 3 review, <ref kind="decision" to="D161"/>, from the text 2.19b left uncommitted.)</p>
+    <list>
+      <item>
+        <p><strong>When</strong>: a quantifier whose copies would add more than <code>SXML_REGEX_LARGEST_EXPANSION</code> (256) instructions, each copy counted as at least one, compiles to a counted loop (glossary): the atom once, between <code>COUNTED_LOOP_START</code> (counter := 0), <code>COUNTED_LOOP_CHOOSE</code>, a jump out, <code>COUNTED_LOOP_BODY</code> (progress := position) and <code>COUNTED_LOOP_END</code> (counter + 1, back to CHOOSE). Smaller counts keep <ref kind="decision" to="D53"/>'s copies, which are faster (a loop pays four instructions and three backtrack entries per iteration); x*, x+ and x? are unchanged. <code>a{2147483647}</code> is six instructions; <code>(?:a{1000}){1000}</code> and <code>(?:(?:){1000}){1000}</code> now compile (they were LIMIT_EXCEEDED).</p>
+      </item>
+      <item>
+        <p><strong>Matching</strong>: CHOOSE iterates below the minimum, offers an iteration as a choice below the maximum (greedy first, reluctant second, section 6.1.4) and leaves at it. Counter and progress are register slots (as progress registers are), set with RESTORE_SLOT entries like SAVE, so backtracking into an earlier iteration finds its counter, lookaround keeps working (a positive assertion keeps restoring entries), and nothing recurses (<ref kind="decision" to="D71"/>). The parameters (minimum, maximum, unbounded, reluctant, the two slots) are in a <code>counted_loops</code> table of the compiled regex, shared like classes by the copies of an enclosing atom: copies run one after the other and every slot change is undone in order, so they can share slots.</p>
+      </item>
+      <item>
+        <p><strong>Empty iterations</strong>: above the minimum an iteration that consumed nothing fails, as CHECK_PROGRESS in <ref kind="decision" to="D53"/>'s unbounded loops; below it, it stands for all the iterations still needed (the counter jumps to the minimum), since each would again match nothing at the same place. This keeps <code>(a?){2147483647}b</code> fast and finds the same matching segments; which substring a group inside captures then is implementation-dependent (F&amp;O 4.0, section 6.1.5).</p>
+      </item>
+      <item>
+        <p><strong>Quantities</strong> above 4294967295 still saturate to it (cbcl-matches-004: <code>a{99999999999999999999999999}</code> is false, which the test allows).</p>
+      </item>
+    </list>
+  </body>
+</decision>

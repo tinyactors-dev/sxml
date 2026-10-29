@@ -1,0 +1,4 @@
+<term id="enumeration_type" source="docs/GLOSSARY.md">
+  <name>enumeration_type</name>
+  <definition>An item type matching a fixed set of strings (<code>enum("a", "b")</code>)</definition>
+</term>

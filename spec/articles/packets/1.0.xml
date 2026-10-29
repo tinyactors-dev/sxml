@@ -1,0 +1,6 @@
+<packet id="1.0" source="docs/tasks/phase-1.md">
+  <title>Scaffolding (design, build only)</title>
+  <body>
+    <p>After the Phase 0 gate. Owns root <code>CMakeLists.txt</code>, <code>tests/CMakeLists.txt</code>, <code>third_party/CMakeLists.txt</code>. Globs for <code>src/*.c</code> and <code>tests/*_test.c</code>; <code>sxml</code> links <code>sxml_grammar_xml</code>, <code>sxml_grammar_xpath</code> and, when present, <code>sxml_mpdecimal</code>; guarded <code>add_subdirectory</code> for the optional directories (<code>tests/fuzz</code> only with <code>SXML_BUILD_FUZZERS</code>); the CLI's <code>apps</code> line kept. Done when presets pass unchanged and a probe source and test need no edit. <strong>Done</strong> 2026-10-16: globs in place, probe verified under <code>debug</code>; also added <code>SXML_STATUS_INPUT_OUTPUT_FAILED</code> (<ref kind="decision" to="D50"/>, was P1).</p>
+  </body>
+</packet>

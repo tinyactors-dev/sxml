@@ -1,0 +1,4 @@
+<term id="matching_segment" source="docs/GLOSSARY.md">
+  <name>matching_segment</name>
+  <definition>A segment of the regex input that a regex matches: start and length, held as a byte range (F&amp;O 4.0, section 6.1.1)</definition>
+</term>

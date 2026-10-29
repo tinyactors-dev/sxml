@@ -1,0 +1,6 @@
+<decision id="D23" status="accepted" source="docs/DECISIONS.md">
+  <title>The counting allocator is public</title>
+  <body>
+    <p><recorded date="2026-10-16"/> (task 0.6). The allocator test double, <code>sxml_counting_allocator</code>, is in <code>memory.h</code> and the library, not in <code>tests/</code>, so embedders can drive the failure paths of their own code. It wraps a backing allocator, counts attempts, failures, releases, live allocations and bytes, and fails exactly the allocation numbered <code>failing_allocation_number</code> (from 1; 0 = none). Test pattern for every module (see <code>test_arena_survives_every_allocation_failure</code> in <code>tests/memory_test.c</code>): run the operation with failing number 1, 2, 3, ... until it succeeds; after each run <code>live_allocation_count</code> must be 0.</p>
+  </body>
+</decision>

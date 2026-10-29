@@ -1,0 +1,4 @@
+<term id="datum_kind" source="docs/GLOSSARY.md">
+  <name>datum_kind</name>
+  <definition>The C representation a datum is read and written in (boolean, integer, string, ...)</definition>
+</term>

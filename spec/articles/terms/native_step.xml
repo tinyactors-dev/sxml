@@ -1,0 +1,4 @@
+<term id="native_step" source="docs/GLOSSARY.md">
+  <name>native_step</name>
+  <definition>One run of a resumable native body: it finishes with a value, or asks the evaluator to call a function item and to run the next step with the result</definition>
+</term>

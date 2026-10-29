@@ -1,0 +1,6 @@
+<decision id="D1" status="accepted" source="docs/DECISIONS.md">
+  <title>Name and prefix</title>
+  <body>
+    <p>sxml (small XML implementation). Public prefix <code>sxml_</code>, macro prefix <code>SXML_</code>.</p>
+  </body>
+</decision>

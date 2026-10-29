@@ -1,0 +1,4 @@
+<term id="ietf_date" source="docs/GLOSSARY.md">
+  <name>ietf_date</name>
+  <definition>A date and time in the formats of RFC 822, RFC 850 and asctime that fn:parse-ietf-date reads</definition>
+</term>

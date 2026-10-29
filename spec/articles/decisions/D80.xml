@@ -1,0 +1,26 @@
+<decision id="D80" status="accepted" source="docs/DECISIONS.md">
+  <title>Higher-order, map and array functions (packet <ref kind="packet" to="1.21"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>, completing <ref kind="decision" to="D79"/>.</p>
+    <list>
+      <item>
+        <p><strong>Engines</strong>: <code>src/function_library_higher_order_internal.h</code> declares three resumable engines defined in the higher-order part and used by all three parts: a traversal (one call per item, member or entry, with its position; for-each, filter, index-where, take-/drop-while, every, some, for-each-pair, array:build/for-each/filter/index-where/for-each-pair, map:for-each/filter), folds (fold-left/right, scan, array folds) and sorts (sort-by, sort-with, highest, lowest, array:sort/-by/-with). Keys are computed one call each, then sorted by <code>sxml_evaluator_sort_indices</code>; sort-with runs a bottom-up merge sort one comparator call per step. No engine calls a function item (<ref kind="decision" to="D71"/>).</p>
+      </item>
+      <item>
+        <p><strong>Hidden rows</strong>: partially applied functions and fn:op's functions are function items whose body is a row no part lists (native operations, <ref kind="decision" to="D75"/>): captured values hold the wrapped function, the bound positions and values, or the operator's code.</p>
+      </item>
+      <item>
+        <p><strong>Types the front end lacks</strong>: the <code>$keys</code> of sort-by are <code>map(*)*</code> (the grammar has no optional or extensible record fields); the engine checks <code>key</code>, <term name="collation"/> and <code>order</code> and atomizes key values itself. fn:partial-apply takes <code>map(xs:integer, item()*)</code> because map coercion does not relabel keys (an xs:integer key is not an xs:positiveInteger); a position below 1 is XPTY0004.</p>
+      </item>
+      <item>
+        <p><strong>Placeholders</strong>: lowering turns <code>$f(?)</code> into fn:partial-apply with the empty map, so the empty map returns <code>$function</code> unchanged only for an anonymous function item; a map, an array or a named function is wrapped, so <code>$m(?)</code> is not a map (hof-920) and has no name (XPath 4.0, 4.5.2.5).</p>
+      </item>
+      <item>
+        <p><strong>fn:function-lookup</strong> uses the dynamic context's function table; a row that needs the focus at that arity raises XPDY0002 at lookup (F&amp;O 4.0 allows raising early), IR functions (XQuery) are UNSUPPORTED_FEATURE.</p>
+      </item>
+      <item>
+        <p><strong>Not yet</strong>: array:index-of (needs 1.20's deep-equal); a dynamic call on a sequence of functions (DynamicFunctionCall-146) is the evaluator's.</p>
+      </item>
+    </list>
+  </body>
+</decision>

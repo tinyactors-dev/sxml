@@ -1,0 +1,74 @@
+<document id="tasks/phase-0" source="docs/tasks/phase-0.md">
+  <title>Phase 0: Substrate design</title>
+  <p>Goal: reviewed public headers for the substrate, a golden module, and CI that enforces the guidelines on every change. No XPath evaluation yet.</p>
+  <p>Do the tasks in order. Finish each with a commit and a short entry in <code>docs/LOG.md</code>. Stop at the gate.</p>
+  <section id="tasks">
+    <title>Tasks</title>
+    <list>
+      <item checked="true">
+        <p><strong>0.1 Build skeleton.</strong> CMake (minimum 3.24), C17, <code>include/sxml/</code>, <code>src/</code>, <code>tests/</code>. Presets: <code>debug</code> (ASan + UBSan), <term name="release"/>, <code>wasm</code> (WASI SDK toolchain file). Compiler flags from <code>docs/C_GUIDELINES.md</code>.</p>
+      </item>
+      <item checked="true">
+        <p><strong>0.2 Test harness.</strong> A dependency-free unit test runner in <code>tests/</code>, run by <code>ctest</code>. One trivial passing test.</p>
+      </item>
+      <item checked="true">
+        <p><strong>0.3 Lint gates.</strong> Wire <code>.clang-tidy</code> into the build as a target. Add ast-grep rules in <code>tools/ast-grep/</code> for: banned abbreviations, <code>malloc</code>/<code>free</code> outside <code>src/allocator.c</code>, more than three parameters, bare <code>bool</code> parameters.</p>
+      </item>
+      <item checked="true">
+        <p><strong>0.4 CI.</strong> GitHub Actions: Linux (Clang and GCC, debug preset), macOS (Clang), Windows (MSVC, build only), WASI build. Each runs build, lints, tests.</p>
+      </item>
+      <item checked="true">
+        <p><strong>0.5 Core headers (design task).</strong> Write, with contract comments, no implementation yet:</p>
+        <list>
+          <item>
+            <p><code>include/sxml/status.h</code> — <code>sxml_status</code>, <code>SXML_NODISCARD</code>, error record.</p>
+          </item>
+          <item>
+            <p><code>include/sxml/memory.h</code> — byte and memory views, <code>sxml_memory_requirements</code>, <code>sxml_allocator</code> interface, checked size arithmetic helpers.</p>
+          </item>
+          <item>
+            <p><code>include/sxml/string.h</code> — UTF-8 strings with the ASCII-only flag (<ref kind="decision" to="D6"/>).</p>
+          </item>
+        </list>
+      </item>
+      <item checked="true">
+        <p><strong>0.6 Golden module.</strong> Implement <code>memory.h</code> fully in <code>src/memory.c</code> and <code>src/allocator.c</code> (default allocator and a test double that counts and can fail allocations), with tests. This module becomes the golden file all later work imitates.</p>
+      </item>
+      <item checked="true">
+        <p><strong>0.7 Substrate headers (design task).</strong> Write, with contract comments:</p>
+        <list>
+          <item>
+            <p><code>include/sxml/types.h</code> — type registry and <code>sxml_type_identifier</code>.</p>
+          </item>
+          <item>
+            <p><code>include/sxml/xdm.h</code> — items, sequences (empty, single item, vector, range, lazy), atomic items with type identifiers, function items, maps (<ref kind="decision" to="D7"/>), arrays, records.</p>
+          </item>
+          <item>
+            <p><code>include/sxml/tree.h</code> — tree interface, node references (<term name="tree_identifier"/> + <term name="node_index"/>), document order across trees. Each object type follows the lifecycle rules: requirements query, <code>initialize</code>/<code>finalize</code>, <code>create</code>/<code>destroy</code>.</p>
+          </item>
+        </list>
+      </item>
+      <item checked="true">
+        <p><strong>0.8 Header self-review.</strong> Run the review rubric from <code>docs/C_GUIDELINES.md</code> over every header and fix findings. List open questions at the end of <code>docs/LOG.md</code>.</p>
+      </item>
+      <item checked="true">
+        <p><strong>0.9 Torture slice selection.</strong> Choose 100–200 tests from the W3C QT4 test suite that stress the value model (higher-order functions, maps, arrays, JSON, multi-document node order, casting, ranges, try/catch). Record the list in <code>tests/qt4/torture-slice.txt</code> with one line per test explaining why.</p>
+      </item>
+    </list>
+  </section>
+  <section id="gate">
+    <title>Gate</title>
+    <list>
+      <item checked="true">
+        <p>Human review of all headers in <code>include/sxml/</code> completed (agent review, <ref kind="decision" to="D11"/>, <ref kind="decision" to="D43"/>).</p>
+      </item>
+      <item checked="true">
+        <p>CI green on all platforms (agent review: run 38931572793 on <code>c4d88fd</code>, after 0.8; local <code>debug</code>, <code>debug-gcc</code>, <code>wasm</code>).</p>
+      </item>
+      <item checked="true">
+        <p>Decisions <ref kind="decision" to="D3"/>–<ref kind="decision" to="D10"/> in <code>docs/DECISIONS.md</code> confirmed or revised (agent review: <ref kind="decision" to="D3"/> recorded, <ref kind="decision" to="D8"/> completed by <ref kind="decision" to="D42"/>).</p>
+      </item>
+    </list>
+    <p>Only after every gate box is ticked by a human does Phase 1 begin. Per <ref kind="decision" to="D11"/>, boxes marked "(agent review)" were ticked by the review agent instead.</p>
+  </section>
+</document>

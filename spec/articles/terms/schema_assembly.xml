@@ -1,0 +1,4 @@
+<term id="schema_assembly" source="docs/GLOSSARY.md">
+  <name>schema_assembly</name>
+  <definition>The read stage's work list of schema documents: each one, known by its absolute URI and target namespace, is read once; xs:include, xs:import, xs:redefine and xs:override add to it (XSD 1.1 Part 1, 4.2; <ref kind="decision" to="D170"/>)</definition>
+</term>

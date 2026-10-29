@@ -1,0 +1,17 @@
+<packet id="perf-1" source="docs/tasks/phase-7.md">
+  <title>Evaluator performance (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D182"/> (the evaluator runs about 4 million steps a second and has no index for joins), <ref kind="decision" to="D178"/> (QT4 app-Demos itunes is quadratic by its own text, 72 s) and <ref kind="decision" to="D185"/> (<code>match="$var"</code> membership is a linear scan).</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: general mechanisms of the one IR and evaluator, no language-specific machinery: a benchmark set (<code>tests/bench/</code>), axis steps that describe each node once, and filter indexes: an IR pass (the optimizer seam, <ref kind="decision" to="D46"/>) gives a FILTER whose predicate needs "key = probe", "eq" or "is" a filter index, a for clause's where becomes such a FILTER, and the evaluator keeps the index in the evaluation memo (<ref kind="decision" to="D149"/>).</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>tests/bench/</code>, <code>src/tree_axis.c</code>, <code>src/evaluator_path.c</code>, <code>src/evaluator_index.c</code>, <code>src/ir_loop_passes.c</code>; the FILTER parts of <code>src/evaluator.c</code>, <code>src/ir.c</code>, <code>src/ir_verify.c</code>, <code>src/ir_internal.h</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the baseline and the numbers after each change in a D-record and the commit messages; no QT4 XQ40 or XT40 outcome changes; <ref kind="decision" to="D71"/>, the memory limits and honest step counts kept. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D224"/>): <code>tests/bench/</code>; axis walks; filter indexes (the filter-index pass, <code>src/evaluator_index.c</code>); a path's step from all origins at once; the hoist pass. xmark-all 6.73 to 1.52 processor seconds, app-Demos itunes 80.6 to 3.4; QT4 XQ40 and XT40 unchanged case by case.</p>
+      </item>
+    </list>
+  </body>
+</packet>

@@ -1,0 +1,4 @@
+<term id="test_list" source="docs/GLOSSARY.md">
+  <name>test_list</name>
+  <definition>A file naming QT4 test cases, one <code>&lt;test-set&gt; &lt;test-case&gt;</code> per line (<code>tests/qt4/torture-slice.txt</code>)</definition>
+</term>

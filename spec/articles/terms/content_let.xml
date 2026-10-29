@@ -1,0 +1,4 @@
+<term id="content_let" source="docs/GLOSSARY.md">
+  <name>content_let</name>
+  <definition>A LET whose variable only the content of its block reads, in order: in a delivering task its bound expression delivers too, and the variable holds the empty sequence (<ref kind="decision" to="D166"/>)</definition>
+</term>

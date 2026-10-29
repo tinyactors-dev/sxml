@@ -1,0 +1,4 @@
+<term id="regex_cache" source="docs/GLOSSARY.md">
+  <name>regex_cache</name>
+  <definition>The compiled regexes of one evaluation, keyed by regex text and regex flags, so <code>fn:matches</code>, <code>fn:replace</code>, <code>fn:tokenize</code>, <code>fn:analyze-string</code>, <code>fn:matching-segments</code> and fn:regex's functions compile a regex once; bounded, the least recently used entry no call is using evicted first, kept in the evaluation memo (internal, <code>src/function_library_regex.c</code>, <ref kind="decision" to="D308"/>)</definition>
+</term>

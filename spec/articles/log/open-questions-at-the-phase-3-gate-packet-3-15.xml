@@ -1,0 +1,20 @@
+<log-entry id="open-questions-at-the-phase-3-gate-packet-3-15" source="docs/LOG.md">
+  <title>Open questions at the Phase 3 gate (packet <ref kind="packet" to="3.15"/>)</title>
+  <body>
+    <p>For the owner. Every gate box is ticked (<ref kind="decision" to="D161"/>).</p>
+    <list ordered="true">
+      <item>
+        <p><strong>0.2.0 and XQuery.</strong> 0.2.0 is still untagged; <code>CHANGELOG.md</code> lists XQuery under "Unreleased". Tag 0.2.0 at the Phase 2 commit, or fold XQuery into 0.2.0.</p>
+      </item>
+      <item>
+        <p><strong>WebAssembly budgets</strong> (Proposed): <code>sxml.wasm</code> is 1,900,448 bytes stripped and 659,284 gzipped against 2,000,000 / 700,000 (5 % left); the CLI with XQuery and XSLT 4,624,576 / 1,032,045 against 5,000,000 / 1,100,000. <code>compileQuery()</code> is still not in the JavaScript package. Confirm the budgets, or ask for optional modules.</p>
+      </item>
+      <item>
+        <p><strong>XQuery's omit-xml-declaration default</strong> (Proposed, <ref kind="decision" to="D146"/>): no (write the declaration, as QT4 expects) or keep yes. The only behaviour of the now stable <code>xquery.h</code> still open.</p>
+      </item>
+      <item>
+        <p><strong>CI</strong> (<ref kind="decision" to="D123"/>): still local only; macOS, Windows and MSVC unbuilt since the Phase 0 gate.</p>
+      </item>
+    </list>
+  </body>
+</log-entry>

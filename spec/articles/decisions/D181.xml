@@ -1,0 +1,20 @@
+<decision id="D181" status="accepted" source="docs/DECISIONS.md">
+  <title>Verification in proportion; agent prompts in the repository (owner)</title>
+  <body>
+    <p><recorded date="2026-10-19"/> on the owner's word: re-running all builds and fuzzing everything takes too long here; the owner will provision a machine for that. Amends the done-when of the packet procedure (<ref kind="decision" to="D123"/>'s local checks).</p>
+    <list>
+      <item>
+        <p>A packet builds the <code>debug</code> preset (Clang, ASan and UBSan, <code>-Werror</code>), runs the unit and CLI tests it touches, keeps <code>clang-tidy</code> and the call-cycle check clean for its files, and runs the conformance test sets it affects with no fewer passes. <code>debug-gcc</code> and <code>wasm</code> only when a change is platform-sensitive or may grow <code>sxml.wasm</code> noticeably.</p>
+      </item>
+      <item>
+        <p>Full suite runs, all presets, the full lint and fuzzing move to the owner's machine. Gate boxes that need them stay open, marked "deferred to the owner's machine (<ref kind="decision" to="D181"/>)"; <code>docs/CONFORMANCE.md</code> is regenerated only from full runs.</p>
+      </item>
+      <item>
+        <p>The agent prompts live in <code>docs/agents/</code> (<code>BRIEF.md</code>, <code>PACKET.md</code>, and <code>QUEUE.md</code> for the running and next work), so any session can continue the work; commit messages carry the reasons and the numbers.</p>
+      </item>
+      <item>
+        <p>The user-facing CLI reference is <code>apps/sxml/README.md</code>; <code>docs/CLI.md</code> keeps the design rules (<ref kind="decision" to="D44"/>).</p>
+      </item>
+    </list>
+  </body>
+</decision>

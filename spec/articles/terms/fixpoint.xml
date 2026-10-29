@@ -1,0 +1,4 @@
+<term id="fixpoint" source="docs/GLOSSARY.md">
+  <name>fixpoint</name>
+  <definition>Of a fold: an accumulator that its function is certain to return unchanged for every further item, which ends the fold early</definition>
+</term>

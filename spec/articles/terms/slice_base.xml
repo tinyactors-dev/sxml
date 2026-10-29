@@ -1,0 +1,4 @@
+<term id="slice_base" source="docs/GLOSSARY.md">
+  <name>slice_base</name>
+  <definition>The vector a sequence slice holds one reference to and reads its items from; a slice of a slice has the same base</definition>
+</term>

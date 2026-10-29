@@ -1,0 +1,4 @@
+<term id="lowerer" source="docs/GLOSSARY.md">
+  <name>lowerer</name>
+  <definition>The state of one lowering into one unit: the AST and static context being lowered, the variable scope, the current function and its focus (<ref kind="decision" to="D103"/>)</definition>
+</term>

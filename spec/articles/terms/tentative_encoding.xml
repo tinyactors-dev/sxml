@@ -1,0 +1,4 @@
+<term id="tentative_encoding" source="docs/GLOSSARY.md">
+  <name>tentative_encoding</name>
+  <definition>An encoding the HTML parser sniffed from octets rather than got from a byte order mark or the encoding option; a meta element that declares another one makes the parser read the document again in that one (HTML Living Standard, 13.2.3.2 and 13.2.3.4; <code>is_encoding_tentative</code>)</definition>
+</term>

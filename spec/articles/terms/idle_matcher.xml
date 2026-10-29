@@ -1,0 +1,4 @@
+<term id="idle_matcher" source="docs/GLOSSARY.md">
+  <name>idle_matcher</name>
+  <definition>A regex matcher a regex cache entry keeps, reset, while no call uses it, so the next call that finds the regex in the cache needs no new matcher (internal, <code>src/function_library_regex.c</code>, <ref kind="decision" to="D310"/>)</definition>
+</term>

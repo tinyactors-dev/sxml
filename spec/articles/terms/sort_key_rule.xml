@@ -1,0 +1,4 @@
+<term id="sort_key_rule" source="docs/GLOSSARY.md">
+  <name>sort_key_rule</name>
+  <definition>A SORT key's collation and direction, resolved once when the SORT is evaluated (<ref kind="decision" to="D152"/>)</definition>
+</term>

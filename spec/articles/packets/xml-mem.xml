@@ -1,0 +1,20 @@
+<packet id="xml-mem" source="docs/tasks/phase-7.md">
+  <title>Bounded memory for XML parsing (design and implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D12"/> (tree-sitter parses XML, the owner's choice), <ref kind="decision" to="D199"/> (DTD and entities) and <ref kind="decision" to="D219"/> (parsing 106 MB took 3.98 GB resident, nearly all tree-sitter's syntax tree of the whole input).</p>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: XML 1.0 (Fifth Edition) [1], [14], [22], [27], [39] to [44], 2.11, 4.3.3; 3 WFC: Element Type Match.</p>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong>: keep tree-sitter and its grammar; parse a document in bounded segments cut at markup boundaries, walk each segment's tree and free it before the next. No header changes.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/xml.c</code>, <code>src/xml_segment.c</code>, <code>src/xml_internal.h</code>, <code>grammars/xml/</code>, <code>tests/xml_test.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: memory proportional to the depth and the largest item, not the input; error positions, DTD and entities as <ref kind="decision" to="D199"/>; the incremental parse of <ref kind="decision" to="D219"/> pauses and resumes; a unit test parses a large generated document under a small allocator limit; resident memory and speed before and after at 10 MB and 100 MB. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D222"/>): the head and content segments of 16 KB; 100 MB parses in 98 MB resident (3,789 MB before; the input is 97 MB), CPU 25.0 s to 19.7 s; xmlconf, QT4 and XT40 unchanged case by case.</p>
+      </item>
+    </list>
+  </body>
+</packet>

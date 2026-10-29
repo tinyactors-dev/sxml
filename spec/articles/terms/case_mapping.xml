@@ -1,0 +1,4 @@
+<term id="case_mapping" source="docs/GLOSSARY.md">
+  <name>case_mapping</name>
+  <definition>The Unicode full case mapping of <code>fn:upper-case</code> and <code>fn:lower-case</code>: one codepoint to one or more (F&amp;O 4.0, section 5.4)</definition>
+</term>

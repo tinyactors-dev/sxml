@@ -1,0 +1,4 @@
+<term id="update_primitive" source="docs/GLOSSARY.md">
+  <name>update_primitive</name>
+  <definition>One change of a pending update list: insert, delete, replace node, replace value, rename, put (XQuery Update Facility 3.0, "update primitives")</definition>
+</term>

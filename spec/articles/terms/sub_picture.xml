@@ -1,0 +1,4 @@
+<term id="sub_picture" source="docs/GLOSSARY.md">
+  <name>sub_picture</name>
+  <definition>One of the two halves of a <code>fn:format-number</code> picture string, for positive or for negative numbers (F&amp;O 4.0, "Syntax of the picture string")</definition>
+</term>

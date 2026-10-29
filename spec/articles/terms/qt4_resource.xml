@@ -1,0 +1,4 @@
+<term id="qt4_resource" source="docs/GLOSSARY.md">
+  <name>qt4_resource</name>
+  <definition>A text resource of a QT4 environment, reached by URI (<code>fn:unparsed-text</code>, <code>fn:json-doc</code>)</definition>
+</term>

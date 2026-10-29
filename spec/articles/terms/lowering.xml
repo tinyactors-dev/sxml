@@ -1,0 +1,4 @@
+<term id="lowering" source="docs/GLOSSARY.md">
+  <name>lowering</name>
+  <definition>Translating an AST into IR expressions of a unit</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="scratch_array" source="docs/GLOSSARY.md">
+  <name>scratch_array</name>
+  <definition>A growable array of fixed-size entries in allocator memory for the work lists of a compile stage</definition>
+</term>

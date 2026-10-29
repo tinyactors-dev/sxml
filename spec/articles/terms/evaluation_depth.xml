@@ -1,0 +1,4 @@
+<term id="evaluation_depth" source="docs/GLOSSARY.md">
+  <name>evaluation_depth</name>
+  <definition>How deeply evaluation nests (function calls, nested expressions); bounded so deep recursion is a limit, not a stack overflow</definition>
+</term>

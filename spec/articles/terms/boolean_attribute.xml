@@ -1,0 +1,4 @@
+<term id="boolean_attribute" source="docs/GLOSSARY.md">
+  <name>boolean_attribute</name>
+  <definition>An HTML attribute whose only value is its name, written in minimized form (<code>&lt;option selected&gt;</code>; Serialization 4.0, 7.2)</definition>
+</term>

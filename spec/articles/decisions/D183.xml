@@ -1,0 +1,132 @@
+<decision id="D183" status="accepted" source="docs/DECISIONS.md">
+  <title>Phase 7 plan: one packet per deferred feature, optional features for size (packet <ref kind="packet" to="7.1"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D95"/>, <ref kind="decision" to="D97"/>, <ref kind="decision" to="D154"/>, <ref kind="decision" to="D157"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D165"/>, <ref kind="decision" to="D166"/>, <ref kind="decision" to="D181"/>. Plans Phase 7 (<ref kind="decision" to="D162"/>) in <code>docs/tasks/phase-7.md</code>, as <ref kind="decision" to="D165"/> planned Phase 5.</p>
+    <list>
+      <item>
+        <p><strong>Packets</strong> (numbers in wave order; "a, b" are packet groups):</p>
+        <list>
+          <item>
+            <p>7.2: optional features and the size budget;</p>
+          </item>
+          <item>
+            <p>7.3: xsl:evaluate;</p>
+          </item>
+          <item>
+            <p>7.4: XSLT backwards-compatible behaviour and XPath 1.0 compatibility mode;</p>
+          </item>
+          <item>
+            <p>7.5: disable-output-escaping;</p>
+          </item>
+          <item>
+            <p>7.6a, b: streaming (streamability analysis, then streamed evaluation);</p>
+          </item>
+          <item>
+            <p>7.7a, b, c: the Update Facility;</p>
+          </item>
+          <item>
+            <p>7.8: EXPath Binary;</p>
+          </item>
+          <item>
+            <p>7.9: EXPath File;</p>
+          </item>
+          <item>
+            <p>7.10a, b: HTML5;</p>
+          </item>
+          <item>
+            <p>7.11: fn:transform;</p>
+          </item>
+          <item>
+            <p>7.12a, b, c: Full Text;</p>
+          </item>
+          <item>
+            <p>7.13: XML 1.1 input;</p>
+          </item>
+          <item>
+            <p>7.14a, b: DTD processing;</p>
+          </item>
+          <item>
+            <p>7.15a, b: UCA;</p>
+          </item>
+          <item>
+            <p>7.16: timezone database;</p>
+          </item>
+          <item>
+            <p>7.17: calendars and languages;</p>
+          </item>
+          <item>
+            <p>7.18: Invisible XML;</p>
+          </item>
+          <item>
+            <p>7.19: review.</p>
+          </item>
+        </list>
+        <p>7.3, 7.5, 7.13 and 7.14 are proposed for the owner (below). The order weighs the cases unlocked, user demand and risk:</p>
+        <list>
+          <item>
+            <p>7.4 comes early because every <code>version="1.0"</code> stylesheet now raises XTDE0160 when evaluated;</p>
+          </item>
+          <item>
+            <p>Full Text is late because it is the riskiest;</p>
+          </item>
+          <item>
+            <p>UCA, timezones, languages and iXML come last: they are few cases and much data.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Counts</strong> (not run at 3b0812a; first unmet dependency where the dashboard has it, else from the catalogs):</p>
+        <list>
+          <item>
+            <p>XT40: streaming 2,932, backwards compatibility 124, xsl:evaluate 83, dtd 78, XML 1.1 65, disable-output-escaping 32, numbering languages 14;</p>
+          </item>
+          <item>
+            <p>XQ40: HTML 1,401, Update 825, Full Text 685, Binary 673, XML 1.1 313, File 271, fn:transform 133, UCA 49 (+13), infoset-dtd 32, languages 24, Olson 8, iXML 10, XPath 1.0 mode 5;</p>
+          </item>
+          <item>
+            <p>xmlconf: 275 XML 1.1 cases and 265 with external entities.</p>
+          </item>
+        </list>
+        <p>About 4,400 of XQ40's 5,505 not-run cases and 3,330 of XT40's 4,659. staticTyping, the xsl-stylesheet PI, HTML4 output, XInclude and remote_http stay unplanned (listed in the plan).</p>
+      </item>
+      <item>
+        <p><strong>Mechanisms, no parallel machinery</strong>:</p>
+        <list>
+          <item>
+            <p>xsl:evaluate and fn:transform compile at run time and run a unit evaluation (<ref kind="decision" to="D154"/>, <ref kind="decision" to="D157"/>); fn:transform is supplied by the XSLT layer, as fn:load-xquery-module is supplied by XQuery.</p>
+          </item>
+          <item>
+            <p>HTML5, iXML, XML 1.1 and DTD entities send tree builder events; HTML tree construction works on a working node table first, because the adoption agency moves built nodes.</p>
+          </item>
+          <item>
+            <p>DTD validation is schema validation against components built from the DTD.</p>
+          </item>
+          <item>
+            <p>Updates are applied by rebuilding trees through the tree builder, so <code>tree.h</code> stays frozen (node identity across an update is not observable within a snapshot).</p>
+          </item>
+          <item>
+            <p>Streaming is first a static streamability pass with unstreamed evaluation, which yields every result and static error; then a receiving task (<ref kind="decision" to="D166"/>) fed by the parser. The feature is claimed only then.</p>
+          </item>
+          <item>
+            <p>Full Text selections compile into a match program as regexes do (<ref kind="decision" to="D53"/>); Full Text goes in the XQuery grammar only.</p>
+          </item>
+          <item>
+            <p>The XPath 1.0 mode is a static-context flag that the lowering reads.</p>
+          </item>
+          <item>
+            <p>disable-output-escaping uses the JAXP processing-instruction pair, because text nodes cannot carry a mark.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Header changes</strong> (additive, each with its record): <code>processor.h</code> (optional features, a file-system interface, resource kinds for Full Text, entities and optionally collation and timezone data), <code>xpath.h</code> (the 1.0 compatibility flag), <code>xquery.h</code> (updating queries), <code>xml.h</code> (DTD options). No substrate header changes.</p>
+      </item>
+      <item>
+        <p><strong>Gates</strong> (proposed): each feature has its own gate in its packet, from 75 % (Full Text, languages) to 95 % (Binary, HTML5, the xmlconf cases). The Phase 7 gate is every accepted feature's gate, the earlier gates still held with no passed count dropped, no error outcome, the owner's size budgets, and fuzz targets for every new parser.</p>
+      </item>
+      <item>
+        <p><strong>PLAN.md</strong>: the Phase 7 row names the optional features and the four proposed additions.</p>
+      </item>
+    </list>
+  </body>
+</decision>

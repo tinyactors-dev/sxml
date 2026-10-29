@@ -1,0 +1,4 @@
+<term id="error_code" source="docs/GLOSSARY.md">
+  <name>error_code</name>
+  <definition>The expanded QName of a specification error, such as <code>err:FOAR0001</code></definition>
+</term>

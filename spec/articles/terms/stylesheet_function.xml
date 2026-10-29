@@ -1,0 +1,4 @@
+<term id="stylesheet_function" source="docs/GLOSSARY.md">
+  <name>stylesheet_function</name>
+  <definition>A function an <code>xsl:function</code> declares; one IR function per arity of its arity range (XSLT 4.0, 10.3; <ref kind="decision" to="D150"/>)</definition>
+</term>

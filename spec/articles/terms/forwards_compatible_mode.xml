@@ -1,0 +1,4 @@
+<term id="forwards_compatible_mode" source="docs/GLOSSARY.md">
+  <name>forwards_compatible_mode</name>
+  <definition>Reading an element whose effective version is above 4.0: unknown XSLT elements and attributes are ignored or kept for fallback (XSLT 4.0, 3.9)</definition>
+</term>

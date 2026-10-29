@@ -1,0 +1,4 @@
+<term id="schema_report_sink" source="docs/GLOSSARY.md">
+  <name>schema_report_sink</name>
+  <definition>The interface that receives every schema report of a compilation or validation, so that validation can go on after the first error</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="structural_record_type" source="docs/GLOSSARY.md">
+  <name>structural_record_type</name>
+  <definition>A record type matched by its fields (<code>record(a as xs:int)</code>)</definition>
+</term>

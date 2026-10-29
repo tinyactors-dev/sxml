@@ -1,0 +1,4 @@
+<term id="item_requirement" source="docs/GLOSSARY.md">
+  <name>item_requirement</name>
+  <definition>The item categories and, for elements and attributes, the expanded names a pattern may match, read from its pattern AST; an item outside it does not match the pattern (perf-15)</definition>
+</term>

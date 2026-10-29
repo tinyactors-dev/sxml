@@ -1,0 +1,4 @@
+<term id="shadow_attribute" source="docs/GLOSSARY.md">
+  <name>shadow_attribute</name>
+  <definition>An attribute <code>_name</code> whose value, a value template evaluated at compile time, replaces the attribute <code>name</code> (XSLT 4.0, 3.11.4)</definition>
+</term>

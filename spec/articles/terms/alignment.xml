@@ -1,0 +1,4 @@
+<term id="alignment" source="docs/GLOSSARY.md">
+  <name>alignment</name>
+  <definition>A power of two that an address must be a multiple of</definition>
+</term>

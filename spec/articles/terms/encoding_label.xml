@@ -1,0 +1,4 @@
+<term id="encoding_label" source="docs/GLOSSARY.md">
+  <name>encoding_label</name>
+  <definition>A name the Encoding Standard gives an encoding (<code>latin1</code>, <code>windows-1251</code>), matched without case and surrounding whitespace</definition>
+</term>

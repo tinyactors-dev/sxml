@@ -1,0 +1,32 @@
+<decision id="D60" status="accepted" source="docs/DECISIONS.md">
+  <title>Item heap, cells and atomic items (packet <ref kind="packet" to="1.7"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. <code>src/xdm_internal.h</code> is the shared interface of the value model; later XDM packets add files, not edits.</p>
+    <list>
+      <item>
+        <p><strong>Layout</strong>: <code>sxml_item.representation</code> is an internal enum (inline boolean, integer, float, double, QName; atomic, JNode, function, map, array cells; from 64 the sequence cells vector, integer range, concatenation, lazy); 0 is "no item" and, as sequence content, the empty sequence. Atomic items keep their primitive type in <code>flags</code>, so type families need no registry; <code>type_or_node_index</code> holds the annotation (node index for XNodes).</p>
+      </item>
+      <item>
+        <p><strong>Cells</strong>: header (cell class, heap, byte count, reference count) at the start of a module's struct. A <code>sxml_cell_class</code> (static const) gives <term name="release_contents"/> and, for sequence cells, count/get item/iterator next, so <code>src/xdm.c</code> dispatches to range, concatenation and lazy cells (1.8) without link-time dependencies. Releasing the last reference queues the cell on the heap's pending list; the outermost release frees the list in a loop, so deep values free in constant C stack (a 10^6 chain is tested). Count overflow makes a cell immortal.</p>
+      </item>
+      <item>
+        <p><strong>Memory</strong>: every byte the heap hands out counts in <code>live_byte_count</code> and against <code>maximum_byte_count</code>: cells, side tables (<code>sxml_item_heap_allocate_bytes</code>), the raised error, and decimal coefficients, which go through <code>sxml_item_heap_as_allocator</code> (a hidden size header per block) as the heap's decimal configuration.</p>
+      </item>
+      <item>
+        <p><strong>Decimals</strong>: a decimal cell stores its canonical text (made with the cell, not on first read), the nearest double and whether it equals it exactly. atomic-equal, the hash and compare therefore never allocate: doubles are compared through their exact decimal text, built on the stack. Numbers equal to some double hash as that double, others as their canonical text, so 1, 1.0, 1.0e0 and xs:float 1 hash alike.</p>
+      </item>
+      <item>
+        <p><strong>Compare</strong> follows F&amp;O 4.0 <code>fn:compare</code> with PR2256 (QT4 fn-compare): durations by months then seconds, binary by octets across hex and base64, QNames by namespace URI then local name. QName order needs the name pool, which <code>sxml_atomic_comparison</code> lacks: internal <code>sxml_atomic_item_compare_in_heap</code> takes the heap; the public function returns <code>SXML_STATUS_UNSUPPORTED_FEATURE</code> for distinct names (P2).</p>
+      </item>
+      <item>
+        <p><strong>Making</strong>: strings are revalidated as UTF-8 and checked against the derived types (NCName, token, language, ...); integer subtypes by range, beyond <code>int64_t</code> only where the type allows (unsignedLong up to 2^64-1). <code>sxml_atomic_item_make_taking_decimal</code> lets operators and casting hand over a computed <code>sxml_decimal</code>.</p>
+      </item>
+      <item>
+        <p><strong>Node items</strong>: <code>sxml_item_retain</code>/<code>_release</code> must retain the tree, but <code>src/tree.c</code> arrives with 1.11. <code>src/xdm.c</code> has two empty static functions, <code>sxml_node_item_retain_tree</code>/<code>_release_tree</code>; packet <ref kind="packet" to="1.11"/> fills them with <code>sxml_tree_retain</code>/<code>sxml_tree_release</code> (a two-line hand-off; no node item exists before 1.13).</p>
+      </item>
+      <item>
+        <p><code>sxml_error_record_report</code> fills an error record from a <code>sxml_static_error</code> (err namespace), for every packet's static errors.</p>
+      </item>
+    </list>
+  </body>
+</decision>

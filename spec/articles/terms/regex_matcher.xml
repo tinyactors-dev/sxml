@@ -1,0 +1,4 @@
+<term id="regex_matcher" source="docs/GLOSSARY.md">
+  <name>regex_matcher</name>
+  <definition>The working state of matching one compiled regex: backtrack stack, captured groups, step count; one per thread (<code>sxml_regex_matcher</code>)</definition>
+</term>

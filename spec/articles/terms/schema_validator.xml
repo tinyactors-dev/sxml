@@ -1,0 +1,4 @@
+<term id="schema_validator" source="docs/GLOSSARY.md">
+  <name>schema_validator</name>
+  <definition>The tree builder that assesses the events it receives against a schema and passes them on, annotated (type annotation, is-id, is-idrefs, nilled, defaults), to its result builder (<ref kind="decision" to="D165"/>)</definition>
+</term>

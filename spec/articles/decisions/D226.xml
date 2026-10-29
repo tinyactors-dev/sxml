@@ -1,0 +1,44 @@
+<decision id="D226" status="accepted" source="docs/DECISIONS.md">
+  <title>XPath and XQuery conformance sweep (packet <ref kind="packet" to="2.22"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D190"/>, <ref kind="decision" to="D174"/>, <ref kind="decision" to="D205"/>. Takes the "XPath and XQuery" leftovers of <code>docs/agents/QUEUE.md</code>. No public header changed; no IR expression kind added.</p>
+    <list>
+      <item>
+        <p><strong>The fn: namespace's schema</strong> (F&amp;O 4.0, appendix D): its three documents (D.1 analyze-string, D.2 json-to-xml, D.3 csv-to-xml) are known to the schema assembly as xml.xsd is: an import of the namespace the resolver does not deliver (xs:import, XQuery's import schema, xsl:import-schema, the QT4 driver's file-less <code>&lt;schema&gt;</code>) reads them. The processor compiles them once and keeps them (<code>sxml_processor_get_function_namespace_schema</code>). <code>sxml_schema_scope_validate_by_function_namespace</code> validates against an in-scope schema of the namespace first (so that schema-element() matches), else the processor's. fn:json-to-xml validate=true returns the validated tree (duplicates reject by default, retain is FOJS0005); fn:analyze-string returns its typed result (6.3.4 recommends it). <ref kind="decision" to="D225"/> later put the processor's schemas behind an optional feature.</p>
+      </item>
+      <item>
+        <p><strong>Lax validation</strong> with no in-scope schema validates against the built-in components (XSD 1.1 Part 1, 3.3.4.6), not FODC0014.</p>
+      </item>
+      <item>
+        <p><strong>fn:element-to-map's schema-based conversion</strong> (14.6.6, 14.6.9): typed elements without a plan entry get the layout their type gives (<code>sxml_schema_scope_describe_content</code> reads attribute uses, wildcards and the particle's element terms with an explicit stack); content is the typed value, an array for list types, cast to the selected type; nilled elements get the layouts' nilled mappings.</p>
+      </item>
+      <item>
+        <p><strong>fn:deep-equal</strong>: type-variety and typed-values (simple content by typed values; type-variety false lets children decide).</p>
+      </item>
+      <item>
+        <p><strong>fn:doc-available</strong> applies fn:doc's options; failures of loading or validating are false, errors in the options are raised.</p>
+      </item>
+      <item>
+        <p><strong>fn:schema-type</strong> finds in-scope schema types; the record gives a complex type's content variety and simple-content-type.</p>
+      </item>
+      <item>
+        <p><strong>Signatures</strong>: fn:parse-xml, fn:json-to-xml, fn:csv-to-xml, fn:jtree and fn:in-scope-namespaces declare the result types F&amp;O 4.0 gives.</p>
+      </item>
+      <item>
+        <p><strong>The record model</strong> (XPath 4.0, 3.2.10.1; PR 2566, PR 2934): a map that is not a record matches no record type, record(*) only records, a structural record type needs as many entries as fields. "A but with B" lowers to the internal row <code>sxml_but_with_function</code> (<code>src/function_library_map.c</code>), which coerces the merged map to A's record type, so chains keep the record. A record called with a key that names no field is XPTY0004 (XDM 4.0, 8.3.2).</p>
+      </item>
+      <item>
+        <p><strong>XPath 4.0 namespace declarations</strong> (A.1): XQST0033 and XQST0070 as XQuery's prolog (5.13); duplicate parameter names are XQST0039.</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release, full runs, baseline at 7f29dc2): this packet's cases XP40 +38 and XQ40 +86 passed, 15 wrong codes made right; 2 lost in each, both honest: fn-doc-available-40-051 now raises FODC0013 for xinclude as fn:doc does, -065 asks for use-xsi-schema-location. XT40 json-to-xml 53 to 60, import-schema 207 to 209.</p>
+      </item>
+      <item>
+        <p><strong>Lookups</strong> (4.15.3.1): a record's key must name a field (XPTY0004); array keys are coerced to xs:integer, so <code>?1.0</code> selects (PR 2134). With them XP40 +56 and XQ40 +98 of this packet's cases in all.</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong> (for later sweeps): <code>{ E }</code> over JNodes (MapConstructor-500..) in <code>src/evaluator.c</code>. The item axis's JNode parent (<ref kind="decision" to="D113"/>, <code>src/xpath_lower.c</code>); a declared function's <code>$a := .</code> found by fn:function-lookup needs the IR to know a shorter arity's default functions (fn-function-lookup-902). XUDY0038 (e) and is-id under construction strip (f) have no QT4 case. The wrong-error passes left (g): 23 per spec are EXPath Binary's 4.0 types (<ref kind="decision" to="D198"/>, kept). Also open: fn:xsd-validator's schema, schema-location and target-namespace options (7 cases, FODC0009; the driver serves sources, not schema documents, at those URIs), fn:element-to-map-plan's records, the adaptive method's names for derived types (the suite contradicts itself: Serialization-adaptive-37a against -41/-42), and the NamedRecordTypeDecl module cases (<code>recordTypeDecl/</code> against the suite's <code>RecordTypeDecl/</code>).</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="sequence_pattern" source="docs/GLOSSARY.md">
+  <name>sequence_pattern</name>
+  <definition>A pattern with an occurrence indicator, or <code>empty-sequence()</code>, matching a value inside a map, array or JNode pattern (XSLT 4.0, 6.3.5)</definition>
+</term>

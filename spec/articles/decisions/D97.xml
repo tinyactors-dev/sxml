@@ -1,0 +1,20 @@
+<decision id="D97" status="accepted" source="docs/DECISIONS.md">
+  <title>Scope of Phases 2 to 4</title>
+  <body>
+    <p><recorded date="2026-10-17"/> (non-goals per PLAN.md, made concrete).</p>
+    <list>
+      <item>
+        <p><strong>Collations</strong>: the Unicode codepoint collation and the HTML ASCII case-insensitive collation (both required by F&amp;O 4.0), and UCA collation URIs with fallback (on by default): codepoint order, with strength primary and secondary matching case-blind (QT4 simple-uca-fallback). Full UCA (DUCET tables, tailoring, numeric and case-order options; advanced-uca-fallback) stays out: the tables cost more <code>wasm</code> size than the 81 tests that need them are worth. fallback=no on a UCA URI is FOCH0002.</p>
+      </item>
+      <item>
+        <p><strong>Out</strong>: fn:parse-html and fn:html-doc (an HTML5 tree builder is its own project; 1,400 QT4 cases, excluded by <ref kind="decision" to="D95"/>), invisible XML, schema awareness (validate is XQST0075; XSLT validation="strict" and type attributes raise XTSE1660, as for a basic processor), streaming (streamable="yes" runs unstreamed, as a non-streaming processor may), the Update Facility (its tests are not run; %updating is rejected statically), Full Text, EXPath, XPath 1.0 compatibility mode and XSLT backwards-compatible behaviour, civil-timezone and Olson names (no tz database), calendars other than AD and ISO and languages other than English in format-date and format-integer (the fallback markers F&amp;O allows).</p>
+      </item>
+      <item>
+        <p><strong>Later in this plan</strong>: fn:serialize with every method (3.4), fn:load-xquery-module (3.11); fn:transform only if Phase 4 sweeps leave time.</p>
+      </item>
+      <item>
+        <p><strong>Hand-written scanners</strong>: regex syntax (<ref kind="decision" to="D53"/>), picture strings of the formatting functions and CSV are scanned by hand, because their lexical rules are run-time options (decimal formats, CSV delimiters) that a tree-sitter grammar cannot take. Everything else keeps <ref kind="decision" to="D12"/>, including XSLT value templates (<code>grammars/value_template</code>).</p>
+      </item>
+    </list>
+  </body>
+</decision>

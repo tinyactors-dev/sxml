@@ -1,0 +1,23 @@
+<decision id="D43" status="accepted" source="docs/DECISIONS.md">
+  <title>Header review findings (task 0.8)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. Changes made by the Phase 0 review agent (<ref kind="decision" to="D11"/>):</p>
+    <list>
+      <item>
+        <p><code>types.h</code>: node tests carry an <code>sxml_name_test</code> (any name, expanded name, <code>prefix:*</code>/<code>Q{uri}*</code>, <code>*:local</code>), because XPath 4.0 element and attribute tests take a NameTestUnion with wildcards (<code>element(p:*)</code>); the same struct serves path steps.</p>
+      </item>
+      <item>
+        <p><code>name.h</code>: <code>sxml_name_pool_find_namespace_uri</code>, so a name from untrusted input can be looked up without interning its namespace URI.</p>
+      </item>
+      <item>
+        <p><code>xdm.h</code>: <code>sxml_sequence_test_emptiness</code> replaces a <code>bool</code> predicate that swallowed generator errors (fn:empty on a lazy sequence must raise them); <code>sxml_function_item_call</code> does not coerce arguments, the evaluator does (coercion needs casting and function coercion); the borrowed-output verbs are get, describe, find and iterator next; iterator sizes are ABI.</p>
+      </item>
+      <item>
+        <p><code>tree.h</code>: <code>sxml_duplicate_attribute_policy</code> in the arena tree configuration (XQuery rejects with XQDY0025, XSLT 4.0 section 5.7.1 replaces); builder errors use XQuery codes and XSLT rewrites them; the event order is the caller's contract (XQTY0024 and XTDE0410 are checked by the evaluators, well-formedness by the XML parser).</p>
+      </item>
+      <item>
+        <p><code>status.h</code> and <code>xdm.h</code>: <ref kind="decision" to="D41"/>.</p>
+      </item>
+    </list>
+  </body>
+</decision>

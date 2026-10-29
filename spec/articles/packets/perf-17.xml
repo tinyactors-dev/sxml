@@ -1,0 +1,17 @@
+<packet id="perf-17" source="docs/tasks/phase-7.md">
+  <title>Parsing XPath: each text once, and a cheaper parse (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D12"/> (tree-sitter), <ref kind="decision" to="D232"/> (perf-3 for XML), <ref kind="decision" to="D324"/> and <ref kind="decision" to="D325"/>. XPath parsing is 30 % of compiling the EN 16931 Schematron (tree-sitter's <code>ts_parser_parse</code> 23 %). The official compiled stylesheet repeats its expressions: 3,228 test, select and match attributes, 1,049 distinct; the expanded Schematron less so (1,086 test and context attributes, 1,007 distinct).</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: profile first; parse each distinct expression text once per compilation where the static context is the same (an AST cache keyed by the text and the static context's identity; the lowering then takes a copy or shares an immutable AST, whichever the front end allows, <ref kind="decision" to="D71"/> and memory limits kept); then make the parse itself cheaper the way perf-3 did for XML (fewer tokens and nodes in the grammar, a cheaper walk), with the grammar's tests and every outcome unchanged.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/xpath_parse.c</code>, the XPath front end's AST building and its internal headers, <code>grammars/xpath*</code> (if the XPath grammar lives there), the XPath parser's tests, <code>tests/bench/</code>. Not the IR files (perf-16).</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: before and after (instructions and seconds) in a D-record on both invoice runs, xmark-all and the XT40 compile; the ASTs and the IR text identical; QT4 XP40, XQ40 and XT40 whole, base and change in the same setup: no outcome changes, case by case; Schematron 463 of 463, VEFA 1,133. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D329"/>): grammars/xpath inlines its hidden choice rules (operator levels, steps, primaries, names): 676 to 132 reductions for a typical assertion, same nodes; an AST memo per XSLT read and Schematron compile; fields kept per identifier. Invoice transform 1.618 to 1.291 x 10^9, validate 1.613 to 1.321; xmark-all 8.641 to 8.638; ASTs and IR text identical; XP40, XQ40, XT40 0 outcomes differ; suite 463/463, VEFA 1,133/1,133.</p>
+      </item>
+    </list>
+  </body>
+</packet>

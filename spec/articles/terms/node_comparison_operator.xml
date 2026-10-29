@@ -1,0 +1,4 @@
+<term id="node_comparison_operator" source="docs/GLOSSARY.md">
+  <name>node_comparison_operator</name>
+  <definition>What a GNode comparison tests: <code>is</code>, <code>is-not</code>, <code>&lt;&lt;</code>, <code>&gt;&gt;</code>, <code>precedes-or-is</code>, <code>follows-or-is</code> (XPath 4.0, section 4.11.3)</definition>
+</term>

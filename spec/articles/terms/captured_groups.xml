@@ -1,0 +1,4 @@
+<term id="captured_groups" source="docs/GLOSSARY.md">
+  <name>captured_groups</name>
+  <definition>XSLT's current captured groups (XSLT 4.0, 17.2): the map from group numbers and names to fn:captured-group-record values, group 0 the match, set in xsl:matching-substring as the context variable regex-groups (<ref kind="decision" to="D153"/>)</definition>
+</term>

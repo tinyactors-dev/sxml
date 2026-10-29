@@ -1,0 +1,4 @@
+<term id="quantified_fusion" source="docs/GLOSSARY.md">
+  <name>quantified_fusion</name>
+  <definition>A some/every over a filter or a loop made once and read only by it, rewritten to run over that filter's or loop's input with the predicate or body in its condition, so the items are made as it reads them (internal, <code>src/ir_loop_passes.c</code>, <ref kind="decision" to="D259"/>)</definition>
+</term>

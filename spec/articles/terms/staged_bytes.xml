@@ -1,0 +1,4 @@
+<term id="staged_bytes" source="docs/GLOSSARY.md">
+  <name>staged_bytes</name>
+  <definition>Encoded bytes the serializer collects before one write to the output stream</definition>
+</term>

@@ -1,0 +1,26 @@
+<decision id="D57" status="accepted" source="docs/DECISIONS.md">
+  <title>Decimal arithmetic over libmpdec (packet <ref kind="packet" to="1.2"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>, completing <ref kind="decision" to="D42"/> and <ref kind="decision" to="D49"/>.</p>
+    <list>
+      <item>
+        <p><strong>Vendoring</strong>: mpdecimal 4.0.1 (<code>third_party/mpdecimal.version</code>), libmpdec only; patches marked "sxml patch" in <code>mpalloc.c</code>, <code>mpdecimal.h</code> and <code>context.c</code>. The configuration is chosen in <code>mpdecimal.h</code> from the width of <code>size_t</code> (CONFIG_64 or CONFIG_32 with the portable ANSI arithmetic, <code>__uint128_t</code> under GCC and Clang), so one header serves every target, 32-bit WebAssembly included; no MASM or inline assembler. WASI has no <code>signal.h</code>: the never-called trap handler does nothing there.</p>
+      </item>
+      <item>
+        <p><strong>Scope location</strong>: the <ref kind="decision" to="D42"/> thread-local lives in the patched <code>mpalloc.c</code>, not in <code>src/</code>, so libmpdec does not depend on the sxml library that links it; <code>src/decimal.c</code> sets it with <code>mpd_sxml_exchange_allocator_scope</code>. Shrinking a block keeps it (never fails); growth is allocate, copy, release (<ref kind="decision" to="D22"/>).</p>
+      </item>
+      <item>
+        <p><strong>Value type</strong>: <code>sxml_decimal</code> wraps an <code>mpd_t</code> with a static struct and a dynamic coefficient: movable byte for byte, made by the functions that write it, released by <code>sxml_decimal_finalize</code> without a scope. No create/destroy: cells (1.7) embed it.</p>
+      </item>
+      <item>
+        <p><strong>Limits and precision</strong>: a configuration (allocator, <code>maximum_digit_count</code> default 10000, <code>division_digit_count</code> default 34) per item heap. Sums, differences, products, <code>idiv</code> and <code>mod</code> are exact or <code>SXML_STATUS_LIMIT_EXCEEDED</code> (FOAR0002); quotients are computed to max(34, digits of both operands) significant digits, half to even (op-numeric-dividepint2args-5 then gives its second allowed result). Division by zero is <code>SXML_STATUS_INVALID_ARGUMENT</code> (callers raise FOAR0001).</p>
+      </item>
+      <item>
+        <p><strong>Binary floating point</strong>: casting uses the shortest round-trip decimal (<code>0.1e0</code> gives <code>0.1</code>, as XPath processors do); <code>fn:atomic-equal</code> and numeric comparison use the exact value. Decimal to double/float goes through <code>strtod</code>/<code>strtof</code> on text without a decimal point (locale-free), 780 digits plus a sticky digit, so rounding is exact.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: a stripped <code>wasm32-wasip1</code> program using parse, divide, shortest conversion, canonical text and <code>to_double</code> grows by 89 KB (35 KB gzip) over one using only the allocator.</p>
+      </item>
+    </list>
+  </body>
+</decision>

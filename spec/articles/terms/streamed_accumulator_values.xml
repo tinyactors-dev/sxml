@@ -1,0 +1,4 @@
+<term id="streamed_accumulator_values" source="docs/GLOSSARY.md">
+  <name>streamed_accumulator_values</name>
+  <definition>The values of the xslt accumulators a streamed document computes as its events pass, kept by depth for the nodes its stream windows hold now and read by fn:accumulator-before and fn:accumulator-after for those nodes (<ref kind="decision" to="D231"/>)</definition>
+</term>

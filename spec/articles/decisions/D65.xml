@@ -1,0 +1,16 @@
+<decision id="D65" status="accepted" source="docs/DECISIONS.md">
+  <title>WASI test runner disables V8 fast API calls</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Problem</strong>: the <code>xpath_parse</code> test crashed Node.js (SIGSEGV, exit 139) about one run in eight on the <code>wasm</code> preset; <code>deep_nesting_needs_no_recursion</code> alone, after it had passed. Not a memory error in sxml: the same test is clean under ASan/UBSan (Clang, GCC) and valgrind, and the crash is not a wasm trap or a stack overflow (it happens with <code>--stack-size=200</code> too).</p>
+      </item>
+      <item>
+        <p><strong>Cause</strong>: in Node 22 the WASI imports are V8 fast API callbacks. <code>fd_write</code> allocates through uvwasi, which reports external memory to V8 and can start a full garbage collection inside the fast call; the collector then faults walking the optimized wasm frame (<code>InnerPointerToCodeCache::GetCacheEntry</code>). Whether a collection falls there depends on heap timing, hence one run in eight; tests that grow linear memory a lot (20,000 nested parentheses) make it likely. <code>--no-allow-allocation-in-fast-api-call</code> turns it into a deterministic V8 abort in <code>WASI::FdWrite</code>'s FastCallback (45 of 60 runs).</p>
+      </item>
+      <item>
+        <p><strong>Decision</strong>: <code>tools/run-wasi.mjs</code> sets <code>--no-turbo-fast-api-calls</code> through <code>v8.setFlagsFromString</code> before compiling the module, so WASI functions are called the ordinary way. 0 failures in 110 runs afterwards, also with allocation in fast calls forbidden. The test depth and the wasm stack size stay as they are; the library is not involved. Revisit when the runner's Node version no longer uses fast calls for WASI.</p>
+      </item>
+    </list>
+  </body>
+</decision>

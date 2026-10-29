@@ -1,0 +1,6 @@
+<decision id="D202" status="accepted" source="docs/DECISIONS.md">
+  <title>The CLI's WebAssembly budget is 7,000,000 / 1,500,000 bytes (owner)</title>
+  <body>
+    <p><recorded date="2026-10-19"/> on the owner's choice. The CLI module grew to 5,927,297 bytes stripped and 1,267,818 gzipped (the XQuery Update grammar, <ref kind="decision" to="D187"/>, and the HTML parser, <ref kind="decision" to="D201"/>), over <ref kind="decision" to="D176"/>'s 5,500,000 / 1,250,000. The CLI's WebAssembly build runs sxml in Node, where size matters less than for <code>sxml.wasm</code>, so its budget rises to 7,000,000 / 1,500,000 with room for the rest of Phase 7. The <code>sxml.wasm</code> budgets of <ref kind="decision" to="D184"/> and <ref kind="decision" to="D189"/> stay.</p>
+  </body>
+</decision>

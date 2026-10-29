@@ -1,0 +1,4 @@
+<term id="injection_regex" source="docs/GLOSSARY.md">
+  <name>injection_regex</name>
+  <definition>A regex (tree-sitter.json's <code>injection-regex</code>) that the language names of injections match to mean a source code language, such as <code>^(js|javascript)$</code> (<ref kind="decision" to="D288"/>)</definition>
+</term>

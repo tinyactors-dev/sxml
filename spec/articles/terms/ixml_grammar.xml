@@ -1,0 +1,4 @@
+<term id="ixml_grammar" source="docs/GLOSSARY.md">
+  <name>ixml_grammar</name>
+  <definition>An Invisible XML grammar compiled for the Earley parser: rules, alternatives, terminals and marks</definition>
+</term>

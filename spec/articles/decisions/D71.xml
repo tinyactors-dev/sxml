@@ -1,0 +1,29 @@
+<decision id="D71" status="accepted" source="docs/DECISIONS.md">
+  <title>No C recursion</title>
+  <body>
+    <p><recorded date="2026-10-16"/> at the owner's request ("make sure we don't use C recursion"). Project code never recurses: not directly, not through a chain of functions, not through function pointers or operations tables. Every walk over nested structure (CST, AST, IR, types, regex patterns, maps, arrays, trees, JNodes, sequences) is a loop over an explicit stack or work list in allocator memory, bounded by a configured limit that reports <code>LIMIT_EXCEEDED</code> (or the specification's error). Consequences:</p>
+    <list>
+      <item>
+        <p>clang-tidy <code>misc-no-recursion</code> is on (<code>.clang-tidy</code>); it sees recursion within one file. Review checks recursion across files and through pointers.</p>
+      </item>
+      <item>
+        <p>The evaluator is an explicit-stack machine. Calling a function item from a native function (for example <code>fn:for-each</code>, <code>fn:sort</code> with a key, <code>fn:fold-left</code>) must not re-enter the evaluator on the C stack: native higher-order functions are written as resumable steps that ask the evaluator to make the call and resume them with the result. The same holds for lazy sequence generators that evaluate IR. Packets <ref kind="packet" to="1.18"/> and <ref kind="packet" to="1.21"/> follow this.</p>
+      </item>
+      <item>
+        <p>Limits such as <code>maximum_expression_depth</code> bound heap use, not C stack, so their defaults no longer depend on the WebAssembly stack size (this replaces the 32-level lowering depth of <ref kind="decision" to="D63"/>).</p>
+      </item>
+      <item>
+        <p>Existing recursive code is rewritten: <code>xpath_lower.c</code>, <code>xpath_static.c</code>, <code>ir.c</code>, <code>types.c</code>, <code>cast.c</code>, <code>regex.c</code>, <code>xdm_map.c</code>, <code>xdm_array.c</code>, <code>xdm_atomic.c</code> and two tests.</p>
+      </item>
+      <item>
+        <p>Vendored third-party code (tree-sitter, libmpdec) is exempt; the generated grammar scanners are ours and have no recursion.</p>
+      </item>
+      <item>
+        <p><code>tools/check-call-cycles.py</code> (run by <code>tools/lint.sh</code>) links all of src/ and apps/ into one LLVM module and fails on any call-graph cycle, so recursion across files is caught too (not through function pointers). <code>tools/call-cycles-allowlist.txt</code> lists the cycles still being rewritten; it is temporary: each rewrite deletes its lines (a stale entry fails the check) until the file is empty and the allowlist is removed.</p>
+      </item>
+      <item>
+        <p>Lowering (<code>src/xpath_lower.c</code>), type resolution (<code>src/xpath_static.c</code>) and the type text of <code>src/ir.c</code> are rewritten: lowering is a machine of frames allocated one by one (a procedure, a step, locals; results written into the frame below), type resolution and type text use stacks of at most 64 frames (<code>SXML_XPATH_MAXIMUM_TYPE_DEPTH</code>, the text's depth limit). Free-variable analysis skips AST subtrees without variable references, so nested inline functions cost linear time. 100,000 levels of parentheses, calls, inline functions and predicates compile, also on wasm. <code>misc-no-recursion</code> is on and the call-cycle allowlist is empty.</p>
+      </item>
+    </list>
+  </body>
+</decision>

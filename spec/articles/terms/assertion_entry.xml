@@ -1,0 +1,4 @@
+<term id="assertion_entry" source="docs/GLOSSARY.md">
+  <name>assertion_entry</name>
+  <definition>A backtrack-stack entry marking where a lookahead or lookbehind assertion started; the assertion's end and backtracking find it (<ref kind="decision" to="D105"/>)</definition>
+</term>

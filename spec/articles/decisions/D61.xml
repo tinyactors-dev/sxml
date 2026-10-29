@@ -1,0 +1,17 @@
+<decision id="D61" status="accepted" source="docs/DECISIONS.md">
+  <title>Maps and records (packet <ref kind="packet" to="1.9"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. <code>src/xdm_map.c</code>; three cell classes behind <code>SXML_ITEM_REPRESENTATION_MAP_CELL</code>, told apart by cell class.</p>
+    <list>
+      <item>
+        <p><strong>Entry block</strong> (<code>sxml_map_make</code>): entries in one cell. Maps of more than 8 entries get a hash index (key hash, entry index; open addressing, load at most 1/2). Duplicate detection needs it, so it is built while making and kept, not built on first lookup (a refinement of <ref kind="decision" to="D37"/>); maps of 8 entries or fewer are searched linearly.</p>
+      </item>
+      <item>
+        <p><strong>Persistent map</strong> (<code>sxml_map_put</code>, <code>sxml_map_remove</code>): an entry tree (AVL, ordered by entry stamp, entry counts per subtree) and a key tree (AVL, ordered by key hash, then stamp), both of <term name="map_node"/> cells shared by path copying. Put and remove are O(log n), <code>sxml_map_get_entry</code> and <code>sxml_map_find</code> O(log n). A new key gets the next stamp, so it goes last; a removed and re-added key goes last too. Put on an existing key keeps the old key and its position and replaces the value (which key is kept is implementation-dependent, QT4 map-put-011). Put or remove on an entry block or record converts it in O(n log n) once; results of 8 entries or fewer stay entry blocks (copied).</p>
+      </item>
+      <item>
+        <p><strong>Record</strong>: the cell holds the record type, the field values and <term name="field_key"/>s, made on first need (<code>sxml_map_get_entry</code>, <code>sxml_map_find</code>) in a side table of the cell; lookup by name goes through <code>sxml_type_registry_find_record_field</code>, shared by every record of the type. Only string-family keys (xs:string, xs:anyURI, xs:untypedAtomic) can match a field. Put and remove give a plain map (persistent or block). Because field keys are made lazily, <code>sxml_map_get_entry</code> on a record can return the heap's failures on its first call (P3).</p>
+      </item>
+    </list>
+  </body>
+</decision>

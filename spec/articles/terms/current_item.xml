@@ -1,0 +1,4 @@
+<term id="current_item" source="docs/GLOSSARY.md">
+  <name>current_item</name>
+  <definition>XSLT's current item (fn:current, XSLT 4.0, 20.3.1): the context value the outermost expression started with, the focus of its embedding; in a pattern, the item being matched (<ref kind="decision" to="D149"/>)</definition>
+</term>

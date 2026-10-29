@@ -1,0 +1,17 @@
+<decision id="D100" status="accepted" source="docs/DECISIONS.md">
+  <title>Phase 1 gate review (packet <ref kind="packet" to="1.29"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/> by the review agent (<ref kind="decision" to="D11"/>), who did not write Phase 1.</p>
+    <list>
+      <item>
+        <p><strong>Rubric</strong> over <code>include/sxml/</code> (all headers read), the evaluator, lowering, XDM, tree, XML parser and processor (sampled), the rest spot checked: names and glossary, at most three parameters (also every function-pointer type), lifecycle quintets (public and internal types complete), ownership, units, failure and thread safety in public headers, error codes (61 distinct, all well formed), spec citations. No writable file-scope data in <code>libsxml</code>, the CLI or the driver (release objects have empty <code>.data</code> and <code>.bss</code>; libmpdec's are vendored, <ref kind="decision" to="D42"/>); no <code>malloc</code>/<code>free</code> outside <code>src/allocator.c</code>; no printing, <code>abort</code> or <code>exit</code> in <code>src/</code>.</p>
+      </item>
+      <item>
+        <p><strong><ref kind="decision" to="D71"/> through pointers</strong>: every indirect call in <code>src/</code> was followed. Cell release re-enters <code>sxml_cell_release</code> from <term name="release_contents"/> only to queue (a flat loop frees); concatenations are flattened, so a part is never a concatenation; the evaluator runs IR, native-row and coerced bodies as tasks and calls only map, array, constructor and host bodies directly; <code>sxml_evaluator_call_function_item</code> refuses a running context; arena-tree and tree-builder operations never call back into <code>tree.c</code>; tree owners only destroy; generators, resolvers and output streams are the host's. <code>tools/check-call-cycles.py</code> now also links the QT4 driver (with the CLI framework) as a second program: 85 files, no cycle.</p>
+      </item>
+      <item>
+        <p><strong>CI cannot run</strong>: every GitHub Actions job since 2026-10-16 is refused ("recent account payments have failed or your spending limit needs to be increased"); the last green run is 38931572793 (Phase 0 gate). All gate checks were run locally (Linux x86-64, Clang and GCC, WASI SDK 34 on Node 22): presets <code>debug</code>, <code>debug-gcc</code>, <term name="release"/>, <code>wasm</code>, <code>fuzz</code>, lint, slice, fuzzing, dashboard (numbers in LOG). macOS, Windows and MSVC are unverified since the Phase 0 gate: an open gate risk, not ticked. The CI boxes of the gate stay open until the owner restores billing and a run is green.</p>
+      </item>
+    </list>
+  </body>
+</decision>

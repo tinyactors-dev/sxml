@@ -1,0 +1,4 @@
+<term id="error_value" source="docs/GLOSSARY.md">
+  <name>error_value</name>
+  <definition>The optional sequence that an error carries (<code>$err:value</code>)</definition>
+</term>

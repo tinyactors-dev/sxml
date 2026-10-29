@@ -1,0 +1,4 @@
+<term id="namespace_number" source="docs/GLOSSARY.md">
+  <name>namespace_number</name>
+  <definition>Which in-scope namespace of an element a namespace node is, from 1; 0 for other nodes and for a stored namespace node</definition>
+</term>

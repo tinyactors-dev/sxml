@@ -1,0 +1,4 @@
+<term id="namespace_uri_identifier" source="docs/GLOSSARY.md">
+  <name>namespace_uri_identifier</name>
+  <definition>Identifier of an interned namespace URI; 0 is "no namespace"</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="qt4_resource_table" source="docs/GLOSSARY.md">
+  <name>qt4_resource_table</name>
+  <definition>What one QT4 test case's environment serves through the resource resolver: its resources by URI, its collections as sequences, and suite files by <code>file:///</code> URI</definition>
+</term>

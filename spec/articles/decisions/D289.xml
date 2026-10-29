@@ -1,0 +1,35 @@
+<decision id="D289" status="accepted" source="docs/DECISIONS.md">
+  <title>XSLT real gaps: split-when, deterministic functions, atomic-equal keys, adaptive character maps, schema roles, override signatures (packet 4.30)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D245"/>, <ref kind="decision" to="D252"/>, <ref kind="decision" to="D262"/>, <ref kind="decision" to="D272"/> to <ref kind="decision" to="D281"/>, <ref kind="decision" to="D286"/>. Verified as <ref kind="decision" to="D181"/> asks: the debug preset (xslt<em>, serialize</em>, cli, function_library* tests), clang-tidy on the changed files, the call-cycle check, the book examples (no output the book shows changed), the QT4 serializer sets of the changed serializer (XQ40/XP40 method-adaptive, fn-serialize, method-xml/-text/-json/-html, OptionDecl.serialization: no new failure), and the whole XT40 suite with the release driver after each change, case by case. <strong>XT40 12,261 to 12,268 passed (99 wrong error), 257 to 250 failed, 0 errors</strong>, from a whole run at 384040b. Commits 89aa625, 46ba9b9, dad90fb.</p>
+    <list>
+      <item>
+        <p><strong>One closure mechanism</strong>: xsl:iterate's step function became <code>sxml_xslt_closure</code> (src/xslt_lower_internal.h): fn($first, $item, $position) capturing every variable in scope (<ref kind="decision" to="D126"/>) and globals by reference (<ref kind="decision" to="D275"/>), its body lowered with the focus of $item. <strong>split-when</strong> (14.1) is fn:partition over the population with a closure of the expression ($group, $next, the focus of $next) and each partition a keyless group array (for-each-group-401, -402). merge-when stays the one unsupported place (no suite case; sketch: singleton groups, then a pairwise loop with the same closure shape over fn:fold-left, medium).</p>
+      </item>
+      <item>
+        <p><strong>new-each-time="no"</strong> (10.3.6) is always cached by the cached-call row (10.3.7, <ref kind="decision" to="D163"/>) (function-1025, -1026).</p>
+      </item>
+      <item>
+        <p><strong>Keys by fn:atomic-equal</strong> (20.2.2 and its note): key values other than strings are map keys as they are, no longer cast to xs:double (map-for-key-007). <strong>Lost key-004 by the draft</strong>: key('k', 3.7) no longer finds number('3.7'); the note names this incompatibility.</p>
+      </item>
+      <item>
+        <p><strong>Adaptive character maps</strong> (Serialization 4.0, 11 and 12): nodes (the XML method) and string literals (the Text method) are mapped. character-map-026 still fails on the suite's 3.1 map{...} syntax.</p>
+      </item>
+      <item>
+        <p><strong>Static codes</strong>: XTSE4045 (3.13.1, a schema-role naming no role of its package; import-schema-210), XTSE3070 for new-each-time, streamability and streamable attribute sets (3.4.5.3; override-f-021), XTSE0165 for an included or imported xsl:package (3.10.1; package-910). fn:document validates before strip-space "all", as fn:doc does since <ref kind="decision" to="D286"/> (no case).</p>
+      </item>
+      <item>
+        <p><strong>Not done, with causes and sizes</strong>: map-for-key-005 ($top empty means the context node's document: the context parameter's absent focus is raised eagerly in src/xpath_lower.c, which 2.27 and 2.28 held; a parameter default "context value or empty" there, small); copy-4308 (call-template from a global reads the absent global context item at the call; passing an absent focus needs an absent marker in slots, medium); function-lookup-004 (run-time lookup scans the unit's named functions without packages: an IR function package number and the caller's visibility table, medium); accumulators per package (override-misc-005, -007, medium); per-package xsl:strip-space for fn:document (document-2401: one document preparation per package and a loader key of URI and package, medium); <ref kind="decision" to="D276"/>'s current rule in an attribute set inside xsl:for-each (an evaluator operation, no case); schema roles kept apart (import-schema-216: per-element in-scope schemas, medium).</p>
+      </item>
+      <item>
+        <p><strong>The draft, the suite or the environment decides</strong>: xsl:evaluate's 12 (008a needs a Java extension function; 042 XTDE3160 is the draft's; 048, 450 to 460-untrusted are <ref kind="decision" to="D273"/>'s trust codes; 460-trusted needs EXPath File with a file system in the XSLT driver); output-0196 (HTML5 writes PIs as comments), output-0707 and result-document-1407 (adaptive's "no error" is an aim, Serialization 11), result-document-0304 (3.1 map syntax), output-0721 (expects an XML declaration per node by 11.1.1's note; left), docbook-003/004 (fragment identifiers of xsl:source-document are implementation-defined, 18.1 is fn:doc's process).</p>
+      </item>
+      <item>
+        <p><strong>Design sketches for later packets</strong>: <em>streaming</em> (about 20 single causes: streamability analysis misses XTSE3430 in sf-filter-001 and si-fork-953, unparsed entities of streamed documents sf-unparsed-entity-03/-04, si-document-113/-114, absorbing and grouping details; each small to medium in src/xslt_streamability.c and src/evaluator_stream.c, about a week in all); <em>namespace undeclarations</em> (namespace-2606, inherit-namespaces="no"): the tree gives an element its parent's namespaces implicitly, so a child that does not inherit cannot be stored; an additive tree.h record (an undeclaring binding, URI empty, in an element's own bindings, <ref kind="decision" to="D99"/>), honoured by in-scope namespace reads, copies and the serializer's existing undeclare-prefixes path; medium, one substrate record.</p>
+      </item>
+      <item>
+        <p><strong>Records</strong>: the first commit's message lost the words "$group, $next" to the shell; this record is the account. The XT40 section of <code>docs/CONFORMANCE.md</code> was not regenerated.</p>
+      </item>
+    </list>
+  </body>
+</decision>

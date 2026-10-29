@@ -1,0 +1,4 @@
+<term id="request" source="docs/GLOSSARY.md">
+  <name>request</name>
+  <definition>Struct describing one operation</definition>
+</term>

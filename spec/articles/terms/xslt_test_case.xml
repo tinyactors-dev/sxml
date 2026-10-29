@@ -1,0 +1,4 @@
+<term id="xslt_test_case" source="docs/GLOSSARY.md">
+  <name>xslt_test_case</name>
+  <definition>One <code>&lt;test-case&gt;</code> of an XSLT 4.0 test set: environment, stylesheets and packages, parameters, invocation, output, dependencies, result</definition>
+</term>

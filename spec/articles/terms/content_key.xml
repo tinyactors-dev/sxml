@@ -1,0 +1,4 @@
+<term id="content_key" source="docs/GLOSSARY.md">
+  <name>content_key</name>
+  <definition>The key of an element's simple content or nilled marker in an element map (<code>#content</code> by default, <code>#</code> prepended against conflicts)</definition>
+</term>

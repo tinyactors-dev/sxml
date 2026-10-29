@@ -1,0 +1,26 @@
+<decision id="D110" status="accepted" source="docs/DECISIONS.md">
+  <title>Node constructors in the evaluator (packet <ref kind="packet" to="3.5"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. <code>src/evaluator_construct.c</code> evaluates the seven constructor kinds and SHALLOW_COPY (<ref kind="decision" to="D55"/>, <ref kind="decision" to="D101"/>).</p>
+    <list>
+      <item>
+        <p><strong>One tree per constructed node.</strong> Each constructor makes a new arena tree in the item heap's memory that destroys itself with its last reference (as fn:json-to-xml); a nested constructor's node is a tree of its own that the enclosing constructor copies with <code>sxml_tree_builder_copy_node</code>. So a constructor's step only waits for its content value and then does leaf work (no C recursion, <ref kind="decision" to="D71"/>); copying costs one evaluation step per copied node, each content item one (<ref kind="decision" to="D89"/>). The arena tree gets the evaluation's error record: it reports only while events are sent, inside the step.</p>
+      </item>
+      <item>
+        <p><strong>Content convention for lowering (3.9, 4.x).</strong> A content expression of kind SEQUENCE lists the enclosed expressions and literal text of a direct constructor, one atom each, read directly (not pushed); atomic items are joined by spaces only within one atom (<code>&lt;c&gt;{1}{2}&lt;/c&gt;</code> is "12", XQuery 4.0, 4.12.1.3). Any other content expression (an ATOM, a LET...) is one enclosed expression: a computed constructor's whose value is a SEQUENCE must be bound to a slot first. Arrays are flattened with an explicit stack of content frames; JNodes add their atomized value; function items are XQTY0105.</p>
+      </item>
+      <item>
+        <p><strong>Names.</strong> The name atom holds an xs:QName (used as it is, prefix kept) or an xs:string, xs:untypedAtomic or xs:anyURI: trimmed, <code>Q{uri}local</code>, <code>Q{uri}prefix:local</code> or a lexical QName resolved with the unit's static namespaces (prefix 0 = default element namespace, elements only); XQDY0074 otherwise, XPTY0004 for another type or not exactly one item. XQDY0096 and XQDY0044 are checked here for every name; an attribute in a namespace without a prefix gets <code>xml</code> or <code>ns0</code>. PI targets XQDY0041 (any non-NCName string, as QT4 expects), XQDY0064, XQDY0026; comments XQDY0072; namespace prefixes XQDY0074, URIs XPTY0004 (not one string), XQDY0101 from the builder. Written namespace bindings (the <code>namespace_bindings</code> run) are sent after the start event: lowering should give a direct constructor's own declarations (enclosing ones are inherited through the copy while copy-namespaces is inherit).</p>
+      </item>
+      <item>
+        <p><strong>Modes fixed for now</strong>: construction strip (xs:untyped, xs:untypedAtomic), copy-namespaces preserve, inherit; ELEMENT and DOCUMENT follow XQuery (duplicate attributes XQDY0025, XQTY0024, XPTY0004 for attributes in a document), SHALLOW_COPY follows XSLT 4.0 5.7.1 (later duplicates replace, XTDE0410, XTDE0420, XTDE0450, XTTE3180 for more than one item; element namespaces copied). construction_flags and name_namespaces select the other modes (<ref kind="decision" to="D124"/>).</p>
+      </item>
+      <item>
+        <p><strong>Base URIs</strong>: elements get the static base URI as their tree's base URI (<code>sxml_arena_tree_configuration.base_uri</code>, <ref kind="decision" to="D98"/>), documents through their start event; attributes, text, comments and PIs have none (QT4 fn-base-uri-5 to -7).</p>
+      </item>
+      <item>
+        <p><strong>Deviation</strong>: <code>text {""}</code> gives the empty sequence, not an empty text node: the arena tree drops empty text (<ref kind="decision" to="D40"/>). Inside a constructor the two are the same (the empty text node is deleted).</p>
+      </item>
+    </list>
+  </body>
+</decision>

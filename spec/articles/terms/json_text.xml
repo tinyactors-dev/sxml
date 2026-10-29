@@ -1,0 +1,4 @@
+<term id="json_text" source="docs/GLOSSARY.md">
+  <name>json_text</name>
+  <definition>A text in the JSON syntax of RFC 8259: the <code>$value</code> of <code>fn:parse-json</code> and <code>fn:json-to-xml</code></definition>
+</term>

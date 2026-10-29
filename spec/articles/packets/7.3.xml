@@ -1,0 +1,34 @@
+<packet id="7.3" source="docs/tasks/phase-7.md">
+  <title>xsl:evaluate (implementation; proposed, <ref kind="decision" to="D183"/>)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: XSLT 4.0, 10.5 "Dynamic XPath Evaluation" (the xpath, context-item, with-params, namespace-context, base-uri, schema-aware and as attributes; XTDE3160, XTDE3165, XTDE3170, XTDE3175).</p>
+      </item>
+      <item>
+        <p><strong>Unlocks</strong>: XT40 <code>evaluate</code> 83 cases (feature dynamic_evaluation), and the 5 XTDE3175 failures.</p>
+      </item>
+      <item>
+        <p><strong>Replaces</strong>: the XTDE3175 raise in <code>src/xslt_lower_control.c</code> (<code>evaluate_locals</code>), and supports-dynamic-evaluation.</p>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong>: compile the XPath text at run time with the XPath front end. Its static context is built from the instruction's attributes and <code>xsl:with-param</code>s; the parameters are external variables. Then ask the machine for a unit evaluation (<ref kind="decision" to="D154"/>), whose value is the instruction's value. No new IR kind is needed beyond what fn:load-xquery-module uses.</p>
+      </item>
+      <item>
+        <p><strong>Header</strong>: none.</p>
+      </item>
+      <item>
+        <p><strong>After</strong>: nothing.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/xslt_lower_control.c</code> (the evaluate procedure) and new <code>src/xslt_evaluate.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: about 5 KB, in the CLI only.</p>
+      </item>
+      <item>
+        <p><strong>Gate</strong>: ≥ 90 % of the 83. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D196"/>): evaluate 73 of 83 (91 % of the 80 run, 88 % of the 83); XT40 8,899 to 8,973 passed, 0 errors, none lost. The gate waits for 7.10 (html-doc, parse-html: 3 cases) and trust checks in json-doc and unparsed-text-available (2 cases).</p>
+      </item>
+    </list>
+  </body>
+</packet>

@@ -1,0 +1,4 @@
+<term id="target_type" source="docs/GLOSSARY.md">
+  <name>target_type</name>
+  <definition>The type a cast converts to: atomic, list, union, enumeration or choice of atomic types</definition>
+</term>

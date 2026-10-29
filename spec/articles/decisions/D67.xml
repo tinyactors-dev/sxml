@@ -1,0 +1,20 @@
+<decision id="D67" status="accepted" source="docs/DECISIONS.md">
+  <title>Tree, axes and arena tree (packet <ref kind="packet" to="1.11"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. <code>src/tree_internal.h</code> holds <code>struct sxml_tree</code> (the arena tree embeds it) and node-reference helpers.</p>
+    <list>
+      <item>
+        <p><strong>Wrapper</strong>: caches node count and name pool at initialize (trees are immutable); the identifier is issued last, so a failed initialize uses none. Namespace node names are found in the pool, interned only if new.</p>
+      </item>
+      <item>
+        <p><strong>Axes</strong> keep only origin and next node and derive each step from descriptions (<ref kind="decision" to="D39"/> numbering): descendants/following by <code>N + 1 + attribute_count(N)</code>; preceding scans backwards from the reference node (an attribute's or namespace node's element), skipping attributes and nodes whose subtree reaches it (ancestors). Following of an attribute or namespace node includes its element's descendants.</p>
+      </item>
+      <item>
+        <p><strong>copy_node</strong> walks index order and closes elements by parent links: linear, constant C stack. Preserve sends the bindings the copy's parent lacks plus undeclarations; no-preserve sends none and lets fixup bind what names use. Without type preservation nilled is dropped, ID flags kept. <code>inherits_namespaces</code> cannot be honoured for the top element (P6).</p>
+      </item>
+      <item>
+        <p><strong>Arena tree</strong>: one <code>sxml_arena</code> over initial memory and the allocator. Nodes in segments of 16·2^k (never moved or copied); content in a text store whose pending run becomes one text node; in-scope lists shared when an element declares nothing new (xml binding in a base list). Fixup at header close: names keep a bound prefix, else bind it unless the element declared it otherwise, else reuse a prefix bound to the URI, else <code>ns0</code>, <code>ns1</code>...; a no-namespace element undeclares the default. XQDY0025, XQDY0102, XQDY0101 (xml/xmlns misuse) and XQDY0044 are raised into the configured error record. Duplicate checks scan up to 8 attributes, then use a hash index. <code>maximum_depth</code> counts open elements; the text limit counts every byte copied into the store. Unparsed entities only before document content. After a failed event only finalize/destroy is meaningful.</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,38 @@
+<decision id="D142" status="accepted" source="docs/DECISIONS.md">
+  <title>Sequence constructors and node construction (packet <ref kind="packet" to="4.6"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D102"/>, <ref kind="decision" to="D103"/>, <ref kind="decision" to="D110"/>, <ref kind="decision" to="D120"/>, <ref kind="decision" to="D124"/>, <ref kind="decision" to="D127"/>, <ref kind="decision" to="D139"/>. <code>src/xslt_lower.c</code>, <code>src/xslt_lower_construct.c</code>, <code>src/xslt_simple_content.c</code> with <code>src/xslt_lower_internal.h</code>; no IR kind, no evaluator change, no public header.</p>
+    <list>
+      <item>
+        <p><strong>One machine</strong>: XSLT instructions are lowering procedures pushed with <code>sxml_xpath_lowering_push_procedure</code> (<ref kind="decision" to="D103"/>) on a lowerer of language XSLT; every expression and value template goes through the embedding entry with an XPath static context made once per AST static context (namespaces, xpath-default-namespace as prefix 0, base URI, the processor's function table). The files define no lowering part (no XPath AST kind is XSLT's yet); instructions are found through <code>sxml_xslt_instruction_rule</code> views, one per file, listed in <code>src/xslt_lower.c</code> (4.7 to 4.14 add a view and one line).</p>
+      </item>
+      <item>
+        <p><strong>Sequence constructor</strong> = one atom per child, bound in the caller's block; its value is the SEQUENCE of them, given to constructors as one ATOM content (<ref kind="decision" to="D110"/>: one enclosed expression, so 5.7.1 joins adjacent atomic values across instructions). Variables a child pushes stay in scope until the constructor ends (4.7's xsl:variable). A constructor call may install a focus (FIXED for xsl:copy select, SLOTS for the for-each of xsl:array).</p>
+      </item>
+      <item>
+        <p><strong>Literal result elements</strong>: ELEMENT_CONSTRUCTOR with XSLT_RULES, an xs:QName constant, namespace bindings from the stylesheet tree's in-scope namespaces minus xml, the excluded namespaces (unless an alias outputs them) and alias literal URIs (11.1.3, 11.1.4; aliases resolved by import precedence, XTSE0810); xsl:inherit-namespaces="no" is NO_INHERIT. Attributes are ATTRIBUTE_CONSTRUCTORs of their AVT.</p>
+      </item>
+      <item>
+        <p><strong>Value templates and simple content</strong> (5.6, 5.7.2): string templates lowered here; each enclosed value goes through the internal native row <code>merge-text-nodes</code> (adjacent text nodes to one xs:untypedAtomic, else the value as it is) and fn:string-join. Fixes <ref kind="decision" to="D120"/>'s deviation: <code>{//item/text()}</code> is "onetwo". The same path gives xsl:attribute, xsl:value-of, xsl:text, xsl:comment (hyphens fixed with fn:replace, 11.8), xsl:processing-instruction (leading space, "?&gt;", 11.6) and xsl:namespace (XTDE0930) their strings.</p>
+      </item>
+      <item>
+        <p><strong>Names</strong>: a name (and namespace) without enclosed expressions is resolved while lowering to an xs:QName constant; an invalid one becomes a RAISE of XTDE0820/0830/0850/0855/0860 when evaluated. A computed name is a string resolved by the evaluator with the instruction's in-scope namespaces as name_namespaces (without the default one for attributes), or fn:QName(namespace, name) (prefix dropped for "").</p>
+      </item>
+      <item>
+        <p><strong>XSLT error codes</strong> where the evaluator raises XQuery's: a TRY_CATCH around the constructor alone whose clauses RAISE the XSLT code (<code>sxml_xslt_lowering_bind_mapped_expression</code>): XQDY0137 to XTDE3365, XPTY0004 to XTTE3375 (maps), XQDY0074/0044/FOCA0002 to XTDE08x0 (names), XQDY0041/0064 to XTDE0890, XQDY0074/0101 to XTDE0920/0925.</p>
+      </item>
+      <item>
+        <p><strong>Others</strong>: xsl:copy is SHALLOW_COPY with the content as its own body; xsl:copy-of a MAP that SHALLOW_COPYs elements and documents with <code>(@*, node())</code> as content and other nodes whole; xsl:map/xsl:record a MAP_CONSTRUCTOR (fields, then the content's maps as a merged entry), with [xsl:]duplicates map:merge; xsl:array array:of-members over JNodes (fn:jtree for non-JNodes), xsl:array-member fn:jtree; xsl:select its content expression; extension and unknown instructions their xsl:fallback children or XTDE1450.</p>
+      </item>
+      <item>
+        <p><strong>Stylesheet AST</strong> (accepts <ref kind="decision" to="D139"/>'s Proposed item): appended SXML_XSLT_AST_KIND_RECORD and attribute kinds CONSTRUCTOR (record-type, BOOLEAN) and RECORD_FIELD (EXPRESSION); xsl:record reads attributes in no namespace as fields (no shadow or standard attributes), xsl:-prefixed ones as standard attributes and xsl:duplicates.</p>
+      </item>
+      <item>
+        <p><strong>Entry</strong> (until 4.8 and 4.15): <code>sxml_xslt_lower_initial_template</code> lowers one template's sequence constructor as the main function (focus = global context item), optionally inside a DOCUMENT constructor (the principal result tree), then runs the standard passes and seals.</p>
+      </item>
+      <item>
+        <p>Deviations: xpath-default-namespace="##any" reads as none; attribute sets (4.12), xsl:type/validation ignored (<ref kind="decision" to="D97"/>); a zero-length text node is no node (<ref kind="decision" to="D110"/>).</p>
+      </item>
+    </list>
+  </body>
+</decision>

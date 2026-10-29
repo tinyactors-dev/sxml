@@ -1,0 +1,35 @@
+<decision id="D224" status="accepted" source="docs/DECISIONS.md">
+  <title>Evaluator performance: benchmarks, axis walks, filter indexes (packet <ref kind="packet" to="perf-1"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D46"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D89"/>, <ref kind="decision" to="D149"/>, <ref kind="decision" to="D178"/>, <ref kind="decision" to="D182"/>, <ref kind="decision" to="D185"/>. In progress; completed when the packet ends.</p>
+    <list>
+      <item>
+        <p><strong>Benchmarks</strong> (<code>tests/bench/run-bench.py --build DIR</code>): XMark Q8, Q9, Q11 and all twenty queries (XMark-All.xq) over the suite's XMark document (3.5 MB, made by the XMark generator), a join written as a filter, path expressions, deep recursion, big group by and order by, an xsl:key join, a <code>match="$var"</code> pattern, and QT4 app-Demos itunes through sxml-qt4. Processor seconds (user plus system), the fastest of three runs: other builds share this machine, so wall time is noise.</p>
+      </item>
+      <item>
+        <p><strong>Axis walks</strong> (glossary <term name="axis_walk"/>): a step described every node three times (the iterator's successor, the node test, the origin per step). An internal walk in <code>src/tree_axis.c</code> hands out each node with its description for the child, following-sibling, descendant(-or- self), attribute, self and parent axes, the others through the iterator; the step tests the description it has and makes an item only for a node that matches. Two XNodes of one tree are ordered and compared from their items. Steps are unchanged.</p>
+      </item>
+      <item>
+        <p><strong>Filter indexes</strong> (glossary <term name="filter_index"/>, <term name="index_key"/>, <term name="index_probe"/>): the filter-index pass (<code>src/ir_loop_passes.c</code>, in the optimizer seam of <ref kind="decision" to="D46"/>) gives a FILTER whose predicate needs "key = probe", "eq" or "is" to be true (through LETs and "and") a filter index, copies of the key's expressions (the focus value, globals and constants only) and of the probe's (no focus); only plain expressions are copied (no constructors, function items, try/catch, nondeterministic or context-reading natives; IR functions by a fixpoint over the call graph). A for clause's where becomes such a FILTER of the for clause's input. At run time (<code>src/evaluator_index.c</code>) a FILTER of 16 items or more keeps one memo entry (<ref kind="decision" to="D149"/>) with the last input it saw: the second time it sees an input it builds the index (key values ordered by codepoints, nodes by document order), later times it binary-searches the probe's values and tests the predicate on the candidates only. The index answers only where its answer is exact: string-like keys and probes for "=" and "eq" under the codepoint collation, one value for "eq" and "is", nodes for "is", no dynamic or type error in a key or the probe (the task catches them); otherwise every item is tested as before, so values and errors are those without the index. Memory: one entry per FILTER expression, the size of its last input. Steps are fewer: the keys' own steps, one per key value built, one per probe value and candidate. itunes 80.6 to 4.1 processor seconds; XQ40 and XT40 unchanged.</p>
+      </item>
+      <item>
+        <p><strong>A path's step at once</strong>: the MAP of "E1/E2" whose E2 is one axis step from the focus value, over XNodes, steps from all origins in one task (the DOCUMENT_ORDER after it makes the values the same); it charges the two steps per item the body tasks took, so steps are unchanged. Nodes are described into the caller's memory.</p>
+      </item>
+      <item>
+        <p><strong>Hoisting</strong> (<code>src/ir_loop_passes.c</code>, the hoist pass, after filter-index so keys still read globals): LETs at the start of a MAP's body (no flags) or a FILTER's predicate, flattened first, whose bound expressions are plain and read nothing the loop binds, move out behind a guard, LET(g, QUANTIFIED(some, input, true()), LET(s, CONDITIONAL(g, e, ()), loop)), so nothing runs for an empty input that did not run before. Content LETs (<ref kind="decision" to="D166"/>) stay. Steps are fewer.</p>
+      </item>
+      <item>
+        <p><strong>STREAM</strong> (<ref kind="decision" to="D223"/>): a STREAM rebinds its counter and fold variables while it runs, so the loop passes leave every MAP and FILTER inside a STREAM's predicate or body alone (no hoisting, no filter index, no where rewrite); <code>tests/evaluator_stream_test.c</code> has a streamed body with such loops.</p>
+      </item>
+      <item>
+        <p><strong>What a step is</strong>: unchanged (<ref kind="decision" to="D89"/>). Step counts fall where work is skipped (index probes, hoisted expressions), so a step budget (QT4's 4 x 10^8, <ref kind="decision" to="D178"/>; the library's 10^9) lasts longer, never shorter.</p>
+      </item>
+      <item>
+        <p><strong>Numbers</strong> (processor seconds, release, fastest of three; parse of the XMark document 0.41 before, 0.27 after, the latter from packet <ref kind="packet" to="xml-mem"/>'s segmented parse, <ref kind="decision" to="D222"/>): xmark-all 6.73 to 1.52; Q8 1.19 to 0.28; Q9 1.46 to 0.34; Q11 2.22 to 0.79; predicate-join 1.17 to 0.33; paths 0.99 to 0.75; xslt-key 0.77 to 0.59; match="$var" (every element of the document against 380 persons) 2.47 to 1.06; recursion, group by and order by 1.28, 0.59, 0.84 to 1.17, 0.49, 0.70 (other packets' changes included); app-Demos itunes 80.6 to 3.4, of which parsing and validating 2.7. QT4 XQ40 and XT40 whole, release, after each change: 0 outcomes differ, case by case.</p>
+      </item>
+      <item>
+        <p><strong>Left</strong>: match="$var" still filters $V by ". instance of gnode()" per test (one task step, linear in $V); the index keys only strings and nodes (numeric keys, a cast to xs:double, would need their own order); hoisting skips path MAPs and the bodies of quantified expressions and sorts; reference counts, the machine's task per expression and small sequence allocation were not changed: after these changes a profile of XMark-All is axis walks (the arena tree's describe_node 15 %), the machine loop (12 %) and atomization.</p>
+      </item>
+    </list>
+  </body>
+</decision>

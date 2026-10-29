@@ -1,0 +1,381 @@
+<document id="C_GUIDELINES" source="docs/C_GUIDELINES.md">
+  <title>C Coding Guidelines</title>
+  <p>C in this project should read like a well-edited specification: every name says what it is, every interface states who owns what, and the compiler and linters catch violations before a human does.</p>
+  <p>These rules apply to all project-owned C, whether written by people or by AI agents. Agents are the main audience: they imitate surrounding code, so every rule here is either enforced by a tool (see Enforcement) or demonstrated in a golden file. A rule that is neither will drift.</p>
+  <p>When a rule and readability conflict, readability wins, but the exception is written down next to the code.</p>
+  <section id="naming">
+    <title>Naming</title>
+    <p>Spell identifiers out. We are not saving characters; we are saving the reader's time.</p>
+    <list>
+      <item>
+        <p><strong>Case:</strong> <code>snake_case</code> for functions, variables, fields and types; <code>UPPER_SNAKE_CASE</code> for macros and enum constants.</p>
+      </item>
+      <item>
+        <p><strong>Prefix:</strong> every exported symbol starts with <code>sxml_</code>, then the module: <code>sxml_tree_append_child</code>.</p>
+      </item>
+      <item>
+        <p><strong>Functions are verb phrases:</strong> <code>sxml_reader_read_line</code>, not <code>sxml_rdln</code>. Predicates read as questions: <code>sxml_node_is_element</code>.</p>
+      </item>
+      <item>
+        <p><strong>Types are noun phrases:</strong> <code>sxml_parser</code>, <code>sxml_parser_configuration</code>. Use no <code>_t</code> suffix, which POSIX reserves.</p>
+      </item>
+      <item>
+        <p><strong>Variables say what they hold, including units:</strong> <term name="byte_count"/>, <term name="codepoint_count"/>, <code>timeout_milliseconds</code>, not <code>n</code>, <code>len</code>, <code>t</code>.</p>
+      </item>
+      <item>
+        <p><strong>Loop indices</strong> are named after what they index: <term name="entry_index"/>, not <code>i</code>. A loop over a plain counter may use <code>index</code>.</p>
+      </item>
+      <item>
+        <p><strong>Booleans</strong> are named as true statements: <code>has_namespace</code>, <code>is_empty</code>.</p>
+      </item>
+    </list>
+    <p><strong>Glossary.</strong> Each domain term has exactly one spelling, listed in <code>docs/GLOSSARY.md</code>. New terms are added there before they appear in code.</p>
+    <p><strong>Banned abbreviations</strong> (non-exhaustive, enforced by lint): <code>ctx</code>, <code>buf</code>, <code>len</code>, <code>str</code>, <code>ptr</code>, <code>tmp</code>, <code>cnt</code>, <code>idx</code>, <code>num</code>, <code>cfg</code>, <code>res</code>, <code>ret</code>, <code>val</code>, <code>msg</code>, <code>err</code> as a variable name.</p>
+    <p>Allowed short forms are only those the field itself uses as words: <term name="utf8"/>, <code>uri</code>, <code>id</code>, <code>io</code>, <code>xml</code>, <code>xdm</code>, <code>qname</code> (only for the XML QName concept).</p>
+  </section>
+  <section id="function-signatures">
+    <title>Function signatures</title>
+    <p>Every project-owned function and function-pointer type takes at most three parameters, counting state and outputs. A required external callback signature may exceed this, with the exception documented at the declaration.</p>
+    <p>Three parameters force each argument group to name a real concept. Common shapes:</p>
+    <list>
+      <item>
+        <p><code>owner, request, output</code> — act on an object with a described request and produce a result.</p>
+      </item>
+      <item>
+        <p><code>memory or allocator, configuration, output</code> — bring an object into existence (see Object lifecycle).</p>
+      </item>
+      <item>
+        <p><code>view, output</code> — a pure transformation of borrowed input.</p>
+      </item>
+    </list>
+    <p>Group arguments into structs that express a domain concept and a lifetime: a byte view, a configuration, a request, a lookup key, a result. Never create a generic <code>context</code> bag just to stay under the limit, and never move call-local pointers into long-lived objects to shorten a signature.</p>
+    <p>Call grouped interfaces with designated initializers so every argument is named at the call site:</p>
+    <pre language="c">sxml_status status = sxml_parser_read_document(
+    parser,
+    &amp;(sxml_read_request){
+        .input = sxml_bytes_from_string(source_text),
+        .preserve_whitespace = false,
+    },
+    &amp;document);</pre>
+    <p>Inputs come before outputs. Outputs are the last parameter and are pointers the caller owns. A parameter that is intentionally both read and written is named for that role (<code>cursor_state</code>) and documented as in/out.</p>
+    <p>Prefer two narrow functions over one function with a mode flag. A <code>bool</code> is allowed only as a named struct field, never as a bare positional argument.</p>
+  </section>
+  <section id="ownership-and-lifetimes">
+    <title>Ownership and lifetimes</title>
+    <p>Every pointer in an interface is either borrowed or owned, and the declaration says which.</p>
+    <list>
+      <item>
+        <p><strong>Borrowed is the default.</strong> A function that receives a pointer may use it only for the duration of the call and must not free or store it.</p>
+      </item>
+      <item>
+        <p><strong>Storing a pointer</strong> beyond the call is part of the contract and is documented: "<code>index</code> keeps a reference to <code>string_table</code>, which must outlive it."</p>
+      </item>
+      <item>
+        <p><strong>Transfer of ownership</strong> is visible in the name: <code>sxml_list_take_entry</code>, <code>sxml_buffer_release_bytes</code>. A function that returns owned memory says so and names how to release it.</p>
+      </item>
+      <item>
+        <p><strong>Library code never calls <code>malloc</code> or <code>free</code> directly.</strong> Memory comes from the caller or from an allocator interface.</p>
+      </item>
+      <item>
+        <p><strong>Arenas for many small objects.</strong> When objects are created in bulk and die together, allocate them from an arena and refer to them by index rather than pointer, so their lifetime is the arena's.</p>
+      </item>
+    </list>
+    <p>On failure, a function leaves its outputs either untouched or explicitly reset, and the header states which.</p>
+  </section>
+  <section id="object-lifecycle-and-caller-provided-memory">
+    <title>Object lifecycle and caller-provided memory</title>
+    <p>Every object type supports two lifecycles: one where the caller provides the memory, and one where the library allocates it through an allocator. The caller-provided path is the primitive; the allocating path is a thin convenience built on it.</p>
+    <table>
+      <row header="true">
+        <cell>Pair</cell>
+        <cell>Who owns the object's memory</cell>
+        <cell>What it does</cell>
+      </row>
+      <row>
+        <cell><code>initialize</code> / <code>finalize</code></cell>
+        <cell>The caller</cell>
+        <cell>Places the object in caller memory; finalize releases internal resources but never the memory itself</cell>
+      </row>
+      <row>
+        <cell><code>create</code> / <code>destroy</code></cell>
+        <cell>The library, through the allocator</cell>
+        <cell>Allocates, then initializes; destroy finalizes, then frees through the same allocator</cell>
+      </row>
+    </table>
+    <p>The names are never mixed: <code>create</code> is always matched by <code>destroy</code>, <code>initialize</code> by <code>finalize</code>.</p>
+    <p><strong>Memory requirements are queried, not guessed.</strong> Each type has a requirements function that reports size and alignment for a given configuration. The result is deterministic, so callers may compute it once and cache it.</p>
+    <pre language="c">typedef struct sxml_memory_requirements {
+    size_t byte_count;
+    size_t alignment;
+} sxml_memory_requirements;
+
+sxml_status sxml_parser_memory_requirements(
+    const sxml_parser_configuration *configuration,
+    sxml_memory_requirements *requirements);
+
+sxml_status sxml_parser_initialize(
+    sxml_memory_view memory,
+    const sxml_parser_configuration *configuration,
+    sxml_parser **parser);
+
+void sxml_parser_finalize(sxml_parser *parser);
+
+sxml_status sxml_parser_create(
+    sxml_allocator allocator,
+    const sxml_parser_configuration *configuration,
+    sxml_parser **parser);
+
+void sxml_parser_destroy(sxml_parser *parser);</pre>
+    <p>Rules for both paths:</p>
+    <list>
+      <item>
+        <p><strong><code>initialize</code> never allocates on its own.</strong> It checks that the memory is large enough and correctly aligned, and returns <code>SXML_STATUS_INSUFFICIENT_MEMORY</code> or <code>SXML_STATUS_MISALIGNED_MEMORY</code> otherwise.</p>
+      </item>
+      <item>
+        <p><strong>Growth is explicit in the configuration.</strong> An object that needs memory after initialization either receives an allocator in its configuration or works within a fixed capacity and reports <code>SXML_STATUS_CAPACITY_EXCEEDED</code>.</p>
+      </item>
+      <item>
+        <p><strong>Objects do not move.</strong> After <code>initialize</code>, the memory stays at the same address until <code>finalize</code>. A type that is safe to copy byte-for-byte says so.</p>
+      </item>
+      <item>
+        <p><strong>Composite objects compose requirements</strong>, rounded up for alignment, so a whole object graph can live in one caller-provided block.</p>
+      </item>
+      <item>
+        <p><strong><code>destroy</code> and <code>finalize</code> accept <code>NULL</code></strong> and do nothing.</p>
+      </item>
+      <item>
+        <p><strong><code>create</code> stores its allocator</strong> inside the object so <code>destroy</code> needs no extra argument.</p>
+      </item>
+      <item>
+        <p><strong>No fixed-size storage structs in public headers</strong> unless the size is deliberately frozen as part of the ABI.</p>
+      </item>
+    </list>
+  </section>
+  <section id="interfaces">
+    <title>Interfaces</title>
+    <p>An interface is a pair: a pointer to the implementation's state and a pointer to a constant table of operations. The library depends on interfaces wherever the host should be able to substitute behaviour: memory allocation, input and output streams, document resolution, clocks.</p>
+    <pre language="c">typedef struct sxml_allocation_request {
+    size_t byte_count;
+    size_t alignment;
+} sxml_allocation_request;
+
+typedef struct sxml_allocator_operations {
+    sxml_status (*allocate)(void *state,
+                            sxml_allocation_request request,
+                            void **memory);
+    void (*release)(void *state, void *memory);
+} sxml_allocator_operations;
+
+typedef struct sxml_allocator {
+    void *state;
+    const sxml_allocator_operations *operations;
+} sxml_allocator;</pre>
+    <list>
+      <item>
+        <p><strong>Operations tables are <code>static const</code></strong> and shared by every instance. Per-instance data lives only in <code>state</code>.</p>
+      </item>
+      <item>
+        <p><strong>Every operation takes <code>state</code> first</strong> and follows the three-parameter limit.</p>
+      </item>
+      <item>
+        <p><strong>Interfaces are passed by value.</strong> They are two pointers.</p>
+      </item>
+      <item>
+        <p>
+          <strong>Lifetime is stated where the interface is accepted.</strong>
+        </p>
+      </item>
+      <item>
+        <p><strong>Calls go through small wrappers</strong>, such as <code>sxml_allocator_allocate(allocator, request, &amp;memory)</code>.</p>
+      </item>
+      <item>
+        <p><strong>Every interface has a default implementation</strong> and a test double.</p>
+      </item>
+      <item>
+        <p><strong>Interfaces are not extended in place.</strong> Publish a new interface type instead.</p>
+      </item>
+    </list>
+  </section>
+  <section id="errors">
+    <title>Errors</title>
+    <p>Fallible functions return an <code>sxml_status</code> enum; results go through the output parameter. Never signal errors through magic return values.</p>
+    <list>
+      <item>
+        <p><strong>Status values are specific</strong> and named for the condition: <code>SXML_STATUS_UNEXPECTED_END_OF_INPUT</code>.</p>
+      </item>
+      <item>
+        <p><strong>Ignored errors fail the build.</strong> Mark status-returning functions with the project's <code>SXML_NODISCARD</code> macro.</p>
+      </item>
+      <item>
+        <p><strong>XPath, XQuery and XSLT dynamic errors</strong> carry their specification error code (for example <code>FOAR0001</code>) in an error record that the caller can inspect.</p>
+      </item>
+      <item>
+        <p><strong>Detailed diagnostics</strong> go into an optional diagnostic record supplied by the caller, never into global state or <code>errno</code>.</p>
+      </item>
+      <item>
+        <p>
+          <strong>Library code never calls <code>abort</code> or <code>exit</code>, and never prints.</strong>
+        </p>
+      </item>
+      <item>
+        <p>
+          <strong>Every early return releases what the function acquired.</strong>
+        </p>
+      </item>
+    </list>
+  </section>
+  <section id="memory-and-buffers">
+    <title>Memory and buffers</title>
+    <p>A pointer to data never travels without its length:</p>
+    <pre language="c">typedef struct sxml_byte_view {
+    const uint8_t *bytes;
+    size_t byte_count;
+} sxml_byte_view;
+
+typedef struct sxml_memory_view {
+    uint8_t *bytes;
+    size_t byte_count;
+} sxml_memory_view;</pre>
+    <list>
+      <item>
+        <p><strong>Units are in the name.</strong> <term name="byte_count"/> and <term name="codepoint_count"/> are different things.</p>
+      </item>
+      <item>
+        <p><strong>Strings are UTF-8 byte views, not NUL-terminated</strong>, except at external boundaries.</p>
+      </item>
+      <item>
+        <p><strong>Output buffers</strong> state capacity and bytes written, and what happens when capacity is too small.</p>
+      </item>
+      <item>
+        <p><strong>Aliasing is declared</strong>; otherwise use <code>restrict</code>.</p>
+      </item>
+      <item>
+        <p><strong>Untrusted input cannot cause unbounded work or memory.</strong> Limits such as maximum nesting depth are part of the configuration.</p>
+      </item>
+      <item>
+        <p>
+          <strong>No variable-length arrays and no <code>alloca</code>.</strong>
+        </p>
+      </item>
+      <item>
+        <p><strong>No recursion.</strong> No function calls itself, directly, through other functions, or through a function pointer or operations table. Walks over trees, expressions, types, patterns and nested values use a loop with an explicit stack or work list that lives in allocator memory and is bounded by a configured limit. Nesting depth in the input then costs heap, never C stack, so deep input cannot overflow the stack on any platform (WebAssembly has 64 KiB by default). Enforced by clang-tidy <code>misc-no-recursion</code> within a file; recursion through function pointers or across files is checked in review. Vendored third-party code is exempt (<ref kind="decision" to="D12"/>).</p>
+      </item>
+      <item>
+        <p><strong>Size arithmetic is checked</strong> with checked-add and checked-multiply helpers.</p>
+      </item>
+    </list>
+  </section>
+  <section id="modules-and-headers">
+    <title>Modules and headers</title>
+    <list>
+      <item>
+        <p><strong>One module, one header pair:</strong> <code>include/sxml/tree.h</code> and <code>src/tree.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Opaque types by default.</strong> Expose fields only for plain value types such as views, configurations and requests.</p>
+      </item>
+      <item>
+        <p><strong>Headers are self-contained</strong> and use <code>#pragma once</code>.</p>
+      </item>
+      <item>
+        <p><strong>Internal declarations</strong> live in <code>src/*_internal.h</code>.</p>
+      </item>
+      <item>
+        <p><strong><code>static</code> for everything not exported</strong>; only the public API is exported.</p>
+      </item>
+      <item>
+        <p>
+          <strong>No global mutable state.</strong>
+        </p>
+      </item>
+    </list>
+  </section>
+  <section id="types-and-expressions">
+    <title>Types and expressions</title>
+    <p>Target C17, with C23 features behind portability macros. Code must build with Clang, GCC, MSVC, the WASI SDK and the Android NDK.</p>
+    <list loose="true">
+      <item>
+        <p><strong>Platform branches</strong> are few, each beside the existing <code>_WIN32</code> one, and each says why in a comment. Android (<ref kind="decision" to="D238"/>, <ref kind="decision" to="D251"/>): the NDK presets build for API level 24 (<code>minSdk</code>), where bionic lacks two C17 functions. <code>src/allocator.c</code> uses <code>posix_memalign</code> for <code>aligned_alloc</code> (API 28) and <code>src/processor.c</code> uses <code>clock_gettime(CLOCK_REALTIME)</code> for <code>timespec_get</code> (API 29), both when <code>__ANDROID_API__</code> is lower. Any other C17 function the library calls must be in bionic at API 24; <code>tools/build-android.sh</code> checks that by building all four ABIs with <code>-Werror</code>.</p>
+      </item>
+      <item>
+        <p><strong>Integers:</strong> <code>size_t</code> for sizes and counts in memory, fixed-width types for values with a defined range, never plain <code>int</code> or <code>long</code> for data.</p>
+      </item>
+      <item>
+        <p><strong>Distinct index types</strong> for distinct things (<code>sxml_node_index</code>, <code>sxml_string_index</code>) as single-field structs.</p>
+      </item>
+      <item>
+        <p><strong><code>bool</code></strong> for truth values.</p>
+      </item>
+      <item>
+        <p><strong>Enums</strong> for closed sets; <code>switch</code> on enums lists every case and has no <code>default</code>.</p>
+      </item>
+      <item>
+        <p>
+          <strong><code>const</code> everywhere it is true.</strong>
+        </p>
+      </item>
+      <item>
+        <p><strong>One declaration per line</strong>, at first use, initialized.</p>
+      </item>
+      <item>
+        <p>
+          <strong>Macros only for what functions cannot do.</strong>
+        </p>
+      </item>
+      <item>
+        <p><strong>No implicit conversions</strong> that change sign or lose precision.</p>
+      </item>
+    </list>
+  </section>
+  <section id="comments-and-documentation">
+    <title>Comments and documentation</title>
+    <p>Every public declaration has a contract comment covering what applies of: purpose, ownership of each pointer, units, aliasing, behaviour on failure, and thread safety.</p>
+    <list>
+      <item>
+        <p><strong>Comments in implementations explain why</strong>, not what.</p>
+      </item>
+      <item>
+        <p><strong>Cite the specification</strong> where behaviour follows it.</p>
+      </item>
+      <item>
+        <p><strong>No commented-out code</strong> and no <code>TODO</code> without an issue reference.</p>
+      </item>
+    </list>
+  </section>
+  <section id="enforcement">
+    <title>Enforcement</title>
+    <p>Compiler, then linter, then structural search, then review. CI runs all of them.</p>
+    <p><strong>Compiler flags</strong> (Clang and GCC): <code>-std=c17 -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wvla -Wswitch-enum -Wimplicit-fallthrough</code>.</p>
+    <p><strong>clang-tidy:</strong> see <code>.clang-tidy</code>.</p>
+    <p><strong>ast-grep rules</strong> for banned abbreviations, <code>malloc</code>/<code>free</code> outside the allocator module, pointer parameters without a length, and bare <code>bool</code> parameters.</p>
+    <p><strong>Runtime checks:</strong> AddressSanitizer and UndefinedBehaviorSanitizer on every test run; fuzzing of every parser entry point.</p>
+    <p><strong>Review rubric:</strong> names spelled out and in the glossary; at most three parameters with meaningful groups; ownership and units stated in the header; failure behaviour defined; no exception without a written reason.</p>
+  </section>
+  <section id="working-with-ai-agents">
+    <title>Working with AI agents</title>
+    <list ordered="true">
+      <item>
+        <p><strong>Golden files.</strong> Every task names the golden module to match.</p>
+      </item>
+      <item>
+        <p><strong>Headers first.</strong> Implementation tasks may not edit public headers.</p>
+      </item>
+      <item>
+        <p>
+          <strong>Glossary before code.</strong>
+        </p>
+      </item>
+      <item>
+        <p><strong>Small, gated tasks</strong> with defined tests.</p>
+      </item>
+      <item>
+        <p><strong>Separate review pass</strong> that reports findings without rewriting.</p>
+      </item>
+      <item>
+        <p>
+          <strong>Fix drift immediately.</strong>
+        </p>
+      </item>
+    </list>
+  </section>
+</document>

@@ -1,0 +1,4 @@
+<term id="external_entity" source="docs/GLOSSARY.md">
+  <name>external_entity</name>
+  <definition>An entity declared with a system identifier: the external subset, an external parameter entity or an external parsed general entity, read only through an entity resolver (XML 1.0, section 4.2.2)</definition>
+</term>

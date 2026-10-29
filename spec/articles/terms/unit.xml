@@ -1,0 +1,4 @@
+<term id="unit" source="docs/GLOSSARY.md">
+  <name>unit</name>
+  <definition>Everything one compilation produces in the IR: functions, expressions, constants, global variables, modes; reference counted (<code>sxml_ir_unit</code>)</definition>
+</term>

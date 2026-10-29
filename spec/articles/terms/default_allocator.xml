@@ -1,0 +1,4 @@
+<term id="default_allocator" source="docs/GLOSSARY.md">
+  <name>default_allocator</name>
+  <definition>The allocator over the C library heap</definition>
+</term>

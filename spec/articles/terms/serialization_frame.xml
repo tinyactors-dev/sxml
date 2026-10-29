@@ -1,0 +1,4 @@
+<term id="serialization_frame" source="docs/GLOSSARY.md">
+  <name>serialization_frame</name>
+  <definition>An entry of the serializer's explicit stack: an array, map, JNode or member sequence whose items are being written (<ref kind="decision" to="D71"/>)</definition>
+</term>

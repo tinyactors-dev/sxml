@@ -1,0 +1,4 @@
+<term id="node_test" source="docs/GLOSSARY.md">
+  <name>node_test</name>
+  <definition>An item type over XNodes: a node kind, an optional name and an optional type annotation</definition>
+</term>

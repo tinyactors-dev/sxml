@@ -1,0 +1,58 @@
+<decision id="D169" status="accepted" source="docs/DECISIONS.md">
+  <title>Phase 4 gate review (packet <ref kind="packet" to="4.18"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/> by the review agent (<ref kind="decision" to="D11"/>), after <ref kind="decision" to="D95"/>, <ref kind="decision" to="D123"/>, <ref kind="decision" to="D151"/>, <ref kind="decision" to="D161"/>, <ref kind="decision" to="D166"/>. Checked locally (<ref kind="decision" to="D123"/>): <code>tools/check-main.sh</code> on clean HEAD (77bc5d5 before and 8d2aa06 after this review's changes) builds <term name="release"/>, <code>debug</code> (ASan, UBSan), <code>debug-gcc</code> and <code>wasm</code>, and every test passes; the full lint at 8d2aa06 is clean (no call cycle). The dashboard is regenerated at 8d2aa06.</p>
+    <list>
+      <item>
+        <p><strong>Numbers</strong> (release, tools/run-xslt.sh, run-qt4.sh XP40 and XQ40, run-xsd.sh, every test set finished, 0 crashes, no leak reported by the drivers' budgets, 0 "error" outcomes): at 77bc5d5 XT40 7,987 of 8,728 in scope, <strong>91.5 %</strong> (gate 70 %); XP40 30,647 passed, in scope 30,629 of 31,543, <strong>97.1 %</strong> (gate 90 %); XQ40 40,034 passed, in scope 40,016 of 41,174, <strong>97.2 %</strong> (gate 85 %); no regression from 30,647 / 40,034. Core sets (gate 80 % each): apply-templates 97.4 %, mode 88.5 %, match 93.8 %, for-each-group 90.7 %, sort 100 %, key 97.1 %, number 97.4 %, choose 95.4 %, copy 89.0 %, value-of 93.3 %, result-document 95.3 %, function 91.1 %. Slices: qt4/slice 198, qt4/xquery-slice 186, xslt/slice 147 (ctest, every preset). After this review's changes, case by case: XT40 gains try-002, -022 and -045 (7,990, 91.5 %), XP40 and XQ40 identical, nothing lost. The 24 sandp test sets the XSLT runner starts end at once with "unknown test set" (out of scope, <ref kind="decision" to="D95"/>).</p>
+      </item>
+      <item>
+        <p><strong>Fuzzing</strong>, 300 s per target, seven at once on a loaded machine (fork mode for the evaluating targets): cast_fuzz 1,068,415 runs, regex_fuzz 461,213, xml_parse_fuzz 62,095, xpath_compile_fuzz 10,066, xpath_evaluate_fuzz about 10,000, xquery_fuzz about 9,600 and the new xslt_fuzz about 8,300; no crash, leak or sanitizer report. Timeouts for triage only (P9): one xquery_fuzz input and four xslt_fuzz inputs, all suite stylesheets slow by nature under ASan (a loop of 1,000,000, primes to 1,000, match="$nodes" over 2,000 nodes), each finishing in 5 to 12 s alone. <strong>xslt_fuzz</strong> (<code>tests/fuzz/xslt_fuzz.c</code>, new): compiles the input through <code>xslt.h</code> and transforms it twice (templates applied to a small document, serialized, result documents collected as trees; xsl:initial-template called, raw result), small limits, a resolver table with one module and one document; seeds are the suite's <code>.xsl</code> files.</p>
+      </item>
+      <item>
+        <p><strong>The XSLT driver's step budget</strong> (<ref kind="decision" to="D166"/>, 4 x QT4, 400 million): a fair test limit, not a mask. json-to-xml-013 costs time linear in its input (13,000 to 209,579 cities: 1.5 s to 25 s, release), about 900 steps a city, 65 a node; a profile is flat (JSON parsing 23 %, coercion 10 %, construction 6 %, template dispatch 4 %), no pattern matching hot spot. What the fuzzing found instead: a pattern rooted at a variable (match="$a-nodes", 6.3.1) tests membership by a scan of the variable's value, so N nodes matched against M is N x M (1,000 nodes 0.6 s, 4,000 9.4 s); within the budget for the suite's case, a design for a later sweep (a node set index by document order per global value), Proposed.</p>
+      </item>
+      <item>
+        <p><strong><ref kind="decision" to="D71"/></strong>: no call cycle (tools/check-call-cycles.py, 163 files); through function pointers: the evaluator's guard (<code>is_running</code>, <ref kind="decision" to="D151"/>) refuses a nested run on one dynamic context and the lowering machine's (<ref kind="decision" to="D161"/>) a nested lowering; resumable natives (fn:key's index, cached calls, accumulators) return CALL steps to the machine; <ref kind="decision" to="D166"/>'s receive function only adds items to a construction and calls no machine; the result document handler, the trace sink and the resolver are host code, and a transformation one of them starts runs on a dynamic context of its own, as xslt.h allows; whitespace stripping is a tree builder filter.</p>
+      </item>
+      <item>
+        <p><strong>Fixed</strong>:</p>
+        <list>
+          <item>
+            <p>Error locations of XSLT: expressions are parsed from attribute text, and their AST spans stayed relative to that text, so a dynamic error or a static error found by lowering (XPST0008, XPST0017) said 1:5 for an expression on line 4. The reader now places each AST in its module (<code>sxml_ast_move_source_spans</code>, with the rule its own relocate_error used, now shared). An error located in a unit lowered for one invocation (call-template, call-function, another mode) named its module with memory freed when the transformation ended (found by ASan in a new CLI test): the name now points to the stylesheet's module URI (status.h, <ref kind="decision" to="D21"/>).</p>
+          </item>
+          <item>
+            <p>err:XTMM9000 and err:XTMM9001, the default codes of xsl:message and xsl:assert, had no prefix and were shown Q{...}XTMM9000.</p>
+          </item>
+          <item>
+            <p><code>sxml transform</code> with a relative STYLESHEET resolved "../" in an href to the file system's root (file:sub/x.xsl with ../b.xml is file:/b.xml by RFC 3986): the base URI now has the working directory (<code>sxml_platform_read_working_directory</code>, the invocation's <code>working_directory</code>; file:///C:/ for Windows). Error reports name the module file of a static error's location.</p>
+          </item>
+          <item>
+            <p>Merged: <code>sxml_xml_byte_is_whitespace</code> replaces thirteen private copies (casting, function library, XPath and XQuery static analysis, XQuery and XSLT lowering, constructors); one <code>sxml_xslt_lowering_add_expression</code> for seven copies.</p>
+          </item>
+          <item>
+            <p><code>tests/xslt_test.c</code> covers the collector's caller-memory lifecycle, the last functions of xslt.h without a test.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Larger duplicates, listed</strong> (one shared mechanism each, later): typed array allocation (count x size checked, then allocate) is a private helper in 19 files; group-adjacent and group-starting-with compare keys in <code>src/xslt_group.c</code> with their own equality, next to the FLWOR's <code>keys_are_equal</code> (group-by itself is shared); the window clause and group-starting-with/ending-with are two run detectors over one sequence. <ref kind="decision" to="D161"/>'s follow-ups are done (sweep 2, <ref kind="decision" to="D163"/>: slot atoms, trim, declared types, heapsorts).</p>
+      </item>
+      <item>
+        <p><strong>Delayed features (<ref kind="decision" to="D162"/>)</strong>, one place each with the specification's error: xsl:import-schema XTSE1650 and validation or type attributes XTSE1660 (<code>src/xslt_read.c</code>), backwards-compatible behaviour XTDE0160 (<code>src/xslt_lower.c</code>), streaming read only where a non-streaming processor must read it (xsl:mode, accumulators), xsl:evaluate XTDE3175 (<code>src/xslt_lower_control.c</code>; dynamic evaluation is optional), extension instructions XTDE1450 (<code>src/xslt_lower.c</code>).</p>
+      </item>
+      <item>
+        <p><strong><code>sxml transform</code> matches docs/CLI.md</strong>: every example of the page gives its output and exit code; the options, the usage errors, exit 3 for a missing file and 1 for a stylesheet or input that is not well-formed behave as written.</p>
+      </item>
+      <item>
+        <p><strong>xslt.h is stable</strong> (<ref kind="decision" to="D161"/>'s rule): consistent with <code>xpath.h</code> and <code>xquery.h</code>, every declaration documented, every function tested through the public API with an allocation-failure loop, the CLI on it alone. From now on it changes as every public header does (<ref kind="decision" to="D47"/>); the package-version function of Proposed would be an addition.</p>
+      </item>
+      <item>
+        <p><strong>Proposed, resolved here</strong>: matching package versions for host resolvers is accepted as a later addition to xslt.h (additive, no owner decision); the XSLT functions at run time and globals computed on first read are accepted as designs for a later sweep (the evaluator gains lazy globals as machine tasks, which also makes xslt.h's "evaluated when first read" exact for errors). New: membership of a pattern rooted at a variable (above). Left for the owner: the WebAssembly budgets (three items) and XQuery's omit-xml-declaration default.</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong> (deferred, listed in the LOG): a dynamic error inside an included or imported module names the principal module with the included module's line (XSLT functions and templates carry no IR module number; the static contexts' IR modules have no source name); attribute-value normalization makes columns approximate in an expression that spans lines; XTDE3052 on reading an abstract variable (<ref kind="decision" to="D166"/>).</p>
+      </item>
+    </list>
+  </body>
+</decision>

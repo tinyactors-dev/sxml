@@ -1,0 +1,23 @@
+<decision id="D282" status="accepted" source="docs/DECISIONS.md">
+  <title>The book's code-generation project (packet book-3)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D257"/> and <ref kind="decision" to="D270"/>. The owner asked for a chapter on using XQuery, XSD and XSLT for code generation, such as RPC between the browser and the backend in the manner of SvelteKit's remote functions.</p>
+    <list>
+      <item>
+        <p><strong>Place.</strong> A new top-level Chapter 12, "Project: Generating Code from a Schema", after Performance and before the appendices, so the numbers of Chapters 1 to 11 (cited elsewhere in the book) hold. Four sections: <code>codegen.md</code> (the sources and their validation), <code>codegen-typescript.md</code>, <code>codegen-running.md</code>, <code>codegen-pipeline.md</code>; examples in <code>docs/book/examples/codegen</code>. One sentence links to it from the XQuery, XSLT and XSD parts and the introduction; the book's glossary gains "Remote function" and "String constructor".</p>
+      </item>
+      <item>
+        <p><strong>The example.</strong> <code>library.xsd</code> (simple types with pattern, maxLength, enumeration and range facets; complex types read as JSON objects: minOccurs="0" is optional, maxOccurs="unbounded" an array) and <code>api.xml</code> (queries and commands), checked by <code>api.xsd</code> with <code>sxml validate</code>. <code>typescript.xqm</code> writes TypeScript with string constructors (types and checks, a fetch client, a Node.js handler) over a hand-written <code>runtime.ts</code>; <code>generate.xq</code> stores the files with <code>fn:put</code> and the text method; <code>openapi.xsl</code> writes OpenAPI 3.1 with template rules and <code>xsl:map</code>. Unknown facets and unknown type names are errors of the generators, not silently dropped. The generated files are kept in <code>generated/</code>, and the book's <code>diff -r</code> against a fresh run is the "in sync" check, so the book check also keeps them current: regenerate them (<code>sh generate.sh</code> in that directory) when the generator, the schema or the CLI's output changes.</p>
+      </item>
+      <item>
+        <p><strong>Running the code.</strong> <code>codegen-running.md</code> runs <code>node demo.ts</code> (Node.js 22.18 or later strips the types; the generated code uses only erasable syntax). It is marked <code>&lt;!-- requires: javascript --&gt;</code>, so the check runs it only with SXML_JAVASCRIPT set, where Node.js is known to be present; the package link it makes is unused.</p>
+      </item>
+      <item>
+        <p><strong>Finding for later</strong> (QUEUE, not fixed here): a syntax error inside an enclosed expression of a string constructor (<code>`{ ... }`</code>) is reported at line 1, column 1 of the module instead of its own place.</p>
+      </item>
+      <item>
+        <p><strong>Verified</strong>: tools/check-book-examples.sh on a release build of a HEAD snapshot with SXML_JAVASCRIPT set: all 30 examples of the four files match; <code>mdbook build</code> succeeds; the generated TypeScript type-checks with <code>tsc --strict</code>.</p>
+      </item>
+    </list>
+  </body>
+</decision>

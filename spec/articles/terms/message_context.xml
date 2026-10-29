@@ -1,0 +1,4 @@
+<term id="message_context" source="docs/GLOSSARY.md">
+  <name>message_context</name>
+  <definition>The item an assertion's message is evaluated with (sch:value-of, sch:name): the subject node when a subject attribute applies, else the context item (6.3, <ref kind="decision" to="D315"/>)</definition>
+</term>

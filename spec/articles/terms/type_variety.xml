@@ -1,0 +1,4 @@
+<term id="type_variety" source="docs/GLOSSARY.md">
+  <name>type_variety</name>
+  <definition>What kind of type a type identifier names: complex, atomic, list, union, or a kind of item type</definition>
+</term>

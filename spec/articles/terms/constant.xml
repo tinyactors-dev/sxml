@@ -1,0 +1,4 @@
+<term id="constant" source="docs/GLOSSARY.md">
+  <name>constant</name>
+  <definition>A value made at compile time and kept by a unit</definition>
+</term>

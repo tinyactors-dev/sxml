@@ -1,0 +1,4 @@
+<term id="lead_byte" source="docs/GLOSSARY.md">
+  <name>lead_byte</name>
+  <definition>The first byte of the UTF-8 encoding of one codepoint</definition>
+</term>

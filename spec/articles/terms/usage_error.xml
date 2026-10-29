@@ -1,0 +1,4 @@
+<term id="usage_error" source="docs/GLOSSARY.md">
+  <name>usage_error</name>
+  <definition>A command line that does not match the table: unknown, missing, repeated or extra arguments</definition>
+</term>

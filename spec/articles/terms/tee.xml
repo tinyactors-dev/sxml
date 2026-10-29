@@ -1,0 +1,5 @@
+<term id="tee" source="docs/GLOSSARY.md">
+  <name>tee</name>
+  <definition>A tree builder that passes each event to two builders in turn</definition>
+  <definition>An element whose events the stream builder also sends to a full stream window of its own as they pass, for end rules with capture="yes" (XSLT 4.0, 19.9; <ref kind="decision" to="D236"/>)</definition>
+</term>

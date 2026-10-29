@@ -1,0 +1,4 @@
+<term id="restricted_character" source="docs/GLOSSARY.md">
+  <name>restricted_character</name>
+  <definition>A C0 or C1 control (other than tab, LF, CR and NEL) that an XML 1.1 document may contain only as a character reference (XML 1.1, [2a] RestrictedChar)</definition>
+</term>

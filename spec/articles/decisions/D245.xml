@@ -1,0 +1,17 @@
+<decision id="D245" status="accepted" source="docs/DECISIONS.md">
+  <title>XSLT targets the newest draft (owner)</title>
+  <body>
+    <p><recorded date="2026-10-20"/> on the owner's word: "We want to target the newest draft for the XSLT tests." Amends <ref kind="decision" to="D29"/>, which pinned the grammars to the drafts of 13 October 2026 and let those drafts win over the test suite.</p>
+    <list>
+      <item>
+        <p>sxml's XSLT 4.0 follows the newest editor's draft published by the QT4 Community Group (qt4cg.org), and the xslt40-test suite is kept at its newest commit (<ref kind="decision" to="D13"/>'s update script). Both are refreshed together, with the draft's date and the suite's commit recorded.</p>
+      </item>
+      <item>
+        <p>Where the newest draft and the suite agree, sxml follows them, also where that changes behaviour an older draft decided (the <code>priority</code> set and its "~T" patterns, 4.19/<ref kind="decision" to="D185"/>). Where they still disagree, the newest draft wins and the case is recorded with the draft section, as <ref kind="decision" to="D29"/> did.</p>
+      </item>
+      <item>
+        <p>The XPath 4.0, XQuery 4.0 and F&amp;O 4.0 drafts the XSLT draft depends on are refreshed at the same time where XSLT needs it; the rest of QT4 follows the same rule when its suite is next refreshed.</p>
+      </item>
+    </list>
+  </body>
+</decision>

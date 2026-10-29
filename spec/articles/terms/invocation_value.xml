@@ -1,0 +1,4 @@
+<term id="invocation_value" source="docs/GLOSSARY.md">
+  <name>invocation_value</name>
+  <definition>The value src/xslt.c binds to an invocation global for one transformation (<ref kind="decision" to="D157"/>)</definition>
+</term>

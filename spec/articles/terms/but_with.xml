@@ -1,0 +1,4 @@
+<term id="but_with" source="docs/GLOSSARY.md">
+  <name>but_with</name>
+  <definition><code>A but with B</code>: record A with the entries of map B put in, use-last (XPath 4.0, section 4.15.4)</definition>
+</term>

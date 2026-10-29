@@ -1,0 +1,32 @@
+<decision id="D209" status="accepted" source="docs/DECISIONS.md">
+  <title>The timezone database (packet <ref kind="packet" to="7.16"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D97"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>, <ref kind="decision" to="D208"/>. Replaces <ref kind="decision" to="D97"/>'s "no tz database" and the FODT0004 place of <ref kind="decision" to="D162"/> in fn:civil-timezone.</p>
+    <list>
+      <item>
+        <p><strong>Data from the host, TZif</strong>: the optional feature <code>sxml_timezone_database_feature()</code> ("timezone-database", <code>src/timezone.c</code>, <code>src/timezone_internal.h</code>) reads zones as the host has them: one TZif file per zone (RFC 8536, versions 1 to 4), asked of the resolver as the new <code>SXML_RESOURCE_KIND_TIMEZONE_DATA</code> (additive in <code>processor.h</code>) under <code>urn:sxml:timezone-data:</code> + a zoneinfo path (a zone name, or <code>zone1970.tab</code>, else <code>zone.tab</code>, for country codes). No compact form and no generator: TZif is the standard format, every Unix host has it in <code>/usr/share/zoneinfo</code>, and one reader serves both hosts and the vendored data. sxml checks a name before it asks (ASCII letters, digits, <code>_ - +</code>, parts between single <code>/</code>), so a resolver can map the path onto a directory. A zone is read at its first use and kept in the processor's feature state; a zone that is not delivered is asked again next time (no negative cache, so a query cannot grow the state with names that do not exist).</p>
+      </item>
+      <item>
+        <p><strong>Vendored</strong>: tzdata 2026e under <code>third_party/tzdata</code> (<ref kind="decision" to="D13"/>): the sources, and <code>zoneinfo/</code> compiled by <code>zic -b slim</code> with the zone tables, 599 files, 237 KB; <code>tools/update-tzdata.sh</code> moves it. The QT4 driver serves it (<code>../tzdata/zoneinfo/</code> from the catalog), the unit tests read it from the source tree; the sxml command serves the host's <code>/usr/share/zoneinfo</code>; JavaScript hosts answer the kind <code>'timezone-data'</code>. Nothing is compiled into sxml.</p>
+      </item>
+      <item>
+        <p><strong>Lookup</strong> (RFC 8536, 3.2): type 0 before the first transition, the last transition's type, the footer's TZ string (POSIX XBD 8.3 with RFC 8536's 167-hour and negative times) from the last transition on. Leap second records are skipped (xs:dateTime has no leap seconds). Years beyond ±10^9 get no answer.</p>
+      </item>
+      <item>
+        <p><strong>fn:civil-timezone</strong> (F&amp;O 4.0, 9.7.4): no place is the implicit timezone, the UTC names stay PT0S without the database; any other place is a zone name, looked up at $value's instant ($value without a timezone takes the implicit timezone); FODT0004 without the feature, for an unknown zone, or a year out of range. A country code is not a zone here (the rules say "IANA timezone name").</p>
+      </item>
+      <item>
+        <p><strong>$place of the formatting functions</strong> (9.9.4.8): a zone name adjusts a value with a timezone to the zone's offset at its instant and gives [ZN] its abbreviation; a time alone takes the zone's standard time ("only possible where the value includes a date"). A country code (two ASCII letters, any case) does not adjust; [ZN] names the first zone of the country, in zone1970.tab's order, with the value's offset at that instant (2018-07-01 at -05:00 in "us" is America/Chicago's CDT). An abbreviation that does not start with a letter ("-03") is no name, and an offset with seconds (local mean time) is no xs:dateTime timezone: the fallback format 01:01 is kept, as for an unknown place and no place (format-time-030).</p>
+      </item>
+      <item>
+        <p><strong>Numbers</strong> (release drivers, against 97aedba): fn-civil-timezone 4 to 9 of 9 (XP40 and XQ40); with the dependency olson-timezone turned on, fn-format-dateTime XQ40 83 to 93 of 94 run (not run 9 to 1), XP40 80 to 88 (not run 14 to 6): all 8 olson-timezone cases and 025c/025e; fn-format-time XQ40 96 to 97 (025c); app-spec-examples XQ40 1,479 to 1,480 and XP40 1,346 to 1,347 (fo-test-fn-civil-timezone-003); fn-format-date and misc-BuiltInKeywords unchanged; XT40 format-date and format-date-en unchanged. The packet's gate (all 14 cases) is met.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong> (wasm preset): <code>sxml-full.wasm</code> 3,564,851 to 3,575,555 bytes (+10,704; gzipped 1,085,933 to 1,090,270), within its 4,000,000 budget; <code>sxml.wasm</code> 2,294,067 to 2,295,933 (+1,866: the two <ref kind="decision" to="D162"/> places and the value adjustment, which ask for the feature), already over its 2,200,000 budget before (<ref kind="decision" to="D206"/>); the CLI module 6,510,188 to 6,521,732. No budget changes.</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong>: the dynamic context has no default place (a host setting would be an additive header change); without one, no place keeps the implicit timezone and [ZN] the fallback format.</p>
+      </item>
+    </list>
+  </body>
+</decision>

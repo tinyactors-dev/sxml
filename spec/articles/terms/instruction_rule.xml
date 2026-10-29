@@ -1,0 +1,4 @@
+<term id="instruction_rule" source="docs/GLOSSARY.md">
+  <name>instruction_rule</name>
+  <definition>Which lowering procedure lowers one kind of XSLT instruction (<code>sxml_xslt_instruction_rule</code>); each XSLT lowering file lists its own</definition>
+</term>

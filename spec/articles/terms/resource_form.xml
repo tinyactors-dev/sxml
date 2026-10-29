@@ -1,0 +1,4 @@
+<term id="resource_form" source="docs/GLOSSARY.md">
+  <name>resource_form</name>
+  <definition>How a resolver delivers a resource: none, bytes, a document node, or a sequence (collections)</definition>
+</term>

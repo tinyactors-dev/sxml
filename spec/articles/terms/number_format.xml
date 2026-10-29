@@ -1,0 +1,4 @@
+<term id="number_format" source="docs/GLOSSARY.md">
+  <name>number_format</name>
+  <definition>The <code>number-format</code> option of <code>fn:parse-json</code>: <code>double</code>, <term name="decimal"/> or <code>adaptive</code></definition>
+</term>

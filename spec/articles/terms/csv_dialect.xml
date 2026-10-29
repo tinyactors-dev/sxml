@@ -1,0 +1,4 @@
+<term id="csv_dialect" source="docs/GLOSSARY.md">
+  <name>csv_dialect</name>
+  <definition>The characters that structure a CSV text, each one character: separator, quote character and optional comment marker, and whether unquoted fields are trimmed of whitespace (F&amp;O 4.0, section 17.5)</definition>
+</term>

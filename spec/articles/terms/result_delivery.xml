@@ -1,0 +1,4 @@
+<term id="result_delivery" source="docs/GLOSSARY.md">
+  <name>result_delivery</name>
+  <definition>How a principal result or result document reaches the host: raw, as a tree, or serialized to an output stream</definition>
+</term>

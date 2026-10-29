@@ -1,0 +1,4 @@
+<term id="builtin_type" source="docs/GLOSSARY.md">
+  <name>builtin_type</name>
+  <definition>A type predefined by XSD, XDM or XPath, with a constant type identifier (<code>SXML_TYPE_XS_INTEGER</code>)</definition>
+</term>

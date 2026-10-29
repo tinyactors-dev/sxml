@@ -1,0 +1,4 @@
+<term id="global_variable" source="docs/GLOSSARY.md">
+  <name>global_variable</name>
+  <definition>A variable of a unit outside every function: external, or computed by an initializer function</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="id_table" source="docs/GLOSSARY.md">
+  <name>id_table</name>
+  <definition>The IDs and IDREFs a schema validator has met under one validation root, checked at its end (cvc-id)</definition>
+</term>

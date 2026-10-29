@@ -1,0 +1,4 @@
+<term id="html_element" source="docs/GLOSSARY.md">
+  <name>html_element</name>
+  <definition>An element the XHTML method recognizes as HTML: in the XHTML namespace, or with HTML5 in no namespace with an HTML5 element name</definition>
+</term>

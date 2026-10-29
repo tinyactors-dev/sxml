@@ -1,0 +1,4 @@
+<term id="item_separator" source="docs/GLOSSARY.md">
+  <name>item_separator</name>
+  <definition>The text written between the items of a serialized sequence</definition>
+</term>

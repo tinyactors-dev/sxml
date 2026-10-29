@@ -1,0 +1,6 @@
+<decision id="D89" status="accepted" source="docs/DECISIONS.md">
+  <title>A bound on evaluation steps (P9 accepted)</title>
+  <body>
+    <p><recorded date="2026-10-16"/> (orchestrator accepted P9, with "0 means sxml's default"). <code>uint64_t maximum_evaluation_step_count</code> in <code>sxml_processor_limits</code>; 0 means <code>SXML_EVALUATOR_DEFAULT_MAXIMUM_EVALUATION_STEP_COUNT</code>, 10^9 steps (about a minute of work, far beyond any QT4 test). <code>sxml_evaluator_configuration</code> has the same field with 0 meaning no bound. The machine charges one step per task run; <code>sxml_dynamic_context_charge_steps</code> lets leaf work charge what it reads: a general comparison charges the product of its operand counts first (O(1) for ranges), so <code>-1 = -100000000000 to -1</code> stops at once, even though an early match would have ended it (the price of charging up front). The count restarts with every evaluation; past the bound, LIMIT_EXCEEDED with the diagnostic filled. Native bodies that loop over many items without tasks (fn:count, fn:string-join, sorting, regex) do not charge yet; each can call the function when needed. <code>xpath_evaluate_fuzz</code> sets 10^7 steps.</p>
+  </body>
+</decision>

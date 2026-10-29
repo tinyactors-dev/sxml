@@ -1,0 +1,4 @@
+<term id="numbering_kind" source="docs/GLOSSARY.md">
+  <name>numbering_kind</name>
+  <definition>How a primary format token numbers: digits, letters, Roman numerals or words, or an unsupported token formatted as <code>1</code></definition>
+</term>

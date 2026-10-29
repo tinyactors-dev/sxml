@@ -1,0 +1,20 @@
+<decision id="D95" status="accepted" source="docs/DECISIONS.md">
+  <title>Pass-rate targets for Phases 2, 3 and 4</title>
+  <body>
+    <p><recorded date="2026-10-17"/> (Phases 2 to 4 planning; PLAN.md leaves the targets to the end of Phase 1). Measured by <code>sxml-qt4 run</code> (release, one process per test set) and, for XSLT, the driver of packet <ref kind="packet" to="4.1"/>; "wrong error" counts as passed (<ref kind="decision" to="D92"/>), as the QT4 guide allows.</p>
+    <list>
+      <item>
+        <p><strong>Denominators</strong>: the cases whose spec applies (XP40, XQ40, XSLT40; a case spec replaces the set's), minus those that need a non-goal: features schemaImport, schemaValidation, typedData, staticTyping, XQUpdate, fullText<em>, xpath-1.0-compatibility, fn-transform-XSLT</em>, fn-invisible-xml, remote_http, expath-file, binary, advanced-uca-fallback, schema-location-hint; sets upd-<em>, ft-</em>, bin-<em>, expath-</em>, misc-HtmlTestSuite, fn-parse-html, fn-html-doc, fn-invisible-xml, fn-transform (<ref kind="decision" to="D97"/>). About 31,500 XP40 and 41,200 XQ40 cases (9,700 of them XQ-only). XSLT: spec XSLT40 outside the <code>strm</code> and <code>sandp</code> groups and without the features schema_aware, streaming, dtd, XML_1.1, XSD_1.1, backwards_compatibility, HTML4, ICU_spellout: about 8,700 of 12,627. Cases with serialization assertions count (they fail until 3.3).</p>
+      </item>
+      <item>
+        <p><strong>Targets</strong>: Phase 2, XP40 ≥ 90%, each area fn, op, prod, map, array, math, xs ≥ 80%. Phase 3, XQ40 ≥ 85%, XQ-only ≥ 75%, method-* ≥ 80%, XP40 kept. Phase 4, XSLT in scope ≥ 70%, twelve core sets ≥ 80% (listed in <code>docs/tasks/phase-4.md</code>). Every gate also needs zero crashes, leaks and "error" outcomes.</p>
+      </item>
+      <item>
+        <p><strong>Why these</strong>: Phase 1 ended at 21,443 of about 31,500 XP40 cases (68%). The known causes are missing work, not design faults: unknown functions 5,596 cases, regex 480, unlowered constructs 395, math 181, collations 100; together about 21% of the denominator, so 90% asks for that plus a third of the remaining failures. XQuery adds 9,700 XQ-only cases that share the XPath core; 75% of those with 90% of the rest gives 86%. The XSLT suite is younger, its cases compare whole outputs and many test packages and error codes, so 70% is the first honest bar; regex-syntax (987) and error (500) alone are 17% of it.</p>
+      </item>
+      <item>
+        <p>A target is changed only by a new record, before its gate review.</p>
+      </item>
+    </list>
+  </body>
+</decision>

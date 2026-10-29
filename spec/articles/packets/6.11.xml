@@ -1,0 +1,18 @@
+<packet id="6.11" source="docs/tasks/phase-6.md">
+  <title>Documentation and release steps (here; publishing: owner)</title>
+  <body>
+    <p>After <ref kind="packet" to="6.6"/> and <ref kind="packet" to="6.8"/>. Owns:</p>
+    <list>
+      <item>
+        <p><code>bindings/kotlin/README.md</code> and <code>bindings/swift/README.md</code>, written after the JavaScript README's sections;</p>
+      </item>
+      <item>
+        <p>the bindings' part of <code>docs/RELEASE.md</code>: Maven Central coordinates <code>dev.tinyactors:sxml-android</code> and <code>:sxml-jvm</code>, signing, the Swift package tag and the XCFramework checksum;</p>
+      </item>
+      <item>
+        <p>the <code>README.md</code> and <code>CHANGELOG.md</code> lines.</p>
+      </item>
+    </list>
+    <p>The owner publishes.</p>
+  </body>
+</packet>

@@ -1,0 +1,4 @@
+<term id="serialization_method" source="docs/GLOSSARY.md">
+  <name>serialization_method</name>
+  <definition>The Serialization 4.0 output method: adaptive in Phase 1; xml, json, text and others later</definition>
+</term>

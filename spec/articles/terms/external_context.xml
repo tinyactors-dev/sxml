@@ -1,0 +1,4 @@
+<term id="external_context" source="docs/GLOSSARY.md">
+  <name>external_context</name>
+  <definition>DTD text read as the external subset is: the external subset, external parameter entities and the text expanded or included from them, where parameter-entity references may stand inside declarations (XML 1.0, section 2.8)</definition>
+</term>

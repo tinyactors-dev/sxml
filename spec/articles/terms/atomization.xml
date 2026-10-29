@@ -1,0 +1,4 @@
+<term id="atomization" source="docs/GLOSSARY.md">
+  <name>atomization</name>
+  <definition>Replacing nodes by their typed values and arrays by their members, until only atomic items remain (XPath 4.0, section 2.5.3)</definition>
+</term>

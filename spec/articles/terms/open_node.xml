@@ -1,0 +1,4 @@
+<term id="open_node" source="docs/GLOSSARY.md">
+  <name>open_node</name>
+  <definition>The element (or document node) of a shallow stream window whose content has not been read yet: a STREAM whose origin it is reads that content from the events (<ref kind="decision" to="D219"/>)</definition>
+</term>

@@ -1,0 +1,17 @@
+<decision id="D257" status="accepted" source="docs/DECISIONS.md">
+  <title>The sxml book: an mdBook whose examples are checked (packet book-1)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D255"/>. The user-facing book is <code>docs/book/</code>, an mdBook (<code>book.toml</code>, <code>src/SUMMARY.md</code>) in the style of The Rust Programming Language: it teaches by running small examples, and has no internal process in it (no phases, packets or decision numbers).</p>
+    <list>
+      <item>
+        <p><strong>Examples are real.</strong> Inputs live in <code>docs/book/examples/&lt;chapter&gt;/</code> and the text shows them with <code>{{#include}}</code>. Commands and their output are ```console blocks. <code>tools/check-book-examples.sh [BUILD-DIRECTORY]</code> re-runs every block (each chapter file in a fresh copy of the directory its <code>&lt;!-- examples: NAME --&gt;</code> comment names) and compares the output, standard error included; <code>--update</code> writes the actual outputs back for review. The C chapter builds its programs with <code>add_subdirectory</code> of <code>$SXML</code> (set it to a snapshot of HEAD to check HEAD); the JavaScript chapter runs only with <code>SXML_JAVASCRIPT</code> set to a built package and is reported as skipped otherwise.</p>
+      </item>
+      <item>
+        <p><strong>Who keeps it true</strong>: a change to the CLI's output, an error message or a result the book shows makes the check fail. The change that causes it runs the check (<code>mise run book:check</code>, about three minutes with the C chapter) and updates the book in the same commit.</p>
+      </item>
+      <item>
+        <p><strong>Building</strong>: <code>mise run book</code> (<code>mdbook build docs/book</code>) writes <code>build/book/</code>, which is ignored; <code>mise run book:serve</code> serves it. mdbook is not a pinned mise tool; any 0.4 release works (0.4.40 here).</p>
+      </item>
+    </list>
+  </body>
+</decision>

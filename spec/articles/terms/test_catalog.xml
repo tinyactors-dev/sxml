@@ -1,0 +1,4 @@
+<term id="test_catalog" source="docs/GLOSSARY.md">
+  <name>test_catalog</name>
+  <definition>Any conformance driver's catalog as the test selection walks it: named test sets, one open at a time, each with named test cases (an interface over the QT4, XSLT 4.0 and XSD 1.1 catalogs; <code>tests/qt4/driver/selection.h</code>)</definition>
+</term>

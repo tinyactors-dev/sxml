@@ -1,0 +1,77 @@
+<decision id="D249" status="accepted" source="docs/DECISIONS.md">
+  <title>7.11's open cases; one decoder, one feature data path, one array helper, one text form writer (packet <ref kind="packet" to="7.20"/>)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D29"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D169"/>, <ref kind="decision" to="D182"/>, <ref kind="decision" to="D185"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D203"/>, <ref kind="decision" to="D225"/>, <ref kind="decision" to="D237"/>, <ref kind="decision" to="D245"/>. Verified as <ref kind="decision" to="D181"/> asks: debug and debug-gcc build with <code>-Werror</code>, the touched unit and CLI tests pass, clang-tidy is clean on the changed files, <code>tools/check-call-cycles.py</code> finds no cycle (230 files), and XT40, XP40, XQ40 and XSD were run whole with the release drivers before (6e1a371) and after, case by case.</p>
+    <list>
+      <item>
+        <p><strong>7.11's XT40 cases</strong>: 10 of 12 pass now; the gate stays open, for these reasons:</p>
+        <list>
+          <item>
+            <p>transform-009 passes. The XT40 driver did not check assert-serialization inside assert-result-document. A serialized test case now collects its result documents serialized (the collector's SERIALIZED delivery), and assert-serialization and serialization-matches inside assert-result-document compare those bytes. Five more pass for the same reason: result-document-0201, -0212, -0285, -0286 and -0287.</p>
+          </item>
+          <item>
+            <p>transform-004 cannot pass while <ref kind="decision" to="D71"/> holds. A static variable calls fn:transform, so compiling the outer stylesheet would compile and run the inner one from inside the outer compiler's static evaluation: compiler, evaluator, fn:transform, compiler again, without bound. That is the recursion <ref kind="decision" to="D71"/> forbids. The run part already goes through the machine (EVALUATE_UNIT, <ref kind="decision" to="D203"/>). The compile part would need a compiler that the machine can suspend, a stack of compilations, which is a design change of the XSLT compiler. Until then a static fn:transform raises FOXT0004 (<ref kind="decision" to="D203"/>).</p>
+          </item>
+          <item>
+            <p>transform-401 fails only on its pattern <code>~record(x, y)</code>, the "~T" type pattern of the newer draft that <ref kind="decision" to="D29"/> and <ref kind="decision" to="D185"/> left out. Checked: with the 13 October 2026 draft's equivalent, <code>map{'x', 'y'}</code>, the case gives <code>&lt;out&gt;&lt;in&gt;3&lt;/in&gt;&lt;/out&gt;</code> as expected. <ref kind="decision" to="D245"/> (owner) now targets the newest draft, and packet 4.22 brings its type patterns, so 4.22 closes this case. No pattern change is made here.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>One decoder</strong> (glossary <term name="decoding_error_rule"/>): <code>sxml_xml_decoder_next</code> in <code>src/xml_internal.h</code> decodes UTF-8, UTF-16 in either byte order, ISO-8859-1 and US-ASCII, one codepoint a step. Its error rule is FAIL (the XML parser's transcoding; text decoding without fallback) or REPLACE (one U+FFFD per maximal subpart, Unicode 16.0, 3.9.6; Encoding Standard 8.1.1 and 14.2: text decoding with fallback and the HTML input stream). A high surrogate cut short by the end takes the rest with it, so WHATWG's single error stays single. Removed: text_decoding's own decoders and <code>sxml_text_encoding</code> (it is <code>sxml_xml_encoding</code> now); html_encoding's UTF-8 and UTF-16 decoders and its UTF-8 check (<code>sxml_utf8_validate</code>). One change in behaviour: fn:unparsed-text with fallback replaces a malformed sequence by one U+FFFD instead of one for each byte. Unicode recommends this, and no test case depends on it.</p>
+      </item>
+      <item>
+        <p><strong>Full Text through the feature data path</strong> (<ref kind="decision" to="D189"/>): <code>sxml_feature_data_request</code> gains <term name="base_uri"/>. The reader gains an optional <code>read_document</code> for the DOCUMENT_NODE form (a thesaurus). The loader's retrieval request gains <code>asks_unresolved</code> (an empty URI is not resolved; the resolver is also asked for a relative URI with no base, absolute_uri empty) and <code>accepts_document_node</code>. The public resource contract is unchanged. <code>src/full_text_resource.c</code> holds only the stop word and thesaurus readers now. Lost: a thesaurus delivered as bytes is parsed without the resolver's resource URI and encoding name. It needs neither.</p>
+      </item>
+      <item>
+        <p><strong>One array helper</strong> (glossary <term name="growable_array"/>): <code>sxml_allocator_reserve_array</code> in <code>src/memory_internal.h</code>, beside <code>sxml_allocator_allocate_array</code>. It doubles from a minimum, zeroes new memory, and leaves the array unchanged on failure. Users: <code>collation_tailoring</code>, <code>function_library_element_map</code>, <code>cldr</code> (entries and its byte text), <code>collation_uca</code>, the document loader, and the XML buffer and array (<code>xml_entity</code>). <code>sxml_uca_allocate_array</code>, a copy of <code>sxml_allocator_allocate_array</code>, is gone.</p>
+      </item>
+      <item>
+        <p><strong><ref kind="decision" to="D182"/>'s cheap ones</strong>:</p>
+        <list>
+          <item>
+            <p>The schema reader's xs:boolean and nonNegativeInteger read through the cast engine's lexical mapping (<code>sxml_lexical_read_boolean</code>, <code>sxml_lexical_read_digits</code> in <code>src/cast_internal.h</code>).</p>
+          </item>
+          <item>
+            <p>Gregorian day arithmetic: <code>src/calendar.c</code> adds cycle days (<code>sxml_calendar_cycle_day_of</code>, <code>sxml_calendar_date_in_cycle</code>). The day numbers are made from them. <code>operator_temporal.c</code> counts in them, so no int64 year overflows. <code>cast_facet.c</code> and the processor's clock use the calendar, and the processor's own leap-year and civil-date copies are gone.</p>
+          </item>
+          <item>
+            <p>Compile reports: <code>sxml_schema_report_request</code> gives <code>subject</code> or <code>subject_name</code> in place of a prebuilt <code>detailed_description</code>. <code>sxml_schema_compilation_report</code> alone writes "description: subject" (a name as Q{uri}local). The reader, resolver, assembler and content model stop building it, and the content model's 256-byte text is gone. The XPath assertion's diagnostic is now its subject.</p>
+          </item>
+          <item>
+            <p>Text forms: <code>src/text_form.c</code> (glossary <term name="text_form_writer"/>) is the one bounded writer under the IR, XSLT AST, schema and content-model text forms.</p>
+          </item>
+          <item>
+            <p>The three serialization heapsorts are <code>sxml_sort_in_place</code>. The canonical attribute order keeps the first key-lookup failure in its sort state.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Counts</strong> (release, whole suites): XT40 11,945 to 11,951 passed (130 wrong errors both times), none lost, 0 errors; XP40 32,655 and XQ40 45,914, the same case for case; XSD 41,486, unchanged.</p>
+      </item>
+      <item>
+        <p><strong>Sizes</strong>: <code>sxml.wasm</code> 2,089,167 stripped, 730,367 gzipped (6.2's 2,091,192), and the <ref kind="decision" to="D225"/> guard reports +345 bytes since its baseline. <code>sxml-full.wasm</code> is 7,630,816 (7,637,765), and the CLI 9,223,672. All are within the budgets.</p>
+      </item>
+      <item>
+        <p><strong>Left</strong> (not cheap here):</p>
+        <list>
+          <item>
+            <p>transform-004 (<ref kind="decision" to="D71"/>, above) and transform-401 (4.22);</p>
+          </item>
+          <item>
+            <p>XSLT's yes/no reader beside xs:boolean (another lexical space);</p>
+          </item>
+          <item>
+            <p><code>sxml_text_encode_codepoint</code>'s UTF-8 beside <code>sxml_xml_buffer_append_codepoint</code>;</p>
+          </item>
+          <item>
+            <p>cldr's <code>byte_text</code>, which could be an <code>sxml_xml_buffer</code>;</p>
+          </item>
+          <item>
+            <p>the other private growers that <code>grep grow</code> finds (about 30, many with their own minimums or index tables), which can move to <code>sxml_allocator_reserve_array</code> one at a time.</p>
+          </item>
+        </list>
+      </item>
+    </list>
+  </body>
+</decision>

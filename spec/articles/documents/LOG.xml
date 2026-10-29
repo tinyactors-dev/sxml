@@ -1,0 +1,12 @@
+<document id="LOG" source="docs/LOG.md">
+  <title>Weekly log</title>
+  <p>One short entry per week, newest first: what passed, what's next, what is blocked.</p>
+  <include kind="log-entry" to="week-of-2026-10-26"/>
+  <include kind="log-entry" to="week-of-2026-10-19"/>
+  <include kind="log-entry" to="open-questions-at-the-phase-0-gate-task-0-8"/>
+  <include kind="log-entry" to="open-questions-at-the-phase-1-gate-packet-1-29"/>
+  <include kind="log-entry" to="open-questions-at-the-phase-2-gate-packet-2-20"/>
+  <include kind="log-entry" to="open-questions-at-the-phase-3-gate-packet-3-15"/>
+  <include kind="log-entry" to="open-questions-at-the-phase-4-gate-packet-4-18"/>
+  <include kind="log-entry" to="open-questions-at-the-phase-5-gate-packet-5-14"/>
+</document>

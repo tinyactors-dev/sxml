@@ -1,0 +1,41 @@
+<decision id="D143" status="accepted" source="docs/DECISIONS.md">
+  <title>Conformance sweep 1: computed constructors in XPath, the JSON fallback, descending ranges, function equivalence (packet <ref kind="packet" to="2.19"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D95"/>, <ref kind="decision" to="D110"/>, <ref kind="decision" to="D127"/>, <ref kind="decision" to="D133"/>, <ref kind="decision" to="D136"/>, <ref kind="decision" to="D141"/>. Accepts the Proposed items "QT4 assertions see the result as the context value", "Decimal zero against doubles", "A descending integer range" and "Equivalence of function items" (orchestrator, packet <ref kind="packet" to="2.19"/>).</p>
+    <list>
+      <item>
+        <p><strong>Computed constructors are XPath 4.0</strong> (section 4.13): the lowering part <code>construct</code> (<ref kind="decision" to="D127"/>) serves every language; direct constructors only parse in XQuery. 136 "error" outcomes of XP40 (prod-Comp*Constructor) become passes.</p>
+      </item>
+      <item>
+        <p><strong>The fallback option</strong> of fn:parse-json, fn:json-to-xml and fn:json-doc (F&amp;O 4.0, 17.4.4 to 17.4.6): the three rows are resumable bodies (<ref kind="decision" to="D75"/>) of the json part; before the parse, the fallback is called once per codepoint that has an <term name="unpermitted_escape"/> (<code>sxml_json_find_unpermitted_ escape</code>, a lexical scan that pairs surrogates as parsing does), with the escape as written; its result is coerced to xs:anyAtomicType and its string value becomes the <term name="json_replacement"/> the parse inserts for every escape of that codepoint (<code>sxml_json_parse_options.replacements</code>, U+FFFD without one). A fallback whose arity is not 1 is XPTY0004 when the options are read. fn:json-doc's row moves to the json part; the resource part keeps reading its text (<code>sxml_function_library_read_json_document</code>).</p>
+      </item>
+      <item>
+        <p><strong>fn:generate-id of a JNode</strong>: "j" tree, then "c" child index for the node and each ancestor below the root, read upwards: unique per JNode (JTree and path), the same for two cells of one JNode.</p>
+      </item>
+      <item>
+        <p><strong>Decimal zero</strong>: <code>sxml_double_write_exact_text</code> writes a zero of either sign as "0", so 0.0 eq 0e0 and the hash of 0.0 match.</p>
+      </item>
+      <item>
+        <p><strong>A descending integer range</strong> (additive, <ref kind="decision" to="D99"/>): <code>SXML_SEQUENCE_REPRESENTATION_DESCENDING_INTEGER_RANGE</code> and <code>sxml_sequence_make_descending_integer_range</code> in <code>include/sxml/xdm.h</code>; the range cell with a second cell class. fn:reverse of a range in either order is O(1); count, get_item and iteration are O(1) per item; the general comparison of a range with one integer and the temporal check read either order. Fast paths that only know ascending ranges iterate a descending one.</p>
+      </item>
+      <item>
+        <p><strong>Equivalent function items</strong> (F&amp;O 4.0, 1.9.5): deep-equal treats two IR functions of one unit as the same body when they have the same <term name="static_form"/> (<code>sxml_ir_function_has_same_static_form</code>): the IR text form of each (<ref kind="decision" to="D51"/> printer, explicit stack) without names, annotations and the atoms of the function's own captures, with every nested FUNCTION_DEFINITION printed as the function it defines; the captured values are compared by deep-equal as before. Slots are numbered by position, so renaming a variable does not change the form.</p>
+      </item>
+      <item>
+        <p><strong>QT4 driver</strong>: assertions see the result as the context value; a source that only has a uri and is not well-formed stays unavailable, so fn:doc raises FODC0002 instead of an "error" outcome.</p>
+      </item>
+      <item>
+        <p>math:sin, math:cos and math:tan name their parameter $radians.</p>
+      </item>
+      <item>
+        <p><strong>fn:last#0 and other focus-dependent named references</strong> keep their name on the closure (XPath 4.0, 4.5.4), so function-name(fn:last#0) is fn:last and fn:last#0 differs from fn:position#0 under deep-equal.</p>
+      </item>
+      <item>
+        <p>Measured (release, XP40, before at 62947af with the 3.10 prolog commit after it): passed 30,389 to 30,628 (+239, none lost), errors 187 to 2, in scope 96.3 % to 97.0 %; prod 96.6 to 98.1 %, fn 98.3 to 98.9 %, op 99.7 to 99.8 %, misc 97.8 to 98.2 %; slice 198/198.</p>
+      </item>
+      <item>
+        <p>Not done (open, for later sweeps): fn:function-lookup of a focus-dependent function (45 cases need the dynamic focus at the call), casts to array, map and record types (prod-Cast*Expr.composite, 82 cases), counted regex repetition without expansion (cbcl-matches-004, -038: the last two "error" outcomes, LIMIT_EXCEEDED), partial application of a dynamic call with the wrong arity (xqhof8, xqhof9).</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="captured_group" source="docs/GLOSSARY.md">
+  <name>captured_group</name>
+  <definition>The segment a capturing subexpression matched; group 0 is the whole matching segment (F&amp;O 4.0, section 6.1.5)</definition>
+</term>

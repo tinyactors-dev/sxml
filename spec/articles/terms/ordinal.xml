@@ -1,0 +1,4 @@
+<term id="ordinal" source="docs/GLOSSARY.md">
+  <name>ordinal</name>
+  <definition>Ordinal numbering (<code>1st</code>, <code>second</code>), asked for by the <code>o</code> format modifier</definition>
+</term>

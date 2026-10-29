@@ -1,0 +1,4 @@
+<term id="schematron_document" source="docs/GLOSSARY.md">
+  <name>schematron_document</name>
+  <definition>An XML document of a Schematron schema: the one compiled (document element sch:schema) and those its sch:include and sch:extends href elements reach (document element sch:schema or schematron library); read by the XML parser with locations, asked of the resource resolver as XML_DOCUMENT (<ref kind="decision" to="D315"/>)</definition>
+</term>

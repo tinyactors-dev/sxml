@@ -1,0 +1,4 @@
+<term id="character_reference_name" source="docs/GLOSSARY.md">
+  <name>character_reference_name</name>
+  <definition>An HTML named character reference without "&amp;" and ";" (<code>nbsp</code>, <code>NotEqualTilde</code>), an argument of <code>fn:char</code> (HTML, section 13.5)</definition>
+</term>

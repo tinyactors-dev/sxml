@@ -1,0 +1,4 @@
+<term id="item_category" source="docs/GLOSSARY.md">
+  <name>item_category</name>
+  <definition>What an item is for choosing template rules: an XNode's node kind, or other for every item that is not an XNode (perf-15)</definition>
+</term>

@@ -1,0 +1,17 @@
+<packet id="fix-5" source="docs/tasks/phase-7.md">
+  <title>Default priorities of union patterns (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D144"/>, <ref kind="decision" to="D149"/> and <ref kind="decision" to="D327"/> (perf-15 found it; the base does the same). <code>&lt;xsl:template match="a[@n] | b"&gt;</code> gets one default priority (0) instead of being treated as one rule per alternative. With a second rule <code>match="a"</code>, an <code>a</code> with <code>@n</code> gets the second rule (the tie at 0 goes to the later rule); XSLT 3.0, 6.5 makes the union's <code>a[@n]</code> branch a rule of priority 0.5, which wins. Reproduction: a stylesheet with those two rules applied to <code>&lt;r&gt;&lt;a n="1"/&gt;&lt;a/&gt;&lt;/r&gt;</code> prints "plain plain"; XSLT 3.0 gives "union plain".</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: first check XSLT 4.0's text for default priorities of union patterns (6.5 or wherever 4.0 puts it, and its changes appendix) and the XT40 cases about it (and their outcomes today); record what 4.0 says. If 4.0 keeps the 3.0 rule, a union pattern without an explicit priority becomes one rule per alternative, each with its own default priority and its own place for conflict resolution, through the rule index of <ref kind="decision" to="D327"/> (one mechanism; the rules share the body). If 4.0 changed it, record that and close the packet with the reproduction as a test of 4.0's rule.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/xslt_lower_template.c</code>, <code>src/xslt_pattern.c</code>, <code>src/evaluator_template.c</code> and their internal headers, <code>tests/evaluator_template_test.c</code>, the XSLT tests.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the rule recorded with its section; a test with the reproduction; XT40 whole, base and change in the same setup: no case lost, gains listed; the Schematron suite 463 of 463 and VEFA 1,133 of 1,133. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D328"/>): XSLT 4.0, 6.4.1 makes a union pattern one rule at the minimum of its alternatives' priorities (PR 1772, a change from 3.0; 3.8.3: the same for version 3.0). sxml already did; the reproduction is now the unit test union_priority. No source change; XT40 0 outcomes differ (12,185 passed); suite 463/463, VEFA 1,133/1,133.</p>
+      </item>
+    </list>
+  </body>
+</packet>

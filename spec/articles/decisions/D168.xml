@@ -1,0 +1,23 @@
+<decision id="D168" status="accepted" source="docs/DECISIONS.md">
+  <title>The XSD 1.1 test driver (packet <ref kind="packet" to="5.3"/>)</title>
+  <body>
+    <p><recorded date="2026-10-18"/>. <code>tests/xsd/driver/</code>, the developer tool <code>sxml-xsd-test</code> (list, run), public API only, a sibling of sxml-qt4 and sxml-xslt-test that links <code>sxml_qt4_driver_library</code>.</p>
+    <list>
+      <item>
+        <p><strong>Shared, not copied</strong> (the drivers' common mechanisms moved into the QT4 driver's library): the test budget (<code>budget.h</code>, from the copies in <code>test_run.c</code> and <code>xslt_execution.c</code>), the test selection over a test catalog interface (<code>selection.h</code>, from <code>xslt_selection.c</code>; the XSLT and XSD catalogs each adapt to it in a dozen lines), one slice-test script (<code>run-slice-test.cmake</code>, SPEC optional), documents in another suite's namespace and attributes in a namespace (<code>document.h</code>), report areas configurable (<code>report.h</code>, empty = <ref kind="decision" to="D94"/>'s). The QT4 commands keep their own walking for now (a later cleanup can move them onto <code>selection.h</code>).</p>
+      </item>
+      <item>
+        <p><strong>Names</strong>: suite.xml names test sets only by href and testSet/@name repeats (Assert, CTA, TargetNS, VC, Zone), so a test set is named DIRECTORY-without-Meta "-" FILE-without-extension (<code>saxon-Assert</code>, <code>ms-DataTypes_w3c</code>, <code>nist-NISTXMLSchemaDatatypes</code>); the prefix is the contributor area of the report and the dashboard. A test is <code>GROUP/TEST</code> (unique per test set, xsts.xsd). <code>tools/run-xsd.sh</code> derives the same names from suite.xml with sed.</p>
+      </item>
+      <item>
+        <p><strong>Scope, per element</strong> (refines <ref kind="decision" to="D165"/>'s count): xsts.xsd says the version tokens of testSet, testGroup and test each mean "run if any of them is supported", so each level must apply on its own; <ref kind="decision" to="D165"/> or-ed the three levels together. Supported tokens and their classes as <ref kind="decision" to="D165"/> lists them; an unknown token is an unsupported class. Measured: 41,518 in scope (15,329 schema tests, 26,189 instance tests; NIST 23,170, Microsoft 14,363, Sun 1,606, Saxonica 1,375, IBM 919, W3C WG 41, Oracle 26, Boeing 18), 20 fewer than <ref kind="decision" to="D165"/>'s 41,538: 19 XSD 1.0 instance tests of <code>wgMeta/substitution-groups.testSet</code>, five of which name files that do not exist, and the 1.0 group of a Saxonica set. Gate groups: datatypes 30,598, structures 8,626, XSD 1.1 2,294. The introspection set is listed and not run; expected <code>indeterminate</code> or none applying, status queried or disputed: not run, out of scope.</p>
+      </item>
+      <item>
+        <p><strong>Run</strong>: each applicable test in a processor of its own (QT4 limits) through the test budget, its documents read (a missing one is an error); then not run, "XSD not implemented", until 5.4 and 5.7 fill the one marked place in <code>xsd_test_run.c</code> (plan in <code>xsd_test_run.h</code>: schema documents as TEXT with file:///SUITE-PATH, strict validation with a counting report sink, a group without a schema test validated against the built-in components alone, a group whose schema fails makes its instance tests fail). Report spec XSD11, program sxml-xsd-test.</p>
+      </item>
+      <item>
+        <p><strong>Slice</strong>: <code>tests/xsd/slice.txt</code>, 147 in-scope tests, one per test set plus the rest in proportion; baseline 0. A full release run takes 45 s (one process per test set; NIST, 23,170 tests in one file, is the longest).</p>
+      </item>
+    </list>
+  </body>
+</decision>

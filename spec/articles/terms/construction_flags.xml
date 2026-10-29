@@ -1,0 +1,4 @@
+<term id="construction_flags" source="docs/GLOSSARY.md">
+  <name>construction_flags</name>
+  <definition>The bits of an IR constructor that carry the construction and copy-namespaces modes and XSLT's content rules; 0 is XQuery's defaults (<code>sxml_ir_construction_flag</code>, <ref kind="decision" to="D110"/>)</definition>
+</term>

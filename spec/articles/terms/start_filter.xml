@@ -1,0 +1,4 @@
+<term id="start_filter" source="docs/GLOSSARY.md">
+  <name>start_filter</name>
+  <definition>What a compiled regex knows of where a match can start: the first characters it can read (an ASCII set and whether a non-ASCII one can follow) and whether it can start only at the start of the input; a search skips the start positions it excludes (internal, <code>src/regex.c</code>, <ref kind="decision" to="D310"/>)</definition>
+</term>

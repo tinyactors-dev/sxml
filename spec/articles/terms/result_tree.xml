@@ -1,0 +1,4 @@
+<term id="result_tree" source="docs/GLOSSARY.md">
+  <name>result_tree</name>
+  <definition>The document node that sequence normalization makes; what the XML, XHTML, HTML and text methods write</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="effective_facets" source="docs/GLOSSARY.md">
+  <name>effective_facets</name>
+  <definition>The facets of a simple type with those of its bases it does not overlay, and those built-in types have implicitly, one per kind; what a restriction's own facets are checked against (XSD 1.1 Part 1, 3.16.6.4; <ref kind="decision" to="D171"/>)</definition>
+</term>

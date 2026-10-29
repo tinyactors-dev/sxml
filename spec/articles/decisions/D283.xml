@@ -1,0 +1,29 @@
+<decision id="D283" status="accepted" source="docs/DECISIONS.md">
+  <title>Fast Invisible XML: Earley with lookahead sets and Leo items (packet <ref kind="packet" to="7.21"/>)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D53"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D215"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D272"/>. The owner: a high-performance Invisible XML, book first, then the tests, then the implementation. Done (commits ec3fd42, 4818dd3, 7a93dc7).</p>
+    <list>
+      <item>
+        <p><strong>Book</strong> (ec3fd42): the part "Parsing Text with Invisible XML", five chapters; the errors and performance chapters are drafts whose examples are the acceptance test. <strong>Tests</strong> (4818dd3): <code>tests/bench/run-ixml-bench.py</code>, whose <code>--check</code> holds the book's numbers.</p>
+      </item>
+      <item>
+        <p><strong>Choice</strong>: keep the one Earley parser of <ref kind="decision" to="D215"/> and make it fast with (1) items in arrays of 16 bytes over numbered dotted rules, (2) one character of lookahead from the grammar's FIRST and FOLLOW sets, so an item is made only when the next character can continue it (Earley, 1970, used lookahead; global FOLLOW sets need no per-item lookahead), (3) Leo's items (Leo, "A general context-free parsing algorithm running in linear time on every LR(k) grammar without using lookahead", TCS 82, 1991) for right recursion, and (4) compiled codepoint classes: each codepoint is looked up once in a table of the grammar's distinct terminals. Rejected: an LR/LALR front end with a GLR fallback (Markup Blitz): grammars are run-time data, so the tables would be built per fn:invisible-xml call and could be large, and GLR needs a graph-structured stack and a packed forest beside the Earley sets, a second parser against <ref kind="decision" to="D215"/>; the LR(0) automaton of Aycock and Horspool ("Practical Earley Parsing", 2002) merges items into states but makes the first derivation, which sxml reads the tree from, harder to keep. Two notes from the orchestrator for the record: the "tables per call" objection is weaker than stated, since fn:invisible-xml returns a parse function and tables would be built once per grammar; and the largest constant factor left is lexical (regular nonterminals compiled to DFAs and matched in one step, not one Earley set per character).</p>
+      </item>
+      <item>
+        <p><strong>Grammar simplification</strong> (<code>src/ixml.c</code>, before productions are sorted): a hidden use of a rule of one production of one symbol uses that symbol in place (<code>-digit: ["0"-"9"]</code>, <code>-s: " "*</code>), and groups and options the compiler made, used once and hidden, are written out where used (at most 8 productions from one, alternatives in order). Parses, XML and ambiguity are unchanged; items per character fall by half to two thirds (Markdown-like text 5.6 to about 2).</p>
+      </item>
+      <item>
+        <p><strong>Parser</strong> (<code>src/ixml_earley.c</code>, <code>src/ixml_tables.c</code>): items of 16 bytes (dotted rule with the ambiguous and through-Leo flags, origin, predecessor, child) in blocks of 2^14 that never move; lookahead sets from FIRST/FOLLOW over distinct terminals plus end of input, tested against the next character's codepoint class (ASCII from a table, others computed once and cached); an item is made only when its set meets the class. Items left out are in no parse of the whole input, so the tree, its marks and the failure position are those without lookahead; the failing set is made again without lookahead for its expected terminals. Leo items only where one item waits as its last symbol and started earlier (no cycles), found down the chain and back without recursion; the chain's items are made when the tree reaches them. Tree nodes in blocks too. Steps: one per item, Leo item, chain item and tree node, as before; fewer items means fewer steps.</p>
+      </item>
+      <item>
+        <p><strong>Errors</strong>: FOIX0001 for grammar text says line, column and the character (or the end); S02 and S03 name the rule; D02 names the attribute and element, D03 the name. Failure documents list each expected set once, sorted by notation; a quote is written '"'.</p>
+      </item>
+      <item>
+        <p><strong>Numbers</strong> (release, 1 MB inputs, processor s / MB, before -&gt; after): log 1.12/372 -&gt; 0.18/91; csv 1.25/456 -&gt; 0.28/120; calc 2.14/756 -&gt; 0.53/204; markdown 3.21/1460 -&gt; 0.30/125; right recursion fails at the step limit after <ref kind="packet" to="5.4"/> GB -&gt; 0.30/136; nesting 200 KB 0.16/64 -&gt; 0.05/27; compiling a 5,800-rule grammar 1.07/410 -&gt; 0.18/68; the ambiguous sum of 2,000 characters 2.41 -&gt; 1.4 to 1.8 (cubic; its book bound became 2 s). The book's targets are met (<code>--check</code> passes); linear benchmarks grow 3.8 to 4.2 times for 4 times the input; a 10 MB log takes 2.1 s within the default step limit. iXML suite 886 of 907 unchanged (21 not run: 17 Unicode versions, 4 inputs with C0 controls that no xs:string holds; none decided by the specification for sxml; the vendored copy d1f37f6 is Codeberg's head); QT4 iXML sets unchanged. Native code +25 KB.</p>
+      </item>
+      <item>
+        <p><strong>Memory</strong> stays about 90 to 200 bytes per input character: every item set is kept until the tree is read out of the first derivations. An incrementally built shared packed forest, freeing sets behind the parse, would bound it by the forest; lexical DFAs for regular nonterminals would cut items per character further. Both are left for a later packet.</p>
+      </item>
+    </list>
+  </body>
+</decision>

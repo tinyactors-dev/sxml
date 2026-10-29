@@ -1,0 +1,6 @@
+<packet id="1.6" source="docs/tasks/phase-1.md">
+  <title>Type registry and built-in types (implementation)</title>
+  <body>
+    <p>After <ref kind="packet" to="1.1"/>. Owns <code>src/types.c</code>, <code>src/types_builtin.c</code>, <code>src/types_internal.h</code>, <code>tests/types_test.c</code>. All of <code>types.h</code> (<ref kind="decision" to="D32"/>, <ref kind="decision" to="D43"/>). Done when <code>map(xs:string, xs:integer+)</code> is a subtype of <code>function(xs:string) as item()*</code> (map-put-002-hof). Spec: XPath 4.0 "Subtype Relationships"; XDM 4.0 §4. <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D58"/>).</p>
+  </body>
+</packet>

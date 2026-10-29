@@ -1,0 +1,35 @@
+<decision id="D203" status="accepted" source="docs/DECISIONS.md">
+  <title>fn:transform (packet <ref kind="packet" to="7.11"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D154"/>, <ref kind="decision" to="D157"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>, <ref kind="decision" to="D196"/>, <ref kind="decision" to="D207"/>. Replaces <ref kind="decision" to="D162"/>'s place for fn:transform (the function was absent, XPST0017; supports-dynamic-xslt false).</p>
+    <list>
+      <item>
+        <p><strong>Optional feature</strong>: <code>sxml_xslt_transform_feature()</code> ("xslt-transform", declared in <code>include/sxml/xslt.h</code> as the packet's option 2), whose library_functions hold the one row (<ref kind="decision" to="D191"/>); in <code>sxml_all_optional_features()</code>. A host that names no XSLT and not the feature links no XSLT; <code>sxml-full.wasm</code> links it (<ref kind="decision" to="D207"/>).</p>
+      </item>
+      <item>
+        <p><strong>One mechanism</strong> (<ref kind="decision" to="D183"/>): the row's resumable body (<code>src/xslt_transform_function.c</code>, golden file <code>src/xquery_load_module.c</code>) reads the 33 options of F&amp;O 4.0, 18.3 (the option limit of the option conventions is 40 now), compiles the stylesheet with <code>xslt.h</code>'s compiler, primes the transformation and asks the machine for EVALUATE_UNIT; the next step delivers the principal result and collects the result documents (the built-in collector) into the result map; one step per result runs post-process. <code>src/xslt.c</code> splits <code>sxml_xslt_stylesheet_transform</code> into prime, describe, run and deliver, so a machine transformation (<code>src/xslt_transform_internal.h</code>) is the same priming with the evaluation left to the machine. No evaluator runs nested in C (<ref kind="decision" to="D71"/>); compiling evaluates static expressions on an evaluator of their own, where fn:transform has no evaluation environment and raises FOXT0004, so the compiler is not re-entered.</p>
+      </item>
+      <item>
+        <p><strong>Extension per unit evaluation</strong>: <code>sxml_evaluation_request.extension</code> is kept in the unit's global table (a unit evaluation that gives none, such as xsl:evaluate's, inherits the asking code's); <code>sxml_dynamic_context_get_unit_extension</code> gives the running code's. The result writer is found there first, so xsl:result-document and current-output-uri of the inner transformation reach its own writer; xsl:message honours enable-messages false. The body drops the extension before it releases the transformation, so function items that outlive it (transform-003) see none.</p>
+      </item>
+      <item>
+        <p><strong>Options</strong>: exactly one of stylesheet-location/-node/-text, package-location/-node/-text and package-name (FOXT0002); a node is serialized and compiled as text with its base URI (or stylesheet-base-uri); a location is read as fn:doc reads it (the caller's trust and documents; FOXT0002 when it cannot be read); a package name is a RESOLVED_PACKAGE. The invocation is the first of initial-function (with function-params), initial-template, a source (source-node, source-location, initial-match-selection; at most one), else xsl:initial-template; initial-mode with a call is FOXT0002, xsl:unnamed selects the unnamed mode. The global context item is global-context-item, else the root of source-node, else the source-location document. Parameter maps need xs:QName keys (XPTY0004). delivery-format document is TREE, absent is DEFAULT (build-tree), raw, serialized (UTF-8, no byte order mark, as fn:serialize), file FOXT0004, others FOXT0002. serialization-params override the unnamed xsl:output, the list parameters joined. xslt-version above 4.0 and requested-properties that the XSLT system property table does not give (xsl:version ignored) are FOXT0001. trusted false (the default) makes the unit untrusted. A stylesheet that is not well-formed is FOXT0003; static and type errors keep their codes as dynamic errors.</p>
+      </item>
+      <item>
+        <p><strong>Result map</strong>: "output" or the base output URI, resolved, for the principal result (left out when it is empty beside result documents, unless a result document became it, 26.2.2); each result document by its absolute URI.</p>
+      </item>
+      <item>
+        <p><strong>Drivers</strong>: QT4 supports fn-transform-XSLT and fn-transform-XSLT30 (a 4.0 processor serves 3.0) and serves XSLT_MODULE as suite files; fn-transform is no non-goal set any more.</p>
+      </item>
+      <item>
+        <p><strong>Counts</strong> (release drivers): QT4 fn-transform XQ40 0 to 129 of the 133 run (137, 4 not run), XP40 126 of 130; gate 80 % met. XT40 8,861 to 8,870 passed, none lost, 0 errors; transform 0 to 9 of 12 (transform-009 now reaches an assertion the driver does not check).</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: <code>sxml.wasm</code> 2,119,912 to 2,120,239 (+327, the extension lookups); <code>sxml-full.wasm</code> 2,224,369 to 3,554,353 (+1,329,984, XSLT).</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong>: fn:transform in a static expression (transform-004: static evaluation has no evaluation environment); enable-assertions false (assertions stay enabled, fn-transform-91); a separate execution scope (cache false still shares current-dateTime, fn-transform-27); the inner transformation shares the caller's document loader (fn:doc is not stripped as its xsl:strip-space asks), available documents and trace sink, and fn:function-lookup sees the caller's table; xslt-version 2.0 behaviour (82e); the QT4 driver gives a query file no base URI of its own (fn-transform-94); ~record patterns (transform-401, XSLT).</p>
+      </item>
+    </list>
+  </body>
+</decision>

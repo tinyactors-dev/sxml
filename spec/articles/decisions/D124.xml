@@ -1,0 +1,26 @@
+<decision id="D124" status="accepted" source="docs/DECISIONS.md">
+  <title>IR extensions for try/catch and constructors (packet 3.6b)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>; accepts the IR proposals of <ref kind="decision" to="D109"/> and <ref kind="decision" to="D110"/> (<code>src/ir_internal.h</code>, <code>src/ir.c</code>, <code>src/ir_verify.c</code>).</p>
+    <list>
+      <item>
+        <p><strong>Adders</strong>: <code>sxml_ir_unit_add_name_tests(unit, sxml_ir_name_test_view, &amp;list)</code>, <code>sxml_ir_unit_add_catch_clauses(unit, view, &amp;list)</code> and <code>sxml_ir_unit_add_namespace_bindings(unit, view, &amp;list)</code> work as <code>sxml_ir_unit_add_sort_keys</code>, with accessors <code>sxml_ir_unit_get_name_tests</code>, <code>_get_catch_clauses</code>, <code>_get_namespace_bindings</code>. A LOCAL_NAME_WILDCARD test's local name is interned in the item heap's name pool (pool text never moves), so callers may free theirs; an empty one is INVALID_ARGUMENT. The static namespaces are one run of the same array.</p>
+      </item>
+      <item>
+        <p><strong><code>sxml_ir_node_construction</code></strong> gains <term name="name_namespaces"/> (a binding run; empty means the unit's static namespaces; lowering gives the static namespaces extended by enclosing direct constructors, for QT4 Constr-compelem-compname) and <code>uint32_t construction_flags</code> (<code>SXML_IR_CONSTRUCTION_NO_PRESERVE_NAMESPACES</code>, <code>_NO_INHERIT_NAMESPACES</code>, <code>_PRESERVES_TYPES</code>, <code>_XSLT_RULES</code>; 0 = construction strip, copy-namespaces preserve, inherit, XQuery rules). Lowering (3.9, 3.10) sets them per constructor from the prolog; XSLT (4.x) sets XSLT_RULES on literal result elements and xsl:element/xsl:document.</p>
+      </item>
+      <item>
+        <p><strong>Evaluator</strong> (<code>src/evaluator_construct.c</code>): flags pick the copy request of content nodes (no-preserve, no-inherit, keep annotations), xs:anyType for elements under PRESERVES_TYPES, XSLT rules (REPLACE duplicates, XTDE codes) for ELEMENT and DOCUMENT; SHALLOW_COPY drops the element's namespaces under NO_PRESERVE (copy-namespaces "no") and keeps its type under PRESERVES_TYPES. Names given as strings resolve with <term name="name_namespaces"/>. <code>src/evaluator_try.c</code> reads clauses through the accessors.</p>
+      </item>
+      <item>
+        <p><strong>Verifier</strong>: TRY_CATCH needs a body and clauses or a finally body; each clause one or more name tests of a known kind, an error details slot of the function (bound in its handler only) and a handler. The constructor kinds and SHALLOW_COPY: fields the kind does not use must be empty (kinds as in the header), lists in range, known flags; a NONE name or value is allowed (the empty sequence: <code>attribute {()} {}</code> raises at run time, <code>namespace {()} {...}</code> is the default namespace). Only APPLY_TEMPLATES stays reserved.</p>
+      </item>
+      <item>
+        <p><strong>Text form</strong>: constructors print name, value, then <code>(namespaces p="u" ""="d")</code>, <code>(name-namespaces ...)</code> and the flag words on one line, then the content; TRY_CATCH prints body, <code>(catch (TESTS) $SLOT HANDLER)</code> per clause and <code>(finally BODY)</code> (golden text in <code>tests/ir_test.c</code>). Dumps of the other kinds are unchanged.</p>
+      </item>
+      <item>
+        <p>Test units of <code>tests/evaluator_try_test.c</code> and <code>tests/evaluator_construct_test.c</code> use the adders; all of them pass the verifier (checked once in a scratch build, after giving <code>shallow_others</code> one content expression per copy: the IR is a tree).</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,23 @@
+<decision id="D119" status="accepted" source="docs/DECISIONS.md">
+  <title>Number formatting: one picture engine, decimal formats as settings (packet <ref kind="packet" to="2.9"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. <code>src/format.c</code>, <code>src/format_internal.h</code>, <code>src/function_library_format.c</code> (part <code>format</code>).</p>
+    <list>
+      <item>
+        <p><strong>One engine</strong> for fn:format-integer and fn:format-number pictures, open to fn:format-date (2.14: <code>sxml_integer_picture_parse_primary_format_token</code> and <code>sxml_format_integer</code>), xsl:number and xsl:decimal-format (4.10) and XQuery's decimal-format declaration (<code>sxml_decimal_format_apply</code> checks a format's properties: MALFORMED_INPUT for a wrong form or markers that are not distinct; callers map it to FODF1290, INVALID_ARGUMENT, XQST0097/8 or XTSE1300). Pictures are scanned by hand (<ref kind="decision" to="D97"/>) and parse into plain values that borrow the picture string; the grouping positions are rescanned while formatting, so parsing needs no memory.</p>
+      </item>
+      <item>
+        <p><strong>Numbers as decimal text</strong>: integers and decimals exactly, doubles and floats by their shortest decimal form (F&amp;O 4.0, 4.9.5) after the percent or per-mille multiplication in their own type (overflow gives infinity); rounding half to even on the digits, any size. A mantissa that rounds up to 10^N keeps its exponent (QT4 numberformat304). QT4 fn-format-number-limits-007 expects Java's "4.9e-324"; sxml gives the shortest "5.0e-324".</p>
+      </item>
+      <item>
+        <p><strong>format-integer</strong>: digit patterns in any Nd family and radix 2 to 36, a to z bijective (to 2^64-1), Roman 1 to 3999, English words below 10^21 (British "and"), English ordinals for digits and words; every other token, and numbers out of a sequence's range, use the token "1" (<ref kind="decision" to="D97"/>: no other languages or sequences). Title case keeps "and" and the part after a hyphen lower-case ("Twenty-one").</p>
+      </item>
+      <item>
+        <p><strong>Decimal formats</strong>: the part starts from the defaults and applies an options map (keys by atomic-equal string, QName keys in a namespace ignored, others XPTY0004; values coerced to xs:string). The static context's formats (<ref kind="decision" to="D104"/>) do not reach the evaluator yet, so every format name is FODF1280 (Proposed below).</p>
+      </item>
+      <item>
+        <p>Measured (debug driver): fn-format-integer 13 to 87 passed (all 87 run), fn-format-number 20 to 252 of 286 run; 33 of the 34 failures use QT4 decimal-format environments.</p>
+      </item>
+    </list>
+  </body>
+</decision>

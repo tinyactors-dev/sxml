@@ -1,0 +1,4 @@
+<term id="streaming_parameter" source="docs/GLOSSARY.md">
+  <name>streaming_parameter</name>
+  <definition>The first parameter of a declared-streamable stylesheet function (XSLT 4.0, 19.8.5)</definition>
+</term>

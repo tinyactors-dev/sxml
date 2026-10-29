@@ -1,0 +1,6 @@
+<decision id="D20" status="accepted" source="docs/DECISIONS.md">
+  <title>Outputs on failure are left untouched</title>
+  <body>
+    <p><recorded date="2026-10-16"/> (task 0.5). Project-wide default, chosen from the two options in <code>docs/C_GUIDELINES.md</code> ("Ownership and lifetimes"): a function that fails does not write its outputs. A declaration that deviates says so (the only one so far: <code>sxml_utf8_validate</code> fills its result on both outcomes, to report where the input stops being valid). Lifecycle functions check the configuration and memory before writing anything.</p>
+  </body>
+</decision>

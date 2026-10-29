@@ -1,0 +1,4 @@
+<term id="function_annotation" source="docs/GLOSSARY.md">
+  <name>function_annotation</name>
+  <definition>An annotation name with a sequence of atomic items (<code>%private</code>)</definition>
+</term>

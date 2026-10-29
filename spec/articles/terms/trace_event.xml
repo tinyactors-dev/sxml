@@ -1,0 +1,4 @@
+<term id="trace_event" source="docs/GLOSSARY.md">
+  <name>trace_event</name>
+  <definition>One piece of trace output: its kind, label, value and, for <code>xsl:message</code>, whether it terminates</definition>
+</term>

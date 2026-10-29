@@ -1,0 +1,4 @@
+<term id="current_template_rule" source="docs/GLOSSARY.md">
+  <name>current_template_rule</name>
+  <definition>The template rule whose template is running, absent in a changed focus, functions and globals (XSLT 4.0, 6.11)</definition>
+</term>

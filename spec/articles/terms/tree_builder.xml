@@ -1,0 +1,4 @@
+<term id="tree_builder" source="docs/GLOSSARY.md">
+  <name>tree_builder</name>
+  <definition>Interface receiving construction events in document order (parser, constructors, serializers)</definition>
+</term>

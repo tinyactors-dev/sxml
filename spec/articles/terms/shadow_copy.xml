@@ -1,0 +1,4 @@
+<term id="shadow_copy" source="docs/GLOSSARY.md">
+  <name>shadow_copy</name>
+  <definition><code>spec/articles/</code> while the Markdown under <code>docs/</code> is still the source: made again by <code>tools/spec/import.py</code>, checked by <code>tools/spec/spec roundtrip</code> (<code>spec/README.md</code>)</definition>
+</term>

@@ -1,0 +1,14 @@
+<decision id="D306" status="accepted" source="docs/DECISIONS.md">
+  <title>sxml:parse-code compiles each language's queries once; iXML compared with tree-sitter</title>
+  <body>
+    <p><recorded date="2026-10-22"/>, at the owner's request for a comparison of iXML with tree-sitter in the book's "Invisible XML Performance".</p>
+    <list>
+      <item>
+        <p><strong>The bug the comparison found:</strong> <code>sxml:parse-code</code> compiled the highlights, locals and injections queries of an injected language for every injection. Markdown injects its inline grammar into every paragraph, so 1 MB of Markdown took 29 s, 97 % of it in <code>ts_query_new</code>. <code>src/source_code.c</code> now keeps a <code>language_queries</code> entry per language for the document: each layer's <code>tree_analysis</code> borrows the compiled queries (and the table of highlight captures) from it, and the document releases them at its end. The same input takes 1.1 s, 60 % of it tree-sitter's own parse; the trees are the same, element for element. No header changes.</p>
+      </item>
+      <item>
+        <p><strong>The comparison:</strong> the benchmark suite parses 1 MB of JSON with an iXML grammar (<code>tests/bench/ixml/json.ixml</code>), with <code>sxml:parse-code</code> and with <code>fn:json-to-xml</code>, and the Markdown input with <code>sxml:parse-code</code>, with limits in <code>--check</code> like the other rows (<code>COMPARISONS</code> in <code>tests/bench/run-ixml-bench.py</code>). The chapter gives the limits, the element counts, and tree-sitter's parse alone (about 0.11 s for the JSON, measured once with a small C program against the vendored runtime, not part of the suite).</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="child_slot" source="docs/GLOSSARY.md">
+  <name>child_slot</name>
+  <definition>One place in the content of a schema element role: the roles allowed there, once or any number of times, required or not; the children of an element fill its role's slots in order, as the schema for schema documents allows</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="subordinate_document" source="docs/GLOSSARY.md">
+  <name>subordinate_document</name>
+  <definition>A document a schematron pattern's documents attribute names (5.4.12): the pattern's rules apply to it instead of the instance, and each of its findings names it, with its own lines and columns (<code>sxml_schematron_report.document_uri</code>; <ref kind="decision" to="D331"/>)</definition>
+</term>

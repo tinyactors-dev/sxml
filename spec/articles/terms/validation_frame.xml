@@ -1,0 +1,4 @@
+<term id="validation_frame" source="docs/GLOSSARY.md">
+  <name>validation_frame</name>
+  <definition>The schema validator's entry for one open element: its assessment, governing declaration and type, content type, content model cursor, nilled and error state, and where its collected text and namespace bindings start</definition>
+</term>

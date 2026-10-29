@@ -1,0 +1,91 @@
+<decision id="D214" status="accepted" source="docs/DECISIONS.md">
+  <title>XQuery and XPath Full Text 3.0 (packet 7.12a)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D53"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D187"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D208"/>. Amended as the packet goes on.</p>
+    <list loose="true">
+      <item>
+        <p><strong>Grammar</strong> (<code>grammars/xquery</code> only, <ref kind="decision" to="D12"/>): Full Text 3.0, Appendix A, with FTContainsExpr as the operand of ComparisonExpr above XQuery 4.0's OtherwiseExpr. Its 43 keywords are not reserved words: tree-sitter's keyword extraction returns one only where the parse state expects it, so no name position changes. (Reserved, as the XQuery keywords are, they grew the compiled parser by 1.5 MB; contextual, with the choice rules inlined, by 500 KB, in the CLI only.) One GLR conflict, after a thesaurus URI ("at least ... levels" against "at start").</p>
+      </item>
+      <item>
+        <p><strong>AST</strong>: 29 kinds, 16 fields, 15 keywords, four flags; a selection is a tree of FT_SELECTION, FT_OR, FT_AND, FT_MILD_NOT, FT_UNARY_NOT, FT_PRIMARY_WITH_OPTIONS and FT_WORDS nodes with the positional filters as children of their FT_SELECTION.</p>
+      </item>
+      <item>
+        <p>XPath's Full Text is not implemented: the QT4 cases are XQuery only, and the XPath grammar and <code>sxml.wasm</code> stay as they are.</p>
+      </item>
+      <item>
+        <p><strong>Amended at the end of 7.12a</strong>: the packet did the task file's 7.12a and most of 7.12b and 7.12c, in the orchestrator's order.</p>
+      </item>
+      <item>
+        <p><strong>The optional feature full-text</strong> (<ref kind="decision" to="D189"/>): <code>sxml_full_text_feature()</code>, declared in <code>include/sxml/xquery.h</code> (additive; Full Text is XQuery only), kind SXML_OPTIONAL_FEATURE_KIND_FULL_TEXT, in <code>sxml_all_optional_features()</code> and so in the CLI, the drivers and <code>sxml-full.wasm</code>. The <ref kind="decision" to="D162"/> place is <code>src/xquery_lower_full_text.c</code>, which XQuery's lowering always links (2 KB in <code>sxml.wasm</code>): without the feature the first Full Text construct of a module is XPST0003; with it the feature's static rules run, and the lowering rule of FT_CONTAINS_EXPRESSION is a procedure whose step is the feature's. The rest (<code>src/full_text_lower.c</code>, <code>full_text.c</code>, <code>full_text_match.c</code>, <code>full_text_tokenize.c</code>, about 36 KB of wasm) links only with the feature.</p>
+      </item>
+      <item>
+        <p><strong>Static rules</strong>: FTST0019 (one group twice in one FTMatchOptions), FTST0009 for a language whose primary subtag is not en, de, fr, it, es or nl (sxml does not segment Chinese, Japanese or Thai), FTST0006 for stop word lists by URI and FTST0018 for thesauri by URI (until 7.12c), XQST0079 for an extension selection without a selection (no pragma is recognized), XQST0089 for a score variable named as its for or positional variable, XPST0081 for undeclared prefixes of extension option and pragma names.</p>
+      </item>
+      <item>
+        <p><strong>The match program</strong>: "E contains text S" lowers to the internal row contains(E, program, ignore). The program is an XDM array, member 1 a postfix text (one instruction per selection node and filter, FTOrder filters first, 3.5), the others the operands, coerced as 4.3 step 1 says (words xs:string*, ranges and windows xs:integer, weights xs:double) and static stop word lists. The match options are static and written into each words instruction (prolog ft-option declarations in order, then the FTMatchOptions around the words, innermost first). No IR kind and no evaluator state are added.</p>
+      </item>
+      <item>
+        <p><strong>AllMatches are internal rows</strong>, not XDM values: StringMatches, Matches and AllMatches as ranges of two arrays that grow during one item's run, a stack of AllMatches, each fts: function of 4.2.6 as a loop (<ref kind="decision" to="D71"/>). Past 2,000,000 rows a run is SXML_STATUS_LIMIT_EXCEEDED. Simplified against the formal functions: FTTimes with an upper bound gives each combination of occurrences in range with the others as StringExcludes (the same results without later filters), "at least N" without an upper bound the combinations of exactly N; FTWindow over a match with StringExcludes gives one match per distinct set of retained excludes.</p>
+      </item>
+      <item>
+        <p><strong>Tokens</strong> (4.1, implementation-defined): maximal runs of L, M, N and Pc characters, an apostrophe between letters and "." or "," between digits included; a sentence ends after ".", "!" or "?"; a node's text is its string value without the ignored subtrees (fts:reconstruct), and a paragraph (and sentence, and token) ends between two text nodes, not only whitespace, whose parents are not one inside the other: so "&lt;b&gt;p&lt;/b&gt;rototypes" is one word, and element boundaries are paragraph boundaries (the QT4 dependency fullText-units).</p>
+      </item>
+      <item>
+        <p><strong>Match options</strong>: case (full case mapping), diacritics (NFD without Mn), wildcards (a state-set loop over ".", ".?", ".*", ".+", ".{n,m}", ""; an escaped punctuation character separates tokens), explicit stop word lists with union and except (a stop word matches any token). Stemming is accepted and does nothing yet; "thesaurus default" is empty; "stop words default" is empty. Languages: no effect on matching.</p>
+      </item>
+      <item>
+        <p><strong>Scores</strong> (2.3, implementation-dependent within [0, 1]): a for binding's score is 1 for every item; let score is 1 when the value is a node, a true boolean, a non-empty string or a non-zero number, else 0. Weights are checked (FTDY0016) and do not change scores.</p>
+      </item>
+      <item>
+        <p><strong>QT4 driver</strong>: fullText, fullText-ignore and fullText-units are supported for XQuery (still non-goals of the <ref kind="decision" to="D95"/> denominators); fullText-defaults (XQFTTS's default stop word list and thesaurus) is not.</p>
+      </item>
+      <item>
+        <p><strong>ft-* (XQ40)</strong>: before 0 of 685 run; after (debug and release driver) 624 passed (2 with another error code), 57 failed, 0 errors, 4 not run (91.1 %; the gate of 75 % is met). The 59 not passed or passed with another code: 29 use a thesaurus or a stop word list by URI, 21 use stemming, 6 are assert-xml differences of the ignore use cases, 2 ask "window 1 paragraphs" of two adjacent paragraphs, which contradicts fullText-units, 1 (composability q4) is not analyzed.</p>
+      </item>
+      <item>
+        <p><strong>Sizes</strong> (stripped / gzipped, at 81728fb plus nothing): <code>sxml.wasm</code> 2,135,848 / 744,527 (about 2 KB of it Full Text), <code>sxml-full.wasm</code> 6,794,049 / 1,511,813, the CLI 8,041,314 / 1,756,778: within every budget, none raised. The grammar costs the CLI and the full module about 500 KB, the feature about 36 KB.</p>
+      </item>
+      <item>
+        <p><strong>Left for 7.12b/c</strong>: stemming (Snowball English, then others), the resource kinds FULL_TEXT_STOP_WORDS and FULL_TEXT_THESAURUS in <code>processor.h</code> with the QT4 catalog's files served by the driver (FTST0006 and FTST0018 then become lookups; fullText-defaults), a thesaurus with relationships and levels, scores that depend on the matches and weights, and UAX #29 word boundaries in full (CJK segmentation would let zh in).</p>
+      </item>
+      <item>
+        <p><strong>Amended at the end of 7.12b and 7.12c</strong> (2026-10-19): what 7.12a left, as the orchestrator listed it.</p>
+      </item>
+      <item>
+        <p><strong>Stemming</strong> (3.4.4; glossary <term name="snowball_program"/>): the Snowball algorithms of the <ref kind="decision" to="D208"/> languages, Snowball v3.1.1 (BSD; vendored as <code>third_party/snowball</code> with COPYING, <code>third_party/snowball.version</code>), <em>interpreted</em>, not rewritten: <code>tools/generate-snowball-stemmers.py</code> compiles the six .sbl files (the part of the Snowball language they use; anything else is refused) into programs of 16-bit instructions with jumps (<code>src/full_text_stem_table.c</code>) that one machine runs (<code>src/full_text_stem.c</code>): Snowball's cursor, limits, slice and signal, one save slot per construct that restores the cursor, an explicit return stack (the generator refuses recursive routines; <ref kind="decision" to="D71"/>), at most 4,000,000 instructions a word. Faithful: all 210,829 words of the six snowball-data vocabularies stem as Snowball's runtime 3.1.1 stems them (checked in C under ASan and UBSan; the unit test keeps a sample). The language option chooses the stemmer, English without one (and for zh and ja, which have none). Both sides are folded, then stemmed; a query token with wildcards is a pattern and is not stemmed; words over 256 code points are left as they are.</p>
+      </item>
+      <item>
+        <p><strong>Stop words and thesauri by URI</strong> (3.4.3, 3.4.7): <code>processor.h</code>'s resource kinds SXML_RESOURCE_KIND_FULL_TEXT_STOP_WORDS and SXML_RESOURCE_KIND_FULL_TEXT_THESAURUS (additive), asked of the processor's resolver while the query is lowered, so they are the statically known lists and thesauri (<code>src/full_text_resource.c</code>); empty URIs ask for the defaults of "stop words default" and "thesaurus default", empty when the resolver has none. A list or thesaurus by URI that the resolver does not have is FTST0008 or FTST0018 (the static rules no longer raise FTST0006 and FTST0018). A list is UTF-8 words separated by whitespace; a thesaurus the XQFTTS XML format, read in one pass over its elements: each synonym relates its parent's term to its own term by its relationship. The relations of the relationship asked for (ASCII case aside; all without one) and the levels become xs:string constants of the match program (operand h of W).</p>
+      </item>
+      <item>
+        <p><strong>Thesaurus expansion</strong> (glossary <term name="thesaurus_expansion"/>): a query string (a token for "any word" and "all words", the whole phrase for "phrase") matches as itself or as a related term, with one query position: breadth first through the relations, a term's level is its shortest distance; terms at levels in the range asked for (default 1 to unbounded) are the alternatives, each tokenized, folded, stemmed and checked for stop words as the query is. Terms are compared by their tokens folded as the query folds, joined by spaces.</p>
+      </item>
+      <item>
+        <p><strong>QT4 driver</strong>: serves the two kinds from the environment's resources by URI, and the defaults of the XQFTTS catalog: its default stop word list is stopwords.txt (stopwords1def); its default thesaurus, defaultthes.xml, is not in the suite, so there is none. fullText-defaults is supported. The CLI reads both as local files, as fn:doc does.</p>
+      </item>
+      <item>
+        <p><strong>Scores</strong> (2.3; glossary <term name="full_text_score"/>): a match weighs 1, times |w| for each "weight {w}" it passes (a negative weight counts as its size), the mean of its two operands' for ftand and of its occurrences for FTTimes. An item's score is w / (w + 1 + log2(1 + n)), w the summed weight of its matches without StringExcludes (term frequency) and n its token count (length normalization): BM25's saturation; no document frequency, which one evaluation does not have. A contains expression's score is the highest of its search items', 0 without a match, always below 1. A contains expression that is the value of a let score binding lowers to the internal row score-contains instead of contains; a for binding with a score variable whose sequence's last step has a contains predicate lowers that predicate again as score-contains, as a focused body mapped over the item, before the binding's variables are in scope (<code>src/xquery_lower_full_text.c</code>, called by the for clause of <code>src/xquery_lower.c</code>). Otherwise a let score is 1 or 0 by effective boolean value and a for score is 1.</p>
+      </item>
+      <item>
+        <p><strong>Chinese and Japanese</strong>: an ideograph or a hiragana letter is a token by itself, as UAX #29's default word boundaries break around them (WB999), and the ideographic and fullwidth full stops end sentences; so zh and ja are supported languages without a dictionary (cheap: 40 lines). Thai and other scripts written without spaces stay FTST0009: they need dictionary segmentation.</p>
+      </item>
+      <item>
+        <p><strong>ft-* (XQ40, release driver)</strong>: 643 (after stemming, 637ab45; 624 before 7.12b) to 672 of 685 passed, 0 errors, 0 not run (was 4). XQ40 as a whole 45,839 to 45,868, no other set changed. The 13 not passed:</p>
+        <list>
+          <item>
+            <p>9 whose expected XML differs from sxml's result only in whitespace (sxml's results equal them with whitespace normalized): the six ignore use cases (UseCase-IGNORE q2 to q4b), composability q4 and element q3, whose expected results were re-indented in conversion (title text joined to one line, whitespace between top-level elements), and composability q1, whose expected result also lists one subject where the query returns all of a book's; element q3 and composability q1 passed before with FTST0009, which zh no longer raises. Not changed (<ref kind="decision" to="D178"/>): the driver compares as the catalog says.</p>
+          </item>
+          <item>
+            <p>2 (XQUERY-XPATH-COMPOSABILITY q9 and q9b) stemmer-dependent: Snowball conflates complete and completing, success and successfully, so book 1 matches too; stemming is implementation-defined.</p>
+          </item>
+          <item>
+            <p>2 (FTWindow-paragraphs3, FTWindow-unconstrained-paragraphs3) as in 7.12a: they contradict fullText-units.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Sizes</strong> (stripped / gzipped): <code>sxml.wasm</code> 2,330,831 / 815,984 (+2,024 for the score rows and the for score procedure in XQuery's lowering; HEAD at 2cf6efa was already 2,328,807, over its 2,200,000 budget before this packet: not raised here, for the owner and the packets that grew it), <code>sxml-full.wasm</code> 6,953,772 / 1,574,953 (+18,872), the CLI 8,212,320 / 1,829,508 (+18,872): within their budgets. The stemmer tables are about 30 KB of source data.</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="snippet" source="docs/GLOSSARY.md">
+  <name>snippet</name>
+  <definition>A fixed XPath text that lowering parses and lowers itself: the parts of built-in templates, the default select of <code>xsl:apply-templates</code></definition>
+</term>

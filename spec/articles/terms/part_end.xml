@@ -1,0 +1,4 @@
+<term id="part_end" source="docs/GLOSSARY.md">
+  <name>part_end</name>
+  <definition>The number of items in a concatenation's parts up to and including one part; cached as parts are counted</definition>
+</term>

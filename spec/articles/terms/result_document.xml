@@ -1,0 +1,4 @@
+<term id="result_document" source="docs/GLOSSARY.md">
+  <name>result_document</name>
+  <definition>A secondary result: what one <code>xsl:result-document</code> instruction delivers, identified by its absolute URI (XSLT 4.0, 26.2)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="regex_input" source="docs/GLOSSARY.md">
+  <name>regex_input</name>
+  <definition>The string a regex matcher searches (<code>$value</code> of <code>fn:tokenize</code>, the "input string" of F&amp;O 4.0, section 6.1.1)</definition>
+</term>

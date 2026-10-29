@@ -1,0 +1,4 @@
+<term id="deemed_empty" source="docs/GLOSSARY.md">
+  <name>deemed_empty</name>
+  <definition>Of an item, for <code>xsl:where-populated</code>: a document or element node without children, another node or atomic item of zero-length string value, an empty map, or an array whose flattened members all are (XSLT 4.0, 8.5.1)</definition>
+</term>

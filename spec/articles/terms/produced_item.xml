@@ -1,0 +1,4 @@
+<term id="produced_item" source="docs/GLOSSARY.md">
+  <name>produced_item</name>
+  <definition>An item a sequence generator has produced, kept by its lazy sequence so every reading sees it (<code>produced_item_count</code>)</definition>
+</term>

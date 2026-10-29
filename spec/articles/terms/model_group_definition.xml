@@ -1,0 +1,4 @@
+<term id="model_group_definition" source="docs/GLOSSARY.md">
+  <name>model_group_definition</name>
+  <definition>A named model group, the target of <code>&lt;xs:group ref&gt;</code> (XSD 1.1 Part 1, 3.7)</definition>
+</term>

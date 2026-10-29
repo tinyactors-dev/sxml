@@ -1,0 +1,5 @@
+<term id="uri_reference" source="docs/GLOSSARY.md">
+  <name>uri_reference</name>
+  <definition>A URI or relative reference split into scheme, authority, path, query and fragment (RFC 3986, section 4.1)</definition>
+  <definition>A URI as written, possibly relative (RFC 3986, section 4.1)</definition>
+</term>

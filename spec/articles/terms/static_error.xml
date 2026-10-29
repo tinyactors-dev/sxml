@@ -1,0 +1,4 @@
+<term id="static_error" source="docs/GLOSSARY.md">
+  <name>static_error</name>
+  <definition>A specification error whose code and description are static text, reported without the heap (<code>sxml_static_error</code>)</definition>
+</term>

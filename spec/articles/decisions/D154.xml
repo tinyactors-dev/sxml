@@ -1,0 +1,29 @@
+<decision id="D154" status="accepted" source="docs/DECISIONS.md">
+  <title>XQuery conformance sweep 1 (packet <ref kind="packet" to="3.14"/>)</title>
+  <body>
+    <p><recorded date="2026-10-18"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D75"/>, <ref kind="decision" to="D95"/>, <ref kind="decision" to="D135"/>, <ref kind="decision" to="D148"/>. No public header changed; no IR kind added.</p>
+    <list>
+      <item>
+        <p><strong>Global tables</strong> (glossary <term name="global_table"/>): the dynamic context keeps one table of global slots per unit (the evaluation's own first), and a task reads the table of its function's unit. The evaluator's restriction "only the evaluation's own unit reads globals" is gone; a unit with no table (a function item called after its evaluation ended) still reads none, so closures keep capturing globals (<ref kind="decision" to="D55"/>).</p>
+      </item>
+      <item>
+        <p><strong>Unit evaluation</strong> (glossary <term name="unit_evaluation"/>): a resumable native step kind, <code>SXML_NATIVE_STEP_KIND_EVALUATE_UNIT</code> (<code>src/function_library_internal.h</code>), asks the machine to evaluate another sealed unit on its own task stack: a global table from the step's global values (coerced, XPTY0004), its initializers (<code>sxml_evaluator_start_global_initializers</code> now takes the table), its main function, and the next step gets the value, as after a CALL. The tables live until the evaluation (or <code>call_function_item</code>) ends. No C nesting (<ref kind="decision" to="D71"/>).</p>
+      </item>
+      <item>
+        <p><strong>fn:load-xquery-module</strong> (F&amp;O 4.0, 18.2; <code>src/xquery_load_module.c</code>): XQuery's own function table, put after the host's by <code>sxml_xquery_compile_module</code> for one compilation, so only programs that compile XQuery link it (the JavaScript package's <code>sxml.wasm</code> does not, <ref kind="decision" to="D146"/>); fn:function-lookup does not see it (18.2 says the context is not changed; QT4 does not ask). Its first step writes the module record (glossary <term name="module_record"/>) as a main module, <code>import module namespace sxml-loaded = "NS" at hints; map { "variables": map {QName(NS, v): $sxml-loaded:v, ...}, "functions": map {QName(NS, f): map {N: sxml-loaded:f#N, ...}} }</code>, as 18.1 words it ("as if by evaluating a named function reference Q#N"): the public names are read from the ASTs of a first pass that loads the import alone; the content option is served by a resolver in front of the evaluation's, as the module of the namespace asked for without hint, with the caller's static base URI as module URI. The second step returns the record the unit evaluation made. Variables' values bind globals by name (any module of the set) after an exact type match (FOQM0005, no conversion); context-value and context-item (both: FOQM0005). Errors: FOQM0001, FOQM0002 (the import's XQST0059), FOQM0003 (any other static error), FOQM0006 (xquery-version above 4.0, no evaluation environment); dynamic errors of globals as they are. The QT4 driver claims feature fn-load-xquery-module for XQ40 runs only. Not done: trusted=false (FODC0016, 11 cases), a library module's context value type (<ref kind="decision" to="D148"/>).</p>
+      </item>
+      <item>
+        <p><strong>QT4 driver</strong>: an out-of-scope case (<ref kind="decision" to="D95"/>) that ends in XPST0017 or <code>SXML_STATUS_UNSUPPORTED_FEATURE</code> is "not run: needs the non-goal ...", so misc-HtmlTestSuite (1,379, fn:parse-html) and fn-parse-html are no longer failures; leaks, wrong results and other errors of such cases still count. A param's QName prefix is resolved on its element.</p>
+      </item>
+      <item>
+        <p><strong>Arena trees</strong>: blocks of 4 KiB instead of 64 KiB; each element constructor makes a tree, and 10,000 of them took 655 MB (fold-left-021 and slice-185 ended in the driver's memory limit).</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release, all 737 sets of each spec, code of 00ac981): XQ40 39,698 to 39,924 passed, in scope 96.4 % to 96.9 %, XQ-only 85.3 % to 97.9 % (9,321 of 9,523; the non-goal cases no longer run), "error" outcomes 5 to 1 (modules-40, below), none lost but fn-system-properties-supports-dynamic-xquery-false (now not run, as the feature is claimed); fn-load-xquery-module 0 to 103 of 117 run, misc-Subtyping 0 to 109 of 110; method-* 97.5 %. XP40 unchanged: 30,630 passed, in scope 97.0 %, 0 errors (32 out-of-scope failures now not run). Slice 198/198.</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong> (Proposed below): closures reading globals at call time (<ref kind="decision" to="D135"/> (c)); defaults that read the focus (<ref kind="decision" to="D135"/> (b)); keyword arguments after an omitted parameter of a declared function (modules-40, the last "error"); a library module's static base URI and source name at run time; hintless split namespaces; ##any; function-lookup of declared functions. Each needs <code>src/xpath_lower.c</code>, <code>src/ir_internal.h</code> or <code>include/sxml/xquery.h</code>, which other packets were editing.</p>
+      </item>
+    </list>
+  </body>
+</decision>

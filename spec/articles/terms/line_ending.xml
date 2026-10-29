@@ -1,0 +1,4 @@
+<term id="line_ending" source="docs/GLOSSARY.md">
+  <name>line_ending</name>
+  <definition>What the serializer writes for each newline (parameter <code>line-ending</code>): LF, CR LF or CR</definition>
+</term>

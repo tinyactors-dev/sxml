@@ -1,0 +1,4 @@
+<term id="type_alternative" source="docs/GLOSSARY.md">
+  <name>type_alternative</name>
+  <definition>One entry of an element declaration's type table: an XPath test and the type it selects (XSD 1.1 Part 1, 3.12)</definition>
+</term>

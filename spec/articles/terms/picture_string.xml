@@ -1,0 +1,4 @@
+<term id="picture_string" source="docs/GLOSSARY.md">
+  <name>picture_string</name>
+  <definition>The second argument of <code>fn:format-integer</code> and <code>fn:format-number</code>: the pattern a number is written by</definition>
+</term>

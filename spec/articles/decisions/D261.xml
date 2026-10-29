@@ -1,0 +1,23 @@
+<decision id="D261" status="accepted" source="docs/DECISIONS.md">
+  <title>XSLT without XPath's predeclared prefixes (packet 4.24)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D208"/>, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D260"/>. <strong>A behaviour change for users.</strong> <ref kind="decision" to="D260"/> found that stylesheets saw XPath's predeclared prefixes (xs, xsi, fn, map, array, math, err) through sxml's XPath static context. The newest XSLT 4.0 draft (qt4cg, fetched 2026-10-20) gives an XPath expression in a stylesheet the <em>applicable static namespaces</em> of its containing element as its statically known namespaces (5.3.1, for static expressions too, 9.7, and xsl:evaluate's target expression, 10.5.1): the module's fixed namespace bindings when its root has fixed-namespaces, else the element's native namespace bindings (3.1). xml is always in scope. The 4.0 addition is fixed-namespaces (3.6.1): <code>#standard</code> or a conventional prefix (xsl, xml, xs, xsi, fn, math, map, array, err) binds the reserved namespace, but only when the stylesheet says so; nothing is predeclared. As <ref kind="decision" to="D208"/> and <ref kind="decision" to="D245"/> direct, the draft is the default:</p>
+    <list>
+      <item>
+        <p>The internal XPath static context has <code>omits_predeclared_namespaces</code> (<code>src/xpath_static_internal.h</code>; no public header changes); XSLT's static contexts, static expressions and xsl:evaluate set it, and prefix lookup then knows only the configured bindings and xml. XPath and XQuery keep their predeclared prefixes (XPath 4.0, 2.2.1; XQuery 4.0, 2.1.4). The XSLT functions taking names as strings (function-available, element-available, type-available, system-property) and the streamability analysis resolve likewise.</p>
+      </item>
+      <item>
+        <p><strong>For users</strong>: a stylesheet that writes <code>xs:integer</code>, <code>map:get</code> or <code>math:pi()</code> without declaring the prefix now fails with XPST0081 (in an expression or an <code>as</code> sequence type) or XTSE0280 (in a name attribute such as <term name="mode"/>); before, it ran. Declare the prefix (<code>xmlns:xs="http://www.w3.org/2001/XMLSchema"</code>, with <code>exclude-result-prefixes="xs"</code> where literal result elements would copy it) or write <code>fixed-namespaces="#standard"</code>. CHANGELOG says so.</p>
+      </item>
+      <item>
+        <p>Every stylesheet sxml ships declares what it uses: the book's page.xsl and customers.xsl (and its templates chapter explains it), five unit-test files, the bindings' test stylesheets. README, apps/sxml/README.md, the CLI goldens and tests/cli already did.</p>
+      </item>
+      <item>
+        <p><strong>Left</strong>: a cast of a string to xs:QName at run time (<code>src/cast_lexical.c</code>) still falls back on the predeclared prefixes in every language, because the evaluator does not know the language of the code running; in XSLT <code>xs:QName('fn:x')</code> resolves where the draft would raise FONS0004. No suite case tests it.</p>
+      </item>
+      <item>
+        <p>Verified (<ref kind="decision" to="D181"/>): the debug preset, the xslt, cli and xpath_static tests, clang-tidy, the book check, and the whole XT40 suite with the release driver, case by case: <strong>12,156 to 12,157 passed (120 wrong error), 362 to 361 failed, 0 errors</strong>, namespace-6202 from failure to pass, no case lost.</p>
+      </item>
+    </list>
+  </body>
+</decision>

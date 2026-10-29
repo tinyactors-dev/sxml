@@ -1,0 +1,4 @@
+<term id="declaration" source="docs/GLOSSARY.md">
+  <name>declaration</name>
+  <definition>A top-level element of a stylesheet module (<code>xsl:template</code>, <code>xsl:function</code>, ...)</definition>
+</term>

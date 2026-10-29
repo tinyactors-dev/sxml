@@ -1,0 +1,4 @@
+<term id="encoding_name" source="docs/GLOSSARY.md">
+  <name>encoding_name</name>
+  <definition>The name of a character encoding (<code>UTF-8</code>, <code>ISO-8859-1</code>), from outside a document or from its encoding declaration</definition>
+</term>

@@ -1,0 +1,23 @@
+<decision id="D297" status="accepted" source="docs/DECISIONS.md">
+  <title>A streamed writer for the html and xhtml methods (packet stream-2)</title>
+  <body>
+    <p><recorded date="2026-10-21"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D231"/>, <ref kind="decision" to="D295"/>.</p>
+    <list>
+      <item>
+        <p><strong>Decided</strong>: the streamed serialization (<code>src/serialize_xml.c</code>, glossary <term name="streamed_serialization"/>) takes the html method without indent and the xhtml method on the xml method's conditions (no indent, canonical, doctype-system, doctype-public or standalone); <code>sxml_serialization_streams</code> says so. The principal stream (<ref kind="decision" to="D231"/>) resolves XSLT's indent default (yes for html and xhtml, XSLT 4.0, 26.1.4) before it asks, as the tree path does. The xml method's machinery is reused, no second writer: each element is written from a window of its own by <code>sxml_xml_writer_open_element</code>, so void elements, raw text (script, style), boolean and URI attributes, html-version 5 or 4.01 and the HTML processing instructions are the element's own.</p>
+      </item>
+      <item>
+        <p><strong>Bounded state for what needs context</strong>: the document type declaration is written before the first element from the top level so far (non-whitespace text before it means no <code>&lt;!DOCTYPE html&gt;</code>, Serialization 4.0, 6.1.11, 7.5.8); include-content-type writes the meta element with head's start tag (an empty head is closed at once) and skips a meta element it replaces with its content by a depth count (6.1.18, 7.5.14); prefix normalization's "an attribute of the element or an ancestor uses the prefix" also looks at the open windows (the writer's <code>ancestor_windows</code>, NULL for a whole tree); the XHTML, SVG and MathML namespaces are looked up again when an element names a namespace, since the evaluation may intern one after the writer starts; top-level text is written as text, CDATA requests ignored, as sequence normalization joins it (this also aligns the xml method's streamed output with its tree). normalization-form needs no fallback: text events are joined into a text node before they are written, as for xml (<ref kind="decision" to="D295"/>).</p>
+      </item>
+      <item>
+        <p><strong>Falls back to the tree, and why</strong>: indent=yes, for every method: whether an element is indented depends on all its children (a non-whitespace text child or an inline element child anywhere makes it not indented, 5.1.4, 6.1.5, 7.5.3), and that decides the whitespace before its first child; the deciding child can be the last event of the document, so bounded memory cannot give the same bytes (buffering the undecided output would hold the whole body). Rejected: changing the indentation rule (outputs would change). XHTML with a document type declaration or standalone (SEPM0004 reads the whole tree) and canonical. So <code>xsl:output method="html"</code> without <code>indent="no"</code> still builds the tree (now linear, <ref kind="decision" to="D295"/>).</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release CLI, peak resident set, 20,000 records of 1 KB, a streamable mode): html indent=no with a p element a record 29.8 -&gt; 10.9 MB, with one long text node under body 59.1 -&gt; 10.9 MB; xhtml indent=no 29.3 -&gt; 10.9 MB; xml 10.9 MB; html with the default indent 29.8 and 59.2 MB (the tree, unchanged); every output byte-identical before and after.</p>
+      </item>
+      <item>
+        <p><strong>Verified</strong>: serialize_html streamed_matches_tree (7 documents x 10 parameter sets; text events split into one event per character, so borders fall inside script and around multi-byte characters) and streamed_allocation_failures; evaluator_stream html_principal_result_streams (html, html by evidence with 4.01, xhtml; 30,000 records under a 1 MB limit, peaks 207 to 384 KB; byte readers of 1,000 and 3 bytes; equal to serializing the TREE delivery). XT40 whole catalog, release driver, case by case: 12,185 passed and 98 wrong error before and after, no outcome differs. QT4 XQ40 method-html, method-xhtml, method-xml, fn-serialize, method-adaptive as in CONFORMANCE.md. No public header changes (<ref kind="decision" to="D99"/>). sxml.wasm not rebuilt (about 250 lines of internal C, no new tables).</p>
+      </item>
+    </list>
+  </body>
+</decision>

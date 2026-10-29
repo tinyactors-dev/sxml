@@ -1,0 +1,4 @@
+<term id="term" source="docs/GLOSSARY.md">
+  <name>term</name>
+  <definition>What a particle contains: an element declaration, a model group or a schema wildcard</definition>
+</term>

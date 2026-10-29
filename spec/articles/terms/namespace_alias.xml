@@ -1,0 +1,4 @@
+<term id="namespace_alias" source="docs/GLOSSARY.md">
+  <name>namespace_alias</name>
+  <definition>An <code>xsl:namespace-alias</code> pair: literal result elements and attributes in its stylesheet URI are output in its result URI (XSLT 4.0, 11.1.4)</definition>
+</term>

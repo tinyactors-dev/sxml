@@ -1,0 +1,4 @@
+<term id="timezone_database" source="docs/GLOSSARY.md">
+  <name>timezone_database</name>
+  <definition>Zones of the IANA Time Zone Database: for a zone name and an instant, the offset and abbreviation in effect</definition>
+</term>

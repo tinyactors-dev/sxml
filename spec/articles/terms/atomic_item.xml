@@ -1,0 +1,4 @@
+<term id="atomic_item" source="docs/GLOSSARY.md">
+  <name>atomic_item</name>
+  <definition>A value of an atomic type together with its type annotation (XPath 4.0 says "atomic item", not "atomic value")</definition>
+</term>

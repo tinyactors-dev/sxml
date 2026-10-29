@@ -1,0 +1,4 @@
+<term id="updating_expression" source="docs/GLOSSARY.md">
+  <name>updating_expression</name>
+  <definition>An expression whose value is a pending update list: insert, delete, replace, rename, an updating function call, and the expressions that pass one on (XQuery Update Facility 3.0, 2.2); its opposite is a <code>simple_expression</code></definition>
+</term>

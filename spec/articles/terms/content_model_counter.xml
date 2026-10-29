@@ -1,0 +1,4 @@
+<term id="content_model_counter" source="docs/GLOSSARY.md">
+  <name>content_model_counter</name>
+  <definition>A counter of a content model that counts the repetitions of one particle between its minimum and maximum occurrences, instead of a copy of states per repetition</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="backwards_compatible_behaviour" source="docs/GLOSSARY.md">
+  <name>backwards_compatible_behaviour</name>
+  <definition>XSLT's processing of an element whose effective version is below 2.0 by the XSLT 1.0 rules (XSLT 4.0, 3.8)</definition>
+</term>

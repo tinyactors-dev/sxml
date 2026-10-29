@@ -1,0 +1,23 @@
+<decision id="D83" status="accepted" source="docs/DECISIONS.md">
+  <title>The QT4 driver: catalog and environments (packet <ref kind="packet" to="1.24"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. <code>tests/qt4/driver/</code>, the developer tool <code>sxml-qt4</code> on the CLI framework (<ref kind="decision" to="D44"/>), public API only.</p>
+    <list>
+      <item>
+        <p><strong>Reading</strong>: catalog.xml and test-set files go through <code>sxml_xml_parser_parse</code> into an arena tree (own name pool, type registry, item heap) and are walked with the public node accessors; only elements in the catalog namespace count. One catalog object (lifecycle quintet; <code>load</code> makes the parts, <code>initialize</code> allocates nothing) keeps catalog.xml and one open test set; a test case's views and arrays live until the next <code>open_test_set</code> (a per-test-set arena). File paths are suite paths: relative to catalog.xml's directory, dot segments removed (RFC 3986 5.2.4), so output is the same wherever the suite is and under WASI.</p>
+      </item>
+      <item>
+        <p><strong>Environments</strong>: <code>ref</code> looks in the test set first, then the catalog; an environment element without <code>ref</code> is inline even with a <code>name</code> (<code>&lt;environment name="empty"/&gt;</code>); no element means absent. All children of catalog-schema.xsd are read (sources, params with <code>as</code>, namespaces, context item, static base URI with <code>#UNDEFINED</code>, resources, collections, collations, decimal formats, schemas, function library, sandpit, modules).</p>
+      </item>
+      <item>
+        <p><strong>Applicability</strong> (first failing rule is the skip reason): spec as <code>tools/check-test-list.py</code> (case spec replaces set spec; every value needs a matching token); every other dependency of set and case must be satisfied as asked, satisfied meaning one of its tokens is in a table: feature higherOrderFunctions and namespace-axis, xml-version 1.0 and 1.0:5+, xsd-version 1.1, limits big_integer and year_lt_0, language and default-language en; then the environment: source validation, schema, resource, collection, non-codepoint collation, decimal format, function library, sandpit; then modules. The table grows with sxml.</p>
+      </item>
+      <item>
+        <p><strong>CLI</strong>: <code>sxml-qt4 list [--catalog=FILE] [--spec=XP40|XQ40] [--test-set=NAME] [TEST-LIST]</code> (default catalog <code>third_party/qt4tests/catalog.xml</code>; neither selection means the whole catalog; both is a usage error). Text blocks per test case, summary line; problems on stderr, exit 1/3/4 as <code>sxml check</code>. Packet <ref kind="packet" to="1.25"/> adds <code>run</code> with <code>assertion.c</code> and <code>report.c</code>; the library target globs the directory, so it needs no CMake edit for new modules.</p>
+      </item>
+      <item>
+        <p><strong>Tests</strong>: ctest <term name="qt4_driver"/> (unit tests over in-memory files, allocation-failure loop) and <code>qt4/*</code> golden tests over a small suite in <code>tests/qt4/driver/input/</code> and the slice (<code>qt4/list_slice</code>: 198/198 resolve and apply to XP40).</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,6 @@
+<packet id="1.28" source="docs/tasks/phase-1.md">
+  <title>WebAssembly slice (implementation)</title>
+  <body>
+    <p>After <ref kind="packet" to="1.25"/>. Owns <code>tools/run-wasi.mjs</code>. <code>ctest --preset wasm</code> runs <code>qt4_slice</code> with the suite directory preopened (the CI <code>wasm</code> job needs no edit); sizes of <code>libsxml.a</code> and the driver module become the first size budget (PLAN.md, risks). The TypeScript package waits for Phase 2 (<ref kind="decision" to="D47"/>). Done when 198/198 pass under <code>wasm</code>. <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D93"/>): 198/198 under <code>wasm</code>; <code>xml_conformance</code> runs under WASI; sizes and the first budget recorded.</p>
+  </body>
+</packet>

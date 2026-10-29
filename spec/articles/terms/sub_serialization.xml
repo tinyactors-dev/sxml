@@ -1,0 +1,4 @@
+<term id="sub_serialization" source="docs/GLOSSARY.md">
+  <name>sub_serialization</name>
+  <definition>Serializing a node into a string inside another serialization (the JSON method's nodes, json-node-output-method)</definition>
+</term>

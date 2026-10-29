@@ -1,0 +1,23 @@
+<log-entry id="open-questions-at-the-phase-1-gate-packet-1-29" source="docs/LOG.md">
+  <title>Open questions at the Phase 1 gate (packet <ref kind="packet" to="1.29"/>)</title>
+  <body>
+    <p>For the owner. Only the first blocks a gate box.</p>
+    <list ordered="true">
+      <item>
+        <p><strong>CI billing.</strong> GitHub Actions refuses every job ("recent account payments have failed or your spending limit needs to be increased"). Restore billing (or move CI elsewhere) so the two CI gate boxes can be ticked and macOS, Windows and MSVC are built again; until then those platforms are unverified since the Phase 0 gate.</p>
+      </item>
+      <item>
+        <p><strong>Phase 2 may start with the CI boxes open?</strong> The review ran every check locally (<ref kind="decision" to="D100"/>); CLAUDE.md is the orchestrator's to move to Phase 2.</p>
+      </item>
+      <item>
+        <p><strong>Substrate freeze (<ref kind="decision" to="D99"/>).</strong> Accept the rule: additive changes with a record, no changes to existing declarations without reopening <ref kind="decision" to="D99"/>.</p>
+      </item>
+      <item>
+        <p><strong>The 510 "error" outcomes of XP40</strong> are mostly unlowered constructs (UNSUPPORTED_FEATURE, 493); 8 hit LIMIT_EXCEEDED and 7 the 512 MiB budget of the driver. <ref kind="decision" to="D95"/> asks for zero at the Phase 2 gate; the 15 resource cases need a look in Phase 2 (2.19 sweeps).</p>
+      </item>
+      <item>
+        <p><strong>Size budget in CI.</strong> <ref kind="decision" to="D93"/>'s budget is not enforced by a test; 1.23b grew the <code>wasm</code> CLI by 55 KB unnoticed. Add the size check to CMake or <code>ci.yml</code> in Phase 2 (2.0 owns the root CMakeLists.txt).</p>
+      </item>
+    </list>
+  </body>
+</log-entry>

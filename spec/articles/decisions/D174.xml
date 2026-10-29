@@ -1,0 +1,44 @@
+<decision id="D174" status="accepted" source="docs/DECISIONS.md">
+  <title>Schema-aware XPath and XQuery (packet <ref kind="packet" to="5.11"/>)</title>
+  <body>
+    <p><recorded date="2026-10-18"/>. Replaces the rejection places of <ref kind="decision" to="D97"/> and <ref kind="decision" to="D162"/> for XPath and XQuery (XPST0008 of schema-element, XQST0009, XQST0075, FODC0009 of fn:parse-xml, the driver's non-goal features); golden <code>src/xquery_flwor.c</code> (an internal native row), <code>src/function_library_csv.c</code>.</p>
+    <list>
+      <item>
+        <p><strong>xpath.h</strong> (stable API, additive): <code>sxml_schema_view</code> and the last field <code>sxml_static_context_configuration.in_scope_schemas</code>, the in-scope schema definitions; empty is not schema-aware. Schemas must be the processor's and outlive what is compiled with them (validation reads them at run time). The view goes into <code>sxml_ir_static_context</code> (copied into the unit like the decimal formats, <ref kind="decision" to="D131"/>), so static analysis and run time read one field; <code>sxml_xpath_static_context.processor</code> gives the resolver for schema imports.</p>
+      </item>
+      <item>
+        <p><strong>One module, <code>src/schema_scope.c</code></strong> (glossary schema_scope): lookups of types and global declarations across the in-scope schemas (built-in types first, then the first schema that has the name), substitution group members, constructor functions of schema simple types (used by static calls in <code>src/xpath_lower.c</code> and by fn:function-lookup), and <code>sxml_schema_scope_raise</code>, the one way a schema error becomes a language error: the language's code, "constraint: description".</p>
+      </item>
+      <item>
+        <p><strong>schema-element(N), schema-attribute(N)</strong> resolve statically to the choice of element(M, T) tests over N and the non-abstract, not blocked members of its substitution group (T the declared type, "?" when nillable), and to attribute(N, T); <code>is_schema_declaration</code> is no longer set. A union with a list member is not an item type (XPST0051).</p>
+      </item>
+      <item>
+        <p><strong>import schema</strong> (XQuery 4.0, 5.11): prefixes bind like namespace declarations ("default element namespace" counts for XQST0066); XQST0057, XQST0058; a namespace a host schema defines (or xs) is taken from there; the others compile into one schema of RESOLVED documents (hints, or the namespace alone; target namespace checked) kept by the processor until it is finalized (<code>sxml_processor_keep_schema</code>), as it keeps registered types: a unit owning schemas would make finalization a cycle (<ref kind="decision" to="D71"/>), since a schema's assertions and identity constraints are XPath units. When a document is not delivered, compilation is tried once more without the hints the resolver does not deliver (hints may be ignored). Errors: src-import and schema_reference XQST0059, sch-props-correct.2 XQST0035, others XQST0012. A main module without schemas gets the processor's one schema of the built-in components (<code>sxml_processor_get_builtin_schema</code>), so lax validation, xsi:type and validation by a built-in type always have one. A long-lived processor that compiles many importing queries keeps their schemas; caching them by documents is a later step.</p>
+      </item>
+      <item>
+        <p><strong>validate</strong> lowers to the internal row <code>validate($node, $mode, $type)</code> (<code>src/function_library_schema.c</code>): XQTY0030, XQDY0061, XQDY0084 (strict, no declaration), XQDY0027 (invalid, constraint named), XQST0104 statically; "type xs:untyped" copies without annotations. The schema is the in-scope one that declares the root's name or defines the type.</p>
+      </item>
+      <item>
+        <p><strong>System properties</strong>: fn:system-properties gives schema-aware and accepts-typed-data true; XSLT's is-schema-aware stays false (5.12).</p>
+      </item>
+      <item>
+        <p><strong>fn:xsd-validator</strong> (F&amp;O 4.0, 17.2.5), a new library part: options validation-mode, type, return-typed-node, return-error-details (message and rule maps from a report sink); V validates with the in-scope schemas of its caller's static context (a function item holds no schema). The options schema, schema-location, target-namespace and use-xsi-schema-location are FODC0009 (one place): compiling a schema while a query runs needs the processor, which run time does not reach. The option limit of <code>function_library_core_internal.h</code> is 12.</p>
+      </item>
+      <item>
+        <p><strong>xsd-validation of fn:parse-xml</strong> validates the parsed document (FODC0008, FODC0014); fn:doc and fn:parse-xml-fragment keep FODC0009 (the loader keeps one tree per URI; a fragment has no validation root).</p>
+      </item>
+      <item>
+        <p><strong>QT4 driver</strong>: schemaImport, schemaValidation and typedData are supported but stay outside the <ref kind="decision" to="D95"/> denominators; environments with schemas compile them into one schema that is the in-scope schema of XPath and XQuery and validates <code>validation="strict|lax"</code> sources; the resolver serves SCHEMA_DOCUMENT by suite file, else by namespace. A schema-aware test case (glossary schema_aware_test) is counted in the report members <code>schema_aware</code>, <code>schema_aware_passed</code> and the dashboard area "schema-aware"; one that stops at SXML_STATUS_UNSUPPORTED_FEATURE (identity constraints, assertions: 5.8, 5.9) is not run. The fixtures' unsupported feature is now staticTyping.</p>
+      </item>
+      <item>
+        <p><strong>Budget</strong>: a schema-aware test case whose query runs out of the test budget (app-Demos itunes: a 10 MB source and a quadratic query, 10^8 steps; app-CatalogCheck Catalog009: every test set loaded, 536 MB) fails instead of counting as an error of sxml.</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release, commit f43f747): schema-aware XQ40 1,231 of 1,516 (81.2 %; the proposed gate is 70 %), XP40 279 of 315 (88.6 %); XP40 30,924 passed (was 30,647), XQ40 41,261 (was 40,034), both 0 errors; <ref kind="decision" to="D95"/> gate rates XP40 97.6 %, XQ40 97.9 %; slice 198; XT40 7,990 and XSD11 41,452 unchanged. Six test cases that asked for these features to be absent no longer run (fn-system-properties, K2-ExternalVariablesWith-22a, ...), their satisfied twins do.</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong>: the schema for the fn namespace (import schema of fn, json-to-xml validate=true, analyze-string validation), fn:doc's xsd-validation, schema documents compiled while a query runs (fn:xsd-validator's schema options), "fixed" default namespaces, is-id of unions and lists (5.7), complex types with a simple base (Proposed, 5.6), the pattern facet on canonical forms (5.5), fn:element-to-map layouts by type annotation.</p>
+      </item>
+    </list>
+  </body>
+</decision>

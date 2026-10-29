@@ -1,0 +1,35 @@
+<decision id="D156" status="accepted" source="docs/DECISIONS.md">
+  <title>Output and result documents (packet <ref kind="packet" to="4.13"/>)</title>
+  <body>
+    <p><recorded date="2026-10-18"/>, after <ref kind="decision" to="D106"/>, <ref kind="decision" to="D112"/>, D120b, <ref kind="decision" to="D128"/>, <ref kind="decision" to="D144"/>, <ref kind="decision" to="D145"/>, <ref kind="decision" to="D146"/>, <ref kind="decision" to="D150"/>. <code>src/xslt_output.c</code> with <code>src/xslt_output_internal.h</code>, the library part <code>src/function_library_output.c</code> (XSLT only), <code>tests/xslt_output_test.c</code>; hooks: one rule view in <code>src/xslt_lower.c</code>, declarations in <code>src/xslt_lower_internal.h</code>, the tunnel mark in <code>src/xslt_lower_template.c</code>, <term name="result_writer"/> in the evaluation environment (<code>src/processor_internal.h</code>). No IR kind, no evaluator change, no public header.</p>
+    <list>
+      <item>
+        <p><strong>Stylesheet outputs</strong> (glossary), compiled from the sealed AST and keeping nothing of it (4.15 makes them next to the unit): output definitions, named character maps, result document instructions. An xsl:output's attributes become serialization parameter texts (<ref kind="decision" to="D146"/>; booleans yes/no, names as EQNames, html-version as a decimal) merged over the definition's declarations (highest precedence wins, XTSE1560 for two at that precedence unless a higher one follows; the name lists of cdata-section-elements and suppress-indentation are the union) and read by <code>sxml_serialization_parameter_reader_read_texts</code> over the parameter document (read at compile time through the resolver; a document that cannot be found is ignored, 26.1.5; its parameters win over the attributes, so texts it gives are dropped). build-tree is read here; omit-xml-declaration defaults to no; has_serialization_method when a text or the document gives method. Reader errors (SEPM0016, SESU0007, ...) become static errors at the declaration. <code>sxml_xslt_stylesheet_outputs_get_definition</code> is what <code>sxml_xslt_stylesheet_get_output_definition</code> returns.</p>
+      </item>
+      <item>
+        <p><strong>Character maps</strong> (26.1.6): the declaration of highest precedence per name (XTSE1580 for a tie there), expanded once each in post-order on an explicit stack (XTSE1590, XTSE1600), concatenations merged "later wins" by a heapsort into one sorted map; use-character-maps of an output definition concatenates in increasing precedence, then the parameter document's maps; of xsl:result-document over the definition's (26.2.4). <code>fn:character-map</code> (26.1.7) returns one as a map.</p>
+      </item>
+      <item>
+        <p><strong>xsl:result-document</strong> (26.2) is two internal rows around its content (<code>let $o := result-document-open(N, (values), temporary) let $raw := ... return result-document-close($o, $raw)</code>), N the AST node index naming its result document instruction, values its value templates in a fixed order. Open checks XTDE1480, resolves format (XTDE1460) and href against the base output URI, checks XTDE1490, merges the effective definition (the definition's texts with the instruction's over them, "" absent for doctype-*, "#absent" for item-separator, the instruction's parameter document over all, output-version as version) and makes the URI the current output URI. Close calls the handler's open, delivers (DEFAULT by build-tree, RAW, TREE, SERIALIZED) and close: the handler sees each result document when its raw result is complete, so open and close alternate as <ref kind="decision" to="D112"/> says and a nested result document comes first. A document whose content failed is dropped (the handler never saw it).</p>
+      </item>
+      <item>
+        <p><strong>Temporary output state</strong> (26.2.6): lexically inside xsl:variable, param, with-param, function, key, sort, accumulator-rule, merge-key a RAISE of XTDE1480; dynamically, an xsl:apply-templates or call-template there puts Q{urn:x-sxml:output}temporary-output-state into the tunnel parameters it passes, and open tests the received map; a function call invocation sets the writer's flag.</p>
+      </item>
+      <item>
+        <p><strong>Delivery</strong> (shared by both results): <code>sxml_xslt_serialize_result</code> (the method given or chosen from the raw result, 26.1.2; indent DEFAULT is yes for html and xhtml), <code>sxml_xslt_build_result_tree</code> (the serializer's sequence normalizer into an arena tree, base URI the result's URI), <code>sxml_xslt_result_builds_tree</code>. The <strong>result writer</strong> (glossary) delivers the principal result after the evaluation (<code>sxml_xslt_result_writer_deliver_principal_result</code>: XTDE1490, an empty principal result with a result document of its URI discarded).</p>
+      </item>
+      <item>
+        <p><strong>fn:current-output-uri</strong>: the writer's current output URI (the innermost open result document, else the base output URI); absent in temporary output state (function call invocation) or without a base output URI. Not cleared in functions, global variables and patterns (26.3.1): a context variable (<ref kind="decision" to="D153"/>) bound by those lowerings would do it (current-output-uri-001, -005, -401).</p>
+      </item>
+      <item>
+        <p><strong>Collector</strong>: the public <code>sxml_xslt_result_document_collector_*</code> of xslt.h is implemented here (values or bytes by URI, the byte bound), so 4.15 does not need to.</p>
+      </item>
+      <item>
+        <p>Not done: XTDE1500 (reading a written URI), disable-output-escaping (ignored, as Serialization 4.0 allows), both parameter documents of xsl:output and xsl:result-document at once (the instruction's replaces the definition's), validation and type of xsl:result-document.</p>
+      </item>
+      <item>
+        <p>Measured with a scratch harness (lower, evaluate with a result writer and a test handler, deliver; serialization assertions on the principal result serialized by its definition, assert-result-document by URI, a result document with the base output URI standing for an empty principal result): decl/output 235/244, decl/character-map 32/33, insn/result-document 129/149 (17 need accumulators or xsl:merge), insn/xsl-document 23/25, fn/current-output-uri 6/16 (the clearing above, initial functions, the harness's base output URI). Before: no xsl:result-document was lowered and xsl:output was not read.</p>
+      </item>
+    </list>
+  </body>
+</decision>

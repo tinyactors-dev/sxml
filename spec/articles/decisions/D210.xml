@@ -1,0 +1,40 @@
+<decision id="D210" status="accepted" source="docs/DECISIONS.md">
+  <title>DTD follow-ups: unparsed entities on copies, entity base URIs, sxml check with the DTD, the drivers (packet 7.14c)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D44"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D178"/>, <ref kind="decision" to="D199"/>. Resolves the three Proposed items of 7.14: the base URI of an element from an external entity, unparsed entities kept by copies, and <code>sxml check</code> with the DTD.</p>
+    <list>
+      <item>
+        <p><strong>Substrate, additive</strong> (<code>include/sxml/tree.h</code>, frozen by <ref kind="decision" to="D99"/>; every zero value keeps the behaviour before):</p>
+        <list>
+          <item>
+            <p><code>sxml_tree_operations.get_unparsed_entity(state, entity_number, entity)</code>, optional: the unparsed entities in the order of their declarations, SXML_STATUS_INDEX_OUT_OF_RANGE past the last;</p>
+          </item>
+          <item>
+            <p><code>sxml_tree_builder_copy_unparsed_entities(builder, tree)</code>: sends them right after start_document. <code>sxml_tree_builder_copy_node</code> calls it for a document node, and so does SHALLOW_COPY of a document node that is not copied into enclosing content (<code>src/evaluator_construct.c</code>): XSLT 4.0, 11.9.1 (xsl:copy) and 11.9.2 (xsl:copy-of) copy the unparsed-entities property, and fn:copy-of and fn:snapshot copy as xsl:copy-of does. Temporary trees, xsl:document and the XQuery document constructor still have none (XSLT 4.0 sets the property to empty);</p>
+          </item>
+          <item>
+            <p><code>sxml_element_start_event.entity_base_uri</code> and the optional <code>sxml_tree_operations.get_entity_base_uri(state, element, base_uri)</code>: the entity base URI (glossary <term name="entity_base_uri"/>) of an element at the top of an external parsed entity. The XML parser sets it from the entity's frame (an element one deeper than the document's element depth when the frame was pushed); the arena tree keeps it in a short list; dm:base-uri stops its walk of xml:base attributes at the first element that has one and resolves against it instead of the tree's base URI (XML 1.0, 4.2.2; XML Base, 4.2; XDM 4.0, dm:base-uri).</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Copies do not carry entity base URIs</strong>: XSLT 4.0, 11.9.2 gives a copied descendant its new parent's base URI ("these differences are lost when the subtree is copied"). Copies that stand for the same document (xsl:strip-space, validating a parsed document) lose them too; left as it is.</p>
+      </item>
+      <item>
+        <p><strong>XTDE1370 and XTDE1380</strong>: each function now raises its own code (XSLT 4.0, 20.5.2, 20.5.3; error-1380b). Without a focus both raise XPDY0002, as the two sections say for an omitted $doc; error-1370a and 1380a expect the XSLT 2.0 codes and stay wrong-error passes (<ref kind="decision" to="D178"/>).</p>
+      </item>
+      <item>
+        <p><strong><code>sxml check --external-entities</code> and <code>--validate-dtd</code></strong> (<ref kind="decision" to="D44"/>: one intent per flag, nothing fetched that was not asked for). The first reads the external subset and external entities as local files, through the query commands' local-file resolver and <code>sxml_processor_entity_resolver</code>, relative to the file that declares them. The second validates with <code>sxml_dtd_validator</code> and reads nothing by itself. Its null report sink stops at the first error of each file, reported as <code>FILE:LINE:COLUMN: CODE: message</code>; the JSON statuses are <code>valid</code> and <code>invalid</code>, the latter with <code>code</code>. Golden file <code>apps/sxml/command_validate.c</code>; CLI tests <code>check_external_*</code> and <code>check_validate_dtd*</code> over <code>tests/cli/input/dtd/</code>.</p>
+      </item>
+      <item>
+        <p><strong>Drivers</strong>: XT40 serves a source given only by a select expression, evaluated without a focus (id-043). QT4 claims infoset-dtd and dtd-validation-option and parses environment sources with the entity resolver (external DTDs are suite files). supports-dtd-validation and supports-dtd-attribute-typing are true (F&amp;O 4.0, 17.1.9: fn:doc and fn:parse-xml raise an error for an invalid document, and the tree has is-id and is-idrefs from the DTD).</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release drivers): XT40 8,944 to 8,952 passed, none lost (163 wrong-error, 0 errors); dtd cases 68 to 76 of 79 (96 %, gate 90 % met). The 3 left: base-uri-051a (fn:doc without trust-external raises FODC0016, as F&amp;O 4.0 asks), error-1370a and 1380a (wrong error, above). QT4 XQ40 fn-id 47 to 61 of 61, fn-idref 34 to 51 of 54 (the 3 need schema-typed IDREFs), fn-system-properties 22 to 23, app-FunctxFunctx 626 to 627; XP40 fn-id 17 to 30, fn-idref 10 to 24, fn-system-properties 22 to 23; fn-doc and fn-parse-xml unchanged (XQ40 73 and 53, XP40 67 and 42). XQ40 whole suite 44,835 to 45,000 passed (with 7.11's driver claims, c857ce3), failures 336 to 336. supports-dtd-validation and supports-dtd-attribute-typing are true regardless of the optional feature dtd-validation (<ref kind="decision" to="D211"/>); they should follow it, which needs the feature in reach of fn:system-properties. xmlconf unchanged (<ref kind="decision" to="D199"/>'s counts).</p>
+      </item>
+      <item>
+        <p><strong>clang-tidy</strong>: <code>src/processor.c</code>'s multi-level pointer conversion is an explicit cast now.</p>
+      </item>
+    </list>
+  </body>
+</decision>

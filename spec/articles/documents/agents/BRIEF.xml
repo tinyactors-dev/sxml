@@ -1,0 +1,94 @@
+<document id="agents/BRIEF" source="docs/agents/BRIEF.md">
+  <title>Common brief for every sxml agent</title>
+  <section id="where-and-how">
+    <title>Where and how</title>
+    <list>
+      <item>
+        <p>The repository's working tree is shared by several agents at once. All work happens directly on <code>main</code>: never create branches or worktrees (a hook in <code>.claude/hooks/main-only.py</code> blocks it).</p>
+      </item>
+      <item>
+        <p>Own only the files your packet names. Never reset, check out, stash or commit someone else's changes.</p>
+      </item>
+      <item>
+        <p>Use the session's scratchpad for temporary files. Name your directories after your packet (<code>build-5.13</code>, <code>5.13-work</code>), keep them small, and delete them before your final report: the disk is shared and limited. Delete only directories named after your own packet: never the scratchpad itself or a wildcard over it (a whole-scratchpad delete has happened).</p>
+      </item>
+    </list>
+  </section>
+  <section id="read-first">
+    <title>Read first</title>
+    <p><code>CLAUDE.md</code>, <code>docs/PLAN.md</code>, <code>docs/C_GUIDELINES.md</code>, <code>docs/GLOSSARY.md</code>, <code>docs/DECISIONS.md</code> (the records your packet cites, and the latest ones), <code>docs/LOG.md</code>, the task file of your phase in <code>docs/tasks/</code>, and the headers you implement or use.</p>
+  </section>
+  <section id="rules">
+    <title>Rules</title>
+    <list>
+      <item>
+        <p>Follow <code>CLAUDE.md</code> and <code>docs/C_GUIDELINES.md</code> exactly: spelled-out names, at most three parameters, no <code>malloc</code>/<code>free</code> outside <code>src/allocator.c</code>, no globals, views with lengths, the object lifecycle, contract comments, specification citations. New terms go into the glossary first.</p>
+      </item>
+      <item>
+        <p><strong>No C recursion</strong> (<ref kind="decision" to="D71"/>), not even through function pointers or operation tables. Use loops with explicit stacks in allocator memory.</p>
+      </item>
+      <item>
+        <p><strong>Conceptual smallness</strong> (CLAUDE.md): one data model, one execution foundation, thin language layers. Extend existing mechanisms; never add parallel machinery.</p>
+      </item>
+      <item>
+        <p><strong>Delayed features</strong> (<ref kind="decision" to="D162"/>): a feature sxml does not have yet is rejected or ignored in one place, with the error the specification gives, so adding it later replaces that one place.</p>
+      </item>
+      <item>
+        <p><strong>Honest outcomes</strong>: a test that crashes, leaks or hits a limit is an error. Never reclassify outcomes to meet a gate (<ref kind="decision" to="D178"/>); fix the cause or report it.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong> (<ref kind="decision" to="D208"/>, <ref kind="decision" to="D272"/>): every shipped build has every language and feature, and there is one JavaScript module, <code>sxml.wasm</code>. Its budget and the CLI's rise as features land; raise them in the same change and say so. A large growth is reported (<ref kind="decision" to="D225"/>'s map guard), never a reason to leave a feature out.</p>
+      </item>
+      <item>
+        <p><strong>Do not wait on the owner</strong> (<ref kind="decision" to="D208"/>): take the proposed default for an open question that is not irreversible, record it, and go on.</p>
+      </item>
+      <item>
+        <p><strong>The book</strong> (<ref kind="decision" to="D257"/>): <code>docs/book/</code> shows real output. A change to CLI output or to an error message the book shows updates the book in the same commit; <code>tools/check-book-examples.sh BUILD-DIR</code> checks it (<code>--update</code> rewrites the outputs for review).</p>
+      </item>
+      <item>
+        <p><strong>The CLI</strong> (<code>apps/</code>, rules in <code>docs/CLI.md</code>) uses only the public API. When your work makes a capability real, extend the matching command with end-to-end tests. Never add a command or flag for something that does not work yet.</p>
+      </item>
+    </list>
+  </section>
+  <section id="records">
+    <title>Records</title>
+    <list>
+      <item>
+        <p>Decisions another agent needs go into <code>docs/DECISIONS.md</code> as a new numbered record (check the highest number first). Items for the owner go under "## Proposed".</p>
+      </item>
+      <item>
+        <p>Add a short entry to <code>docs/LOG.md</code>, newest first.</p>
+      </item>
+      <item>
+        <p>Commit messages are the record of the work: say what changed, why, the golden file imitated, the specification sections, and before/after counts. Every message ends, after a blank line, with the attribution lines the session gives you. Never write a model name anywhere else.</p>
+      </item>
+    </list>
+  </section>
+  <section id="committing-in-the-shared-tree">
+    <title>Committing in the shared tree</title>
+    <list>
+      <item>
+        <p>All agents share one git index. Commit with an explicit pathspec in one command: <code>git commit -m "..." -- path1 path2</code>. Never <code>git add</code> and commit in two commands, and never <code>git commit -a</code>.</p>
+      </item>
+      <item>
+        <p>Do not stage files for later (<code>git add</code>, <code>git mv</code>) in the shared index: someone else's index commit takes them. Rename with <code>git mv</code> and commit it in the same command (<code>git mv OLD NEW &amp;&amp; git commit -m ... -- OLD NEW</code>).</p>
+      </item>
+      <item>
+        <p>Never move the shared branch back (<code>git reset</code>, <code>git commit --amend</code>, <code>git rebase -i</code> of pushed commits): another agent's commit may be on top. A commit that took something by mistake stays; report it.</p>
+      </item>
+      <item>
+        <p><strong>Never commit a shared ledger (DECISIONS, GLOSSARY, LOG, QUEUE, task files) by pathspec</strong>: that takes everyone's uncommitted text with it, which has happened several times.</p>
+      </item>
+      <item>
+        <p>For part of a shared ledger (DECISIONS, GLOSSARY, LOG), stage only your hunk (<code>git apply --cached</code> of your patch, or <code>git update-index</code> of HEAD's file plus your insertion) and then commit the index with <strong>no pathspec</strong> (<code>git commit -m "..."</code>) in the same command: a commit with a pathspec takes the named files from the working tree and ignores what you staged. Check <code>git show --stat HEAD</code> before pushing. Read a ledger before writing it, and never write it back from an older copy.</p>
+      </item>
+      <item>
+        <p>Commit and push at every working milestone, not only at the end: sessions get interrupted. Push with <code>git push origin main</code>; if it is rejected, <code>git pull --rebase --autostash origin main</code> and push again. Finish a rebase you start in the same command sequence: a rebase left half-done in the shared tree blocks every agent and hides others' uncommitted files in its autostash. If you find one, tell the orchestrator instead of continuing or aborting it.</p>
+      </item>
+    </list>
+  </section>
+  <section id="final-report">
+    <title>Final report</title>
+    <p>At most 350 words, for the orchestrator: what was done (files and commits), decisions recorded, deviations, before/after numbers, open problems, and anything that blocks other packets.</p>
+  </section>
+</document>

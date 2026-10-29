@@ -1,0 +1,4 @@
+<term id="filter_index" source="docs/GLOSSARY.md">
+  <name>filter_index</name>
+  <definition>An index of a FILTER's input by the <term name="index_key"/> of a comparison its predicate needs to be true ("=", "eq", "is"), kept in the evaluation memo, so the predicate is tested only on the items whose key compares with the <term name="index_probe"/> (<ref kind="decision" to="D224"/>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="schema_table" source="docs/GLOSSARY.md">
+  <name>schema_table</name>
+  <definition>One array of the schema components: a component kind (particles, element declarations, ...) or what links them (references, lists, texts, namespace bindings)</definition>
+</term>

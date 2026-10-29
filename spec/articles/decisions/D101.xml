@@ -1,0 +1,23 @@
+<decision id="D101" status="accepted" source="docs/DECISIONS.md">
+  <title>Part registries and the evaluator seams (packet <ref kind="packet" to="2.0"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D45"/> and <ref kind="decision" to="D55"/> for Phases 2 to 4.</p>
+    <list>
+      <item>
+        <p><strong>Library parts by glob.</strong> <code>cmake/SxmlParts.cmake</code> reads every <code>src/function_library_*.c</code> and generates <code>function_library_parts.c</code> in the build tree from each definition <code>const sxml_native_function_view sxml_function_library_&lt;part&gt; =</code>; files without one (case tables, deep equality, <code>function_library.c</code>) are not parts. A part serves every language unless it also defines <code>const sxml_language_set sxml_function_library_&lt;part&gt;_languages = SXML_LANGUAGE_XSLT;</code> (any of <code>SXML_LANGUAGE_XPATH</code>, <code>_XQUERY</code>, <code>_XSLT</code> joined by <code>|</code>): CMake reads the names, the generated table also points at the variable, and a unit test checks the two agree. <code>src/function_library_parts_internal.h</code> declares <code>sxml_function_library_registered_parts()</code> (every part, sorted by name) and <code>sxml_function_library_parts_for_language()</code> (a static list per language). The processor and the fuzz fixture take the XPath list; XQuery and XSLT compilation take theirs (3.x, 4.x). A new part declares its own <code>extern</code> view (or none: the generated unit declares it); <code>function_library_internal.h</code> keeps the Phase 1 declarations.</p>
+      </item>
+      <item>
+        <p><strong>Evaluator parts by glob.</strong> The same module reads <code>src/evaluator_*.c</code> for <code>const sxml_evaluator_part sxml_evaluator_part_&lt;part&gt; =</code>: a table of IR expression kinds and step functions. The machine runs its built-in kinds itself and every other kind through the registry; a kind no part claims, or two parts claim, is SXML_STATUS_UNSUPPORTED_FEATURE (a unit test checks each reserved kind has exactly one). Parts <code>construct</code> (seven constructors, SHALLOW_COPY), <code>try</code> (TRY_CATCH), <code>template</code> (APPLY_TEMPLATES) and <code>global</code> (no kind; <code>sxml_evaluator_start_global_initializers</code>, called before the main function's body runs for globals with an initializer and no value) return UNSUPPORTED_FEATURE until 3.5, 3.6, 4.x and 3.10 fill them. A given value of a global with an initializer wins (an external variable's default). 3.10's reads on demand need the reading task to wait for the initializer; if the global part cannot do it with tasks pushed at the start (in dependency order), 3.10 proposes a machine change.</p>
+      </item>
+      <item>
+        <p><strong>A part is live when its file is</strong>: a committed part file joins every build, the processor and the fuzz fixture at once, so its rows must not repeat a name and arity another part serves (the library then refuses to start, INVALID_ARGUMENT); a packet moving rows moves them in one commit.</p>
+      </item>
+      <item>
+        <p><strong>Machine API</strong> in <code>src/evaluator_machine_internal.h</code> (defined in <code>src/evaluator.c</code>): the task type, top task, push an expression task in the top task's frame, push a part task (a step function and owned state with its release function), hand a value down (finish), take the value of the task above, read and bind atoms, raise (report into the error record), and catching: a task whose <code>catches_errors</code> is set receives a dynamic or type error raised above it. The run loop locates the error, unwinds every task above the innermost catching task above its base, stores the status in the context (<code>caught_status</code>) and steps that task again; limits, memory and invalid-argument statuses are never caught. No C recursion: step functions return to the one loop (<ref kind="decision" to="D71"/>).</p>
+      </item>
+      <item>
+        <p>Rejected: a hand-kept part list (every new part edits the processor, the fuzz fixture and tests: <ref kind="decision" to="D45"/>'s conflict); per-language libraries chosen at run time from flags in the view (needs a change of the frozen row header and filtering memory).</p>
+      </item>
+    </list>
+  </body>
+</decision>

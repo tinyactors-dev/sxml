@@ -1,0 +1,35 @@
+<log-entry id="open-questions-at-the-phase-5-gate-packet-5-14" source="docs/LOG.md">
+  <title>Open questions at the Phase 5 gate (packet <ref kind="packet" to="5.14"/>)</title>
+  <body>
+    <p>For the owner. Four gate boxes wait for the full runs and fuzzing on the owner's machine (<ref kind="decision" to="D181"/>); the review's runs met every number, and schema validation works.</p>
+    <list ordered="true" start="0" loose="true">
+      <item>
+        <p><strong>Confirming runs</strong> (<ref kind="decision" to="D182"/>): on the owner's machine, <code>tools/check-main.sh</code> (with the full lint, cut off here), the four suites (<code>tools/run-qt4.sh</code> XP40 and XQ40, <code>run-xslt.sh</code>, <code>run-xsd.sh</code>, then <code>tools/conformance-report.py</code>) and <code>tools/fuzz.sh --seconds 300</code>, which now includes schema_fuzz; then tick the four boxes.</p>
+      </item>
+      <item>
+        <p><strong>0.2.0 and Phases 3 to 5.</strong> 0.2.0 is still untagged; <code>CHANGELOG.md</code> lists XQuery, XSLT and XSD under "Unreleased". Tag 0.2.0 at the Phase 2 commit, or fold them into one release.</p>
+      </item>
+      <item>
+        <p><strong>WebAssembly budgets</strong> (Proposed, four items): <code>sxml.wasm</code> is 1,997,773 bytes stripped and 695,343 gzipped against 2,000,000 / 700,000 (0.1 % and 0.7 % left: the next feature in the JavaScript package breaks it); the CLI with XSD is 4,950,289 / 1,154,545 against <ref kind="decision" to="D176"/>'s 5,500,000 / 1,250,000. <code>compileQuery()</code>, XSLT and schemas are still not in the JavaScript package. Confirm the budgets, or ask for optional modules.</p>
+      </item>
+      <item>
+        <p><strong>XQuery's omit-xml-declaration default</strong> (Proposed, <ref kind="decision" to="D146"/>): no (write the declaration, as QT4 expects) or keep yes.</p>
+      </item>
+      <item>
+        <p><strong>Accepted designs for later sweeps</strong> (<ref kind="decision" to="D169"/>, <ref kind="decision" to="D182"/>; out of Proposed): match="$var" membership by a node index; IR modules that carry their stylesheet module's URI, for errors in included modules; exporting the package-version match from xslt.h; the XSLT functions in the run-time function table; globals computed on first read (XTDE3052).</p>
+      </item>
+      <item>
+        <p><strong>Not done in Phase 5</strong> (<ref kind="decision" to="D178"/> to <ref kind="decision" to="D182"/>): is-id of union and list elements; XSLT's ID/IDREF for elements, schema roles, typed modes' schema-element() names, xs:untypedAtomic as a type, xml:lang declarations; the remaining XSD failures (XSD 1.0 rules 1.1 changed, NOTATION union members, XML 1.1 instances, EDC with wildcards).</p>
+      </item>
+      <item>
+        <p><strong>Performance</strong> (<ref kind="decision" to="D182"/>): about 4 million evaluation steps a second (release) and no index for <code>$seq[f(.) = $key]</code>; QT4's itunes takes 72 s. A general evaluator item, not a schema one.</p>
+      </item>
+      <item>
+        <p><strong>Phase 6 and 7 plans</strong> (<ref kind="decision" to="D162"/>): no <code>docs/tasks/phase-6.md</code> or <code>phase-7.md</code> yet; the next phase is the owner's choice.</p>
+      </item>
+      <item>
+        <p><strong>CI</strong> (<ref kind="decision" to="D123"/>): still local only; macOS, Windows and MSVC unbuilt.</p>
+      </item>
+    </list>
+  </body>
+</log-entry>

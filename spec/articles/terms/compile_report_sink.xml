@@ -1,0 +1,4 @@
+<term id="compile_report_sink" source="docs/GLOSSARY.md">
+  <name>compile_report_sink</name>
+  <definition>The schema report sink of a compilation (<code>sxml_schema_report_sink</code>): receives every static and type error of an XSD schema, an XSLT stylesheet or a Schematron schema, in the order found, while compilation goes on; the null sink stops at the first error (<ref kind="decision" to="D315"/>, <ref kind="decision" to="D320"/>)</definition>
+</term>

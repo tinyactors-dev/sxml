@@ -1,0 +1,4 @@
+<term id="api_version" source="docs/GLOSSARY.md">
+  <name>api_version</name>
+  <definition>The release whose interface the headers declare, as one integer (<code>SXML_API_VERSION</code>)</definition>
+</term>

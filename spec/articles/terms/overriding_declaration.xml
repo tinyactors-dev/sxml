@@ -1,0 +1,4 @@
+<term id="overriding_declaration" source="docs/GLOSSARY.md">
+  <name>overriding_declaration</name>
+  <definition>A child of <code>xsl:override</code>: the using package's replacement of a component of the used package (XSLT 4.0, 3.4.5.3)</definition>
+</term>

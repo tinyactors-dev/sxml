@@ -1,0 +1,4 @@
+<term id="schematron_outcome" source="docs/GLOSSARY.md">
+  <name>schematron_outcome</name>
+  <definition>What a Schematron validation reports at its end: how many findings, how many error findings, and the phase in force (<ref kind="decision" to="D315"/>)</definition>
+</term>

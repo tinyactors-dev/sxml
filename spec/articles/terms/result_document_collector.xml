@@ -1,0 +1,4 @@
+<term id="result_document_collector" source="docs/GLOSSARY.md">
+  <name>result_document_collector</name>
+  <definition>The built-in result document handler: keeps every result document in memory, by URI</definition>
+</term>

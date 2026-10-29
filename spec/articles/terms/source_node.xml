@@ -1,0 +1,4 @@
+<term id="source_node" source="docs/GLOSSARY.md">
+  <name>source_node</name>
+  <definition>The node of a stylesheet module's tree that a stylesheet AST node was read from</definition>
+</term>

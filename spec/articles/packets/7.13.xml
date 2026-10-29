@@ -1,0 +1,49 @@
+<packet id="7.13" source="docs/tasks/phase-7.md">
+  <title>XML 1.1 input (implementation; proposed, <ref kind="decision" to="D183"/>)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: XML 1.1 (Second Edition), 2.2 (Char, RestrictedChar: C0 controls only as character references, C1 controls as references), 2.11 (line ends with NEL and LINE SEPARATOR), 4.3.4 (version), 2.13 (normalization checking, optional); Namespaces in XML 1.1 (undeclaring prefixes, already done, <ref kind="decision" to="D81"/>); Serialization 4.0, the version parameter (1.1 output, where character references are required).</p>
+      </item>
+      <item>
+        <p><strong>Unlocks</strong>:</p>
+        <list>
+          <item>
+            <p>QT4 xml-version 1.1: 313 XQ40, 291 XP40;</p>
+          </item>
+          <item>
+            <p>XT40 XML_1.1 65 (xml-version 42, namespace 16, and others);</p>
+          </item>
+          <item>
+            <p>xmlconf 275 (the ibm and eduni xml-1.1 catalogs; today <code>tests/xml_conformance_test.c</code> does not select them);</p>
+          </item>
+          <item>
+            <p>a few XSD instance failures (<ref kind="decision" to="D180"/>'s leftovers).</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Replaces</strong>: XML 1.1 documents are parsed by the 1.0 rules (<code>src/xml.c</code>, <ref kind="decision" to="D81"/>'s place).</p>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong>: the XML grammar's external scanner takes the version from the declaration as scanner state, and checks Char and line ends by version. The tree builder is unchanged. fn:parse-xml and the drivers state the version. The serializer's version 1.1 writes references for restricted characters.</p>
+      </item>
+      <item>
+        <p><strong>Header</strong>: none (a comment in <code>xml.h</code>).</p>
+      </item>
+      <item>
+        <p><strong>After</strong>: 7.2 (it grows the core by a few KB).</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>grammars/xml</code> (scanner), <code>src/xml.c</code>, <code>tests/xml_conformance_test.c</code> (the selection), and <code>src/serialize_xml.c</code> (version 1.1).</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: 2–8 KB.</p>
+      </item>
+      <item>
+        <p><strong>Gate</strong>: ≥ 95 % of the 275 xmlconf cases; ≥ 90 % of the QT4 and XT40 cases.</p>
+      </item>
+    </list>
+    <p><strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D195"/>), gate partly met: xmlconf 242 of 271 XML 1.1 cases (89.3 %; every case without external entities passes, the 29 failures need external entities or DTDs, which is 7.14's); QT4 XQ40 300 of 313 (95.8 %; the 13 need XQuery's own 1.1 lexing, <ref kind="decision" to="D195"/> Proposed); XT40 xml-version 40 of 42, 65 XML_1.1 cases now run. The grammar is unchanged: a 1.1 pre-pass in <code>src/xml.c</code> instead of scanner state.</p>
+  </body>
+</packet>

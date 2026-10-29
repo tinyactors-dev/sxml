@@ -1,0 +1,23 @@
+<decision id="D188" status="accepted" source="docs/DECISIONS.md">
+  <title>disable-output-escaping: a text node mark (packet <ref kind="packet" to="7.5"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D99"/>, <ref kind="decision" to="D163"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>. The owner's prompt for 7.5 asked for a mark on text nodes as <ref kind="decision" to="D163"/> added the CDATA request, in place of <ref kind="decision" to="D183"/>'s processing-instruction pair (glossary <term name="disable_output_escaping"/> replaces <code>output_escaping_marker</code>).</p>
+    <list>
+      <item>
+        <p><strong>Substrate, additive</strong> (<code>include/sxml/tree.h</code>, frozen by <ref kind="decision" to="D99"/>): <code>sxml_text_event.disables_output_escaping</code> and <code>sxml_node_description.disables_output_escaping</code>, false by default (designated initializers keep every caller as it was). Arena trees keep it in a node flag (the flags field is 16 bits, the node stays 56 bytes); copies (<code>sxml_tree_builder_copy_node</code>) keep it.</p>
+      </item>
+      <item>
+        <p><strong>Per character</strong> (XSLT 4.0, 26.1.8: "an additional boolean property disable-escaping associated with every character in a text node"): inside a parent, text events that differ in the mark make separate text nodes, so <code>&lt;out&gt;</code> with "&lt;" then an unescaped "&amp;lt;" serializes as <code>&amp;lt;&amp;lt;</code> (doe-0182 to doe-0186). Such a final result tree has adjacent text nodes, a deviation from XDM 4.0, 6.7.1 limited to trees that use the deprecated feature; parentless text keeps one node.</p>
+      </item>
+      <item>
+        <p><strong>Where it is set</strong>: XSLT lowering of xsl:value-of and xsl:text with disable-output-escaping="yes" (construction flag DISABLES_OUTPUT_ESCAPING on TEXT_CONSTRUCTOR). The request is ignored in temporary output state (26.1.8), with 26.2.6's tracking of xsl:result-document: lexically inside xsl:variable and the other temporary containers the flag is not set; in a template that received the temporary-output-state tunnel parameter it is chosen at run time (<code>sxml_xslt_lowering_bind_received_output_state</code>, shared with xsl:result-document). Not covered: templates reached only through an initial function call (the writer's state), as for XTDE1480.</p>
+      </item>
+      <item>
+        <p><strong>Where it is honoured</strong>: the XML, XHTML and HTML methods write such text in the character context UNESCAPED_TEXT: mapped and normalized, not escaped, never in CDATA sections (26.1.8: CDATA "is treated as an alternative escaping mechanism"), a character the encoding cannot represent as a character reference. Canonical output escapes it; the text method has no escaping. Sequence normalization gives such a text node as a node, not merged, so it keeps the mark at the top level and in xsl:result-document's tree. Attributes, comments, processing instructions and namespaces atomize it and lose it.</p>
+      </item>
+      <item>
+        <p><strong>Driver</strong>: feature disabling_output_escaping is supported; the cases that need it unsatisfied are not run any more.</p>
+      </item>
+    </list>
+  </body>
+</decision>

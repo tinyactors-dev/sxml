@@ -1,0 +1,55 @@
+<decision id="D237" status="accepted" source="docs/DECISIONS.md">
+  <title>Phase 7 gate review (packet <ref kind="packet" to="7.19"/>)</title>
+  <body>
+    <p><recorded date="2026-10-20"/> by the review agent (<ref kind="decision" to="D11"/>), after <ref kind="decision" to="D161"/>, <ref kind="decision" to="D169"/>, <ref kind="decision" to="D181"/>, <ref kind="decision" to="D182"/> and the Phase 7 records <ref kind="decision" to="D183"/> to <ref kind="decision" to="D236"/>. The four suites were run whole in release (tools/run-qt4.sh XP40 and XQ40, run-xslt.sh, run-xsd.sh; every test set finished, 0 error outcomes) at 6f79d8d and again at 9c5b1ba after the review's code changes, with the same numbers; <code>docs/CONFORMANCE.md</code> is regenerated from the second run. The gate boxes and a table of every Phase 7 packet against its gate are in <code>docs/tasks/phase-7.md</code>. Fuzzing beyond two minutes a target and the full lint of every preset are left to the owner's machine (<ref kind="decision" to="D181"/>).</p>
+    <list>
+      <item>
+        <p><strong>Numbers</strong> (release, 9c5b1ba): XP40 32,689 passed, gate rate 99.5 % (gate 90 %); XQ40 45,969, 99.5 % (85 %); XT40 12,075, 94.8 % (70 %), the 12 core sets 88.5 % (mode) to 100 % (80 % each); XSD in scope 41,486 of 41,518, 99.9 % (90 %), datatypes 100 % (95 %), structures 99.7 % (80 %), XSD 1.1 99.7 % (70 %); schema-aware XQ40 1,397 of 1,516, 92.2 % (70 %), XT40 928 of 971, 95.6 % (60 %). None lower than at the Phase 5 gate (<ref kind="decision" to="D182"/>). Slices 198/198, XSLT 149/154, XSD 147/147. xmlconf: XML 1.0 valid 601, invalid 175, not-wf 948, external entities 127 / 54 / 66, XML 1.1 84 / 13 / 169, all pass, DTD validation of the invalid cases 173 + 54. html5lib 1,749 of 1,753 / 7,045 / 82. Sizes: <code>sxml.wasm</code> 2,090,746 / 730,902, <code>sxml-full.wasm</code> 7,637,162 / 1,690,683, the CLI module 9,231,791 / 1,973,839, all under <ref kind="decision" to="D235"/>'s budgets; the <ref kind="decision" to="D225"/> guard reports +1,978 bytes over its baseline (ir_verify, ir, ir_global_read: 4.21's GLOBAL_READ), a lean core. A streamed sum over 1,000,000 orders (74.7 MB) peaks at 11.0 MB resident (7.6's 64 MB). Benchmarks: xmark-all 1.10 s, itunes 2.29 s.</p>
+      </item>
+      <item>
+        <p><strong>Per-packet gates</strong>: met by every packet but two. 7.11's "all 12 XT40 transform cases" is not met (9 pass; transform-004, a static fn:transform, transform-401, a ~record pattern; transform-009 not run, an assertion the driver does not check). 7.4's "all 5 QT4 cases" is met as <ref kind="decision" to="D208"/> reads it: the 4 that fail expect fn:number conversion of xs:numeric parameters, which XPath 4.0, 3.4.1 gives only to xs:double. 7.3 (evaluate 77 of 83, 92.8 %) and 7.13 (xmlconf 1.1 271 of 271) now meet the gates they had not met when they were done.</p>
+      </item>
+      <item>
+        <p><strong>Fixed</strong>:</p>
+        <list>
+          <item>
+            <p>Fuzzing (the fuzz preset's smoke runs, then two minutes each of html_parse_fuzz, ixml_fuzz, dtd_fuzz, full_text_fuzz and xml_parse_fuzz): <code>src/xml_input.c</code> (7.6f) added an offset to the null bytes pointer of an empty input, undefined (C17 6.5.6p8), so four targets stopped on their first input; no other finding.</p>
+          </item>
+          <item>
+            <p>The iXML suite's 4 error outcomes: inputs with C0 controls, which no xs:string holds (XML 1.0, 2.2), so fn:invisible-xml cannot be given them. The driver reads the file's bytes and reports the case not run with that reason (<ref kind="decision" to="D178"/>: the cause is outside the processor, and a decoding fault of sxml still shows as an error). Suite 886 of 907, 0 errors, 21 not run.</p>
+          </item>
+          <item>
+            <p>docs/C_GUIDELINES.md on a sample of the new files (html, ixml, full_text, cldr, collation, timezone, dtd, evaluator_stream, xml_input, the EXPath libraries, xquery_update): no abbreviated or single-letter names; three functions of <code>src/function_library_file.c</code> had four parameters (now request structs) and the file had four clang-tidy findings (two analyzer null dereferences behind require_file_system, a short loop variable), now clean.</p>
+          </item>
+          <item>
+            <p>Conceptual smallness: Full Text's <code>sxml_full_text_bytes</code> and its two append functions were a copy of <code>sxml_xml_buffer</code>; Full Text uses the buffer.</p>
+          </item>
+          <item>
+            <p>Record numbers: every D-number is unique (<ref kind="decision" to="D186"/>, <ref kind="decision" to="D192"/> to <ref kind="decision" to="D194"/> and <ref kind="decision" to="D204"/> are unused, left by renumbering). Code citing <ref kind="decision" to="D192"/> (HTML, now <ref kind="decision" to="D201"/>) and <ref kind="decision" to="D222"/> for 7.6c's lowering override, mode query and streamed attribute paths (now <ref kind="decision" to="D223"/>) is corrected; every other citation names an existing record of the matching packet.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Added</strong>: the fuzz targets <code>ixml_fuzz</code> (a grammar text and an input through fn:invisible-xml) and <code>full_text_fuzz</code> (a selection over a text and stop word list through XQuery), with seeds from the iXML suite, the QT4 ft- sets and html5lib (html_parse_fuzz had none); tools/fuzz.sh runs the dtd, html, ixml and full-text targets by default. The XQuery run and the heap leak check are shared in the fuzz fixture.</p>
+      </item>
+      <item>
+        <p><strong><ref kind="decision" to="D71"/></strong>: tools/check-call-cycles.py finds no cycle (229 files, empty allowlist). Through function pointers: features are reached only through their operations tables and call neither each other nor their caller; the Earley parser charges steps through a meter that only counts; the RBNF interpreter (<code>src/spell_out.c</code>) and the Snowball interpreter (<code>src/full_text_stem.c</code>) keep their substitutions and routine returns on explicit stacks; the parse tree, the HTML working tree and update application are walked by links or explicit stacks; STREAM and MERGE are resumable tasks of the evaluator, the parser's events are queued (NOTIFY) or copied into window builders (tees, CAPTURE) and never evaluate; fn:transform and xsl:evaluate ask the machine for a unit evaluation, no nested run.</p>
+      </item>
+      <item>
+        <p><strong><ref kind="decision" to="D162"/></strong>: each still-delayed feature has one place: staticTyping (the drivers' non-goal), XInclude (FODC0013 in <code>src/function_library_json.c</code>), DTD validation without its feature (FODC0013 in <code>src/processor.c</code>), schema location hints and remote HTTP (the resolver serves nothing), xsl-stylesheet-processing-instruction and HTML4 output (the XSLT driver's non-goals), merge sources with validation, type, accumulators or predicates (grounded, <ref kind="decision" to="D236"/>), XSLT's own Full Text (grammars/xpath, XPST0003), the CLI's Windows file system (no platform file). The places the Phase 7 packets replaced are gone (XTDE0160, XTDE3175, XUST0026, the absent functions); the supports-* properties name the features.</p>
+      </item>
+      <item>
+        <p><strong><ref kind="decision" to="D189"/>/<ref kind="decision" to="D208"/></strong>: the core links no feature definition; the guard's growth is the IR's. XQuery, XSLT and the features stay out of <code>sxml.wasm</code>.</p>
+      </item>
+      <item>
+        <p><strong>Larger duplicates, listed</strong> (<ref kind="decision" to="D182"/>'s list stands): three UTF-8 and UTF-16 decoders with different error rules (<code>src/xml_encoding.c</code> fails, <code>src/text_decoding.c</code> for fn:unparsed-text and the EXPath libraries fails with its own newline rule, <code>src/html_encoding.c</code> replaces, as WHATWG asks); Full Text's stop word and thesaurus reading calls the resolver itself (<code>src/full_text_resource.c</code>, for the document-node form) beside <code>sxml_optional_feature_read_data</code> and the document loader; private growable arrays in <code>src/collation_tailoring.c</code>, <code>src/function_library_element_map.c</code>, <code>src/cldr.c</code> and <code>src/collation_uca.c</code> beside <code>sxml_xml_array</code>. The interpreters are not duplicates: Earley (iXML), RBNF (CLDR spell-out), Snowball (stemming), the regex engine and the full-text match program each run the notation their specification defines; there is one CLDR reader (<code>src/cldr.c</code>) and one feature data loader.</p>
+      </item>
+      <item>
+        <p><strong>Proposed, resolved here</strong>: XQuery's XML version (<ref kind="decision" to="D195"/>) and the Phase 7 scope and size items were decided by <ref kind="decision" to="D184"/>, <ref kind="decision" to="D189"/> and <ref kind="decision" to="D208"/> (a processor option for the version of query text, defaulting to 1.0, is the design; the header field waits for a packet); the three CLI and core WebAssembly budget items (2.18, 3.12, 4.15, 5.10) are superseded by <ref kind="decision" to="D202"/>, <ref kind="decision" to="D207"/> and <ref kind="decision" to="D208"/> (budgets follow features, the core stays lean); XQuery's omit-xml-declaration default (<ref kind="decision" to="D146"/>) takes the proposed default by <ref kind="decision" to="D208"/>, as a design for a later XQuery sweep: the library's XQuery default becomes no (K2-Serialization-22, -23 and Serialization-xml-01 expect a declaration), with the header's comment, while <code>sxml xquery</code> keeps writing none unless the query asks. They leave Proposed; the owner's three items stay.</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong> (listed in the LOG): 7.11's three XT40 transform cases; 7.4's four QT4 cases (by <ref kind="decision" to="D208"/>); the larger duplicates above; Phase 7 fuzzing at length and the full lint on the owner's machine.</p>
+      </item>
+    </list>
+  </body>
+</decision>

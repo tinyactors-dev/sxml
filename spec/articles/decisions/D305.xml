@@ -1,0 +1,20 @@
+<decision id="D305" status="accepted" source="docs/DECISIONS.md">
+  <title>The book's diagrams use a layered layout with model order</title>
+  <body>
+    <p><recorded date="2026-10-22"/>, at the owner's request: the state machine diagrams (states, flag, changes) were busy and unreadable, and the owner asked for the layered algorithm of the KIELER group (ELK Layered) in XQuery.</p>
+    <list>
+      <item>
+        <p><strong><code>docs/book/examples/svg/draw.xqm</code></strong> lays out in the five phases of the Sugiyama method as ELK Layered runs them, with the order of the description (model order) breaking ties, after Domrös, Riepe and von Hanxleden, "Model Order in Sugiyama Layouts" (IVAPP 2023): a depth-first cycle breaker that visits nodes and edges in description order, longest-path layers with sources lowered, a label vertex per edge label (ELK's label dummies) and bend vertices on long edges, barycentre layer sweeps with a stable sort from the description's order, placement by isotonic regression (pool adjacent violators), and orthogonal routes (horizontal and vertical lines, each horizontal on a track of its own in the gap between layers, the gap as high as its tracks need) with ports spread along each side; loops go on the right of their box, and boxes are as wide as their labels.</p>
+      </item>
+      <item>
+        <p><strong>Rejected:</strong> the enforcing model-order cycle breaker (reverse every edge to an earlier node). It turns edges of acyclic graphs whose nodes are not listed top-down, which made the call-chain drawing worse. Brandes-Köpf placement and network-simplex layering, ELK's defaults, are left out: each is a chapter of its own, and the simpler phases are readable on every diagram of the book.</p>
+      </item>
+      <item>
+        <p><strong>Orthogonal routes</strong> (owner, the same day): the first version drew cubic curves between layers, which still looked wonky; the owner asked for right angles only. Each horizontal segment gets a track; for a pair of overlapping segments the order that crosses fewer lines wins, and tracks follow as a longest path. Labels and bends within 12 units of the line above move onto it, and a box with one incoming edge takes it where it arrives, so that short jogs don't appear.</p>
+      </item>
+      <item>
+        <p><strong>The book:</strong> "Computing a Layout" teaches the five phases instead of breadth-first ranks; <code>layout.xq</code> writes boxes and paths, which <code>draw.xsl</code> draws; <code>rows.xq</code> and <code>ranks-fold.xq</code> go.</p>
+      </item>
+    </list>
+  </body>
+</decision>

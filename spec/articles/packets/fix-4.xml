@@ -1,0 +1,21 @@
+<packet id="fix-4" source="docs/tasks/phase-7.md">
+  <title>Choice coercion and a stale error description (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D316"/> and <ref kind="decision" to="D319"/>, which found the first, and <ref kind="decision" to="D310"/> (perf-7), which found the second.</p>
+    <list>
+      <item>
+        <p><strong>Choice coercion</strong>: a function parameter of type <code>(element(a) | xs:string)</code> given <code>xs:untypedAtomic("v")</code> raises XPTY0004 (<code>sxml xpath 'let $f := function($x as (element(a) | xs:string)) { $x } return $f(xs:untypedAtomic("v"))'</code>). XPath 4.0, 3.4.2 (coercion rules) tries the alternatives of a choice in order, so the untyped value is cast to xs:string. The coercion engine counts the unchanged item as the first alternative's success (<ref kind="decision" to="D319"/>).</p>
+      </item>
+      <item>
+        <p><strong>Stale description</strong>: after a <code>try</code>/<code>catch</code> catches FORX0002, a later LIMIT_EXCEEDED in the same query printed the caught error's description (<ref kind="decision" to="D310"/>): the error record is not cleared. Reproduce first (the sxml command has no step bound since <ref kind="decision" to="D314"/>; use a regex step bound, a memory limit, or the C API with a small step bound); if it cannot be reproduced, record why.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/evaluator_function.c</code>, <code>tests/evaluator_test.c</code>, and the file that clears the error record after a caught error (find it; not <code>src/xslt*.c</code> or <code>src/schematron*.c</code>, which 7.28 holds).</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: both fixed with tests, each citing its section; QT4 XP40, XQ40 and XT40 whole: no outcome lost case by case (gains listed); the SchXslt expand stage of EN 16931 unchanged in output and not slower.</p>
+      </item>
+    </list>
+    <p><strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D321"/>): a CHOICE attempt succeeds only when its result matches the alternative; a catching task clears the error record once it handles the error. QT4 XP40, XQ40, XT40 whole: 0 outcomes differ; SchXslt expand unchanged in output and instructions.</p>
+  </body>
+</packet>

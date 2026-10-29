@@ -1,0 +1,38 @@
+<decision id="D227" status="accepted" source="docs/DECISIONS.md">
+  <title>Per-language part lists (packet size-2)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D101"/>, <ref kind="decision" to="D103"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D211"/>, <ref kind="decision" to="D225"/>. <ref kind="decision" to="D189"/> and <ref kind="decision" to="D225"/> found XQuery's lowering parts (about 75 KB) and evaluator_stream (14.5 KB) in the core <code>sxml.wasm</code> only because each part registry was one table: the lowerer's default was the whole lowering registry, <code>sxml_function_library_parts_for_language</code> was one switch over every language's list, and the evaluator looked up kinds in every evaluator part. A module could not leave out the parts of a language it does not offer.</p>
+    <list>
+      <item>
+        <p><strong>One mechanism, three registries</strong>: <code>cmake/SxmlParts.cmake</code> writes, beside each registry's unit with every part, one translation unit per language (<code>&lt;registry&gt;_&lt;language&gt;.c</code> in <code>generated/</code>) holding the parts that serve it, and a function giving a pointer to that static list: <code>sxml_function_library_&lt;language&gt;_parts()</code> (<code>src/function_library_parts_internal.h</code>), <code>sxml_xpath_lowering_&lt;language&gt;_parts()</code> (<code>src/xpath_lower_internal.h</code>) and <code>sxml_evaluator_&lt;language&gt;_parts()</code> (<code>src/evaluator_machine_internal.h</code>), for xpath, xquery and xslt (glossary <term name="language_part_list"/>). Naming one list links only its parts, so linking follows the languages a module's entry points offer, with no option and no <code>#if</code>.</p>
+      </item>
+      <item>
+        <p><strong>Languages</strong> come from the declarations the parts already have: a library part's <code>sxml_function_library_&lt;part&gt;_languages</code> (<ref kind="decision" to="D101"/>); a lowering part's <code>.languages</code> field, which CMake now reads too (a part without one fails the configure; <code>tests/part_registry_test.c</code> checks that CMake read what the field says); an evaluator part's optional <code>const sxml_language_set sxml_evaluator_part_&lt;part&gt;_languages</code>, in the library parts' form (all three languages when absent). The registered entries of the lowering and evaluator registries carry the languages read.</p>
+      </item>
+      <item>
+        <p><strong>Who names a list</strong>: the language's entry point. Library: the processor (XPath's, which XQuery uses too), XSLT compilation (XSLT's). Lowering: <code>sxml_xpath_lower</code> XPath's, XQuery's prolog XQuery's, XSLT's lowering XSLT's; a lowerer configured with <code>parts.parts == NULL</code> gets XPath's (it was the whole registry).</p>
+      </item>
+      <item>
+        <p><strong>The evaluator</strong>: the unit carries its language's list (<code>sxml_ir_unit_configuration.evaluator_parts</code>, a <code>const struct sxml_evaluator_registered_part_view *</code>, set where <code>sxml_xpath_lower</code>, XQuery's prolog and XSLT's lowering create their units; NULL means XPath's), and <code>sxml_machine_start_part_kind</code> looks the kind up among the parts of the unit whose code runs (<code>sxml_evaluator_find_kind_handler(parts, kind)</code>), so an XSLT unit run from XPath (fn:transform) or an XPath unit inside XSLT (xsl:evaluate) finds its own parts. A unit built by hand (unit tests) names a list itself.</p>
+      </item>
+      <item>
+        <p><code>sxml_*_registered_parts()</code> and <code>sxml_function_library_parts_for_language</code> stay, for tests and checks only: they link every part.</p>
+      </item>
+      <item>
+        <p><strong>XQuery and XSLT parts</strong>: XQuery has no library or evaluator part of its own; its lowering parts are xquery, update and full_text (construct serves every language: XPath 4.0's computed constructors). XSLT's are the library parts xslt, exslt and output and the evaluator parts template (APPLY_TEMPLATES) and stream (STREAM). XSLT's instructions lower through procedures its own code pushes (<ref kind="decision" to="D103"/>), not registered parts.</p>
+      </item>
+      <item>
+        <p><strong>Sizes</strong> (stripped / gzipped, wasm preset, at 5385a0e): <code>sxml.wasm</code> 2,215,004 / 774,905 (over <ref kind="decision" to="D207"/>'s 2,200,000 / 770,000 after <ref kind="packet" to="perf-1"/>'s IR passes: ir_loop_passes +15,375, evaluator_index +9,547, evaluator +5,528) to 2,094,214 / 731,897, no budget raised: xquery_lower 30,925, xquery_update_apply 17,391, function_library_xslt 11,083, xquery_update 11,474, xquery_lower_window 10,796, xquery_flwor 8,700, xquery_lower_update 7,899, xslt_read 6,328, the internal data 6,180, xquery_lower_full_text 2,655, function_library_output 1,698, function_library_schema 1,342, function_library_exslt 1,080, the rest under 1,100; 120,332 bytes of code and data in all. <code>sxml-full.wasm</code> 7,044,360 / 1,612,207 to 7,044,334 / 1,612,149; the CLI module 8,636,999 to 8,636,973. Native builds and the full and CLI modules name every language, so they keep every part.</p>
+      </item>
+      <item>
+        <p><strong>Counts</strong> (release, whole runs, 5385a0e against the change): QT4 XP40 32,654 passed and 34 wrong errors, XQ40 45,913 and 55, XT40 11,826 and 173, before and after; no test changed its outcome.</p>
+      </item>
+      <item>
+        <p><strong>The evaluator step</strong> (cd4ac60, at 5664da8): <code>sxml.wasm</code> 2,101,275 / 734,951 to 2,077,439 / 725,473: evaluator_stream 16,118, evaluator_template 4,935, processor 1,074, xml 637 and data (23,739 of code and data). <code>sxml-full.wasm</code> 7,069,158 to 7,069,013, the CLI 8,662,430 to 8,662,285. Release whole runs at 5664da8, before and after: XP40 32,655 and 34 wrong errors, XQ40 45,914 and 55, XT40 11,860 and 163; no outcome changed. The baseline is refreshed from this module.</p>
+      </item>
+      <item>
+        <p>Rejected: registering a language's parts by hand in its compile entry (<ref kind="decision" to="D101"/>'s rejected hand-kept list); a run-time filter of one table by language (the table still links every part); CMake options per module (two builds, <ref kind="decision" to="D189"/>).</p>
+      </item>
+    </list>
+  </body>
+</decision>

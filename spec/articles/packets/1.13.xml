@@ -1,0 +1,6 @@
+<packet id="1.13" source="docs/tasks/phase-1.md">
+  <title>Node items, JNodes, node accessors (implementation)</title>
+  <body>
+    <p>After <ref kind="packet" to="1.9"/>, <ref kind="packet" to="1.10"/>, <ref kind="packet" to="1.11"/>. Owns <code>src/xdm_node.c</code>, <code>src/xdm_json_node.c</code>, <code>tests/xdm_node_test.c</code>. Node items; string value, typed value, base URI; JNodes made on demand, identical for equal parent and key. Done when op-union-406 and fn-root-29 hold as unit cases. Spec: XDM 4.0 §8.5. <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D70"/>): both hold in <code>tests/xdm_node_test.c</code> (12 cases, RFC 3986 §5.4 resolution examples, allocation-failure loop); P7 open (lazy values in JNode making).</p>
+  </body>
+</packet>

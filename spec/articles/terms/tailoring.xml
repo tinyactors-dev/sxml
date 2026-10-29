@@ -1,0 +1,4 @@
+<term id="tailoring" source="docs/GLOSSARY.md">
+  <name>tailoring</name>
+  <definition>Changes to a collation element table for a language or a reordering, compiled from CLDR rules (UTS #35, Part 5)</definition>
+</term>

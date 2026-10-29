@@ -1,0 +1,4 @@
+<term id="string_template" source="docs/GLOSSARY.md">
+  <name>string_template</name>
+  <definition>XPath 4.0 <code>`text {expression}`</code></definition>
+</term>

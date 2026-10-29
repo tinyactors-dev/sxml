@@ -1,0 +1,4 @@
+<term id="rendition" source="docs/GLOSSARY.md">
+  <name>rendition</name>
+  <definition>The string a decimal format property becomes in the formatted result; <code>%:pc</code> is marker <code>%</code>, rendition <code>pc</code></definition>
+</term>

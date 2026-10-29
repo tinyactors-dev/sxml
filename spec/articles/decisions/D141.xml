@@ -1,0 +1,23 @@
+<decision id="D141" status="accepted" source="docs/DECISIONS.md">
+  <title>CSV parsing: fn:parse-csv, fn:csv-to-xml, fn:csv-doc (packet <ref kind="packet" to="2.15"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D97"/>, <ref kind="decision" to="D128"/>, <ref kind="decision" to="D131"/>, <ref kind="decision" to="D133"/>. New module <code>src/csv.c</code> / <code>src/csv_internal.h</code> and part <code>src/function_library_csv.c</code>.</p>
+    <list>
+      <item>
+        <p><strong>Scanner</strong> (<ref kind="decision" to="D97"/>, by hand): <code>sxml_csv_read_token</code> gives one <term name="csv_token"/> (field, row end, input end; glossary) per call and keeps its place in a <term name="csv_cursor"/>, a plain value: no object, no allocation. A field is a view into the text; only a quoted field with a doubled quote or a CR needs <code>sxml_csv_decode_field</code>, into caller memory no longer than the field. Special characters are matched as whole UTF-8 sequences byte by byte.</p>
+      </item>
+      <item>
+        <p><strong>Rules where F&amp;O 4.0 is loose</strong>: CR is a newline, so it cannot be a separator, quote or comment marker (FOCV0002, like LF); trimming removes U+0020 and U+0009 from unquoted fields and all four XML whitespace characters from header names; with trim-rows, a blank row is padded to the first row's width like any short row; select-columns beyond a header's end name the zero-length string; a selected position past int64_t selects nothing.</p>
+      </item>
+      <item>
+        <p><strong>fn:csv-to-arrays</strong> is not implemented: F&amp;O 4.0 dropped it (issue 2961, absorbed into fn:parse-csv) and QT4 has no test set for it.</p>
+      </item>
+      <item>
+        <p><strong>One parse, three functions</strong>: fn:parse-csv builds columns, column index and rows once; the record's get is a function item over a static row (after fn:regex, <ref kind="decision" to="D133"/>) capturing rows and column index, signature from the record's field type. fn:csv-to-xml walks that result, as the specification defines it over fn:parse-csv. fn:csv-doc calls the fn:unparsed-text row (found by name, as fn:json-doc finds parse-json), so text decoding (<ref kind="decision" to="D131"/>) is written once.</p>
+      </item>
+      <item>
+        <p>Measured (release driver, XP40, passed of cases; before at 3a3a3cb, all wrong errors): fn-parse-csv 35 to 107/124, fn-csv-to-xml 9 to 68/68 run, fn-csv-doc 4 to 20/20. The 17 parse-csv failures are assertions such as <code>?get(1, 1) = "one"</code> that read the result as the context value, which the driver does not bind (Proposed below); with it, 124/124.</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="limits" source="docs/GLOSSARY.md">
+  <name>limits</name>
+  <definition>A struct of bounds on work and memory for untrusted input (<code>sxml_processor_limits</code>, <code>sxml_xml_limits</code>)</definition>
+</term>

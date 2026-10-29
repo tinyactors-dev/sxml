@@ -1,0 +1,4 @@
+<term id="csv_token" source="docs/GLOSSARY.md">
+  <name>csv_token</name>
+  <definition>What reading a CSV text gives next: a field (its text, quoted or not), the end of a row (a row with no field before it is a blank row) or the end of the input</definition>
+</term>

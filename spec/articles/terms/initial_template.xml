@@ -1,0 +1,4 @@
+<term id="initial_template" source="docs/GLOSSARY.md">
+  <name>initial_template</name>
+  <definition>The named template a call-template invocation evaluates, <code>xsl:initial-template</code> by default (the spec's "initial named template", XSLT 4.0, 2.4.4)</definition>
+</term>

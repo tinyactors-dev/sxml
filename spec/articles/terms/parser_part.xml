@@ -1,0 +1,4 @@
+<term id="parser_part" source="docs/GLOSSARY.md">
+  <name>parser_part</name>
+  <definition>What a grammar derived from grammars/xpath adds to the XPath front end's walker: its language, node types, fields and the hooks <code>apply_token</code>, <code>describe_payload</code> and <code>finish_node</code> (<code>sxml_ast_parser_part</code>, <ref kind="decision" to="D111"/>)</definition>
+</term>

@@ -1,0 +1,6 @@
+<packet id="1.11" source="docs/tasks/phase-1.md">
+  <title>Tree: interface, axes, arena tree, builder (implementation)</title>
+  <body>
+    <p>After <ref kind="packet" to="1.7"/>. Owns <code>src/tree.c</code>, <code>src/tree_axis.c</code>, <code>src/arena_tree.c</code>, <code>src/tree_internal.h</code>, <code>tests/tree_test.c</code>, <code>tests/arena_tree_test.c</code>. All of <code>tree.h</code> (<ref kind="decision" to="D39"/>, <ref kind="decision" to="D40"/>, <ref kind="decision" to="D43"/>), every axis including <code>-or-self</code>, namespace fixup, limits, <code>copy_node</code>. Done when axis results on a fixed document match a table. Spec: XDM 4.0 §6; XPath 4.0 "Axes". <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D67"/>): 64-row axis table holds; node items retain their tree (1.7 hand-off); no-inherit copies wait on P6.</p>
+  </body>
+</packet>

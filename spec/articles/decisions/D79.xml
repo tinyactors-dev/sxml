@@ -1,0 +1,14 @@
+<decision id="D79" status="accepted" source="docs/DECISIONS.md">
+  <title>Function library: higher-order, maps, arrays (packet <ref kind="packet" to="1.21"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>; written first so packet <ref kind="packet" to="1.20"/> can rely on it.</p>
+    <list>
+      <item>
+        <p><strong>Ownership</strong>: <code>src/function_library_higher_order.c</code> holds F&amp;O 4.0 section 2.5 except fn:sort (<ref kind="decision" to="D78"/>): fn:apply, do-until, drop-while, every, filter, fold-left, fold-right, for-each, for-each-pair, highest, index-where, lowest, partial-apply, partition, scan, some, sort-by, sort-with, take-while, transitive-closure, while-do; section 13 (fn:function-lookup, function-name, function-arity, function-annotations) and fn:op (section 18.4). <code>src/function_library_map.c</code> holds section 14.4 (map:<em>), <code>src/function_library_array.c</code> section 15.2 (array:</em>), array:sort included. 1.20 writes none of these rows.</p>
+      </item>
+      <item>
+        <p>Every row that calls a function item has a resumable body (<ref kind="decision" to="D71"/>, <ref kind="decision" to="D75"/>).</p>
+      </item>
+    </list>
+  </body>
+</decision>

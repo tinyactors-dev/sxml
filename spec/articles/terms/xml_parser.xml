@@ -1,0 +1,4 @@
+<term id="xml_parser" source="docs/GLOSSARY.md">
+  <name>xml_parser</name>
+  <definition>Reads XML 1.0 bytes and sends their tree builder events (<code>include/sxml/xml.h</code>)</definition>
+</term>

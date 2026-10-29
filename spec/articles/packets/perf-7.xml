@@ -1,0 +1,17 @@
+<packet id="perf-7" source="docs/tasks/phase-7.md">
+  <title>Faster regex matching (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D53"/>, <ref kind="decision" to="D105"/> (the backtracking matcher) and <ref kind="decision" to="D308"/> (perf-6: compiling is now under 5 % of a regex-heavy workload; matching is the rest). Measured (release, x86_64 Xeon 2.1 GHz): 200,000 calls of <code>matches("abc_def ghi " || ., "\w+\s\w+\s\d+")</code> take 0.80 s, and 0.71 s with explicit ranges <code>[a-z_]+ [a-z]+ [0-9]+</code>, against 0.12 s for the same loop with <code>contains</code>: about 3 microseconds a match of a 15-character string, whatever the character classes.</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: profile first (callgrind on <code>tests/bench/regex-reuse.xq</code> and a new matching benchmark), then general mechanisms of the one regex engine for the hot spots. Candidates to confirm or reject with numbers: the matcher created and released on every call (<ref kind="decision" to="D308"/> kept matchers per call; a matcher could live with its cache entry while no call uses it); the setup and the backtrack stack of each match; a literal prefix or a required first character to skip start positions; ASCII fast paths for class tests in <code>src/regex_unicode.c</code> (generated: change <code>tools/generate-regex-tables.py</code> and regenerate, never edit it). Errors, the regex step limit and step counts stay as before.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/regex.c</code>, <code>src/regex_internal.h</code>, <code>src/regex_unicode.c</code>, <code>tools/generate-regex-tables.py</code>, <code>src/function_library_regex.c</code>, <code>tests/regex_test.c</code>, <code>tests/bench/regex-*.xq</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: each change measured before and after (instructions and seconds) in a D-record and the commit messages; the QT4 XP40 and XQ40 regex sets and the XT40 regex sets unchanged case by case; <ref kind="decision" to="D71"/>, the memory limits and honest step counts kept. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D310"/>): ASCII member sets and an ASCII category table, a start filter, idle matchers in the regex cache, character repetitions; 200,000 <code>matches</code> 0.382 to 0.197 s (366.9 to 200.3 x 10^6 instructions at 20,000), regex-match.xq 1.069 to 0.652 s, regex-reuse.xq 0.250 to 0.146 s; QT4 and XT40 regex sets unchanged case by case.</p>
+      </item>
+    </list>
+  </body>
+</packet>

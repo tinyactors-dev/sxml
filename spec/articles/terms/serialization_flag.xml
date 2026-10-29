@@ -1,0 +1,4 @@
+<term id="serialization_flag" source="docs/GLOSSARY.md">
+  <name>serialization_flag</name>
+  <definition>The value of a boolean serialization parameter: default (not given), no or yes</definition>
+</term>

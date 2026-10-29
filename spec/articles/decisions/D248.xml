@@ -1,0 +1,68 @@
+<decision id="D248" status="accepted" source="docs/DECISIONS.md">
+  <title>The Swift full surface: XQuery, XSLT, XSD and the DUCET resource (packet <ref kind="packet" to="6.8"/>)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D213"/>, <ref kind="decision" to="D216"/>, <ref kind="decision" to="D238"/>, <ref kind="decision" to="D241"/>. Packet <ref kind="packet" to="6.8"/> added the rest of the task file's Swift API to module <code>Sxml</code>, over the host shim's full-module entry points. No C changed.</p>
+    <list>
+      <item>
+        <p><strong>API</strong> (defaults under <ref kind="decision" to="D208"/>):</p>
+        <list>
+          <item>
+            <p><code>compileQuery(_:namespaces:baseURI:)</code> gives an <code>XQuery</code> with <code>evaluate(context:variables:updates:messages:)</code>, <code>serialize(_:)</code>, <code>run(...)</code> and <code>isUpdating</code>.</p>
+          </item>
+          <item>
+            <p><code>UpdateSink</code> is a struct of two optional throwing closures, <code>updatedTree</code> and <code>putDocument</code>. <code>PutDocument.serialize()</code> uses method xml without parameters, as in JavaScript.</p>
+          </item>
+          <item>
+            <p><code>compileStylesheet(_:baseURI:staticParameters:)</code> (a <code>String</code>, or <code>[UInt8]</code>) gives a <code>Stylesheet</code>. <code>transform(...)</code> takes JavaScript's options as labels; <code>args</code> is <code>arguments:</code>. It returns a <code>TransformResult</code> (<code>output</code>, <code>value</code>, <code>resultDocuments</code>).</p>
+          </item>
+          <item>
+            <p><code>InitialMode</code> is <code>.named(String)</code> or <code>.unnamed</code>, and a string literal names a mode. It replaces JavaScript's <code>'#unnamed'</code>, as Kotlin's <code>InitialMode.Unnamed</code> does.</p>
+          </item>
+          <item>
+            <p><code>ResultDelivery</code>, <code>ValidationMode</code> and <code>Validity</code> are enums. Their raw values are those of <code>sxml_xslt_result_delivery</code> and <code>sxml_validation_mode</code> (sxml_host.h does not include xslt.h or schema.h) and, for <code>Validity</code>, the JavaScript names.</p>
+          </item>
+          <item>
+            <p><code>compileSchema(_:baseURI:)</code> takes a <code>String</code>, one <code>SchemaDocument</code> or an array of them (<code>.text(_:uri:)</code>, <code>.bytes(_:uri:)</code>, <code>.resolved(_:)</code>). <code>Schema.validate(_:mode:type:uri:)</code> takes a <code>String</code>, <code>[UInt8]</code> or a <code>Value</code> (a node takes no <code>uri:</code>).</p>
+          </item>
+          <item>
+            <p><code>SchemaError</code> is a struct (<code>error: SxmlError</code>, <code>reports</code>), as the task file says, not a subtype of <code>SxmlError</code>. So a caller that catches <code>SxmlError</code> does not catch a schema that fails to compile.</p>
+          </item>
+          <item>
+            <p>The <code>messages</code> closure and the sink's closures run after the call, with the failure read first, so they may use the processor (<ref kind="decision" to="D216"/>). An error a closure throws replaces the call's own failure.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>DUCET</strong>: <code>CollationData.bundled</code> serves <code>bindings/swift/Sources/Sxml/Resources/allkeys.txt</code>, a <code>.copy</code> resource read through <code>Bundle.module</code> once per process, when a UCA collation first asks for it.</p>
+        <list>
+          <item>
+            <p><strong>Deviation:</strong> the resource is a copy of <code>third_party/unicode-collation/allkeys.txt</code>, not a symbolic link. SwiftPM copies a link into the bundle as a link, which then dangles. The copy has the same git blob, so the repository does not grow. A test checks that the two files are equal. Whoever updates the DUCET updates both.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Tests</strong>: <code>FullTests.swift</code> has 28 Swift Testing tests.</p>
+        <list>
+          <item>
+            <p>24 have the names, inputs and expected text of <code>full.test.ts</code>: 10 XQuery, 8 XSLT, 5 XSD, and the full allocation-failure loop.</p>
+          </item>
+          <item>
+            <p>Two tests of <code>full.test.ts</code> have no counterpart. The core-module refusal does not apply, because the native library has every language. The disposal test is replaced by "queries, stylesheets and schemas keep their processor alive" (ARC).</p>
+          </item>
+          <item>
+            <p>3 resource data tests: the bundled DUCET, <code>timezone-data</code> served from <code>third_party/tzdata/zoneinfo</code>, and <code>locale-data</code> served from <code>third_party/cldr/common</code>.</p>
+          </item>
+          <item>
+            <p>ctest <code>swift/linux</code> (debug preset, ASan): 55 tests pass with 0 leaks (was 27), both allocation-failure loops included. The run takes 69 s.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Task file</strong>: its Swift example ends with <code>result.serialize(["method": "json"])</code> on a two-item result, which raises SERE0023. The READMEs use other examples.</p>
+      </item>
+      <item>
+        <p><strong>For 6.9 (Apple)</strong>: the resource needs nothing more. <code>Bundle.module</code> finds it in the package's bundle on Apple platforms too. Check <code>CollationData.bundled</code> there with the test "the bundled DUCET is the vendored one, and UCA collations use it". A package that depends on <code>Sxml</code> links the XCFramework, and the resource still comes from the Sxml target.</p>
+      </item>
+    </list>
+  </body>
+</decision>

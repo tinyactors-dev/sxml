@@ -1,0 +1,4 @@
+<term id="evaluator_task" source="docs/GLOSSARY.md">
+  <name>evaluator_task</name>
+  <definition>One entry of the evaluator's task stack: an expression, call or native step being evaluated, with the state that resumes it when a nested value arrives (<ref kind="decision" to="D71"/>, <ref kind="decision" to="D75"/>)</definition>
+</term>

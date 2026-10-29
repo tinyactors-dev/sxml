@@ -1,0 +1,5 @@
+<term id="module_uri" source="docs/GLOSSARY.md">
+  <name>module_uri</name>
+  <definition>The absolute URI a stylesheet module was read from; the source name of its expressions</definition>
+  <definition>Also the URI an XQuery library module was found at: its source name and static base URI</definition>
+</term>

@@ -1,0 +1,23 @@
+<decision id="D98" status="accepted" source="docs/DECISIONS.md">
+  <title>Substrate review at the Phase 1 gate (packet <ref kind="packet" to="1.29"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/> by the Phase 1 review agent (<ref kind="decision" to="D11"/>). Before the freeze (<ref kind="decision" to="D99"/>) every record that touched the substrate headers (<ref kind="decision" to="D19"/>-<ref kind="decision" to="D43"/>, <ref kind="decision" to="D68"/>, <ref kind="decision" to="D69"/>, <ref kind="decision" to="D73"/>, <ref kind="decision" to="D77"/>, <ref kind="decision" to="D89"/>) was checked against the Phase 2-4 task files; "Proposed" was empty. All earlier records stand. Found and changed:</p>
+    <list>
+      <item>
+        <p><strong>Base URI of a parentless root</strong> (<code>tree.h</code>): the arena tree had no way to give a constructed element, attribute, text, comment or PI a base URI; only <code>start_document</code> carried one, but XQuery 4.0 constructors (packet <ref kind="packet" to="3.5"/>) need the static base URI and XSLT 4.0 the instruction's (section 11.1: it matters only for a parentless node, a child takes its parent's; XQuery copies behave the same, QT4 cbcl-base-uri-001 to -004). New field <code>sxml_arena_tree_configuration.base_uri</code>, copied by <code>finish</code>, reported as <code>sxml_tree_description.base_uri</code>; zero keeps the old behaviour.</p>
+      </item>
+      <item>
+        <p><strong>Parentless namespace nodes</strong> (<code>tree.h</code>, contract only): computed namespace constructors and xsl:namespace make namespace nodes without an element, which <ref kind="decision" to="D39"/>'s (element, namespace number) cannot name. A tree may now hold one stored namespace node, its root (index 0, namespace number 0), built by an <code>add_namespace_binding</code> sent first; its name is the prefix, its content the URI (empty URI: XQDY0101). The arena tree and <code>sxml_tree_builder_copy_node</code> implement it (<code>src/arena_tree.c</code>, <code>src/tree.c</code>, test <code>parentless_namespace_nodes_are_stored</code>); the adaptive serializer and the evaluator's namespace paths still assume an element and are packets <ref kind="packet" to="3.3"/> and <ref kind="packet" to="3.5"/>'s.</p>
+      </item>
+      <item>
+        <p><strong>Named item types</strong> (<code>types.h</code>, comment): <code>find_type</code> no longer claims to find them; XQuery <code>declare type</code> and xsl:item-type are aliases in a module's static context, never registered by name.</p>
+      </item>
+      <item>
+        <p><strong>Host re-entry</strong> (<code>xdm.h</code>, comment): a host function body, generator, resolver or builder that starts an evaluation nests it on the C stack; bounding that is the host's (<ref kind="decision" to="D71"/> holds for sxml's own code).</p>
+      </item>
+      <item>
+        <p><code>status.h</code>, <code>string.h</code>: "<ref kind="decision" to="D92"/>" is Unicode's definition <ref kind="decision" to="D92"/>, not this file's. Deferred, each needing its own record when it comes: adopting heap buffers for strings (Phase 0 question 7, only if Phase 2 profiling asks), registering schema-derived atomic types (Phase 5), a frozen shareable tree (<ref kind="decision" to="D35"/>), a per-element base URI for XSLT literal result elements that come from different stylesheet modules and are copied as parentless nodes with relative xml:base (no QT4 or XSLT test seen needs it).</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,22 @@
+<decision id="D86" status="accepted" source="docs/DECISIONS.md">
+  <title>Fuzz targets (packet <ref kind="packet" to="1.26"/>)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Targets.</strong> Every <code>tests/fuzz/&lt;name&gt;_fuzz.c</code> is a libFuzzer executable (glob, <ref kind="decision" to="D45"/>) linked with <code>tests/fuzz/fuzz_fixture.c</code>: <code>xml_parse_fuzz</code> (parse into an arena tree and read every node back; <code>check</code> must give the same status), <code>xpath_compile_fuzz</code> (both front ends, then <code>sxml_xpath_compile</code> against the whole function library), <code>xpath_evaluate_fuzz</code> (compile and evaluate with a parsed context document and small limits; the internal evaluator until 1.23's processor), <code>regex_fuzz</code> (flags byte, regex, NUL, input; every disjoint match and its groups) and <code>cast_fuzz</code> (target byte, text; the canonical text of an atomic result must cast back to the same canonical text).</p>
+      </item>
+      <item>
+        <p><strong>What a finding is.</strong> A crash or sanitizer report; a leak (the counting allocator's blocks and the item heap's cells are checked after every input, on a fixture made fresh per input); an entry point returning <code>INVALID_ARGUMENT</code>, <code>INSUFFICIENT_MEMORY</code>, <code>MISALIGNED_MEMORY</code> or <code>INDEX_OUT_OF_RANGE</code> for arguments the target made valid (an error in sxml: for compilation, the verifier or the function table); a broken invariant above; a timeout (10 s per input). Deep input is not bounded in the targets: it must cost heap, not C stack (<ref kind="decision" to="D71"/>).</p>
+      </item>
+      <item>
+        <p><strong>Build.</strong> Preset <code>fuzz</code>: Clang, <code>RelWithDebInfo</code>, ASan and UBSan, the library built with <code>-fsanitize=fuzzer-no-link</code>, no <code>apps/</code>. <code>ctest --preset fuzz</code> runs each target on 2000 generated inputs.</p>
+      </item>
+      <item>
+        <p><strong>Running.</strong> <code>tools/fuzz.sh --seconds N</code> runs every target at once for N seconds in a kept work directory; seeds come from <code>tools/fuzz-seeds.py</code> (xmlconf and QT4 documents, QT4 queries, the literal arguments of <code>fn:matches</code>-like calls and <code>xs:T("...")</code> constructors; at most 4000 per target), never committed (<ref kind="decision" to="D13"/>); the first run merges them into a corpus. The script fails on any artifact, except timeouts of <code>xpath_evaluate_fuzz</code>, which runs in fork mode and lists them for triage until the evaluator has a step limit (P9).</p>
+      </item>
+      <item>
+        <p><strong>CI.</strong> Running each target for 60 s in CI is a <code>ci.yml</code> change, owned by 1.27: a Linux job <code>cmake --preset fuzz &amp;&amp; cmake --build --preset fuzz &amp;&amp; tools/fuzz.sh --no-build --build-directory build/fuzz --seconds 60</code>.</p>
+      </item>
+    </list>
+  </body>
+</decision>

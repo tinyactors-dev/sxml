@@ -1,0 +1,4 @@
+<term id="ixml_mark" source="docs/GLOSSARY.md">
+  <name>ixml_mark</name>
+  <definition>How a rule, nonterminal or terminal appears in the XML of a parse: as an element (<code>^</code>), an attribute (<code>@</code>) or hidden (<code>-</code>; the Specification's "deleted")</definition>
+</term>

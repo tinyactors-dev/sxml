@@ -1,0 +1,4 @@
+<term id="optional_feature" source="docs/GLOSSARY.md">
+  <name>optional_feature</name>
+  <definition>A part of sxml that a host opts into by naming it in the processor configuration, so a program that never names it does not link it: large tables and front ends such as UCA, the timezone database, HTML parsing (<code>sxml_optional_feature</code>; <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>, <ref kind="decision" to="D189"/>)</definition>
+</term>

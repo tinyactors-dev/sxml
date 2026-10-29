@@ -1,0 +1,4 @@
+<term id="schematron_report" source="docs/GLOSSARY.md">
+  <name>schematron_report</name>
+  <definition>One finding or fired rule as a schematron report sink receives it: kind, id, role, flag, schematron severity, message, schematron diagnostics and properties, the assertion's location in its schematron document and the subject node with its location in the instance (<ref kind="decision" to="D315"/>)</definition>
+</term>

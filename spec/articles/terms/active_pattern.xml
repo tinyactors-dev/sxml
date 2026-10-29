@@ -1,0 +1,4 @@
+<term id="active_pattern" source="docs/GLOSSARY.md">
+  <name>active_pattern</name>
+  <definition>A schematron pattern the phase in force includes; only patterns that the compiled phase can make active are compiled (<ref kind="decision" to="D315"/>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="xslt_function_table" source="docs/GLOSSARY.md">
+  <name>xslt_function_table</name>
+  <definition>The function table put in front of every static context of a stylesheet: stylesheet functions lowered into the unit (fn:key, fn:copy-of), then the XSLT-only library parts (<ref kind="decision" to="D149"/>)</definition>
+</term>

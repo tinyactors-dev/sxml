@@ -1,0 +1,4 @@
+<term id="iteration_marker" source="docs/GLOSSARY.md">
+  <name>iteration_marker</name>
+  <definition>The map <code>{Q{XSLT}iterate: state}</code> that <code>xsl:next-iteration</code> or <code>xsl:break</code> gives as the last item of the body's value (<ref kind="decision" to="D145"/>)</definition>
+</term>

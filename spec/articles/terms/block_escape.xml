@@ -1,0 +1,4 @@
+<term id="block_escape" source="docs/GLOSSARY.md">
+  <name>block_escape</name>
+  <definition><code>\p{IsX}</code>: the codepoints of Unicode block X, named as in Blocks.txt without spaces</definition>
+</term>

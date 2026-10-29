@@ -1,0 +1,4 @@
+<term id="expected_validity" source="docs/GLOSSARY.md">
+  <name>expected_validity</name>
+  <definition>The outcome an XSD test prescribes: <code>valid</code> or <code>invalid</code> are in scope; <code>notKnown</code>, <code>indeterminate</code>, <code>runtime-schema-error</code> and the implementation-defined values are not</definition>
+</term>

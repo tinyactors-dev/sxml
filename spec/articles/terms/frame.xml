@@ -1,0 +1,4 @@
+<term id="frame" source="docs/GLOSSARY.md">
+  <name>frame</name>
+  <definition>The slots of one active call of an IR function</definition>
+</term>

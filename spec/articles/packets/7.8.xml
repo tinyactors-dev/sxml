@@ -1,0 +1,34 @@
+<packet id="7.8" source="docs/tasks/phase-7.md">
+  <title>EXPath Binary (implementation)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: EXPath Binary Module 4.0, as the QT4 bin- sets test it (namespace <code>http://expath.org/ns/binary</code>; the bin: functions and their errors bin:differing-length-arguments, bin:index-out-of-range, bin:negative-size, bin:octet-out-of-range, bin:non-numeric-character, bin:unknown-encoding, bin:conversion-error, bin:unknown-significance-order).</p>
+      </item>
+      <item>
+        <p><strong>Unlocks</strong>: 673 (XP40 and XQ40), in 39 bin- sets.</p>
+      </item>
+      <item>
+        <p><strong>Replaces</strong>: the functions are absent (XPST0017), and supports-binary-library is false.</p>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong>: a function-library part of its own over xs:base64Binary items (<code>src/function_library_binary.c</code>). Encodings go through the existing decoders (<code>src/xml_encoding.c</code>, <ref kind="decision" to="D81"/>), and number packing through the decimal and double code of <code>src/cast.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Header</strong>: none (with option 2: one feature function).</p>
+      </item>
+      <item>
+        <p><strong>After</strong>: 7.2.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: new <code>src/function_library_binary.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: 30–50 KB.</p>
+      </item>
+      <item>
+        <p><strong>Gate</strong>: ≥ 95 % of the 673. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D198"/>): bin-* 646 of 646 in XP40 and XQ40 (26 wrong error codes, XPTY0004 by the 4.0 types); fn-serialize +24 in each; the 673 also counted fn-serialize's and fn-system-properties' binary cases.</p>
+      </item>
+    </list>
+  </body>
+</packet>

@@ -1,0 +1,20 @@
+<decision id="D7" status="accepted" source="docs/DECISIONS.md">
+  <title>Ordered maps (XDM 4.0)</title>
+  <body>
+    <p>XDM 4.0 maps keep insertion order. Design after Saxon 13 (Michael Kay, "Implementing Maps for XPath 4.0", XML Prague 2026):</p>
+    <list>
+      <item>
+        <p>a built-once list of key/value pairs plus a key-to-offset index, built lazily on first lookup;</p>
+      </item>
+      <item>
+        <p>a separate persistent layer for later <code>map:put</code> / <code>map:remove</code>;</p>
+      </item>
+      <item>
+        <p>shared key "shapes" for records;</p>
+      </item>
+      <item>
+        <p>entries addressable by position, needed for JNode sibling navigation. Confirmed at the Phase 0 gate; the design is in <ref kind="decision" to="D37"/>. The 2026 drafts dropped extensible record types (<code>record(a, *)</code>) and optional field markers (<code>a?</code>); a field whose type allows the empty sequence may be absent from a map that matches, and coercion fills it, so record cells hold every field.</p>
+      </item>
+    </list>
+  </body>
+</decision>

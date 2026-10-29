@@ -1,0 +1,78 @@
+<decision id="D232" status="accepted" source="docs/DECISIONS.md">
+  <title>XML parsing speed: fewer tokens and nodes (packet <ref kind="packet" to="perf-3"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D222"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/>. tree-sitter stays the parser (<ref kind="decision" to="D12"/>, the owner's choice); the grammar and its external scanner stay the one source of the lexical rules; <ref kind="decision" to="D222"/>'s segments are kept.</p>
+    <list>
+      <item>
+        <p><strong>Profile</strong> (callgrind, <code>sxml check</code> of a 10.5 MB document made of three copies of the XMark auction): 6.7 x 10^9 instructions, 640 a byte, about 1.3 million tokens. Three quarters were tree-sitter's work per token and per node: lexing 29 % (the lexer's advance per character 9 %), the parse stack and subtrees, and 11 % rebalancing the repeat of a content segment's items after each parse; the walk 22 % (field lookups by name, node types by string, a cursor per tag). The cost is per token and node, not per character, so the change cuts tokens and nodes.</p>
+      </item>
+      <item>
+        <p><strong>Grammar</strong> (<code>grammars/xml</code>, README contract updated): a tag's '&lt;' and its name are one external token; '&lt;a&gt;', '&lt;a/&gt;' and a whole end tag '&lt;/a S?&gt;' are one token each, nodes without children (start_tag, empty_element_tag, end_tag), and an attribute whose value holds no reference is one token, Name Eq AttValue, an attribute without children ([40] to [44], [41], [25], [10]). The scanner still checks every end tag against its start (WFC: Element Type Match) and every character ([2] Char); a value with a reference, a '&lt;' or a bad character falls back to the grammar's own rules. The items of a content segment are a left-recursive hidden rule rather than a repeat, which tree-sitter does not rebalance (right recursion was slower). The helper rules that choose the token or the full rule are inlined, saving a reduction per tag.</p>
+      </item>
+      <item>
+        <p><strong>Builder</strong> (<code>src/xml.c</code>): the tag name is read past the '&lt;' up to the first '&gt;', '/' or S, and a one-token attribute is split at its first S or '=' and its quotes, none of which a Name holds; fields by number (the language is checked before each parse to number its fields as <code>sxml_xml_field_texts</code> lists them); node types from a table of the language's symbols filled per parse; no child cursor for a tag without children. The segment cut scan uses memchr; the position tracker counts lines and columns in place for UTF-8 and US-ASCII; <code>sxml_utf8_validate</code> passes eight ASCII bytes at a time.</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (instructions x 10^9, exact; seconds are processor time, fastest of three, on a machine other builds share), at ceacfa3 without and with the change:</p>
+        <table align="default default right right right">
+          <row header="true">
+            <cell>Input</cell>
+            <cell>Mode</cell>
+            <cell>Instructions</cell>
+            <cell>Seconds</cell>
+            <cell>MB/s</cell>
+          </row>
+          <row>
+            <cell>10.5 MB</cell>
+            <cell>check</cell>
+            <cell>6.710 to 3.901</cell>
+            <cell>0.707 to 0.417</cell>
+            <cell>14.9 to 25.2</cell>
+          </row>
+          <row>
+            <cell>101.7 MB</cell>
+            <cell>check</cell>
+            <cell/>
+            <cell>6.906 to 3.983</cell>
+            <cell>14.7 to 25.5</cell>
+          </row>
+          <row>
+            <cell>10.5 MB</cell>
+            <cell>tree</cell>
+            <cell>7.296 to 4.326</cell>
+            <cell>0.785 to 0.494</cell>
+            <cell>13.4 to 21.3</cell>
+          </row>
+          <row>
+            <cell>101.7 MB</cell>
+            <cell>tree</cell>
+            <cell/>
+            <cell>7.666 to 4.762</cell>
+            <cell>13.3 to 21.4</cell>
+          </row>
+          <row>
+            <cell>XMark 3.5 MB</cell>
+            <cell>parse (bench)</cell>
+            <cell>2.440 to 1.444</cell>
+            <cell>0.263 to 0.157</cell>
+            <cell/>
+          </row>
+          <row>
+            <cell>XMark-All</cell>
+            <cell>query</cell>
+            <cell>9.870 to 8.877</cell>
+            <cell>1.165 to 1.084</cell>
+            <cell/>
+          </row>
+        </table>
+        <p>Each change, <code>check</code> of 10.5 MB: tag tokens 6.715 to 5.941; content items left-recursive 5.409; attribute values as tokens 5.211 (later folded into whole attributes); fields by number 5.100; node types by symbol and memchr 4.906; scanner ASCII paths 4.786; no cursor for childless tags 4.687; tags without children 4.210; whole attributes 3.969; UTF-8 validation by words 3.901 (byte by byte was slower). The tracker: building the tree 5.363 to 5.220. Segments (<ref kind="decision" to="D222"/>) of 4 KB and 64 KB: 4.982 and 4.968; 16 KB kept. Resident memory unchanged. Parsing is now 16 % of XMark-All (25 % before).</p>
+      </item>
+      <item>
+        <p><strong>Behaviour</strong>: the same documents are accepted and refused, with the same events and positions; a syntax error inside a tag may be located a few bytes away (at the tag's '&lt;' rather than at its name). Tests: debug 378/378, xmlconf (xml_conformance), the grammar corpus 67/67, xml_parse_fuzz seeds and 3 minutes clean; QT4 and XT40 whole, release, case by case: no outcome changes (XP40 32,655, XQ40 45,914, XT40 11,913 passed).</p>
+      </item>
+      <item>
+        <p><strong>Left</strong>: what remains is tree-sitter's own cost per token (the lexer's advance per character, the stack, subtree allocation, the tree's deletion) and per character data item, which only fewer tokens or a change of the runtime (vendored unmodified) would reduce; a long character data or attribute token still passes the lexer a character at a time.</p>
+      </item>
+    </list>
+  </body>
+</decision>

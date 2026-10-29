@@ -1,0 +1,4 @@
+<term id="schema" source="docs/GLOSSARY.md">
+  <name>schema</name>
+  <definition>A compiled XSD 1.1 schema: the schema components assembled from one or more schema documents, with its types registered in the processor's type registry (<code>sxml_schema</code>, <ref kind="decision" to="D165"/>)</definition>
+</term>

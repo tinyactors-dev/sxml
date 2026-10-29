@@ -1,0 +1,4 @@
+<term id="variable_part" source="docs/GLOSSARY.md">
+  <name>variable_part</name>
+  <definition><code>{ Expr? }</code> in a value template; empty, whitespace or comments only give a zero-length string (XSLT 4.0, 5.6)</definition>
+</term>

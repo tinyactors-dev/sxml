@@ -1,0 +1,29 @@
+<decision id="D131" status="accepted" source="docs/DECISIONS.md">
+  <title>Resources, the evaluation environment, lexical decimal formats and collations (packet <ref kind="packet" to="2.12"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. Implements <ref kind="decision" to="D104"/> in <code>src/processor.c</code>, <code>src/processor_internal.h</code>, <code>src/xpath.c</code>, new part <code>src/function_library_resource.c</code>; accepts three Proposed items (2.6's range fast path, 2.9's decimal formats, 2.13's default collation).</p>
+    <list>
+      <item>
+        <p><strong>Evaluation environment</strong> (glossary): what library functions read from the host beyond fn:doc, carried by the processor's document loader of each evaluation: resolver (dynamic context's, else processor's), trace sink (same), default language ("en" when empty), environment variables. Natives reach it with <code>sxml_processor_get_evaluation_environment(dynamic_context)</code> / <code>sxml_processor_document_loader_from_dynamic_context</code>; NULL for a dynamic context the processor did not make (unit tests): nothing available, no variables, "en", trace discarded. The loader also retrieves TEXT/BINARY bytes (<code>_retrieve</code>/<code>_release</code>, BYTES only, else INVALID_ARGUMENT) and keeps collections per kind and absolute URI for the evaluation (fn:collection is deterministic; SEQUENCE only).</p>
+      </item>
+      <item>
+        <p><strong>Text decoding</strong> (F&amp;O 4.0, 17.1.5, after bin:infer-encoding): candidate = resource's charset, else the encoding option; no candidate: BOM decides, else UTF-8 (bad bytes FOUT1200); a candidate skips a BOM that agrees ("UTF-16" without BOM is big-endian) and decodes a disagreeing one as characters (so it fails, FOUT1190); UTF-8, UTF-16LE/BE, ISO-8859-1, US-ASCII (the XML parser's names). Non-XML characters are FOUT1190; <code>fallback</code> gives U+FFFD; <code>normalize-newlines</code> maps CR LF and CR to LF; -lines always normalizes and rejects that key (XPTY0004, QT4 40-014); -available is false for FOUT1170/1190/1200. fn:json-doc is the text (any codepoint) handed to the fn:parse-json row, found by name in the XPath part list, with its options. No media-type handling.</p>
+      </item>
+      <item>
+        <p><strong>fn:trace and fn:message</strong> stay in the error part (the library tests list parts explicitly); both nondeterministic and context-dependent. <code>sxml_stream_trace_sink</code> writes <code>label: value</code> lines (adaptive, " "). <code>sxml_collation_is_supported</code> is 2.13's (<ref kind="decision" to="D116"/>).</p>
+      </item>
+      <item>
+        <p><strong>Static context checks</strong> (xpath.c): decimal formats (kinds once, <code>sxml_decimal_format_apply</code>, names distinct), collation bindings (absolute, not already known, target supported), default collation known; dynamic context: xs:language, distinct UTF-8 environment variables. Breaches are INVALID_ARGUMENT.</p>
+      </item>
+      <item>
+        <p><strong>Lexical decimal formats and collations</strong>: <code>sxml_ir_static_context</code> (decimal formats, default collation URI, bindings) is copied into the unit by <code>sxml_ir_unit_set_static_context</code>, set by lowering from the new <code>sxml_xpath_static_context.unit_static_context</code>; <code>sxml_dynamic_context_get_running_unit</code> gives the unit of the innermost IR task (as the static base URI). fn:format-number resolves names (xs:QName; string QName with the unit's static namespaces, EQName, NCName, spaces trimmed; FODF1280 otherwise), the named or unnamed format then the map's properties; the collation resolver tries the unit's bindings first and its default for "", fn:default-collation returns it.</p>
+      </item>
+      <item>
+        <p><strong>Range fast path</strong> (2.6's patch) in <code>src/evaluator.c</code>; the step-bound test uses a quantifier (a concatenation of a long range is not charged up front either: <code>0 = (1 to 10^11, 2)</code> runs unbounded; left as found).</p>
+      </item>
+      <item>
+        <p>Measured (release, XP40): fn-unparsed-text 54 to 94/94 run, -lines 39 to 58/58, -available 7 to 57/57, unparsed-binary 16 to 21/21, json-doc 36 to 73/77 (4 need a fallback function), collection 18 to 24/25, uri-collection 7/7, environment-variable 6 to 12/12, available-environment-variables 2 to 10/10, default-language 0 to 5/5, message 3 to 14/14, trace 31/31, format-number 252 (2.9) to 285/286. "Before" counts are at the packet's start (24fc6ac).</p>
+      </item>
+    </list>
+  </body>
+</decision>

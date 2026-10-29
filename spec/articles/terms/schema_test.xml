@@ -1,0 +1,4 @@
+<term id="schema_test" source="docs/GLOSSARY.md">
+  <name>schema_test</name>
+  <definition>An XSD test that compiles the schema documents it names into one schema: valid means it compiles</definition>
+</term>

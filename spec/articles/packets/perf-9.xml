@@ -1,0 +1,17 @@
+<packet id="perf-9" source="docs/tasks/phase-7.md">
+  <title>Required literals in regex search (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D310"/> (perf-7). The same profile puts 12.9 % in <code>sxml_regex_matcher_scan</code> under <code>fn:replace</code>. SchXslt's patterns have the shape <code>(\W*)\$name(\W*)</code>: they can match the empty string before a <code>$</code>, so perf-7's start filter skips nothing and every position is attempted, though no match exists unless the literal <code>$name</code> occurs.</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: at compile time, find a literal that every match must contain (a required literal, as other engines keep a "required character" or "must-have string"); at search time, find its next occurrence first and attempt only start positions from which a match could reach it, and give up at once when it does not occur. One mechanism for <code>matches</code>, <code>replace</code>, <code>tokenize</code>, <code>analyze-string</code> and <code>fn:regex</code>'s functions; errors, step limits and step counts as <ref kind="decision" to="D310"/> settled (a skipped position counts one step).</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/regex.c</code>, <code>src/regex_internal.h</code>, <code>src/function_library_regex.c</code>, <code>tests/regex_test.c</code>, <code>tests/bench/regex-*.xq</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: each change measured before and after (instructions and seconds) in a D-record and the commit messages, with SchXslt's expand stage; the QT4 XP40 and XQ40 regex sets and the XT40 regex sets unchanged case by case, and a random comparison of <code>fn:analyze-string</code> before and after as perf-7 did. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D311"/>): a required literal per compiled regex (the longest CODEPOINT run every way to MATCH passes through) and the read set of what precedes it; the scan finds the literal first and skips the positions that cannot reach it, all of them when it does not occur. SchXslt's expand stage 75.3 to 65.8 x 10^9 instructions; regex-literal.xq 0.458 to 0.186 s; regex sets and 18,000 random regexes unchanged.</p>
+      </item>
+    </list>
+  </body>
+</packet>

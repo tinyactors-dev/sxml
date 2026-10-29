@@ -1,0 +1,35 @@
+<decision id="D149" status="accepted" source="docs/DECISIONS.md">
+  <title>Keys and XSLT functions (packet <ref kind="packet" to="4.10"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D101"/>, <ref kind="decision" to="D103"/>, <ref kind="decision" to="D118"/>, <ref kind="decision" to="D139"/>, <ref kind="decision" to="D142"/>, <ref kind="decision" to="D144"/>. <code>src/xslt_key.c</code> with <code>src/xslt_key_internal.h</code>, <code>src/function_library_xslt.c</code>, <code>tests/xslt_key_test.c</code>; no IR kind, no public header.</p>
+    <list>
+      <item>
+        <p><strong>XSLT function table</strong> (glossary): <code>sxml_xslt_declare_functions</code> puts one table in front of every static context of the stylesheet (before 4.12's components table): stylesheet functions lowered into the unit, then the rows of the XSLT-only library parts (<ref kind="decision" to="D101"/>: parts whose language set has XSLT and not XPath), then the processor's table. A stylesheet function becomes an IR function when an expression first names it; <code>sxml_xslt_lower_functions</code> lowers the bodies asked for (twice: before the templates are released, again after the global variables).</p>
+      </item>
+      <item>
+        <p><strong>Library part <code>xslt</code></strong> (<code>sxml_function_library_xslt_languages = SXML_LANGUAGE_XSLT</code>): system-property, available-system-properties, function-available, element-available, type-available (moved from <code>src/xslt_static.c</code>, which now serves its expressions the first five rows, <code>sxml_xslt_static_functions</code>), current, document (4.0 options map or base node), unparsed-entity-uri and -public-id (the zero-length value: trees keep no unparsed entities). Names given as strings resolve against the running unit's static namespaces (<ref kind="decision" to="D84"/>): a static expression's own, a stylesheet's those of the invocation's template (<ref kind="decision" to="D142"/>), not each expression's (Proposed below).</p>
+      </item>
+      <item>
+        <p><strong>fn:current</strong>: a parameter default <code>SXML_PARAMETER_DEFAULT_CURRENT_ITEM</code> (<code>function_library_internal.h</code>); lowering reads focus part <code>CURRENT_ITEM</code>, the focus the innermost embedding started with (<code>sxml_xpath_lowerer.embedding_focus</code>, set in the embedding frame), so in a pattern it is the item matched (<ref kind="decision" to="D118"/>). Inside an inline function it is UNSUPPORTED_FEATURE (it would need a capture).</p>
+      </item>
+      <item>
+        <p><strong>Entries taking the caller's context value themselves</strong>: an entry whose <code>parameter_types</code> already cover the parameters the caller supplies is called as it is instead of the entry of the longer arity (<code>src/xpath_lower.c</code>, static calls and references). fn:key#2 is an IR function (key-name, key-value, context) distinct from fn:key#3.</p>
+      </item>
+      <item>
+        <p><strong>Keys</strong> (20.2): the declarations of one name are one key (XTSE1222 when collation or composite differ; XTSE1205 for use and content, or neither). Its build function is <code>map:build</code> over the tree's nodes and attributes with the use values of each matching declaration (match-N: the <ref kind="decision" to="D118"/> match function in a TRY_CATCH giving false, 6.5; use-N: the attribute or sequence constructor with the node as fixed focus) as keys; fn:key dispatches on the resolved name and looks values up in the index that the internal row key-index returns. Key values: string-like as xs:string, or their collation key under a non-codepoint collation; numbers as xs:double (eq promotes, so 3.7 matches number('3.7')); a composite key is one string of tagged canonical texts. Result: <code>/.</code> (document order, no duplicates); fn:key#3 keeps descendants-or-self of $top; fn:key#2 raises XTDE1270 when the root is not a document node.</p>
+      </item>
+      <item>
+        <p><strong>Evaluation memo</strong> (glossary; <code>src/evaluator.c</code>, additive to <code>evaluator_internal.h</code>): entries (computation address and number, subject node by identity) to a value, released when the evaluation ends. key-index calls the build function on a miss (a resumable body, <ref kind="decision" to="D75"/>) and stores the map: each index is built once per evaluation and tree, lazily. 4.12 (xsl:function cache) and 4.14 (accumulators) can use the same memo.</p>
+      </item>
+      <item>
+        <p><strong>fn:copy-of</strong> is xsl:copy-of's copy (<code>sxml_xslt_lowering_bind_copy_of</code>, exported from <code>src/xslt_lower_construct.c</code>); <strong>fn:snapshot</strong> an XPath text over fn:copy-of, fold-right and computed constructors (ancestors with their attributes and namespaces).</p>
+      </item>
+      <item>
+        <p><strong>Patterns</strong> (<ref kind="decision" to="D118"/> amended): a step whose predicates are all non-positional (each a comparison, logical, instance-of, castable or quantified expression, a string or boolean literal, nodes, or a call of a listed boolean or string function, and none names position or last) is tested on the item with a singleton focus instead of being selected again from its origin (6.3.2.3 gives the same result). attr/match runs in 12 s in a debug build (match-242 was 60 s alone).</p>
+      </item>
+      <item>
+        <p>Left to other packets: current-group, current-grouping-key, current-merge-* (4.9), regex-group (4.11), accumulator-before/-after (4.14), current-output-uri (4.13), xsl:evaluate (4.7: XTDE3175, <ref kind="decision" to="D145"/>), fn:apply-templates (needs the mode at run time; 5 cases), fn:transform (out of scope), function-available at run time (the dynamic context's table is the host's: Proposed).</p>
+      </item>
+    </list>
+  </body>
+</decision>

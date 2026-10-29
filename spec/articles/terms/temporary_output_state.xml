@@ -1,0 +1,4 @@
+<term id="temporary_output_state" source="docs/GLOSSARY.md">
+  <name>temporary_output_state</name>
+  <definition>The output state in which <code>xsl:result-document</code> is XTDE1480: inside variables, parameters, functions, keys and sort keys, and during a function call invocation (XSLT 4.0, 26.2.6)</definition>
+</term>

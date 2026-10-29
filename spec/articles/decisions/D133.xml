@@ -1,0 +1,23 @@
+<decision id="D133" status="accepted" source="docs/DECISIONS.md">
+  <title>The built-in record types of F&amp;O 4.0 (packet 2.6b)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. Accepts the Proposed items of <ref kind="decision" to="D122"/> and <ref kind="decision" to="D125"/>.</p>
+    <list>
+      <item>
+        <p><strong>One table, declared once per registry</strong>: <code>src/function_library_records.c</code> lists the 16 nominative record types of F&amp;O 4.0, appendix C (glossary <term name="builtin_record_type"/>), each as its fn local name and the text of a structural record type in the specification's field order and types (a field whose type allows the empty sequence is optional, <ref kind="decision" to="D7"/>; "xs:positive-integer" of fn:location-record read as xs:positiveInteger). <code>sxml_function_library_initialize</code> declares them in the type registry of its item heap before any row is resolved: all names first, so fields may name table types, recursion included, then each type's fields from its resolved text. A name the registry knows already is skipped, so libraries sharing a heap declare once. No globals; static analysis resolves <code>fn:dateTime-record</code> through the registry like any named type, and rows may name them.</p>
+      </item>
+      <item>
+        <p><strong>Records are annotated</strong>: <code>sxml_function_library_make_record</code> makes a record of a built-in type by name (<code>sxml_record_make</code>). fn:parts-of-dateTime, fn:divide-decimals, fn:random-number-generator (and ?next), fn:regex, fn:matching-segments and its captured groups return annotated records; their rows name the types. The function items of a generator and of a compiled regex take their signatures from the record's field types, so ?take is <code>fn(xs:nonNegativeInteger) as xs:double*</code> (take(-1) and take(()) are XPTY0004) and ?next is <code>fn() as fn:random-number-generator-record</code>; fn:regex no longer looks its functions up in the function table.</p>
+      </item>
+      <item>
+        <p><strong>Coercion to a nominative record type</strong> (XPath 4.0, section 3.4.2): the rule of a structural record type, the new record annotated with the nominative type (<code>src/evaluator_function.c</code>), so a map coerces to fn:division-record. Matching stays nominative: an unannotated map is no instance. fn:build-dateTime keeps <code>map(*)?</code> and its own coercion (<ref kind="decision" to="D122"/>).</p>
+      </item>
+      <item>
+        <p><strong>idiv</strong>: a zero divisor is FOAR0001 before NaN or an infinite dividend (FOAR0002), so <code>INF idiv 0</code> is FOAR0001 (F&amp;O 4.0, op:numeric-integer-divide).</p>
+      </item>
+      <item>
+        <p>Measured (release driver, XP40, passed of cases): fn-parts-of-dateTime 8 to 20 of 20, fn-divide-decimals 19 to 21 of 21, fn-random-number-generator 50 to 54 of 61, fn-regex 27 to 29 of 30, fn-matching-segments 37 to 38 of 39, op-numeric-integer-divide 132 to 132 of 143 (wrong errors 2 to 0).</p>
+      </item>
+    </list>
+  </body>
+</decision>

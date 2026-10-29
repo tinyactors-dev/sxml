@@ -1,0 +1,4 @@
+<term id="counter_test" source="docs/GLOSSARY.md">
+  <name>counter_test</name>
+  <definition>A condition of a content model transition or final state: a content model counter's value lies in a range</definition>
+</term>

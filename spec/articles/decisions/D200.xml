@@ -1,0 +1,35 @@
+<decision id="D200" status="accepted" source="docs/DECISIONS.md">
+  <title>EXPath File (packet <ref kind="packet" to="7.9"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D184"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>, <ref kind="decision" to="D198"/>. The EXPath File Module 4.0 is the optional feature <code>sxml_expath_file_feature()</code> ("expath-file") over a host interface, the file system.</p>
+    <list>
+      <item>
+        <p><strong>Public, additive</strong>: <code>include/sxml/processor.h</code> gains the file system (<code>sxml_file_system</code>: an operations table with the directory, path and line separators and ten operations, describe, read, write, list, create_directory, remove, move, create_temporary, get_directory and canonicalize, each over request structs) and the configuration field <term name="file_system"/>, next to the resolver and the clock. <code>name.h</code> (frozen by <ref kind="decision" to="D99"/>) gains <code>SXML_NAMESPACE_EXPATH_FILE</code> = 14 (http://expath.org/ns/file); <code>SXML_NAMESPACE_WELL_KNOWN_COUNT</code> is 15.</p>
+      </item>
+      <item>
+        <p><strong>Opt-in twice</strong> (<ref kind="decision" to="D184"/>): the host names the feature and gives a file system. <code>sxml_all_optional_features()</code> leaves the feature out, so naming every feature never grants file access. Without the feature the functions are absent (XPST0017); with it and the null file system, every function that needs files raises file:io-error.</p>
+      </item>
+      <item>
+        <p><strong>Rows</strong>: 37 functions in <code>src/function_library_file.c</code>, the definition's <code>library_functions</code> (<ref kind="decision" to="D191"/>). Paths are made absolute against CURRENT and normalized lexically in the library, so the host sees only absolute paths; directory paths end with the separator. Text goes through <code>src/text_decoding.c</code> (decoding moved there by <ref kind="decision" to="D198"/>; the encoder of bin:encode-string moves there too). Errors are in the file namespace, filled into the error record (static text). file:move onto an existing directory moves into it, overwriting a file of the same name, as file:copy does.</p>
+      </item>
+      <item>
+        <p><strong>No recursion</strong> (<ref kind="decision" to="D71"/>): copy, delete, size and list of a directory walk it with a work list; file:descendants is a resumable body that asks the evaluator to call its filter and recurse predicates.</p>
+      </item>
+      <item>
+        <p><strong>System property</strong>: supports-file-library is a KNOWN_FUNCTION row (<ref kind="decision" to="D198"/>) for file:exists#1.</p>
+      </item>
+      <item>
+        <p><strong>CLI</strong>: <code>apps/sxml/platform_file_system.c</code> implements the interface over POSIX (realpath is a copy under WASI). <code>sxml xpath</code> and <code>sxml xquery</code> name the feature and pass the file system only with <code>--allow-file-access</code>; they bind the prefixes bin and file always. Windows is not implemented: initialization reports SXML_STATUS_UNSUPPORTED_FEATURE, and the CLI runs without files.</p>
+      </item>
+      <item>
+        <p><strong>QT4 driver</strong>: names the feature for a test case with a sandpit or the dependency feature expath-file. A sandpit is copied through the host file system to a fresh temporary root (root/sandpit is CURRENT, root/temp is TEMPORARY), served by a wrapping file system, and deleted after the case. expath-file is no longer a non-goal feature, nor expath-* a non-goal set, and sandpits are no longer unsupported.</p>
+      </item>
+      <item>
+        <p><strong>Counts</strong> (release driver): expath-file not run to 270 of 270 (XQ40) and 267 of 267 (XP40, 3 not run, XQuery-only); fn-system-properties 23 to 23 (supports-file-library passes; the -false case is not run).</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: about 66 KB of native code (x86-64, release), above the 20–30 KB estimate, none of it in <code>sxml.wasm</code> or <code>sxml-full.wasm</code>, which do not name the feature. The interface and the encoder move cost the modules +164 bytes (<code>sxml.wasm</code> 2,109,988 to 2,110,152 stripped at 531c5b6 and 10ca66e; <code>sxml-full.wasm</code> 2,214,413 to 2,214,593). The core was over its 2,100,000 bytes before this packet; the full module's 3,553,063 at 1e91f97 is fn:transform's (<ref kind="decision" to="D203"/>).</p>
+      </item>
+    </list>
+  </body>
+</decision>

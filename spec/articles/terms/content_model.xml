@@ -1,0 +1,4 @@
+<term id="content_model" source="docs/GLOSSARY.md">
+  <name>content_model</name>
+  <definition>The compiled form of a complex type's particle: a deterministic automaton over element names whose transitions are element declarations and schema wildcards, with counters for large maxOccurs (<ref kind="decision" to="D167"/>)</definition>
+</term>

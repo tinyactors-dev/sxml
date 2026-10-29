@@ -1,0 +1,4 @@
+<term id="kept_ast" source="docs/GLOSSARY.md">
+  <name>kept_ast</name>
+  <definition>An XPath AST a stylesheet lowering makes (a short text, a pattern's match expression) and keeps until it ends (<ref kind="decision" to="D152"/>)</definition>
+</term>

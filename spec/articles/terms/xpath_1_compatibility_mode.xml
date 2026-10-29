@@ -1,0 +1,4 @@
+<term id="xpath_1_compatibility_mode" source="docs/GLOSSARY.md">
+  <name>xpath_1_compatibility_mode</name>
+  <definition>The static context setting under which comparisons, arithmetic and function arguments follow XPath 1.0's conversions (XPath 4.0, section 2.2.1); XSLT sets it for elements whose effective version is below 2.0</definition>
+</term>

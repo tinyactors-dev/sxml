@@ -1,0 +1,4 @@
+<term id="attribute_set_invocation" source="docs/GLOSSARY.md">
+  <name>attribute_set_invocation</name>
+  <definition>One name in an <code>[xsl:]use-attribute-sets</code> attribute, a call of that attribute set with the current focus (XSLT 4.0, 10.2.1)</definition>
+</term>

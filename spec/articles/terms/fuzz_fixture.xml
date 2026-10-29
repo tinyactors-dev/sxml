@@ -1,0 +1,4 @@
+<term id="fuzz_fixture" source="docs/GLOSSARY.md">
+  <name>fuzz_fixture</name>
+  <definition>The objects every fuzz target makes fresh for each input (counting allocator, name pool, type registry, item heap, function library) and checks for leaks after it</definition>
+</term>

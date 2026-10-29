@@ -1,0 +1,4 @@
+<term id="xml_island" source="docs/GLOSSARY.md">
+  <name>xml_island</name>
+  <definition>An element the HTML method writes as XML because it is not an HTML element (Serialization 4.0, 7.1)</definition>
+</term>

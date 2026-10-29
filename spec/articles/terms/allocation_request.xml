@@ -1,0 +1,4 @@
+<term id="allocation_request" source="docs/GLOSSARY.md">
+  <name>allocation_request</name>
+  <definition>Byte count and alignment of one allocation</definition>
+</term>

@@ -1,0 +1,34 @@
+<packet id="7.11" source="docs/tasks/phase-7.md">
+  <title>fn:transform (implementation)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: F&amp;O 4.0, fn:transform (the options map: stylesheet-location, stylesheet-node, stylesheet-text, package-name, initial-mode, initial-template, initial-function, source-node, global-context-item, stylesheet-params, static-params, delivery-format, post-process, requested-properties, and others; the result map of principal and secondary results; FOXT0001 to FOXT0006); XSLT 4.0, 2.3 (initiating a transformation).</p>
+      </item>
+      <item>
+        <p><strong>Unlocks</strong>: XQ40 133 (fn-transform-XSLT; 21 of them ask for XSLT 3.0, which a 4.0 processor serves), XP40 129, and the XT40 <code>transform</code> set (12 cases, 9 failing).</p>
+      </item>
+      <item>
+        <p><strong>Replaces</strong>: the function is absent (XPST0017); supports-dynamic-xslt is false.</p>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong>: the XSLT layer supplies the function, as XQuery supplies fn:load-xquery-module (<code>src/xquery_load_module.c</code>, <ref kind="decision" to="D154"/>). Its body compiles the stylesheet with <code>xslt.h</code>'s compiler, then runs the transformation as a unit evaluation with XSLT's <term name="unit_evaluation_extension"/> (<ref kind="decision" to="D157"/>). Result documents are collected into the result map (<term name="result_delivery"/> raw or as trees). No nested run happens (<ref kind="decision" to="D71"/>).</p>
+      </item>
+      <item>
+        <p><strong>Header</strong>: with option 2, <code>xslt.h</code> exports <code>sxml_xslt_transform_feature()</code>, so XPath and XQuery hosts that never name it do not link XSLT. Otherwise none (the XSLT and XQuery processors install it as a layer table).</p>
+      </item>
+      <item>
+        <p><strong>After</strong>: 7.2.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: new <code>src/xslt_transform_function.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: 10–20 KB in the CLI; 0 in <code>sxml.wasm</code> unless the package names the feature (then about 1.16 MB, measured as XSLT's cost in <ref kind="decision" to="D157"/>).</p>
+      </item>
+      <item>
+        <p><strong>Gate</strong>: ≥ 80 % of the 133 and all 12 XT40 cases. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D203"/>): QT4 fn-transform 129 of the 133 run (XQ40; XP40 126 of 130), gate met; XT40 transform 9 of 12, not all: a static fn:transform (transform-004), a ~record pattern (transform-401) and an assertion the driver does not check (transform-009). The rest is <ref kind="decision" to="D203"/>'s "Not done".</p>
+      </item>
+    </list>
+  </body>
+</packet>

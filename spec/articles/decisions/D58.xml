@@ -1,0 +1,26 @@
+<decision id="D58" status="accepted" source="docs/DECISIONS.md">
+  <title>Type registry internals and the subtype search (packet <ref kind="packet" to="1.6"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>.</p>
+    <list>
+      <item>
+        <p><strong>Storage</strong>: built-in descriptions are static (<code>src/types_builtin.c</code>); their names are interned at initialization and found through a fixed 256-slot index inside the registry. Registered types are an entry array plus two open-addressing indexes (structure, names), as in <ref kind="decision" to="D54"/>; copied views live in an arena of 4 KiB blocks, released at finalize. A registration that fails after copying leaves its copies unused there.</p>
+      </item>
+      <item>
+        <p><strong>Normal form</strong>: registered descriptions are normalized before interning (name test fields its kind does not use cleared; <code>allows_nilled</code> only on <code>element(N, T)</code>; <code>map(*)</code>, <code>array(*)</code>, <code>function(*)</code> and <code>jnode(*)</code> carry their explicit equivalents, as the built-ins do), so <code>map(*)</code> with any key gives <code>SXML_TYPE_MAP</code> and a node test of kind any gives xnode(). node() and xnode() share a description; node() is told apart by identifier. A choice of one member is that member.</p>
+      </item>
+      <item>
+        <p><strong>Rejected on registration</strong> (INVALID_ARGUMENT): duplicate enumeration values and duplicate field names (the front end removes duplicate enum values first), empty choices and enumerations, map keys that are not atomic, union or enumeration types, <code>document-node()</code> around anything but element tests, JNode key constants outside the six key types.</p>
+      </item>
+      <item>
+        <p><strong>Subtyping</strong> follows XPath 4.0 §3.3.2 rule by rule; transitivity is built into the rules where it adds pairs (maps, arrays, records as functions; records as maps; nominative records as their structural twin). A choice as derived type is split first (every member), then a choice as base (some member, else the abstract expansion of xs:anyAtomicType, xnode(), node(), item()); <code>document-node(element(a|b))</code> is split per element. Two places are slightly more permissive than the letter of §3.3.2.2 (a derived member is compared with the whole base choice, so a union member may spread over several base members); both are sound. Without schemas (Phase 5) schema-element/-attribute tests are subtypes only of themselves, <code>element()</code>/<code>attribute()</code> and same-name <code>attribute(N)</code>. JNode key constants compare by type and lexical form.</p>
+      </item>
+      <item>
+        <p><strong>Budget</strong>: one question may nest 128 deep and apply 10⁶ rules. Every rule is monotone, so running out answers false, never a wrong true; this bounds work on hostile types.</p>
+      </item>
+      <item>
+        <p><strong>No recursion (<ref kind="decision" to="D71"/>)</strong>: the rules reduce a question to an and/or tree of subtype goals, evaluated left to right with short-circuiting on an explicit stack of subtype frames; the last sub-goal of a frame replaces it, so array(array(...)) and function results take one frame however deep. The header promises the subtype queries never allocate, so the 192 frames (about 6 KiB under wasm, 9 KiB on 64-bit) are a fixed array in the query's own C frame; the 128 depth is unchanged. A goal that would need a 193rd frame is false: only choices nested inside choices (an enumeration value or document-node() searched through a base choice of choices) need frames without depth. Derivation tries union members depth first on a fixed stack of 256 (the old derivation depth).</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="status" source="docs/GLOSSARY.md">
+  <name>status</name>
+  <definition>The result code of a fallible function (<code>sxml_status</code>)</definition>
+</term>

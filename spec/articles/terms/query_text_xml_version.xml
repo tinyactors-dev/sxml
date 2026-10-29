@@ -1,0 +1,4 @@
+<term id="query_text_xml_version" source="docs/GLOSSARY.md">
+  <name>query_text_xml_version</name>
+  <definition>The version of XML whose rules XQuery query text is read by, a processor option (<code>reads_query_text_as_xml_1_1</code>): XML 1.0 by default, or XML 1.1 for line ends, character references and namespace undeclaration in direct constructors (XQuery 4.0, xgc: xml-version; <ref kind="decision" to="D275"/>)</definition>
+</term>

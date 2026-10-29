@@ -1,0 +1,38 @@
+<packet id="6.2" source="docs/tasks/phase-6.md">
+  <title>The host shim (implementation, here)</title>
+  <body>
+    <p><status value="done" date="2026-10-20"/> (<ref kind="decision" to="D240"/>): <code>bindings/host/</code> and target <code>sxml_host</code>, the resolver as a state and a function, three JavaScript export files, <code>tests/host_shim_test.c</code>; <code>sxml.wasm</code> +388 bytes, <code>sxml-full.wasm</code> +561. After <ref kind="packet" to="6.1"/>. Owns new <code>bindings/host/</code> (<code>sxml_host.h</code>, <code>sxml_host_internal.h</code>, <code>sxml_host.c</code>, <code>sxml_host_xquery.c</code>, <code>sxml_host_xslt.c</code>, <code>sxml_host_schema.c</code>, <code>sxml_host_full.c</code>, <code>sxml_host_core_features.c</code>, <code>sxml_host_full_features.c</code>, <code>CMakeLists.txt</code>), and the JavaScript shim files it replaces in <code>bindings/javascript/</code> (they become <code>sxml_javascript_exports.c</code> and <code>sxml_javascript_host.c</code>: the export names and the <code>sxml_host.resolve</code> import), <code>bindings/javascript/CMakeLists.txt</code>, and the top-level <code>CMakeLists.txt</code> line that adds <code>bindings/host</code>.</p>
+    <list>
+      <item>
+        <p>Moves the shim as it is, renamed <code>sxml_host_*</code>. It is still written against the public API only (<ref kind="decision" to="D138"/>).</p>
+      </item>
+      <item>
+        <p>The processor configuration gains <code>sxml_host_resolver { void *state; uint32_t (*resolve)(void *state, const sxml_host_resource_request *, sxml_host_resource *); }</code>. Under WASI, the JavaScript export passes a function that calls the import.</p>
+      </item>
+      <item>
+        <p>The static assertions on 32-bit fields apply under <code>__wasm__</code> only.</p>
+      </item>
+      <item>
+        <p>Glossary: <term name="javascript_shim"/> now names the export file.</p>
+      </item>
+      <item>
+        <p>Done when:</p>
+        <list>
+          <item>
+            <p><code>src/index.ts</code> is unchanged;</p>
+          </item>
+          <item>
+            <p><code>javascript/package</code>, <code>javascript/package_full</code> and <code>javascript/languages_full</code> pass under the <code>wasm</code> preset (WASI SDK and Node are installed here);</p>
+          </item>
+          <item>
+            <p><code>sxml.wasm</code> and <code>sxml-full.wasm</code> are within 1 KB of their size before (report both);</p>
+          </item>
+          <item>
+            <p>a native unit test (<code>tests/host_shim_test.c</code>) runs parse, compile, evaluate and serialize through a resolver function under the <code>debug</code> preset, with 0 leaks.</p>
+          </item>
+        </list>
+      </item>
+    </list>
+    <p>Golden: <code>bindings/javascript/sxml_javascript.c</code>.</p>
+  </body>
+</packet>

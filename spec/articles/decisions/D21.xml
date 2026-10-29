@@ -1,0 +1,17 @@
+<decision id="D21" status="accepted" source="docs/DECISIONS.md">
+  <title>Error records and diagnostics hold borrowed views</title>
+  <body>
+    <p><recorded date="2026-10-16"/> (task 0.5). <code>sxml_diagnostic</code> (description + <code>sxml_source_location</code>: source name, line, column in codepoints, byte offset) receives details of any failure. <code>sxml_error_record</code> adds the error code (<code>sxml_error_code</code>: namespace URI, local name, display prefix) and the error value (<code>const sxml_sequence *</code>, forward-declared in <code>status.h</code>; <code>xdm.h</code> in task 0.7 must define <code>struct sxml_sequence</code>). Together they carry what an XQuery catch clause binds: <code>$err:code</code>, <code>$err:description</code>, <code>$err:value</code>, <code>$err:module</code>, <code>$err:line-number</code>, <code>$err:column-number</code>.</p>
+    <list>
+      <item>
+        <p>All text is borrowed views: static text for errors sxml raises itself (so the common case allocates nothing), or memory owned by the object that raised the error (fn:error with a computed description or value). They are valid until that object is next used or finalized. No fixed-capacity description buffer: it would put a frozen size into the ABI and truncate.</p>
+      </item>
+      <item>
+        <p><code>SXML_STATUS_STATIC_ERROR</code>, <code>_DYNAMIC_ERROR</code>, <code>_TYPE_ERROR</code> mean "details in the error record" (<code>sxml_status_has_error_record</code>); every other status is a condition of the C interface.</p>
+      </item>
+      <item>
+        <p>Amended by <ref kind="decision" to="D41"/>: computed descriptions and values are kept by the item heap, which a native function body can reach, rather than by "the object that raised the error", which a body does not have.</p>
+      </item>
+    </list>
+  </body>
+</decision>

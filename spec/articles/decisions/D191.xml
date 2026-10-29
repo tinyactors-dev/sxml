@@ -1,0 +1,17 @@
+<decision id="D191" status="accepted" source="docs/DECISIONS.md">
+  <title>Optional features add library functions (packet 7.10a)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D45"/>, <ref kind="decision" to="D101"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D189"/>. A feature whose <ref kind="decision" to="D162"/> place is "the functions are absent" (XPST0017: fn:parse-html and fn:html-doc, the EXPath Binary and File functions) must not link its rows into a program that does not name it, so its rows cannot be a library part of <code>src/function_library_*.c</code> (the registry links every part).</p>
+    <list>
+      <item>
+        <p><code>sxml_optional_feature_definition</code> (src/optional_feature_internal.h) gains <code>library_functions</code>: a <code>const sxml_native_function_view *</code> of static const rows in the feature's own files, or NULL.</p>
+      </item>
+      <item>
+        <p>The processor's function library serves every registered XPath part, then the <code>library_functions</code> of each configured feature in kind order (<code>sxml_processor_make_library_part_list</code> in src/processor.c). The list lives in allocator memory only while the library is initialized (the library does not keep it). XQuery and XSLT chain their own tables in front of the processor's, so they see the feature's functions too.</p>
+      </item>
+      <item>
+        <p>Without the feature the functions are absent, as before: XPST0017 at compile time, false from fn:function-available, nothing from fn:function-lookup. A feature's file that holds rows names its view differently from <code>sxml_function_library_&lt;part&gt;</code>, so the CMake registry (cmake/SxmlParts.cmake) does not take it as a part.</p>
+      </item>
+    </list>
+  </body>
+</decision>

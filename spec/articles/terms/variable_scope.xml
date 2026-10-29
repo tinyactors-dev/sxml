@@ -1,0 +1,4 @@
+<term id="variable_scope" source="docs/GLOSSARY.md">
+  <name>variable_scope</name>
+  <definition>The variables visible at one point of an expression, innermost binding first</definition>
+</term>

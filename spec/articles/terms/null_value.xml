@@ -1,0 +1,4 @@
+<term id="null_value" source="docs/GLOSSARY.md">
+  <name>null_value</name>
+  <definition>The value that stands for JSON null in <code>fn:parse-json</code> (option <code>null</code>, the empty sequence by default)</definition>
+</term>

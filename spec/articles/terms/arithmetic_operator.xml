@@ -1,0 +1,4 @@
+<term id="arithmetic_operator" source="docs/GLOSSARY.md">
+  <name>arithmetic_operator</name>
+  <definition>What an arithmetic expression computes: add, subtract, multiply, divide, integer divide or modulo (XPath 4.0, section 4.9)</definition>
+</term>

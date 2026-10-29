@@ -1,0 +1,4 @@
+<term id="declared_function" source="docs/GLOSSARY.md">
+  <name>declared_function</name>
+  <definition>A function declared in a prolog; one IR function of the unit per arity of its arity range</definition>
+</term>

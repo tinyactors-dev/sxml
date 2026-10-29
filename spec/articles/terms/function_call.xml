@@ -1,0 +1,4 @@
+<term id="function_call" source="docs/GLOSSARY.md">
+  <name>function_call</name>
+  <definition>What a function body receives: the function item, the arguments, the dynamic context</definition>
+</term>

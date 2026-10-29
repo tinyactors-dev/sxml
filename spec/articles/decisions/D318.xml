@@ -1,0 +1,29 @@
+<decision id="D318" status="accepted" source="docs/DECISIONS.md">
+  <title>Source locations for parsed input documents (packet <ref kind="packet" to="7.29"/>)</title>
+  <body>
+    <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D313"/> (7, 8), <ref kind="decision" to="D87"/>, <ref kind="decision" to="D88"/>, <ref kind="decision" to="D99"/>.</p>
+    <list>
+      <item>
+        <p><strong>Header</strong> (additive after <ref kind="decision" to="D99"/>, packet <ref kind="packet" to="7.29"/>): <code>include/sxml/processor.h</code> gains <code>sxml_source_location_policy</code> (<code>AUTOMATIC</code> = 0, <code>ALWAYS</code>, <code>NEVER</code>) and, at the end of <code>sxml_processor_configuration</code>, <code>sxml_source_location_policy source_location_policy;</code> (another value makes the configuration invalid). <code>include/sxml/tree.h</code> (frozen) gains one function, <code>sxml_node_get_location(node, &amp;location)</code>: dm:location over the tree's <code>get_location</code>, line 0 when unknown, for hosts (the CLI's error report, which uses the public API only) and for sxml's own copies. Nothing else in a frozen header changes.</p>
+      </item>
+      <item>
+        <p><strong>The program's flag</strong> (glossary <term name="reads_source_locations"/>): one bool per IR unit, set by <code>sxml_ir_unit_add_expression</code> and <code>_replace_expression</code> when a STATIC_CALL or FUNCTION_REFERENCE names a native row with the new property <code>SXML_NATIVE_FUNCTION_READS_SOURCE_LOCATIONS</code>: fn:location, fn:function-lookup, fn:load-xquery-module, fn:transform and xsl:evaluate's row. One place for XPath, XQuery and XSLT, no pass and no new IR kind. <code>sxml_ir_unit_set_reads_source_locations</code> is for a front end whose reports need locations (Schematron, 7.28: <ref kind="decision" to="D315"/>'s <code>node_location</code>). A unit whose in-scope schemas include any but the processor's built-in ones also reads them (it can validate, <code>sxml_processor_unit_reads_source_locations</code>).</p>
+      </item>
+      <item>
+        <p><strong>What AUTOMATIC decides by</strong> (glossary <term name="location_demand"/>, in the processor): whether a program has been compiled, whether one of those reads locations (noted by the public compile functions of XPath, XQuery and XSLT, and by <code>sxml_schema_initialize</code>: a schema is a validation; the processor's built-in schemas leave it as it was), and the evaluation in progress. <code>sxml_evaluate_unit</code> begins and ends each evaluation with its unit's answer, or'ed with the enclosing evaluation's (fn:transform, fn:load-xquery-module, a host function). <code>sxml_processor_parse_document</code>, the one parse behind fn:doc, fn:document, fn:parse-xml, the CLI's fn:collection and a resolver's DOCUMENT_NODE, keeps locations when: ALWAYS; never under NEVER; under AUTOMATIC, during an evaluation as it says, otherwise when no program has been compiled or one compiled reads them (<ref kind="decision" to="D313"/>, 7).</p>
+      </item>
+      <item>
+        <p><strong>Copies keep what they copy</strong>: <code>sxml_tree_builder_copy_node</code> passes each node's location in its events when the copied root has one (one question per copy, so a copy of a tree without locations costs nothing more), and XSLT's whitespace-stripped source documents (<code>src/xslt_whitespace.c</code>) keep locations when the document did; so <code>location(.)</code> answers for a stylesheet's input under xsl:strip-space, and a validated copy keeps its input's lines.</p>
+      </item>
+      <item>
+        <p><strong>Errors</strong> (<ref kind="decision" to="D313"/>, 8): an error "names an input node" when its value (<code>$err:value</code>: fn:error's third argument, an xsl:message's select) holds a node; the record's own location stays the expression's (the frozen <code>sxml_error_record</code> has one), and the CLI prints a second line <code>FILE:LINE:COLUMN: the node the error names</code> for the first node of the value whose document kept locations (<code>sxml_query_run_fail</code>). <code>src/evaluator.c</code> is unchanged. fn:error is not a reason to keep locations (<ref kind="decision" to="D313"/>'s list is the owner's); <code>--locations=always</code> gives them to a program that cannot ask.</p>
+      </item>
+      <item>
+        <p><strong>CLI</strong>: <code>--locations=automatic|always|never</code> for xpath, xquery and transform (<code>SXML_QUERY_LOCATIONS_OPTION</code>); xpath and xquery compile before they parse <code>--context-item</code> (<code>sxml_query_run_read_context_item</code>), so a static error is now reported before a context document that does not parse. 9 CLI tests, 21 goldens with the new usage line.</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release, the 26 MB, 2.5 million node document of <ref kind="decision" to="D313"/>, peak RSS): <code>xpath --context-item count(//line)</code> 173 MB under automatic and never, 249 MB under always; <code>location((//line)[last()])</code> 249 MB under automatic; xquery <code>count(doc(...)//line)</code> 175 MB automatic, 251 MB always; transform with <code>count(//line)</code> 174 MB automatic, 250 MB with <code>location()</code>. Before the change every case was 171-175 MB.</p>
+      </item>
+    </list>
+  </body>
+</decision>

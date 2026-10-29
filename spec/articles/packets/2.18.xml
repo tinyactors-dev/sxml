@@ -1,0 +1,6 @@
+<packet id="2.18" source="docs/tasks/phase-2.md">
+  <title>JavaScript package and first public release (implementation)</title>
+  <body>
+    <p>After <ref kind="packet" to="2.12"/>, <ref kind="packet" to="2.16"/>. Owns new <code>bindings/javascript/</code>, <code>tools/run-wasi.mjs</code>, <code>docs/RELEASE.md</code>. The hand-written TypeScript package of <ref kind="decision" to="D10"/> over the <code>wasm</code> module: parse, compile and evaluate XPath, adaptive output, a resolver callback; Node.js tests in ctest under <code>wasm</code>; size budget kept (1.28). Release 0.2.0: version macros, changelog, headers marked stable. <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D138"/>): shim, <code>sxml.wasm</code>, TypeScript package and Node.js tests in ctest under <code>wasm</code>; budget raised to 2.0 MB / 700 KB after Phase 2 growth (Proposed); version 0.2.0, <code>CHANGELOG.md</code>, <code>docs/RELEASE.md</code>. Tag and npm publication left to the owner.</p>
+  </body>
+</packet>

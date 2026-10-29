@@ -1,0 +1,4 @@
+<term id="operator_function" source="docs/GLOSSARY.md">
+  <name>operator_function</name>
+  <definition>A function item made by <code>fn:op</code>: <code>fn($x, $y) { $x op $y }</code> for one binary operator</definition>
+</term>

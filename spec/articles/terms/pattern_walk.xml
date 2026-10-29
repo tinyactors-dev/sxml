@@ -1,0 +1,4 @@
+<term id="pattern_walk" source="docs/GLOSSARY.md">
+  <name>pattern_walk</name>
+  <definition>The descent of a compiled schematron pattern's mode: its traversal templates and the template rules of its rules apply templates to the element children of document and element nodes, and to their attributes, text, comment and processing-instruction children only where one of the pattern's rule contexts may match that node kind (perf-14, <ref kind="decision" to="D326"/>)</definition>
+</term>

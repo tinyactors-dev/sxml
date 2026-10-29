@@ -1,0 +1,4 @@
+<term id="u_type" source="docs/GLOSSARY.md">
+  <name>u_type</name>
+  <definition>A set of fundamental item types (node kinds, primitive atomic types, function items), the static type of streamability analysis (XSLT 4.0, 19.1)</definition>
+</term>

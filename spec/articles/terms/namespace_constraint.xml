@@ -1,0 +1,4 @@
+<term id="namespace_constraint" source="docs/GLOSSARY.md">
+  <name>namespace_constraint</name>
+  <definition>Which namespaces a schema wildcard allows: any, an enumeration, or all but an enumeration (<code>not</code>)</definition>
+</term>

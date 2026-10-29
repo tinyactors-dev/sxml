@@ -1,0 +1,4 @@
+<term id="xsd_test_set" source="docs/GLOSSARY.md">
+  <name>xsd_test_set</name>
+  <definition>One <code>testSet</code> file of the XSD test suite, named in reports by its directory without <code>Meta</code> and its file name without extension (<code>saxon-Assert</code>, <code>ms-DataTypes_w3c</code>); the directory is its contributor area</definition>
+</term>

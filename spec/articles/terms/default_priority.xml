@@ -1,0 +1,4 @@
+<term id="default_priority" source="docs/GLOSSARY.md">
+  <name>default_priority</name>
+  <definition>The priority of a template rule without a priority attribute, computed from the form of its pattern (XSLT 4.0, 6.4)</definition>
+</term>

@@ -1,0 +1,32 @@
+<decision id="D292" status="accepted" source="docs/DECISIONS.md">
+  <title>The codegen chapter builds a tree of the TypeScript program and prints it with XSLT (packet book-4)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D257"/>, <ref kind="decision" to="D282"/>, <ref kind="decision" to="D285"/>, <ref kind="decision" to="D288"/>. The owner: for the codegen examples, a tree of the TypeScript code translated with XSLT is easier to follow in the book than endless string concatenation.</p>
+    <list>
+      <item>
+        <p><strong>Pipeline.</strong> api.xml and library.xsd go through <code>program.xq</code> (XQuery, the library module <code>typescript.xqm</code>) to a <em>program tree</em>, <code>generated/program.xml</code>, then through <code>print.xsl</code> (XSLT) to types.ts, client.ts and server.ts, one <code>xsl:result-document</code> per <code>module</code>; <code>openapi.xsl</code> is unchanged. <code>generate.xq</code> (fn:put of string-constructor text) is gone; <code>generate.sh</code> runs validate, the query with <code>--output</code>, the printer with <code>--result-directory</code>, and the OpenAPI stylesheet.</p>
+      </item>
+      <item>
+        <p><strong>Vocabulary: our own, not tree-sitter's.</strong> sxml:parse-code's tree is concrete (every token and space; its string value is the source), so writing one means writing the text anyway. The generator writes an abstract tree in no namespace, named after TypeScript's words: module, comment, doc, import, type-alias, interface, property, method, function, parameter, returns, body, type, array-type, union, predicate, statement, const, return, if/then/else, for-of, name, string, number, boolean, regex, call (function or method of the first child), member, not, binary (named operators, n-ary), await, array, object/entry, arrow. Names are attributes, parts children; a string holds its text, not a literal. tree-sitter's names are used where code is read: the round-trip check.</p>
+      </item>
+      <item>
+        <p><strong>Printer.</strong> One template rule per element; layout in one place: an indentation function counting enclosing blocks, a priority-1 rule for every line that wraps xsl:next-match, a priority-2 rule for empty lines, a <code>print:braces</code> function (one-statement <code>then</code> without else stays on the if's line). No parentheses rules: the generator never nests binary expressions (said in the text). An unknown element is an error. <code>braces.xsl</code> imports it and overrides <code>$indent</code> and <code>print:braces</code>: the same tree in a second style.</p>
+      </item>
+      <item>
+        <p><strong>Imports are computed from the tree</strong> (ts:module): names the types module declares come from ./types.ts (type-only for types), called functions declared nowhere from ../runtime.ts. The unused checkDecimal import is gone as a result.</p>
+      </item>
+      <item>
+        <p><strong>Round trip.</strong> <code>check.xq</code> parses the printed files with sxml:parse-code (typescript) and raises local:mismatch when a client function lacks an Implementation method or a createHandler route, a runtime import is not exported by runtime.ts, or the client lacks a function of the tree.</p>
+      </item>
+      <item>
+        <p><strong>String constructors</strong> stay only as the one-line contrast at the start of the section, where the text says they are the simplest tool for a line or two; the book's glossary entry says the same, and gains "Printer" and "Syntax tree".</p>
+      </item>
+      <item>
+        <p><strong>Sections.</strong> codegen-typescript.md ("Building a Tree of the Program with XQuery"), new codegen-printer.md ("Printing the Tree with XSLT"), codegen-running.md unchanged, codegen-pipeline.md gains "Checking the generated code". The generated TypeScript changed only in its header comment, the dropped import, brace-less one-statement ifs and one folded concatenation.</p>
+      </item>
+      <item>
+        <p><strong>Verified</strong>: check-book-examples.sh on a release build of a HEAD snapshot: the five codegen files, 46 examples, all match (the Node section with SXML_JAVASCRIPT set to an empty directory, since it imports no package; the package was not built); tsc --strict (6.0.2, @types/node) on demo.ts and the generated files, in both styles and for library-2.xsd; mdbook build. No library bug found.</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="type_match_frame" source="docs/GLOSSARY.md">
+  <name>type_match_frame</name>
+  <definition>An entry on the explicit stack of matching a value against a sequence type (instance of, treat as, coercion)</definition>
+</term>

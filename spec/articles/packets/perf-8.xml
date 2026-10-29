@@ -1,0 +1,17 @@
+<packet id="perf-8" source="docs/tasks/phase-7.md">
+  <title>Cheap coercion of function arguments (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D85"/> (coercion), <ref kind="decision" to="D281"/> (XSLT coercion casts), <ref kind="decision" to="D309"/> and <ref kind="decision" to="D310"/>. A callgrind profile of SchXslt's expand stage of EN 16931 (with SchXslt's sort-once fix, the step bound raised in a scratch build; 75.3 x 10^9 instructions, 10.5 s) puts 33 % in <code>sxml_evaluator_coerce</code>, called 8.1 million times from <code>sxml_make_leaf_value</code>: about 3,000 instructions a coercion. Each one creates and finishes a sequence builder (4.1 million), atomizes (2.7 million), casts (1.4 million, mostly xs:untypedAtomic attribute values to xs:string) and matches the sequence type (3.4 million), even when the argument is one item that already has the required type.</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: profile first, then general fast paths in the one coercion (XPath 4.0, 3.4.3 "Coercion Rules"; XSLT 4.0 and XQuery 4.0 use the same): an argument that already matches the required type passes through untouched, without a builder; a single atomic item needs no builder either; the result of a type match is not computed twice. No change of outcome, error code or step count beyond what the D-record states and justifies.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/evaluator_function.c</code>, <code>src/evaluator.c</code> (its <code>sxml_make_leaf_value</code> and the call paths into coercion), <code>src/function_library_type.c</code>, <code>tests/bench/</code> (a new <code>coercion.xq</code>), <code>tests/evaluator_test.c</code> for new cases.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: each change measured before and after (instructions and seconds) in a D-record and the commit messages, on the new benchmark and on xmark-all; no QT4 XP40, XQ40 or XT40 outcome changes, case by case, over the whole suites (coercion is everywhere); <ref kind="decision" to="D71"/>, the memory limits and honest step counts kept. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D316"/>): single-item shortcuts in the one matcher and the one coercion: no item or one item matched by the item rules without frames, one item coerced to an atomic type through the atomic coercion rules once, without the engine, its builders or a second match; the frames out of the structs. SchXslt's expand stage 75.27 to 61.68 x 10^9 instructions (coercion 24.88 to 11.21), coercion.xq (new) 3.775 to 2.847, xmark-all 8.737 to 8.735; QT4 XP40, XQ40 and XT40 whole: 0 outcomes differ, case by case.</p>
+      </item>
+    </list>
+  </body>
+</packet>

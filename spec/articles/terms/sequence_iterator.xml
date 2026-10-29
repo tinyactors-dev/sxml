@@ -1,0 +1,4 @@
+<term id="sequence_iterator" source="docs/GLOSSARY.md">
+  <name>sequence_iterator</name>
+  <definition>Walks the items of a sequence in order</definition>
+</term>

@@ -1,0 +1,26 @@
+<packet id="5.11" source="docs/tasks/phase-5.md">
+  <title>Schema-aware XPath and XQuery (design and implementation)</title>
+  <body>
+    <p>After <ref kind="packet" to="5.7"/>. Owns <code>include/sxml/xpath.h</code> (one field, with a record), <code>src/xpath_static.c</code>, <code>src/xquery_static.c</code>, <code>src/xquery_lower.c</code>, <code>src/function_library_json.c</code> (the xsd-validation option), <code>src/function_library_type.c</code>, new <code>src/function_library_schema.c</code>, <code>tests/qt4/driver/</code> (schema environments), <code>tests/xquery_schema_test.c</code>. Each delayed feature replaces its one rejection point (<ref kind="decision" to="D162"/>):</p>
+    <list>
+      <item>
+        <p><code>sxml_static_context_configuration.in_scope_schemas</code>, a view of compiled schemas at the end of the struct (empty: not schema-aware, as today): their types, element and attribute declarations are the in-scope schema definitions (XPath 4.0, 2.2.1); a type name resolves to a built-in type first, then in the first schema that has it (XPST0051 otherwise).</p>
+      </item>
+      <item>
+        <p>schema-element(N) and schema-attribute(N) (the XPST0008 place in <code>src/xpath_static.c</code>): resolved statically to the choice of element(M, T) tests over N's substitution group (each non-abstract member M with its declared type T, <code>?</code> when M is nillable), and to attribute(N, T): the registry's existing node tests and subtype rules then give matching and subtyping (XPath 4.0, 3.2.7.3 and 3.3.2), with no schema reference in the type registry.</p>
+      </item>
+      <item>
+        <p>XQuery <code>import schema</code> (the XQST0009 place in <code>src/xquery_static.c</code>): the module's imports compile one <code>sxml_schema</code> (RESOLVED documents with the location hints, target namespaces checked; XQST0035, XQST0059, XQST0012 with the constraint name in the description); a namespace a host in-scope schema defines is taken from it, not read again.</p>
+      </item>
+      <item>
+        <p>XQuery <code>validate</code> (the XQST0075 place in <code>src/xquery_lower.c</code>): an internal native over <code>sxml_schema_validate_node</code> (lax, strict, type; XQDY0027, XQDY0061, XQDY0084, XQST0104); construction mode preserve annotates constructed elements xs:anyType.</p>
+      </item>
+      <item>
+        <p><code>fn:xsd-validator</code> (F&amp;O 4.0) in a new library part; the xsd-validation option of fn:doc and fn:parse-xml (the FODC0009 place); fn:schema-type and node-type-annotation with registered schema types; casts to types with assertions run them after <code>src/cast.c</code>.</p>
+      </item>
+      <item>
+        <p>The QT4 driver reads <code>&lt;schema&gt;</code> environments into in-scope schemas and stops excluding schemaImport, schemaValidation and typedData; the dashboard counts them as a new area "schema-aware". Done when the schema-aware XQ40 cases (about 1,100, 160 of them XP40) pass ≥ 70% and XP40 and XQ40 have not dropped. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D174"/>): in-scope schemas, import schema, validate, schema-element and schema-attribute, schema-type casts and constructors, fn:xsd-validator, fn:parse-xml's xsd-validation, the driver's schema environments. Schema-aware XQ40 1,231 of 1,516 (81.2 %), XP40 279 of 315; XP40 30,924 and XQ40 41,261 passed, 0 errors.</p>
+      </item>
+    </list>
+  </body>
+</packet>

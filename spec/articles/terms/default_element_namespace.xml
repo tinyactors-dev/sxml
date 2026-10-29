@@ -1,0 +1,4 @@
+<term id="default_element_namespace" source="docs/GLOSSARY.md">
+  <name>default_element_namespace</name>
+  <definition>The namespace of unprefixed element and type names in the static context</definition>
+</term>

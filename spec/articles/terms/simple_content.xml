@@ -1,0 +1,4 @@
+<term id="simple_content" source="docs/GLOSSARY.md">
+  <name>simple_content</name>
+  <definition>The string a sequence constructor or value makes for an attribute, comment, PI, namespace or value template: adjacent text nodes merged, zero-length ones dropped, then atomized and joined with a separator (XSLT 4.0, 5.7.2)</definition>
+</term>

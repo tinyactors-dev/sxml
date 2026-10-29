@@ -1,0 +1,4 @@
+<term id="file_reader" source="docs/GLOSSARY.md">
+  <name>file_reader</name>
+  <definition>Interface through which a command of the sxml program reads a named file or standard input (<code>sxml_cli_file_reader</code>)</definition>
+</term>

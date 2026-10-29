@@ -1,0 +1,4 @@
+<term id="node_segment" source="docs/GLOSSARY.md">
+  <name>node_segment</name>
+  <definition>One of the blocks holding an arena tree's nodes; segment k holds 16·2^k nodes, so nodes never move as the tree grows</definition>
+</term>

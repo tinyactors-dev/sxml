@@ -1,0 +1,4 @@
+<term id="template_parameter" source="docs/GLOSSARY.md">
+  <name>template_parameter</name>
+  <definition>An <code>xsl:param</code> of a template; the host passes values to those of the initial template or of the rules of the initial mode</definition>
+</term>

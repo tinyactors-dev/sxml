@@ -1,0 +1,20 @@
+<decision id="D162" status="accepted" source="docs/DECISIONS.md">
+  <title><ref kind="decision" to="D97"/>'s exclusions are delays, not non-goals (owner)</title>
+  <body>
+    <p><recorded date="2026-10-18"/> on the owner's word: "<ref kind="decision" to="D97"/> is accepted only as a delay -- these features need to be supported ultimately." Amends <ref kind="decision" to="D97"/> and the "Not in year one" list of PLAN.md.</p>
+    <list>
+      <item>
+        <p><ref kind="decision" to="D97"/> still fixes what Phases 2 to 4 deliver and what their gates count (<ref kind="decision" to="D95"/>); nothing in those phases changes.</p>
+      </item>
+      <item>
+        <p>Everything <ref kind="decision" to="D97"/> leaves out is owed later, not dropped: full UCA (DUCET, tailoring, numeric and case-order options; advanced-uca-fallback), fn:parse-html and fn:html-doc (an HTML5 tree builder), invisible XML, schema awareness (validate, XSLT validation and type attributes), streaming, the XQuery Update Facility, Full Text, EXPath, XPath 1.0 compatibility mode and XSLT backwards-compatible behaviour, civil-timezone and Olson names (a timezone database), calendars other than AD and ISO and languages other than English in the formatting functions, and fn:transform.</p>
+      </item>
+      <item>
+        <p>Schema awareness stays Phase 5. The rest becomes Phase 7 ("Deferred features" in PLAN.md), planned in <code>docs/tasks/phase-7.md</code> after the Phase 4 gate, one packet per feature, each with its QT4 or xslt40-test sets counted once it lands.</p>
+      </item>
+      <item>
+        <p>Until then, code that rejects or ignores one of these features does it in one place each, with the error the specification gives a processor without the feature, so that adding it later replaces that place instead of unpicking special cases (the design principle in CLAUDE.md). Size-driven choices (UCA tables, a timezone database, HTML5) are revisited against the wasm budget then; a feature may be a build option.</p>
+      </item>
+    </list>
+  </body>
+</decision>

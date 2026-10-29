@@ -1,0 +1,4 @@
+<term id="byte_view_list" source="docs/GLOSSARY.md">
+  <name>byte_view_list</name>
+  <definition>A read-only pointer to byte views plus <code>byte_view_count</code></definition>
+</term>

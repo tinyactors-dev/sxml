@@ -1,0 +1,4 @@
+<term id="direct_constructor" source="docs/GLOSSARY.md">
+  <name>direct_constructor</name>
+  <definition>XQuery XML-like node constructor syntax: <code>&lt;a b="{1}"&gt;text&lt;/a&gt;</code>, <code>&lt;!-- --&gt;</code>, <code>&lt;?pi?&gt;</code></definition>
+</term>

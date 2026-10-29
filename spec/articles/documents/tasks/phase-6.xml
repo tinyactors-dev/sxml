@@ -1,0 +1,352 @@
+<document id="tasks/phase-6" source="docs/tasks/phase-6.md">
+  <title>Phase 6: Platform bindings</title>
+  <p>Goal (PLAN.md): Kotlin and Swift bindings, Android and iOS builds, and binding tests on device in CI. Design: <ref kind="decision" to="D238"/>. The bindings mirror the JavaScript package (<ref kind="decision" to="D138"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D216"/>): the same concepts, the same defaults, the same errors, in each language's own idiom. Rules for parallel packets are those of <code>docs/tasks/phase-2.md</code> (<ref kind="decision" to="D45"/>, <ref kind="decision" to="D96"/>, <ref kind="decision" to="D132"/>: a packet starts when every packet in its "After" list is committed). Phase 6 changes no public header and must not regress any count of Phases 2 to 7.</p>
+  <section id="the-design-in-one-page-d238">
+    <title>The design in one page (<ref kind="decision" to="D238"/>)</title>
+    <list>
+      <item>
+        <p><strong>One host shim, three hosts.</strong> The C layer under the JavaScript package (<code>bindings/javascript/sxml_javascript*.c</code>, <ref kind="decision" to="D138"/>, <ref kind="decision" to="D216"/>) already turns the public API into what a garbage-collected or reference-counted host needs: handles, flat request structs, one error record per processor, side results (<ref kind="decision" to="D216"/>), JSON-shaped input through <code>fn:parse-json</code>, and serialization into a processor-owned output. It builds natively in every preset. Packet <ref kind="packet" to="6.2"/> moves it to <code>bindings/host/</code> as the <strong>host shim</strong> (glossary <term name="host_shim"/>, header <code>bindings/host/sxml_host.h</code>, not a public header) with the resolver as an interface instead of a WebAssembly import. Then:</p>
+        <list>
+          <item>
+            <p>JavaScript: <code>sxml.wasm</code> and <code>sxml-full.wasm</code> link the host shim and a thin export file. The export names stay <code>sxml_javascript_*</code>, so <code>src/index.ts</code> does not change.</p>
+          </item>
+          <item>
+            <p>Kotlin: a JNI glue file (glossary <term name="jni_glue"/>) turns Kotlin request objects into host shim requests. Nothing else is in C.</p>
+          </item>
+          <item>
+            <p>Swift: the Swift package imports the host shim through a module map (<code>CSxmlHost</code>) and calls it directly. There is no Swift-specific C.</p>
+          </item>
+        </list>
+        <p>No binding reimplements value conversion, side results or error copying. A fix in the shim fixes all three.</p>
+      </item>
+      <item>
+        <p><strong>The same API in three languages</strong> (below): a <code>Processor</code> (resolver, optional features), <code>parse</code>, <code>compile</code> once and <code>evaluate</code> many times, <code>value</code> from host data by the <code>fn:parse-json</code> rule, <code>serialize</code> with <code>fn:serialize</code>'s options, XQuery (<code>compileQuery</code>), XSLT (<code>compileStylesheet</code>), XSD (<code>compileSchema</code>), side results delivered after the call, errors with status, code, description, source name, line and column, and the DUCET shipped beside the library.</p>
+      </item>
+      <item>
+        <p>
+          <strong>Ownership is explicit.</strong>
+        </p>
+        <list>
+          <item>
+            <p>Kotlin: every object that owns C memory is <code>AutoCloseable</code> (<code>use {}</code>). A <code>java.lang.ref.Cleaner</code> releases what is never closed, as the JavaScript package's <code>FinalizationRegistry</code> does. Objects made by a processor hold it strongly, so it is not collected while they live. Closing a processor closes everything it made.</p>
+          </item>
+          <item>
+            <p>Swift: ARC. <code>deinit</code> releases, and objects retain their processor, so the order is always right. There is no <code>close()</code>.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Threads</strong> (<ref kind="decision" to="D35"/>: a processor is used by one thread at a time).</p>
+        <list>
+          <item>
+            <p>Kotlin: every call on a processor or its objects holds the processor's lock, Cleaner actions included. Separate processors run in parallel.</p>
+          </item>
+          <item>
+            <p>Swift: <code>Processor</code> and its objects are not <code>Sendable</code>. Strict concurrency (Swift 6 language mode) rejects sharing them across isolation domains at compile time.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Callbacks never recurse into the same processor</strong> (<ref kind="decision" to="D71"/>). The resolver is the only callback that runs during a call. As in JavaScript, it must not use its own processor: the binding throws (Kotlin <code>IllegalStateException</code>, Swift <code>SxmlUsageError</code>). An exception it throws is kept by the binding, the shim stops with <code>SXML_STATUS_INPUT_OUTPUT_FAILED</code>, and the call rethrows the same exception. Messages, updated trees and result documents are side results, given to the host's callbacks after the call (<ref kind="decision" to="D216"/>).</p>
+      </item>
+      <item>
+        <p><strong>Text crosses as UTF-8 bytes.</strong> Kotlin passes <code>ByteArray</code>s (<code>encodeToByteArray</code>), never <code>jstring</code>. JNI's "modified UTF-8" encodes U+0000 and supplementary characters differently. Swift passes <code>String.utf8</code>.</p>
+      </item>
+      <item>
+        <p><strong>One library per platform</strong>, with every language and every optional feature except EXPath File (as <code>sxml-full.wasm</code>):</p>
+        <list>
+          <item>
+            <p>Android and JVM: <code>libsxml_kotlin.so</code>, which is the library, the host shim and the JNI glue, statically linked. Only the JNI entry points are exported.</p>
+          </item>
+          <item>
+            <p>Apple: <code>Sxml.xcframework</code>, a static library of the library and the host shim, for iOS devices, iOS simulators and macOS.</p>
+          </item>
+          <item>
+            <p>Linux, for Swift: the CMake target <code>sxml_host</code>.</p>
+          </item>
+        </list>
+        <p>A core-only native variant (<ref kind="decision" to="D189"/>'s other link) is not planned. A packet adds one when a host asks for it.</p>
+      </item>
+      <item>
+        <p><strong>Nothing changes in the C library but two Android fallbacks</strong> (6.3). Bionic declares <code>aligned_alloc</code> only from API 28 and <code>timespec_get</code> from API 29. The library is C17 and compiles with <code>-Werror</code> for all four ABIs at API 29 as it is (6.1 probe). For <code>minSdk</code> 24 (the default taken, <ref kind="decision" to="D208"/>), <code>src/allocator.c</code> uses <code>posix_memalign</code> and <code>src/processor.c</code> uses <code>clock_gettime</code> when <code>__ANDROID_API__</code> is lower. Each is one branch beside the existing <code>_WIN32</code> one.</p>
+      </item>
+    </list>
+  </section>
+  <section id="what-runs-here-and-what-waits-for-the-owner-6-1-probe-2026-10-20">
+    <title>What runs here and what waits for the owner (6.1 probe, 2026-10-20)</title>
+    <p>The agent environment is Linux x86_64 with 4 cores and network access (Maven Central sometimes answers 429: retry). It has no KVM and no macOS.</p>
+    <table>
+      <row header="true">
+        <cell>What</cell>
+        <cell>Here</cell>
+        <cell>Probe result</cell>
+      </row>
+      <row>
+        <cell>NDK r28c cross-compile, arm64-v8a, armeabi-v7a, x86_64, x86</cell>
+        <cell>yes</cell>
+        <cell><code>-Werror</code>, <code>-Os</code>, shared <code>libsxml.so</code> with the JS shim: builds at API 29 for all four. At API 24 and 28, only <code>aligned_alloc</code> (allocator.c) and <code>timespec_get</code> (processor.c) fail. Stripped / gzip -9: arm64-v8a 7,693,024 / 1,910,096; armeabi-v7a 6,684,092 / 1,795,498; x86_64 7,923,608 / 1,983,466; x86 7,724,252 / 2,036,922. Needs only libc, libm and libdl</cell>
+      </row>
+      <row>
+        <cell>Kotlin/JVM with JNI (kotlinc 2.2.20, JDK 21)</cell>
+        <cell>yes</cell>
+        <cell>A Kotlin <code>external fun</code> calls C that runs the shim (parse, compile, evaluate, serialize) and calls back into a Kotlin lambda. 0 leaks</cell>
+      </row>
+      <row>
+        <cell>Android SDK (cmdline-tools, platform 35, build-tools 35), Gradle 8.14.3, AGP 8.10.1</cell>
+        <cell>yes</cell>
+        <cell><code>assembleRelease</code> builds an AAR with the four <code>.so</code> files (after a Maven Central 429 retry)</cell>
+      </row>
+      <row>
+        <cell>Android emulator</cell>
+        <cell>no</cell>
+        <cell>no <code>/dev/kvm</code>, and ARM images do not run on x86 hosts</cell>
+      </row>
+      <row>
+        <cell>Android device</cell>
+        <cell>no</cell>
+        <cell>owner or CI</cell>
+      </row>
+      <row>
+        <cell>Swift 6.2 on Linux, module map over the shim</cell>
+        <cell>yes</cell>
+        <cell><code>swift build</code> with the shim and library linked through <code>module CSxmlHost [system]</code>: XPath with a variable, result <code>"2,4,6 from Swift"</code>, 0 leaks</cell>
+      </row>
+      <row>
+        <cell>iOS, macOS, Xcode, XCFramework, simulator</cell>
+        <cell>no</cell>
+        <cell>owner's machine</cell>
+      </row>
+      <row>
+        <cell>Device CI (GitHub Actions)</cell>
+        <cell>write only</cell>
+        <cell>CI is disabled (<ref kind="decision" to="D123"/>). The owner turns it on</cell>
+      </row>
+    </table>
+    <p>The probe tools were downloaded into the scratchpad and deleted. NDK r28c is 2.2 GB unpacked, Swift 6.2 3.2 GB, the Android SDK 0.5 GB and kotlinc 83 MB. Packet <ref kind="packet" to="6.3"/> adds <code>tools/fetch-binding-toolchains.sh</code>, which fetches the pinned versions into a directory the caller names. Agents use their scratchpad and delete the tools afterwards, because the disk is shared.</p>
+    <p><strong>Pinned versions</strong> (<ref kind="decision" to="D238"/>): NDK r28c (16 KB pages by default, which Android 15 requires of arm64 apps), Android platform 35, <code>minSdk</code> 24, Kotlin 2.2.20, JDK 21 (installed), Gradle 8.14.3 (installed), AGP 8.10.1, Swift 6.2 (Linux; on macOS the Xcode 26 toolchain), iOS 15 and macOS 13 deployment targets.</p>
+  </section>
+  <section id="the-binding-apis-d238">
+    <title>The binding APIs (<ref kind="decision" to="D238"/>)</title>
+    <p>The same names as the JavaScript package unless the language has its own idiom. Options are named arguments with defaults, not option objects.</p>
+    <section id="kotlin-bindings-kotlin-package-dev-tinyactors-sxml">
+      <title>Kotlin (<code>bindings/kotlin</code>, package <code>dev.tinyactors.sxml</code>)</title>
+      <pre language="kotlin">val processor = Processor(resolver = { request -&gt; files[request.absoluteUri] })
+processor.use {
+    val book = processor.parse("&lt;book&gt;&lt;title&gt;XPath&lt;/title&gt;&lt;year&gt;2026&lt;/year&gt;&lt;/book&gt;")
+    val expression = processor.compile("//title/string(), xs:integer(//year) + \$n", variables = listOf("n"))
+    expression.evaluate(context = book, variables = mapOf("n" to 1)).use { result -&gt;
+        result.toString()                          // adaptive method: "\"XPath\"\n2.027e3"
+        result.serialize(mapOf("method" to "text")) // "XPath 2027"
+    }
+}</pre>
+      <list>
+        <item>
+          <p><code>Sxml.version</code>, <code>Sxml.features</code> (the library's optional features, by name).</p>
+        </item>
+        <item>
+          <p><code>Processor(resolver: Resolver? = null, features: Set&lt;String&gt;? = null, collationData: CollationData = CollationData.Bundled)</code>. <code>features = null</code> means all; an unknown name is <code>IllegalArgumentException</code>. <code>CollationData.None</code> turns the shipped DUCET off, and <code>CollationData.Bytes(ByteArray)</code> supplies another one. The library loads with the class (<code>System.loadLibrary("sxml_kotlin")</code>). There is no <code>load()</code>, because the module is not fetched as a WebAssembly file is.</p>
+        </item>
+        <item>
+          <p><code>parse(xml: String | ByteArray, uri: String? = null): Value</code>; <code>compile(expression, variables: List&lt;String&gt; = emptyList(), namespaces: Map&lt;String, String&gt; = emptyMap(), baseUri: String? = null): XPathExpression</code>, whose <code>evaluate(context: Any? = null, variables: Map&lt;String, Any?&gt; = emptyMap())</code> returns a <code>Value</code>; <code>evaluate(expression, ...)</code> compiles and evaluates once; <code>value(data: Any?)</code>; <code>serialize(value, options)</code>.</p>
+        </item>
+        <item>
+          <p><strong>Input</strong> (<code>Any?</code>): a <code>Value</code> of this processor, a <code>String</code> (an <code>xs:string</code>), or JSON-shaped data that <code>fn:parse-json</code> reads: <code>Number</code>, <code>Boolean</code>, <code>null</code> (the empty sequence), <code>List&lt;*&gt;</code>, <code>Array&lt;*&gt;</code> and <code>Map&lt;String, *&gt;</code>. Anything else is <code>IllegalArgumentException</code>. This is the one rule of <ref kind="decision" to="D138"/>.</p>
+        </item>
+        <item>
+          <p><code>Value : AutoCloseable</code>: <code>toString()</code> (adaptive), <code>serialize(options: Map&lt;String, Any?&gt; = emptyMap())</code>, whose keys may be camelCase.</p>
+        </item>
+        <item>
+          <p>XQuery: <code>compileQuery(text, namespaces, baseUri): XQuery</code>, with <code>evaluate(context, variables, updates: UpdateSink? = null, messages: ((Message) -&gt; Unit)? = null)</code>, <code>serialize(value)</code>, <code>run(...)</code> and <code>isUpdating</code>. <code>UpdateSink</code> has <code>updatedTree(UpdatedTree)</code> and <code>putDocument(PutDocument)</code> with defaults; without a <code>putDocument</code>, fn:put raises FOUP0002 (<ref kind="decision" to="D216"/>).</p>
+        </item>
+        <item>
+          <p>XSLT: <code>compileStylesheet(text, baseUri, staticParameters): Stylesheet</code>, with <code>transform(source, initialMatchSelection, initialMode, initialTemplate, initialFunction, args, parameters, templateParameters, tunnelParameters, baseOutputUri, delivery: ResultDelivery = SERIALIZED, resultDocumentDelivery, serialization, messages): TransformResult</code> (<code>output</code>, <code>value</code>, <code>resultDocuments</code>). <code>InitialMode.Unnamed</code> selects the unnamed mode.</p>
+        </item>
+        <item>
+          <p>XSD: <code>compileSchema(documents: List&lt;SchemaDocument&gt;, baseUri): Schema</code>, where <code>SchemaDocument</code> is <code>Text(text, uri)</code> or <code>Resolved(uri)</code>, with <code>validate(input: Value | String | ByteArray, mode, type, uri): ValidationResult</code> (<code>validity: Validity</code>, <code>reports</code>, <code>document</code>).</p>
+        </item>
+        <item>
+          <p><code>fun interface Resolver { fun resolve(request: ResourceRequest): Resource? }</code>. <code>ResourceRequest(kind: ResourceKind, uriReference, absoluteUri)</code>. <code>Resource.Text(String)</code> or <code>Resource.Bytes(ByteArray)</code>. <code>ResourceKind</code> is an enum of the 13 kinds of the JavaScript package, <code>XML_DOCUMENT</code> to <code>LOCALE_DATA</code>.</p>
+        </item>
+        <item>
+          <p>Errors: <code>open class SxmlException(status: Status, code: String, codeNamespaceUri, codeLocalName, description, sourceName, lineNumber, columnNumber) : Exception</code>; <code>class SchemaException(..., reports: List&lt;SchemaReport&gt;)</code>. <code>Status</code> is an enum of <code>sxml_status</code>'s names. A failed allocation is <code>SxmlException(OUT_OF_MEMORY)</code>, not <code>OutOfMemoryError</code>.</p>
+        </item>
+        <item>
+          <p>Memory: <code>Processor</code>, <code>XPathExpression</code>, <code>XQuery</code>, <code>Stylesheet</code>, <code>Schema</code> and <code>Value</code> are <code>AutoCloseable</code>, and <code>close()</code> is idempotent. Using an object after it is closed is <code>IllegalStateException</code>. The values a call gives you (results, updated trees, result documents) are yours to close. <code>Processor.liveAllocationCount()</code> is for tests.</p>
+        </item>
+      </list>
+    </section>
+    <section id="swift-bindings-swift-module-sxml-package-swift-at-the-repository-root">
+      <title>Swift (<code>bindings/swift</code>, module <code>Sxml</code>; <code>Package.swift</code> at the repository root)</title>
+      <pre language="swift">import Sxml
+
+let processor = try Processor(resolver: { request in files[request.absoluteURI].map(Resource.text) })
+let book = try processor.parse("&lt;book&gt;&lt;title&gt;XPath&lt;/title&gt;&lt;year&gt;2026&lt;/year&gt;&lt;/book&gt;")
+let expression = try processor.compile("//title/string(), xs:integer(//year) + $n", variables: ["n"])
+let result = try expression.evaluate(context: book, variables: ["n": 1])
+print(result)                                  // adaptive method, CustomStringConvertible
+try result.serialize(["method": "text"])         // "XPath 2027"</pre>
+      <list>
+        <item>
+          <p><code>Sxml.version</code>, <code>Sxml.features</code>.</p>
+        </item>
+        <item>
+          <p><code>Processor(resolver: Resolver? = nil, features: Set&lt;String&gt;? = nil, collationData: CollationData = .bundled) throws</code>. <code>typealias Resolver = (ResourceRequest) throws -&gt; Resource?</code>. <code>enum Resource { case text(String), bytes([UInt8]) }</code>. <code>enum ResourceKind: String</code> uses the JavaScript names (<code>"xml-document"</code>, ...).</p>
+        </item>
+        <item>
+          <p><code>parse(_ xml: String | [UInt8], uri:)</code>, <code>compile(_:variables:namespaces: baseURI:)</code>, <code>XPathExpression.evaluate(context:variables:)</code>, <code>evaluate(_:...)</code>, <code>value(_:)</code>, <code>serialize(_:options:)</code>.</p>
+        </item>
+        <item>
+          <p><strong>Input</strong>: <code>protocol XdmInput</code>. <code>Value</code>, <code>String</code>, <code>Bool</code>, <code>Int</code>, <code>Double</code>, <code>[XdmInput?]</code>, <code>[String: XdmInput?]</code> and <code>nil</code> (the empty sequence) conform, with the same <code>fn:parse-json</code> rule.</p>
+        </item>
+        <item>
+          <p>XQuery, XSLT and XSD as in Kotlin, with Swift argument labels (<code>compileQuery(_:namespaces:baseURI:)</code>, <code>query.evaluate(context:variables:updates:messages:)</code>, <code>stylesheet.transform(source:...)</code>, <code>compileSchema(_:baseURI:).validate(_:mode:type:uri:)</code>). <code>UpdateSink</code> is a struct of two optional closures.</p>
+        </item>
+        <item>
+          <p>Errors: <code>struct SxmlError: Error, CustomStringConvertible</code> (<code>status: Status</code>, <code>code</code>, <code>codeNamespaceURI</code>, <code>codeLocalName</code>, <code>description</code>, <code>sourceName</code>, <code>lineNumber</code>, <code>columnNumber</code>); <code>struct SchemaError: Error</code> (<code>error</code>, <code>reports</code>); <code>enum SxmlUsageError: Error</code> for misuse (a resolver that uses its processor, a value of another processor). The calls use untyped <code>throws</code>, because a resolver's own error is rethrown as it is.</p>
+        </item>
+        <item>
+          <p>Memory: <code>final class</code>es under ARC. Objects retain their processor. A resolver must not capture its processor strongly (a cycle), and it may not use it anyway. The DUCET is a SwiftPM resource (<code>Bundle.module</code>).</p>
+        </item>
+      </list>
+    </section>
+  </section>
+  <section id="tests">
+    <title>Tests</title>
+    <list>
+      <item>
+        <p><strong>Parity by name</strong>: every binding has the tests of the JavaScript package's <code>test/package.test.ts</code> and <code>test/full.test.ts</code>, with the same names, the same inputs and the same expected text, plus tests of its own ownership rules (close and Cleaner in Kotlin, ARC in Swift, threads). 6.12 compares the three lists.</p>
+      </item>
+      <item>
+        <p><strong>Leaks and allocation failures</strong> (<ref kind="decision" to="D23"/>), as the JavaScript tests do: every test ends with the processor's live allocation count 0, and one test runs the allocation-failure loop through <code>failingAllocationNumber</code>.</p>
+      </item>
+      <item>
+        <p><strong>ctest</strong>, so the usual gates see the bindings:</p>
+        <list>
+          <item>
+            <p><code>kotlin/jvm</code>: the JNI glue built for the host. The tests are compiled by kotlinc (<code>SXML_KOTLINC</code>, or <code>kotlinc</code> on <code>PATH</code>) with <code>kotlin.test</code> and a small <code>main</code> runner, so ctest needs no Gradle and no network. It is skipped when kotlinc or JNI is not found.</p>
+          </item>
+          <item>
+            <p><code>swift/linux</code>: <code>swift build</code> and <code>swift test</code> against <code>sxml_host</code> from the same build tree. It is skipped without <code>swift</code>.</p>
+          </item>
+          <item>
+            <p><code>android/build</code>: under an Android preset, the four ABIs build with <code>-Werror</code> and their unit tests compile. A size report is printed.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>On devices</strong> (owner or CI):</p>
+        <list>
+          <item>
+            <p>Android instrumented tests: the same Kotlin test sources as an <code>androidTest</code> source set. They run on an x86_64 emulator at API 24 and API 35, and on one arm64 device.</p>
+          </item>
+          <item>
+            <p>Swift: <code>xcodebuild test</code> on an iOS simulator and one iOS device; <code>swift test</code> on macOS.</p>
+          </item>
+        </list>
+      </item>
+    </list>
+  </section>
+  <section id="parallelism-plan">
+    <title>Parallelism plan</title>
+    <table>
+      <row header="true">
+        <cell>Wave</cell>
+        <cell>Packets (run together)</cell>
+        <cell>Where</cell>
+      </row>
+      <row>
+        <cell>1</cell>
+        <cell>6.2 host shim, 6.3 Android build</cell>
+        <cell>here</cell>
+      </row>
+      <row>
+        <cell>2</cell>
+        <cell>6.4 Kotlin core, 6.7 Swift core</cell>
+        <cell>here</cell>
+      </row>
+      <row>
+        <cell>3</cell>
+        <cell>6.5 Kotlin full, 6.8 Swift full</cell>
+        <cell>here</cell>
+      </row>
+      <row>
+        <cell>4</cell>
+        <cell>6.6 Android library (assemble here; device runs: owner), 6.9 Apple builds (owner)</cell>
+        <cell>here / owner</cell>
+      </row>
+      <row>
+        <cell>5</cell>
+        <cell>6.10 device CI, 6.11 documentation and release steps</cell>
+        <cell>write here; run and publish: owner</cell>
+      </row>
+      <row>
+        <cell>6</cell>
+        <cell>6.12 review (gate)</cell>
+        <cell>here, with the device boxes deferred to the owner (<ref kind="decision" to="D181"/>)</cell>
+      </row>
+    </table>
+    <p>Dependencies ("After"):</p>
+    <list>
+      <item>
+        <p>6.2 and 6.3 after <ref kind="packet" to="6.1"/>.</p>
+      </item>
+      <item>
+        <p>6.4 and 6.7 after <ref kind="packet" to="6.2"/> and <ref kind="packet" to="6.3"/>.</p>
+      </item>
+      <item>
+        <p>6.5 after <ref kind="packet" to="6.4"/>; 6.8 after <ref kind="packet" to="6.7"/>.</p>
+      </item>
+      <item>
+        <p>6.6 after <ref kind="packet" to="6.3"/> and <ref kind="packet" to="6.5"/>; 6.9 after <ref kind="packet" to="6.8"/>.</p>
+      </item>
+      <item>
+        <p>6.10 after <ref kind="packet" to="6.6"/> and <ref kind="packet" to="6.9"/>'s scripts; 6.11 after <ref kind="packet" to="6.6"/> and <ref kind="packet" to="6.8"/>.</p>
+      </item>
+      <item>
+        <p>6.12 after everything.</p>
+      </item>
+    </list>
+    <p>Critical path: 6.2, 6.4, 6.5, 6.6, 6.10, 6.12. The Swift line (6.7, 6.8) runs beside it.</p>
+  </section>
+  <section id="packets">
+    <title>Packets</title>
+    <include kind="packet" to="6.1"/>
+    <include kind="packet" to="6.2"/>
+    <include kind="packet" to="6.3"/>
+    <include kind="packet" to="6.4"/>
+    <include kind="packet" to="6.5"/>
+    <include kind="packet" to="6.6"/>
+    <include kind="packet" to="6.7"/>
+    <include kind="packet" to="6.8"/>
+    <include kind="packet" to="6.9"/>
+    <include kind="packet" to="6.10"/>
+    <include kind="packet" to="6.11"/>
+    <include kind="packet" to="6.12"/>
+  </section>
+  <section id="gate-proposed-in-d238">
+    <title>Gate (proposed in <ref kind="decision" to="D238"/>)</title>
+    <list>
+      <item checked="false">
+        <p><code>kotlin/jvm</code> and <code>swift/linux</code> pass the whole parity list, with 0 leaks and the allocation-failure loop (here).</p>
+      </item>
+      <item checked="false">
+        <p>All four Android ABIs build with <code>-Werror</code> at API 24. The AAR assembles, and <code>libsxml_kotlin.so</code> is within its size budget (here).</p>
+      </item>
+      <item checked="false">
+        <p>Android instrumented tests pass on an x86_64 emulator (API 24 and 35) and one arm64 device (owner, CI).</p>
+      </item>
+      <item checked="false">
+        <p>Swift tests pass on macOS, an iOS simulator and one iOS device (owner, CI).</p>
+      </item>
+      <item checked="false">
+        <p><code>.github/workflows/bindings.yml</code> is green once the owner enables CI (owner).</p>
+      </item>
+      <item checked="false">
+        <p>The JavaScript package's tests and sizes are unchanged by the host shim. The Phase 2 to 7 counts have not dropped (here).</p>
+      </item>
+      <item checked="false">
+        <p>Review agent pass (<ref kind="decision" to="D11"/>), findings fixed.</p>
+      </item>
+    </list>
+  </section>
+</document>

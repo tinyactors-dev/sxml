@@ -1,0 +1,4 @@
+<term id="tuple_array" source="docs/GLOSSARY.md">
+  <name>tuple_array</name>
+  <definition>One tuple of a FLWOR as an array: one member per live variable bound to a slot (<ref kind="decision" to="D55"/>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="regex_text" source="docs/GLOSSARY.md">
+  <name>regex_text</name>
+  <definition>The source text of a regular expression (<code>$pattern</code> of <code>fn:matches</code>, <code>fn:tokenize</code>, ...)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="jni_glue" source="docs/GLOSSARY.md">
+  <name>jni_glue</name>
+  <definition>The one C file of the Kotlin binding (<code>bindings/kotlin/src/main/c/sxml_kotlin_jni.c</code>): JNI entry points that turn native requests into host shim requests (<ref kind="decision" to="D238"/>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="transcoding" source="docs/GLOSSARY.md">
+  <name>transcoding</name>
+  <definition>Converting a document from its character encoding into UTF-8 before parsing</definition>
+</term>

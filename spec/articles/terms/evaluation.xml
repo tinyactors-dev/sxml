@@ -1,0 +1,4 @@
+<term id="evaluation" source="docs/GLOSSARY.md">
+  <name>evaluation</name>
+  <definition>One run of a compiled expression or query against a dynamic context</definition>
+</term>

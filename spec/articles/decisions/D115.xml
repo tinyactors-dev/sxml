@@ -1,0 +1,35 @@
+<decision id="D115" status="accepted" source="docs/DECISIONS.md">
+  <title>Evaluator: JNode selectors, jkey and jvalue, fold fixpoints (packet <ref kind="packet" to="2.6"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. Sections are those of the XPath 4.0 editor's draft vendored with QT4 (PR 2734 for selectors).</p>
+    <list>
+      <item>
+        <p><strong>fn:jkey, fn:jvalue</strong> move from 2.17 to 2.6: new part <code>src/function_library_jnode.c</code> (F&amp;O 4.0, 16.1.2, 16.1.3; <code>$input as jnode()? := .</code>). Nearly every prod-PathExpr.J and prod-AxisStep.J case uses them; 2.17 no longer writes them. fn:jtree stays in <code>src/function_library_json.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Selector interpretation</strong> (4.7.3, 4.7.5.4; replaces <ref kind="decision" to="D85"/>'s "not done"): in a path's MAP, a JNode N with a non-navigational body (glossary <term name="navigational"/>, decided once per MAP from the IR: ".", STEP, a path MAP, DOCUMENT_ORDER, fn:root/TREAT of "/", FILTER of such, union, sequence, conditional, let; tables of 48 entries, beyond that navigational as in Phase 1) evaluates the body and selects the children of N whose jkey is atomic-equal to an item of its atomized value; a body that reads the focus is XPDY0002 there. Task phase bits of the MAP keep the analysis.</p>
+      </item>
+      <item>
+        <p><strong>Name tests on JNodes</strong>: an NCName matches string/anyURI/untypedAtomic keys, a prefixed name or wildcard matches xs:QName keys. The IR does not tell <code>a</code> from <code>Q{}a</code> (both match strings; JAxes-292 waits for lowering). The attribute and namespace axes from a JNode raise XPTY0004 (4.7.5.1).</p>
+      </item>
+      <item>
+        <p><strong>Lookups</strong> on a JNode use the items of its jvalue (each a map or array).</p>
+      </item>
+      <item>
+        <p><strong>QName key tests</strong> (<ref kind="decision" to="D113"/>'s proposal, accepted by the orchestrator): a jnode() key test of type xs:QName given as <code>Q{uri}local</code> compares the key's expanded name (names the pool never saw match nothing); other texts are cast as before. Untested end to end: lowering still refuses prefixed QName literals in jnode() (QT4 sequence-type-61). The other <ref kind="decision" to="D113"/> proposal, SXML_AXIS_ITEM, needs a tree.h addition and lowering together; not taken here.</p>
+      </item>
+      <item>
+        <p><strong>Numeric predicates</strong> (4.4.1): a value whose first item is numeric selects by "= position()" (any item), an integer range by its bounds; a later non-number is FORG0006 (was FORG0006 for every second item).</p>
+      </item>
+      <item>
+        <p><strong>Maps and arrays as typed functions</strong> (3.2.9, 3.2.10): when the type annotation does not decide it, a map matches function(K) as R for K a single atomic type and R allowing () when every value matches R; an array function(I) as R for I a single integer type when every member matches R.</p>
+      </item>
+      <item>
+        <p><strong>Fold fixpoints</strong> (glossary <term name="fixpoint"/>): fn:fold-left/-right and array:fold-left/-right stop early when the function is an inline function (through coerced functions whose accumulator parameter and result are item()*) of body <code>if (C) then $acc else E</code> (or the mirror), C a value or general comparison of numeric constants, captured values and $acc, and C holds for the next accumulator: every later call would return it (QT4 fold-left/right-022/023). <code>sxml_evaluator_test_fixpoint</code> is declared in <code>src/evaluator_internal.h</code> (one additive declaration outside the packet's files; 2.0 is done).</p>
+      </item>
+      <item>
+        <p><strong>Not done here</strong>: <code>/</code> and <code>/x</code> from a JNode need lowering to treat as <code>document-node()|jnode()</code> (4.7.1.1; 6 PathExpr.J cases; lowering); fn:function-lookup of focus functions (position#0, last#0) needs the focus at the call, which a leaf row cannot see (lowering); assert-eq on a JNode result needs the driver to atomize (2.16); <code>count(reverse(1 to 10^11))</code> needs a descending range representation (substrate, 2.17); the O(1) comparison of a range with an integer (RangeExpr-408h, -410h) is ready but waits for <code>tests/xpath_test.c</code> (see "Proposed"). fn-function-lookup stays at 85%: its other 85 failures are functions other packets add.</p>
+      </item>
+    </list>
+  </body>
+</decision>

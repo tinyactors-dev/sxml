@@ -1,0 +1,4 @@
+<term id="descendant_path" source="docs/GLOSSARY.md">
+  <name>descendant_path</name>
+  <definition>"E//T[P]" rewritten as "E/descendant::T[P]" by the descendant pass when the step is to the children and every predicate selects by the item alone: one FILTER over the descendants instead of one per node (internal, <code>src/ir_loop_passes.c</code>, <ref kind="decision" to="D259"/>)</definition>
+</term>

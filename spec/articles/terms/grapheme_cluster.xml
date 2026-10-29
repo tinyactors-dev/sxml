@@ -1,0 +1,4 @@
+<term id="grapheme_cluster" source="docs/GLOSSARY.md">
+  <name>grapheme_cluster</name>
+  <definition>An extended grapheme cluster of UAX #29: one user-perceived character, one item of <code>fn:graphemes</code></definition>
+</term>

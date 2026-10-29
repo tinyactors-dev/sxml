@@ -1,0 +1,4 @@
+<term id="derivation_set" source="docs/GLOSSARY.md">
+  <name>derivation_set</name>
+  <definition>A set of derivation methods (extension, restriction, list, union, substitution) as a bit set: XSD's {final}, {prohibited substitutions}, {disallowed substitutions}, {substitution group exclusions}</definition>
+</term>

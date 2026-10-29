@@ -1,0 +1,4 @@
+<term id="xml_writer" source="docs/GLOSSARY.md">
+  <name>xml_writer</name>
+  <definition>Writes nodes by the XML or XHTML method: open elements and written bindings on stacks (<ref kind="decision" to="D71"/>)</definition>
+</term>

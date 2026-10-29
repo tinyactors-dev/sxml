@@ -1,0 +1,4 @@
+<term id="expansion_segment" source="docs/GLOSSARY.md">
+  <name>expansion_segment</name>
+  <definition>A run of an expression's text after placeholders are replaced that comes from one place, the attribute or a sch:param's value, so that a syntax error points into that place (internal, <ref kind="decision" to="D315"/>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="language_set" source="docs/GLOSSARY.md">
+  <name>language_set</name>
+  <definition>The languages (XPath, XQuery, XSLT) a library, evaluator or lowering part serves; a library or evaluator part without one serves all three (<ref kind="decision" to="D101"/>, <ref kind="decision" to="D227"/>)</definition>
+</term>

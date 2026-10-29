@@ -1,0 +1,4 @@
+<term id="character_context" source="docs/GLOSSARY.md">
+  <name>character_context</name>
+  <definition>Where characters are written: markup, text, an attribute value, a URI attribute value or CDATA sections; decides escaping and mapping</definition>
+</term>

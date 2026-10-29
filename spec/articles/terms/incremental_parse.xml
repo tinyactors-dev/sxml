@@ -1,0 +1,4 @@
+<term id="incremental_parse" source="docs/GLOSSARY.md">
+  <name>incremental_parse</name>
+  <definition>A parse of the XML parser that stops between events when its builder asks for a pause and goes on when it is resumed (<code>sxml_xml_incremental_parse</code>, <ref kind="decision" to="D219"/>)</definition>
+</term>

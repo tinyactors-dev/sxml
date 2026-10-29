@@ -1,0 +1,4 @@
+<term id="native_request" source="docs/GLOSSARY.md">
+  <name>native_request</name>
+  <definition>The internal Kotlin object a JNI entry point takes as its one argument besides the environment and class: the inputs of one host shim call, and fields the call writes back (handle, error, side results)</definition>
+</term>

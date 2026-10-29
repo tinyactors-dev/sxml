@@ -1,0 +1,4 @@
+<term id="compile_stage" source="docs/GLOSSARY.md">
+  <name>compile_stage</name>
+  <definition>One step of schema compilation, a function of its own file: read, resolve, simple types, complex types, identity constraints, assertions (<ref kind="decision" to="D167"/>)</definition>
+</term>

@@ -1,0 +1,132 @@
+<packet id="7.6" source="docs/tasks/phase-7.md">
+  <title>XSLT streaming (design and implementation, two packets)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: XSLT 4.0, 18 "Streaming" (xsl:source-document streamable="yes", xsl:merge with streamable sources, xsl:fork, streamable modes and accumulators, burst-mode functions such as fn:snapshot and fn:copy-of) and 19 "Streamability" (postures, sweeps, the streamability rules of each construct, guaranteed streamability, XTSE3430); XSLT 4.0, 27 (the streaming conformance feature).</p>
+      </item>
+      <item>
+        <p><strong>Unlocks</strong>: XT40 streaming 2,932 (<code>tests/strm/</code> 2,564: sf-, si-, sx- sets; <code>streamable</code> 139; <code>streaming-fallback</code> 6, today run unstreamed).</p>
+      </item>
+      <item>
+        <p><strong>Replaces</strong>: today streamable="yes" runs unstreamed, as a non-streaming processor may (<code>src/xslt_read.c</code>, <code>src/xslt_accumulator.c</code>, supports-streaming false, the driver's streaming-fallback).</p>
+      </item>
+      <item>
+        <p><strong>7.6a Streamability analysis</strong>:</p>
+        <list>
+          <item>
+            <p>a static pass over the XSLT AST and the lowered XPath that gives each construct its posture and sweep (glossary <term name="posture"/>, <term name="sweep"/>) by XSLT 4.0, 19, and raises XTSE3430 where a construct declared streamable is not guaranteed-streamable;</p>
+          </item>
+          <item>
+            <p>streamed constructs still run unstreamed, which the suite cannot tell apart: every result, plus the static errors;</p>
+          </item>
+          <item>
+            <p>the drivers count streaming cases;</p>
+          </item>
+          <item>
+            <p>supports-streaming stays false until 7.6b.</p>
+          </item>
+          <item>
+            <p>Owns: new <code>src/xslt_streamability.c</code> and <code>src/xslt_streamability_internal.h</code>.</p>
+          </item>
+          <item>
+            <p><strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D212"/>): XT40 streaming cases 2,841 of 2,936 (strm 2,503 of 2,564), 154 of 156 XTSE3430 cases; no pass lost but system-property-013, now not applicable.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>7.6b Streamed evaluation</strong>:</p>
+        <list>
+          <item>
+            <p>the XML parser feeds builder events to a receiving task (<ref kind="decision" to="D166"/>) in place of an arena builder;</p>
+          </item>
+          <item>
+            <p>the lowering of a guaranteed-streamable mode or source document selects nodes as their events pass: a streamed node is a window of its ancestors, its attributes and its own events, held in allocator memory;</p>
+          </item>
+          <item>
+            <p>grounded operands (<code>fn:copy-of</code>, <code>fn:snapshot</code>) build small trees through the tree builder;</p>
+          </item>
+          <item>
+            <p>memory is bounded by the depth and the grounded parts, not by the document;</p>
+          </item>
+          <item>
+            <p>claims the feature (supports-streaming true).</p>
+          </item>
+          <item>
+            <p>Owns: new <code>src/evaluator_stream.c</code> and <code>src/xslt_lower_stream.c</code>, the receiving side in <code>src/evaluator_construct.c</code> (single hunks agreed with the evaluator's owners), and a memory test of a 1 GB generated document.</p>
+          </item>
+          <item>
+            <p><strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D219"/>): xsl:source-document bodies of motionless instructions and one xsl:for-each over a downward path stream (STREAM, <code>src/evaluator_stream.c</code>, an incremental parse); allocator peak 232 KB at 2.4 MB to 106 MB, but tree-sitter's syntax tree of the whole input remains (3.98 GB at 106 MB, so no 1 GB test); the fallback option in <code>xslt.h</code>; supports-streaming true. XT40 11,797 to 11,804, none lost. Left: accumulators, streamable modes and apply-templates, iterate, fork, merge, aggregates, the principal source, incremental tokenizing of content.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>7.6c More streamed shapes</strong> (after 7.6b; <ref kind="decision" to="D223"/>): reuse the STREAM machinery, 7.6a's sweeps and the shared evaluator for, in order, apply-templates and streamable modes with position(); accumulators; aggregates over a streamed path; attribute steps at the end of a path; xsl:iterate, xsl:fork, xsl:merge; a streamed principal source. Count the source-document executions and mode runs that stream.</p>
+        <list>
+          <item>
+            <p>Owns: <code>src/xslt_lower_stream.c</code>, <code>src/evaluator_stream.c</code>, <code>tests/evaluator_stream_test.c</code>; single hunks in <code>src/xpath_lower.c</code> (the lowering override), <code>src/xslt_streamability.c</code> (mode verdicts), <code>src/xslt_lower_template.c</code>, <code>src/evaluator_template.c</code> and the IR.</p>
+          </item>
+          <item>
+            <p><strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D223"/>): streamed paths in value-of, copy-of, sequence, for-each, apply-templates, iterate and for-each-group selects (counted, folded, atomized or full windows; a last attribute step); template rules applied node by node with their position; declared but unused accumulators no longer stop streaming; a <ref kind="decision" to="D219"/> text bug fixed. XT40 no case changed; streamed source documents 164 to 986; 57 nodes get templates one by one, 600,075 fold. Left: accumulators computed while streaming, xsl:fork, xsl:merge, the streamed principal source (no <code>xslt.h</code> field), template rules with stream points of their own.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>7.6d The remaining streamed shapes</strong> (after 7.6c; <ref kind="decision" to="D228"/>), in order of value: (a) a streamed principal source, an additive <code>xslt.h</code> field with a record, used by <code>sxml transform</code>, with the CLI's memory at 100 MB before and after; (b) accumulators computed while streaming; (c) xsl:fork, then xsl:merge with streamed inputs; (d) template rules with stream points of their own; (e) avg folding; (f) the IR printer's new fields.</p>
+        <list>
+          <item>
+            <p>Owns: <code>src/xslt_lower_stream.c</code>, <code>src/evaluator_stream.c</code>, <code>tests/evaluator_stream_test.c</code>, <code>include/sxml/xslt.h</code> (the field), <code>apps/sxml/command_transform.c</code>; single hunks in <code>src/xslt.c</code>, <code>src/xslt_lower.c</code>, <code>src/xslt_lower_template.c</code>, <code>src/xslt_streamability.c</code>, the IR and the XSLT driver.</p>
+          </item>
+          <item>
+            <p><strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D228"/>): (a) <code>streamed_source_uri</code> and <code>sxml_xslt_stylesheet_streams_source</code>; <code>sxml transform</code> streams an INPUT file when the initial mode streams: "/" with a for-each over a 100 MB document 673.2 MB to 267.3 MB resident, template rules 658.8 MB (tree) to 267.3 MB; the driver streams the suite's streaming="true" sources. (d) template rules of streamed modes run on open nodes, streamed or grounded (STREAM axis self); built-in rules, apply- templates without select and child-step apply points stream. (e) avg folds as sum and count. (f) done. XT40 none lost. Left: (b) accumulators while streaming, (c) xsl:fork and xsl:merge, and a principal result held whole until it is serialized (the identity keeps memory proportional to its output).</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>7.6e The last streamed shapes</strong> (after 7.6d; <ref kind="decision" to="D231"/>), in order: (a) accumulators computed while streaming: pre-descent and post-descent rules, fn:accumulator-before and -after on streamed nodes, the streamability of accumulator rules (18.2.9); (b) xsl:fork, then xsl:merge with streamed inputs; (c) the principal result delivered as it is produced, through the result writer, so a streamed identity runs in bounded memory end to end; (d) a resolver form that delivers bytes incrementally (additive in <code>processor.h</code>, with a record), so <code>sxml transform</code> does not hold its input. Peak resident memory of <code>sxml transform</code> on a generated 100 MB document before and after.</p>
+        <list>
+          <item>
+            <p>Owns: <code>src/evaluator_stream.c</code>, <code>src/xslt_lower_stream.c</code>, <code>src/xslt_accumulator.c</code>, <code>tests/evaluator_stream_test.c</code>; single hunks in <code>src/function_library_xslt.c</code> (the row), the IR (<code>sxml_ir_stream_accumulators</code>), <code>src/evaluator_internal.h</code>, <code>src/xslt_streamability.c</code>, <code>src/xslt_lower_template.c</code>, <code>src/xslt_lower_control.c</code> (xsl:fork), <code>src/xslt.c</code>, the serializer, the result writer, the XML parser's input, <code>include/sxml/processor.h</code> (the byte reader) and <code>apps/sxml/command_transform.c</code>.</p>
+          </item>
+          <item>
+            <p><strong>Done</strong> (<ref kind="decision" to="D231"/>): (a), (b) xsl:fork and (c); <code>sxml transform</code> identity on 95.6 MB 525 MB to 134 MB peak resident, accumulators more than 4.1 GB to 135 MB; XT40 12,031 to 12,048, none lost. Left: xsl:merge with streamed inputs (a new evaluator part) and (d), whose parser change waits for <code>src/xml.c</code>, <code>src/xml_segment.c</code> and <code>src/xml_encoding.c</code> (perf-3); the design is in <ref kind="decision" to="D231"/>.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>7.6f The last streaming items</strong> (after 7.6e and perf-3; <ref kind="decision" to="D233"/>): (a) incremental bytes as <ref kind="decision" to="D231"/> designed them: the additive resource form SXML_RESOURCE_FORM_BYTE_READER in <code>processor.h</code>, the incremental parse decoding its input a window at a time (UTF-16 and ISO-8859-1 too), the CLI's resolver delivering files that way, peak resident memory of <code>sxml transform</code> on a streamed identity before and after, the JavaScript host unchanged; (b) xsl:merge with streamed inputs, a new evaluator part reading several documents in step; (c) capture="yes" end rules while streaming, if cheap.</p>
+        <list>
+          <item>
+            <p>Owns: new <code>src/xml_input.c</code>; <code>src/xml.c</code>, <code>src/xml_encoding.c</code>, <code>src/xml_internal.h</code>, <code>include/sxml/processor.h</code> (the form), <code>src/processor.c</code>, <code>src/evaluator_stream.c</code>, <code>tests/xml_test.c</code>, the CLI's file reader and resolver.</p>
+          </item>
+          <item>
+            <p><strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D233"/>): (a) the byte reader form and the text window (<code>src/xml_input.c</code>); <code>sxml transform</code> on 95.6 MB, streamed identity 133.9 MB to 11.0 MB peak resident, for-each 134.5 MB to 11.0 MB, 974 MB in 10.9 MB; the JavaScript host unchanged (BYTES); XT40 11,918 and XQ40 45,914 passed, unchanged case by case. Left: (b) xsl:merge with streamed inputs and (c) capture="yes" end rules, designed in <ref kind="decision" to="D233"/>; both need a new IR form or function and an evaluator part in files packet 4.21 held uncommitted (<code>src/ir_internal.h</code>, <code>src/ir.c</code>, <code>src/ir_verify.c</code>, <code>src/evaluator.c</code>, <code>src/evaluator_machine_internal.h</code>).</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>7.6g The last two streaming items</strong> (after 7.6f and 4.21; <ref kind="decision" to="D233"/>, <ref kind="decision" to="D236"/>): (a) xsl:merge with streamed inputs, a MERGE part with one cursor per anchor document, keyed k-way stepping and XTDE2220 for input out of order, reusing the STREAM machinery, the merge key rules and the evaluator's resumable tasks; (b) capture="yes" end rules, a capture function with the stream builder copying the element's events into a full window. Keep GLOBAL_READ and the global-read pass working (<ref kind="decision" to="D234"/>).</p>
+        <list>
+          <item>
+            <p>Owns: <code>src/evaluator_stream.c</code>, <code>src/xslt_lower_group.c</code> (the merge), <code>src/xslt_lower_stream.c</code>, <code>src/xslt_accumulator.c</code>, <code>tests/evaluator_stream_test.c</code>; single hunks in the IR (<code>src/ir_internal.h</code>, <code>src/ir.c</code>, <code>src/ir_verify.c</code>, the passes), <code>src/evaluator.c</code> and <code>src/xquery_prolog.c</code>.</p>
+          </item>
+          <item>
+            <p><strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D236"/>): MERGE and its merge streams; tees for capturing end rules. Two 38.3 MB documents merged: peak resident 1,055.6 MB to 11.0 MB. XT40 11,943 to 11,945, none lost; 27 merge and 5 capture cases stream. Left: merge sources with validation, type, accumulators or predicates (grounded).</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Header</strong>: possibly <code>xslt.h</code>, additive: a streamed principal source given as bytes or a parser, with a record. The resolver's BYTES form already serves xsl:source-document.</p>
+      </item>
+      <item>
+        <p><strong>After</strong>: 7.6b after 7.6a.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: 0 in <code>sxml.wasm</code>; 150–250 KB in the CLI.</p>
+      </item>
+      <item>
+        <p><strong>Gate</strong>: ≥ 85 % of the in-scope streaming cases; XT40 passes not dropped; the memory test's peak is under 64 MB.</p>
+      </item>
+    </list>
+  </body>
+</packet>

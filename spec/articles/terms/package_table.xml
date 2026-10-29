@@ -1,0 +1,4 @@
+<term id="package_table" source="docs/GLOSSARY.md">
+  <name>package_table</name>
+  <definition>The packages and component instances of one stylesheet lowering, which binds every reference to a component (<ref kind="decision" to="D160"/>)</definition>
+</term>

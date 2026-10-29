@@ -1,0 +1,4 @@
+<term id="default_collation" source="docs/GLOSSARY.md">
+  <name>default_collation</name>
+  <definition>The collation used when a function or operator is given none (XPath 4.0, section 2.2.2)</definition>
+</term>

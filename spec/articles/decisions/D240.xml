@@ -1,0 +1,63 @@
+<decision id="D240" status="accepted" source="docs/DECISIONS.md">
+  <title>The host shim's resolver, request and export files (packet <ref kind="packet" to="6.2"/>)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D138"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D216"/>, <ref kind="decision" to="D225"/>, <ref kind="decision" to="D238"/>. Packet <ref kind="packet" to="6.2"/> moved the JavaScript shim to <code>bindings/host/</code> as the host shim (<code>sxml_host_*</code>, header <code>bindings/host/sxml_host.h</code>) and kept the JavaScript export names.</p>
+    <list>
+      <item>
+        <p><strong>Resolver</strong>: <code>sxml_host_resolver {void *state; uint32_t (*resolve)(void *state, const sxml_host_resource_request *, sxml_host_resource *)}</code>, in <code>sxml_host_processor_configuration {failing_allocation_number, feature_mask, resolver}</code>. <code>sxml_host_processor_create</code> takes that configuration (one parameter). A NULL <code>resolve</code> makes no resource available, as the native fallback of the old import did.</p>
+      </item>
+      <item>
+        <p><strong>Deviation: the request names its processor.</strong> <code>sxml_host_resource_request</code> gains a last field, <term name="processor"/>: the processor that asks. A host copies its answer into memory from <code>sxml_host_allocate</code> on that processor, so every host needs it. The JavaScript import needs it too, because the package finds its processor state by that address. A resolver state cannot hold the processor, because the state is set before the processor exists. The struct is 6 words on wasm32 (was 5). The package reads only the first 5, so <code>src/index.ts</code> does not change.</p>
+      </item>
+      <item>
+        <p>
+          <strong>Deviation: three JavaScript files instead of two.</strong>
+        </p>
+        <list>
+          <item>
+            <p><code>sxml_javascript_exports.c</code> holds the exports of both modules.</p>
+          </item>
+          <item>
+            <p><code>sxml_javascript_full_exports.c</code> holds the XQuery, XSLT and XSD exports. Only <code>sxml-full.wasm</code> links it, because the package tells the modules apart by those exports (<ref kind="decision" to="D189"/>).</p>
+          </item>
+          <item>
+            <p><code>sxml_javascript_host.c</code> holds the resolver over the import <code>sxml_host.resolve</code>.</p>
+          </item>
+        </list>
+        <p><code>sxml_javascript.h</code> declares them. Each export is a one-line wrapper of the host shim function with the same name.</p>
+      </item>
+      <item>
+        <p><strong>Targets</strong>:</p>
+        <list>
+          <item>
+            <p><code>sxml_host</code> (static) is the shim with every feature of <code>sxml_all_optional_features()</code>: the library for Kotlin and Swift.</p>
+          </item>
+          <item>
+            <p>The object library <code>sxml_host_core_features</code> compiles the core features file natively, so that <code>-Werror</code> and lint check it.</p>
+          </item>
+          <item>
+            <p>The wasm modules link the host sources from the lists that <code>bindings/host/CMakeLists.txt</code> passes to the parent scope.</p>
+          </item>
+          <item>
+            <p><code>tests/host_shim_test.c</code> is registered by the tests glob and gets <code>sxml_host</code> from <code>bindings/host/CMakeLists.txt</code>.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Size guard</strong>: <code>test/size-baseline/sxml.txt</code> renames the moved objects (<code>__/host/sxml_host</code>, <code>__/host/sxml_host_core_features</code>) and keeps the sizes of the audit. The guard then reports the move's real growth (+61), not a new object of 5,153 bytes.</p>
+      </item>
+      <item>
+        <p><strong>Sizes</strong> (stripped / gzip -9):</p>
+        <list>
+          <item>
+            <p><code>sxml.wasm</code>: 2,090,804 / 715,514 to 2,091,192 / 715,723 (+388).</p>
+          </item>
+          <item>
+            <p><code>sxml-full.wasm</code>: 7,637,204 / 1,671,861 to 7,637,765 / 1,672,092 (+561).</p>
+          </item>
+        </list>
+        <p>Both are within the packet's 1 KB, and no budget changes.</p>
+      </item>
+    </list>
+  </body>
+</decision>

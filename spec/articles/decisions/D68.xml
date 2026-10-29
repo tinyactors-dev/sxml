@@ -1,0 +1,14 @@
+<decision id="D68" status="accepted" source="docs/DECISIONS.md">
+  <title>Name pool in comparisons; record entries may fail (P2, P3)</title>
+  <body>
+    <p><recorded date="2026-10-16"/> by packet <ref kind="packet" to="1.19"/>, on the orchestrator's acceptance of P2 and P3 (design edits to <code>include/sxml/xdm.h</code>).</p>
+    <list>
+      <item>
+        <p><strong>P2 accepted</strong>: <code>sxml_atomic_comparison</code> gains <code>const sxml_name_pool *name_pool</code>, NULL allowed when no xs:QName or xs:NOTATION is compared (a pool, not the heap: ordering names needs nothing else). <code>sxml_atomic_item_compare</code> now orders QNames by namespace URI, then local name (F&amp;O 4.0, fn:compare, PR2256); two different names without a pool give SXML_STATUS_INVALID_ARGUMENT. The internal <code>sxml_atomic_item_compare_in_heap</code> stays (it uses the heap's pool, else the comparison's) because <code>src/xdm_internal.h</code> is not this packet's; it can go when 1.7's files are next edited.</p>
+      </item>
+      <item>
+        <p><strong>P3 accepted, option "document"</strong>: the contract of <code>sxml_map_get_entry</code> states that the first call on a record may return the heap's failures (OUT_OF_MEMORY, LIMIT_EXCEEDED), since record keys are made lazily (<ref kind="decision" to="D61"/>); <code>sxml_map_find</code> and <code>sxml_json_node_make_child</code> already list them.</p>
+      </item>
+    </list>
+  </body>
+</decision>

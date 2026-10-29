@@ -1,0 +1,4 @@
+<term id="emptiness" source="docs/GLOSSARY.md">
+  <name>emptiness</name>
+  <definition>Whether a sequence has no items, as tested by <code>sxml_sequence_test_emptiness</code> (<code>fn:empty</code>)</definition>
+</term>

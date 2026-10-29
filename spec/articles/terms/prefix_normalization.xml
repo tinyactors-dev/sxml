@@ -1,0 +1,4 @@
+<term id="prefix_normalization" source="docs/GLOSSARY.md">
+  <name>prefix_normalization</name>
+  <definition>XHTML with HTML5: elements in the XHTML, SVG or MathML namespace written unprefixed with a default namespace, and prefixes for those namespaces dropped (Serialization 4.0, section 6)</definition>
+</term>

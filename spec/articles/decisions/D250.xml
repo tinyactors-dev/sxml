@@ -1,0 +1,74 @@
+<decision id="D250" status="accepted" source="docs/DECISIONS.md">
+  <title>The Kotlin full surface: XQuery, XSLT, XSD, the DUCET resource, U+0000 (packet <ref kind="packet" to="6.5"/>)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D23"/>, <ref kind="decision" to="D213"/>, <ref kind="decision" to="D216"/>, <ref kind="decision" to="D238"/>, <ref kind="decision" to="D240"/>, <ref kind="decision" to="D247"/>, <ref kind="decision" to="D248"/>. Packet <ref kind="packet" to="6.5"/> added the rest of the task file's Kotlin API to <code>dev.tinyactors.sxml</code>, over the host shim's full-module entry points.</p>
+    <list>
+      <item>
+        <p><strong>API</strong> (defaults under <ref kind="decision" to="D208"/>):</p>
+        <list>
+          <item>
+            <p><code>compileQuery(query, namespaces, baseUri)</code> gives an <code>XQuery</code> with <code>evaluate(context, variables, updates, messages)</code>, <code>serialize(value)</code>, <code>run(...)</code> and <code>isUpdating</code>.</p>
+          </item>
+          <item>
+            <p><code>UpdateSink(updatedTree, putDocument)</code> is a class of two optional functions, as Swift's struct (<ref kind="decision" to="D248"/>): "without a <code>putDocument</code>" is a null argument. <code>UpdatedTree</code> and <code>PutDocument</code> are <code>AutoCloseable</code>; <code>PutDocument.serialize()</code> uses method xml without parameters.</p>
+          </item>
+          <item>
+            <p><code>compileStylesheet(stylesheet, baseUri, staticParameters)</code> (a <code>String</code> or a <code>ByteArray</code>) gives a <code>Stylesheet</code>. <code>transform(...)</code> takes JavaScript's options as named arguments, <code>args</code> included, and returns an <code>AutoCloseable</code> <code>TransformResult</code> (<code>output</code>, <code>value</code>, <code>resultDocuments</code>). <code>InitialMode</code> is <code>Named(name)</code> or <code>Unnamed</code>.</p>
+          </item>
+          <item>
+            <p><code>ResultDelivery</code> carries <code>sxml_xslt_result_delivery</code>'s numbers; <code>ValidationMode</code> and <code>Validity</code> are in the C enums' order.</p>
+          </item>
+          <item>
+            <p><code>compileSchema</code> takes a list of <code>SchemaDocument</code> (<code>Text(text or bytes, uri)</code>, <code>Resolved(uri)</code>), one document, or a text. <code>Schema.validate</code> has three overloads: a <code>Value</code> (no <code>uri</code>), a <code>String</code> and a <code>ByteArray</code>. <code>ValidationResult</code> is <code>AutoCloseable</code>.</p>
+          </item>
+          <item>
+            <p><strong>Deviation from Swift (<ref kind="decision" to="D248"/>):</strong> <code>SchemaException</code> is a subclass of <code>SxmlException</code>, as JavaScript's <code>SchemaError</code> is of <code>SxmlError</code>, so <code>catch (error: SxmlException)</code> also catches a schema that does not compile. Swift's <code>SchemaError</code> is a separate struct. 6.12 compares.</p>
+          </item>
+          <item>
+            <p>Callbacks (messages, the sink) run after the call and outside the processor's lock, with the failure read first, so they may use the processor. A callback that throws leaves the values it was not given to the cleaner or to the processor's close.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Glue</strong>: seven entry points (<code>queryCompile</code>, <code>queryEvaluate</code>, <code>querySerialize</code>, <code>stylesheetCompile</code>, <code>transform</code>, <code>schemaCompile</code>, <code>schemaValidate</code>), 17 in all, each <code>(JNIEnv *, jclass, jobject)</code>.</p>
+        <list>
+          <item>
+            <p>Side results come back flat in <code>NativeSideResults</code> (per side result: a kind, three texts, two value handles, three numbers), the field of the base class <code>SideResultRequest</code>, so one field ID serves every request. Kotlin adopts the values under the lock. With a JVM exception pending, the glue releases them and the result in C.</p>
+          </item>
+          <item>
+            <p>Bindings are <code>NativeBindings</code> (names in pairs, one handle each). <code>CompileRequest</code> serves XPath and XQuery (a query writes <code>isUpdating</code>); <code>QuerySerializeRequest</code> extends <code>SerializeRequest</code>.</p>
+          </item>
+          <item>
+            <p><code>HandleKind</code> gains <code>QUERY</code>, <code>STYLESHEET</code>, <code>SCHEMA</code>. One internal <code>NativeHandle</code> holds a handle, its tracking and its cleaner registration for all five object kinds.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>DUCET</strong>: CMake copies <code>third_party/unicode-collation/allkeys.txt</code> to <code>resources/dev/tinyactors/sxml/allkeys.txt</code> in the build tree (also under Android, for 6.6). The test puts that directory on the class path (<code>SXML_KOTLIN_RESOURCES</code>).</p>
+      </item>
+      <item>
+        <p><strong>Host shim</strong> (6d2a997): <code>sxml_host_string</code> checks UTF-8 with <code>sxml_string_from_utf8</code> (INVALID_UTF8) and refuses U+0000, U+FFFE and U+FFFF (INVALID_ARGUMENT), the XML 1.1 Char rule that <code>fn:codepoints-to-string</code> uses, as <code>sxml_host.h</code> says. It passed both before (found by <ref kind="decision" to="D247"/>). All three bindings see the change. Test: <term name="host_shim"/> <code>string_refuses_characters_xml_does_not_allow</code>.</p>
+      </item>
+      <item>
+        <p><strong>Leaks under the sanitizers</strong>: the debug preset's <code>ASAN_OPTIONS</code> (<code>halt_on_error=1</code>) replaced the script's <code>detect_leaks=0</code>, so LeakSanitizer failed <code>kotlin/jvm</code> on the JVM's own allocations at exit. Replaces <ref kind="decision" to="D247"/>'s <code>detect_leaks=0</code>: the script appends its options, and LeakSanitizer stays on with <code>bindings/kotlin/lsan-jvm.supp</code>. That file suppresses only the JVM's allocator, launcher and zlib frames, so a leak of the glue, the shim or the library is still reported.</p>
+      </item>
+      <item>
+        <p><strong>Tests</strong>: ctest <code>kotlin/jvm</code> (debug, ASan, <code>-Xcheck:jni</code>) passes 65 with 0 leaks (was 36). The run takes 77 s.</p>
+        <list>
+          <item>
+            <p><code>FullTest.kt</code> has the 25 cases of <code>full.test.ts</code> by name: 10 XQuery, 8 XSLT, 5 XSD, the processor-close case and the full allocation-failure loop. The core-module refusal has no counterpart: the library has every language.</p>
+          </item>
+          <item>
+            <p>Binding cases: time zone and locale data through the resolver (from <code>third_party/tzdata/zoneinfo</code> and <code>third_party/cldr/common</code>), the bundled DUCET, never-closed queries, stylesheets and schemas collected, and results, trees and documents closed by <code>use {}</code>.</p>
+          </item>
+          <item>
+            <p>The task file's examples (Kotlin and Swift) now serialize by the text method ("XPath 2027"). The JSON method raised SERE0023 on two items.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>For 6.6</strong>: run <code>allSuites</code> (<code>packageSuites</code>, <code>fullSuites</code>, <code>bindingSuites</code>) from the instrumented test. Pack <code>resources/dev/tinyactors/sxml/allkeys.txt</code> (or the vendored file) as a Java resource of the AAR. The resource-data cases read <code>third_party/</code> through <code>sxml.sourceDirectory</code>; on a device, skip them or ship the files as test assets. Keep the request classes, <code>NativeSideResults</code>, <code>NativeBindings</code> and their fields in the consumer ProGuard rules: the glue looks them up by name.</p>
+      </item>
+    </list>
+  </body>
+</decision>

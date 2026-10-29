@@ -1,0 +1,4 @@
+<term id="streamed_iteration" source="docs/GLOSSARY.md">
+  <name>streamed_iteration</name>
+  <definition>An xsl:iterate, or an xsl:for-each-group whose groups form as the nodes pass, whose select is a downward path of a streamed body, lowered to a chain of STREAM expressions whose last folds the iteration states: each selected node, in its full window, is given to the iteration's closure as it passes, and a break ends the reading (internal, <code>src/xslt_lower_stream.c</code>, <ref kind="decision" to="D302"/>)</definition>
+</term>

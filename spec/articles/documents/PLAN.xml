@@ -1,0 +1,194 @@
+<document id="PLAN" source="docs/PLAN.md">
+  <title>sxml Project Plan</title>
+  <section id="goal">
+    <title>Goal</title>
+    <p>Build sxml (small XML implementation), an embeddable XML toolchain that brings XPath 4.0, XQuery 4.0, XSLT 4.0 and schema validation to every platform: browsers, Node.js, iOS, Android, macOS, Linux and Windows. The core is portable C following <code>docs/C_GUIDELINES.md</code>, compiled to native libraries and to WebAssembly from one codebase.</p>
+    <p>Success is measured, not judged: each phase ends when a named subset of the W3C QT4 test suite passes, and the public pass count is the project's progress bar.</p>
+    <p>The central design bet is a single XDM 4.0 value model shared by every language. XQuery and XSLT both lower into one intermediate representation, so there is one optimizer and one evaluator, not three engines.</p>
+  </section>
+  <section id="architecture">
+    <title>Architecture</title>
+    <pre>  C library API        WebAssembly package        Swift / Kotlin (Phase 6)
+        \                      |                        /
+     XPath 4.0             XQuery 4.0               XSLT 4.0
+        \                      |                        /
+                 Shared IR and optimizer
+                           |
+        Evaluator  -&gt;  F&amp;O 4.0 function library    Schema validation (Phase 5)
+                           |                              |
+  Substrate (frozen after Phase 1):                        v
+    XDM 4.0 values | XML tree (parser, arena) | Type registry | Memory interfaces</pre>
+    <p>Schema validation arrives late but needs no substrate change: it registers its types in the type registry that atomic values already point into.</p>
+  </section>
+  <section id="scope-for-year-one">
+    <title>Scope for year one</title>
+    <p>In scope:</p>
+    <list>
+      <item>
+        <p>XML 1.0 parsing with namespaces, into an arena-based tree.</p>
+      </item>
+      <item>
+        <p>The XDM 4.0 value model: sequences, nodes, atomic items, maps, arrays, records, function items, JSON values.</p>
+      </item>
+      <item>
+        <p>XPath 4.0 with the full F&amp;O 4.0 function library.</p>
+      </item>
+      <item>
+        <p>XQuery 4.0 core language, including modules and higher-order functions.</p>
+      </item>
+      <item>
+        <p>C library builds for Linux, macOS and Windows; a WebAssembly build for browsers and Node.js.</p>
+      </item>
+    </list>
+    <p>Not in year one (each needs a decision record to be pulled in). These are delayed, not dropped: schema awareness is Phase 5 and the rest Phase 7 (<ref kind="decision" to="D162"/>).</p>
+    <list>
+      <item>
+        <p>Schema-aware processing and XSD 1.1 validation.</p>
+      </item>
+      <item>
+        <p>XSLT streaming and the XQuery Update Facility.</p>
+      </item>
+      <item>
+        <p>Collations beyond Unicode codepoint order.</p>
+      </item>
+      <item>
+        <p>A bytecode VM or any form of code generation.</p>
+      </item>
+      <item>
+        <p>Swift and Kotlin bindings, and Invisible XML.</p>
+      </item>
+    </list>
+  </section>
+  <section id="phases">
+    <title>Phases</title>
+    <table>
+      <row header="true">
+        <cell>Phase</cell>
+        <cell>Delivers</cell>
+        <cell>Gate</cell>
+      </row>
+      <row>
+        <cell>0. Substrate design</cell>
+        <cell>Public headers for the XDM value model, tree and memory interfaces; glossary; golden files; CI with lints and sanitizers</cell>
+        <cell>Headers reviewed by a human; CI green on a compiling skeleton</cell>
+      </row>
+      <row>
+        <cell>1. Torture slice</cell>
+        <cell>Minimal XML parser and an XPath subset that exercises every part of the value model, in native and WebAssembly builds</cell>
+        <cell>100–200 hand-picked QT4 tests pass under sanitizers; substrate frozen</cell>
+      </row>
+      <row>
+        <cell>2. XPath 4.0</cell>
+        <cell>Full XPath 4.0 syntax and the F&amp;O 4.0 function library; first public release</cell>
+        <cell>Agreed pass rate on QT4 XPath and function test sets</cell>
+      </row>
+      <row>
+        <cell>3. XQuery 4.0</cell>
+        <cell>FLWOR, constructors, prolog, modules, serialization</cell>
+        <cell>Agreed pass rate on QT4 XQuery test sets</cell>
+      </row>
+      <row>
+        <cell>4. XSLT 4.0</cell>
+        <cell>Templates, modes, packages, lowered into the shared IR</cell>
+        <cell>Agreed pass rate on XSLT 4.0 test sets</cell>
+      </row>
+      <row>
+        <cell>5. Schema validation</cell>
+        <cell>XSD 1.1 validation and schema-aware typing</cell>
+        <cell>XSD conformance subset; schema-aware QT4 tests</cell>
+      </row>
+      <row>
+        <cell>6. Platform bindings</cell>
+        <cell>Kotlin and Swift bindings over the host shim the JavaScript package shares (<ref kind="decision" to="D238"/>); Android builds for four ABIs and iOS builds</cell>
+        <cell>Binding tests on device in CI: Kotlin on the JVM, an Android emulator and an arm64 device; Swift on Linux, macOS, an iOS simulator and an iOS device (<code>docs/tasks/phase-6.md</code>)</cell>
+      </row>
+      <row>
+        <cell>7. Deferred features</cell>
+        <cell>What <ref kind="decision" to="D97"/> left out of Phases 2–4: full UCA, HTML parsing, invisible XML, streaming, the Update Facility, Full Text, EXPath, compatibility modes, timezone database, other calendars and languages, fn:transform (<ref kind="decision" to="D162"/>); proposed for the owner: xsl:evaluate, DTD processing, XML 1.1 input, disable-output-escaping. Large parts may be optional build features (<ref kind="decision" to="D183"/>)</cell>
+        <cell>Each feature's QT4, XSLT or xmlconf test sets pass at its packet's rate (<code>docs/tasks/phase-7.md</code>); earlier gates held; size budgets met</cell>
+      </row>
+    </table>
+    <p>Phases 0 to 3 are year one. Pass-rate targets for Phases 2 and 3 are set at the end of Phase 1.</p>
+  </section>
+  <section id="how-work-is-done">
+    <title>How work is done</title>
+    <list ordered="true">
+      <item>
+        <p>Headers are designed first and frozen.</p>
+      </item>
+      <item>
+        <p>Work comes in packets: one module or one specification chapter plus its test subset.</p>
+      </item>
+      <item>
+        <p>Golden files set the style.</p>
+      </item>
+      <item>
+        <p>Every change is gated by lints, sanitizers and tests.</p>
+      </item>
+      <item>
+        <p>A separate reviewer checks each change against the guidelines.</p>
+      </item>
+      <item>
+        <p>Substrate changes after the freeze need a decision record.</p>
+      </item>
+    </list>
+  </section>
+  <section id="tracking-progress">
+    <title>Tracking progress</title>
+    <list>
+      <item>
+        <p>Conformance dashboard: pass counts per test set, published by CI on every merge.</p>
+      </item>
+      <item>
+        <p>Weekly log in <code>docs/LOG.md</code>: what passed, what's next, what is blocked.</p>
+      </item>
+      <item>
+        <p>Decision records in <code>docs/DECISIONS.md</code>.</p>
+      </item>
+      <item>
+        <p>Phase review at each gate.</p>
+      </item>
+    </list>
+  </section>
+  <section id="risks">
+    <title>Risks</title>
+    <table>
+      <row header="true">
+        <cell>Risk</cell>
+        <cell>Mitigation</cell>
+      </row>
+      <row>
+        <cell>Endless redesign of the foundation</cell>
+        <cell>Time-boxed Phase 0; decision records; substrate frozen at the Phase 1 gate</cell>
+      </row>
+      <row>
+        <cell>Substrate proves wrong after the freeze</cell>
+        <cell>Torture slice targets the hardest parts of the value model first</cell>
+      </row>
+      <row>
+        <cell>Scope creep</cell>
+        <cell>Written non-goals; pulling one in requires a decision record</cell>
+      </row>
+      <row>
+        <cell>Agent-written code drifts</cell>
+        <cell>Headers first, golden files, lint gates, review pass</cell>
+      </row>
+      <row>
+        <cell>Memory-safety bugs on untrusted input</cell>
+        <cell>Sanitizers, fuzzing, checked size arithmetic</cell>
+      </row>
+      <row>
+        <cell>Decimal, date/time and regex take longer than planned</cell>
+        <cell>Each is its own packet, scheduled early in Phase 2</cell>
+      </row>
+      <row>
+        <cell>WebAssembly size</cell>
+        <cell>Size budget in CI; optional features as separate modules</cell>
+      </row>
+      <row>
+        <cell>Specifications still changing</cell>
+        <cell>Track QT4 drafts; draft-only features behind flags</cell>
+      </row>
+    </table>
+  </section>
+</document>

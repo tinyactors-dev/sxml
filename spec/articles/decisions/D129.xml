@@ -1,0 +1,26 @@
+<decision id="D129" status="accepted" source="docs/DECISIONS.md">
+  <title>Date formatting: the picture engine over format-integer (packet <ref kind="packet" to="2.14"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D97"/>, <ref kind="decision" to="D119"/> and <ref kind="decision" to="D122"/>. <code>src/format_date.c</code> with the module header <code>src/format_date_internal.h</code>, part <code>src/function_library_format_date.c</code> (part <code>format_date</code>), test <code>format_date</code>.</p>
+    <list>
+      <item>
+        <p><strong>One engine</strong>: a variable marker's first presentation modifier is a primary format token of the <ref kind="decision" to="D119"/> engine; a minimum width widens the digit pattern (optional signs from the right, then prepended digits of the family) and parses it again; non-digit tokens are padded with spaces. Fractional seconds parse the reversed token (so <code>[f#99]</code> is FOFD1340) and write the fraction's digits directly with the effect of 9.9.4.5's reversal (<code>[f,*-2]</code> of .006 is "0", as QT4 expects).</p>
+      </item>
+      <item>
+        <p><strong>Scan</strong>: three passes over the picture (syntax FOFD1340, then components FOFD1350, then writing), so a rejected picture writes nothing. Whitespace in a marker is dropped; the last comma starts the width; a lone "]" is FOFD1340.</p>
+      </item>
+      <item>
+        <p><strong>Calendar arithmetic</strong> on a year of the same 400-year cycle, so day of week, ISO week (W) and week in month (w, the month of the week's Thursday) hold for every int64_t year; W, w and F's numbers follow ISO 8601 in both calendars.</p>
+      </item>
+      <item>
+        <p><strong>Calendars and languages</strong> (<ref kind="decision" to="D97"/>): AD (default; year 0 is 1 BC, eras AD/BC) and ISO (absolute year, era "-"). Other designators and any name in a namespace format as AD after "[Calendar: AD]"; a name in no namespace that is no designator, or no EQName, is FOFD1340. A prefix is not resolved (no statically known namespaces at run time): any prefix counts as a namespace. A non-English $language gives "[Language: en]"; the empty sequence or "" gives none (the default language is not read: English whatever the host names). $place is ignored.</p>
+      </item>
+      <item>
+        <p><strong>Names</strong>: English months and days, conventional day abbreviations (Tues, Weds, Thurs/Thur) before cutting at the maximum width; am/pm; AD, BC, ISO always in capitals. Title-case words capitalize after a hyphen ("Twenty-One", QT4 format-date-en125), unlike format-integer's "Twenty-one" (<ref kind="decision" to="D119"/>). Timezone names need a database (<ref kind="decision" to="D97"/>): [ZN] and other tokens use 01:01; ZZ gives military letters, "J" without a timezone.</p>
+      </item>
+      <item>
+        <p>Measured (debug driver, XP40): fn-format-date 20 to 124 of 124 run, fn-format-time 19 to 94 of 94, fn-format-dateTime 5 to 80 of 80.</p>
+      </item>
+    </list>
+  </body>
+</decision>

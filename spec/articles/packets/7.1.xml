@@ -1,0 +1,6 @@
+<packet id="7.1" source="docs/tasks/phase-7.md">
+  <title>Phase 7 plan (design)</title>
+  <body>
+    <p>After the Phase 4 gate (<ref kind="decision" to="D162"/>). Owns this file, <ref kind="decision" to="D183"/>, PLAN.md's Phase 7 row and the glossary terms of <ref kind="decision" to="D183"/>. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D183"/>).</p>
+  </body>
+</packet>

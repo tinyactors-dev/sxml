@@ -1,0 +1,24 @@
+<packet id="6.7" source="docs/tasks/phase-6.md">
+  <title>Swift core (implementation, here)</title>
+  <body>
+    <p><status value="paused" date="2026-10-20"/> (<ref kind="decision" to="D255"/>): done as below; the Swift line (6.7 to 6.9) resumes from <code>bindings/swift/DESIGN.md</code>. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D241"/>): <code>Package.swift</code>, <code>bindings/swift/</code> (module map, <code>Sources/Sxml</code>, 27 tests), ctest <code>swift/linux</code> over a merged <code>libsxml_host.a</code>; Swift 6.2 on Linux, 0 leaks. After <ref kind="packet" to="6.2"/> and <ref kind="packet" to="6.3"/>. Owns:</p>
+    <list>
+      <item>
+        <p><code>Package.swift</code> at the repository root (SwiftPM needs it there);</p>
+      </item>
+      <item>
+        <p><code>bindings/swift/Sources/CSxmlHost/</code> (<code>module.modulemap</code> over <code>sxml_host.h</code>);</p>
+      </item>
+      <item>
+        <p><code>bindings/swift/Sources/Sxml/</code>;</p>
+      </item>
+      <item>
+        <p><code>bindings/swift/Tests/SxmlTests/</code>;</p>
+      </item>
+      <item>
+        <p><code>bindings/swift/CMakeLists.txt</code>, which builds <code>sxml_host</code> and adds the ctest <code>swift/linux</code> running <code>swift test</code> with the include and library paths of the build tree. The manifest reads <code>SXML_HOST_LIBRARY_PATH</code> for them; without it, Apple platforms use the XCFramework of 6.9.</p>
+      </item>
+    </list>
+    <p>The Swift code uses Swift 6 language mode. <code>CSxmlHost</code> is imported with <code>internal import</code>, so no C type appears in the module's interface. Done when <code>swift/linux</code> passes the XPath half of the parity list and the ARC tests with 0 leaks. Golden: <code>src/index.ts</code>; the probe's module map.</p>
+  </body>
+</packet>

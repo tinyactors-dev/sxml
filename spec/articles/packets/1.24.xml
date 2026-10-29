@@ -1,0 +1,6 @@
+<packet id="1.24" source="docs/tasks/phase-1.md">
+  <title>QT4 driver: catalog and environments (implementation)</title>
+  <body>
+    <p>After <ref kind="packet" to="1.3"/>, <ref kind="packet" to="1.14"/>, the CLI framework (<ref kind="decision" to="D44"/>). Owns <code>tests/qt4/driver/</code>. Golden: <code>apps/sxml</code>. Reads catalogs with sxml's parser through public headers; XP40 spec and dependency filtering (<code>docs/QT4_CATALOG.md</code>); environments (sources, params, static base URI); runs a list file or <code>--test-set=NAME</code>. Done when it resolves the 198 slice cases natively and on <code>wasm</code>. <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D83"/>): <code>sxml-qt4 list</code>; 198/198 resolve under <code>debug</code>, <code>debug-gcc</code> and <code>wasm</code>; P8 (quadratic XML positions) proposed.</p>
+  </body>
+</packet>

@@ -1,0 +1,4 @@
+<term id="evaluation_environment" source="docs/GLOSSARY.md">
+  <name>evaluation_environment</name>
+  <definition>What the library functions of one evaluation read from the host beyond fn:doc: the resolver for text, binary and collection resources, the trace sink, the default language, environment variables, and the static context's decimal formats and collations; carried by the processor's document loader</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="allocator" source="docs/GLOSSARY.md">
+  <name>allocator</name>
+  <definition>The memory interface: state plus operations table</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="atom" source="docs/GLOSSARY.md">
+  <name>atom</name>
+  <definition>An IR operand that needs no evaluation: a constant, a slot or a global variable (<ref kind="decision" to="D46"/>)</definition>
+</term>

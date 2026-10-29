@@ -1,0 +1,4 @@
+<term id="json_sink" source="docs/GLOSSARY.md">
+  <name>json_sink</name>
+  <definition>Interface receiving the JSON events of one walk: it makes XDM values (<code>fn:parse-json</code>) or tree builder events (<code>fn:json-to-xml</code>)</definition>
+</term>

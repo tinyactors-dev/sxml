@@ -1,0 +1,6 @@
+<packet id="1.25" source="docs/tasks/phase-1.md">
+  <title>QT4 driver: assertions and reports (implementation)</title>
+  <body>
+    <p>After <ref kind="packet" to="1.23"/>, <ref kind="packet" to="1.24"/>. Owns <code>tests/qt4/driver/assertion.c</code>, <code>report.c</code> and, from now, the driver's <code>CMakeLists.txt</code>. Every assertion except the serialization ones (reported "unsupported", failing); <code>assert</code> binds <code>$result</code>; a wrong error code passes and is reported. Counts per test set, text and <code>--format=json</code>. ctest <code>qt4_slice</code> fails on any slice failure. Done when 198/198 pass under <code>debug</code> and <code>debug-gcc</code>. <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D92"/>): <code>sxml-qt4 run</code>; 198/198 pass under <code>debug</code>, <code>debug-gcc</code> and <code>wasm</code>; ctest <code>qt4/slice</code> fails below the baseline in <code>tests/qt4/slice-baseline.txt</code> (198). Serialization assertions are not-run rather than failing; no <code>--output</code> (no file writer in the CLI).</p>
+  </body>
+</packet>

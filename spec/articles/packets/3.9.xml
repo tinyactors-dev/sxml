@@ -1,0 +1,6 @@
+<packet id="3.9" source="docs/tasks/phase-3.md">
+  <title>Constructor lowering (implementation) — Early</title>
+  <body>
+    <p>After <ref kind="packet" to="3.2"/>, <ref kind="packet" to="3.5"/>. Owns <code>src/xquery_lower_construct.c</code>, <code>tests/xquery_lower_construct_test.c</code>. Direct and computed element, attribute, namespace, text, comment, PI and document constructors; enclosed expressions; boundary-space; in-scope namespaces of constructed elements (XQST0085); name expressions. Done when prod-DirElemConstructor, prod-DirElemContent, prod-DirElemContent.namespace, prod-DirElemContent.whitespace, prod-DirAttributeList, prod-CompElemConstructor, prod-CompAttrConstructor and the other prod-Comp<em>Constructor sets ≥ 90%. Spec: XQuery 4.0 "Direct Element Constructors", "Computed Constructors". *</em>Done** 2026-10-17 (<ref kind="decision" to="D127"/>): part <code>construct</code>, <code>tests/xquery_lower_construct_test.c</code> (golden IR, values, static errors, allocation-failure loops). The 13 sets pass 932 of 1,165 (scratch harness, 59 not run); all but 7 of the run queries without a prolog pass (none of the 7 is lowering's), so the 90% bar waits for 3.10 to let prologs through (167 queries).</p>
+  </body>
+</packet>

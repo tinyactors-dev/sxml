@@ -1,0 +1,32 @@
+<decision id="D44" status="accepted" source="docs/DECISIONS.md">
+  <title>The sxml command-line program and its CLI framework</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. Rules and planned commands in <code>docs/CLI.md</code>.</p>
+    <list>
+      <item>
+        <p>Layout: <code>apps/cli_framework/</code> (static library <code>sxml_cli_framework</code>: declarative command tables, parser, help, "did you mean", output streams, dispatch); <code>apps/sxml/</code> (<code>sxml_program</code>: table and command functions; executable target <code>sxml_cli</code>, output name <code>sxml</code>). Option <code>SXML_BUILD_APPS</code> (default ON), added after <code>tests/</code>. Application code: public <code>include/sxml/</code> API only, memory from an <code>sxml_allocator</code>.</p>
+      </item>
+      <item>
+        <p>I/O boundary: only <code>apps/sxml/platform_stdio.c</code> touches stdio; lint <code>input-output-outside-platform-layer</code> enforces it for <code>apps/**</code>, and <code>pointer-parameter-without-length</code> now covers <code>apps/</code> too.</p>
+      </item>
+      <item>
+        <p>One intent, one action: no option abbreviations, no aliases beyond <code>help</code>/<code>--help</code>/<code>version</code>/<code>--version</code>, a repeated single option is a usage error, <code>-h</code>/<code>--help</code> wins over everything before <code>--</code>, no implicit stdin, no files written without <code>--output</code>, no network. Typos get a suggestion (optimal string alignment distance), never an action.</p>
+      </item>
+      <item>
+        <p>Exit codes 0 success, 1 operation failed, 2 usage error, 3 input/output error (incl. failed writes to stdout), 4 internal error.</p>
+      </item>
+      <item>
+        <p>Built-ins: <code>help [COMMAND]</code> and the program options <code>--help</code>, <code>--version</code>; tables cannot redeclare them (<code>sxml_cli_program_validate</code>, run at start: a broken table exits 4). The program name is fixed in the table, never argv[0], so output is identical natively and under WASI.</p>
+      </item>
+      <item>
+        <p>Today's commands: <code>help</code>, <code>version [--format=text|json]</code>. Nothing else is listed until it works.</p>
+      </item>
+      <item>
+        <p>Tests in <code>tests/cli/</code>, registered from <code>apps/CMakeLists.txt</code> so the <code>tests/*_test.c</code> glob (<ref kind="decision" to="D45"/>) never sees them: framework unit tests and golden end-to-end tests (stdout, stderr, exit code) under every preset, MSVC included (CI runs <code>ctest -R ^cli</code> there).</p>
+      </item>
+      <item>
+        <p>The QT4 driver (packet <ref kind="packet" to="1.24"/>) is a separate tool under <code>tests/qt4/driver/</code> built on this framework, not an <code>sxml</code> subcommand: it reads the vendored catalogs and is never shipped. Rejected: <code>sxml test-suite</code>, which would advertise a developer tool to users.</p>
+      </item>
+    </list>
+  </body>
+</decision>

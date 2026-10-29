@@ -1,0 +1,4 @@
+<term id="xsd_test_catalog" source="docs/GLOSSARY.md">
+  <name>xsd_test_catalog</name>
+  <definition>The W3C XSD test suite's <code>suite.xml</code> (<code>third_party/xsdtests/</code>) as the driver holds it: its test-set references and one open test set</definition>
+</term>

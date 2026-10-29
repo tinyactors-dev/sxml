@@ -1,0 +1,29 @@
+<decision id="D167" status="accepted" source="docs/DECISIONS.md">
+  <title>Schema components and compile stages (packet <ref kind="packet" to="5.2"/>)</title>
+  <body>
+    <p><recorded date="2026-10-18"/>. The internal design of Phase 5 (<ref kind="decision" to="D165"/>), in <code>src/schema_internal.h</code>; golden <code>src/xslt_ast_internal.h</code>.</p>
+    <list>
+      <item>
+        <p><strong>One store, index-addressed</strong> (<ref kind="decision" to="D24"/>, <ref kind="decision" to="D52"/>): <code>sxml_schema_components</code> holds one table per component kind of XSD 1.1 Part 1, 2.2 (type definitions simple and complex together, element and attribute declarations, attribute uses, attribute groups, model group definitions, model groups, particles, schema wildcards, identity constraints, type alternatives, assertions, notations, facets) and per linking record (XPath records, namespace contexts, schema references, documents, list entries, namespace bindings, text bytes), entry 0 "none" in each. One generic append (<code>sxml_schema_components_add_entries</code>, by table) and edit, typed read accessors. Property records (content type, scope, value constraint, open content, type table) are fields. Built-in components first, with fixed indexes: type definitions 1 to 54 are the registry's built-ins by <code>sxml_builtin_type</code> (so a registered built-in and its component share a number), 55 the list type of xsi:schemaLocation, particles 1-2, model group 1, wildcards 1-2 for xs:anyType, attributes 1-4 the xsi: ones. xs:untyped, xs:untypedAtomic and xs:numeric have components but no XSD name.</p>
+      </item>
+      <item>
+        <p><strong>Fields are "as read" or "property"</strong>: the reader writes what the XML says, QName attributes as schema references (a table of symbol space, name, position); RESOLVE turns them into index fields beside them, and no later stage reads a reference. Children known when read are linked by index directly. Stages write the properties their comments name.</p>
+      </item>
+      <item>
+        <p><strong>Six stages, one file each</strong>, run in order by <code>sxml_schema_initialize</code> (5.4), each reading only what earlier ones wrote: READ (schema_read.c, schema_assemble.c), RESOLVE (schema_resolve.c), SIMPLE_TYPES (5.5), COMPLEX_TYPES (5.6, with schema_content_model.c), IDENTITY_CONSTRAINTS (5.8), ASSERTIONS (5.9); errors go through one function, <code>sxml_schema_compilation_report</code> (record gets the static description and the configured URI, the sink a detailed one); a stage that reported stops the pipeline after it. Stubs of compile stages check nothing and return OK (so 5.4 can measure schema tests alone); validation-time seams of unfinished features return UNSUPPORTED_FEATURE where used (<ref kind="decision" to="D162"/>), and the stubs handle the trivial case (no type table, no assertions, no identity constraints) so ordinary validation is not blocked by them.</p>
+      </item>
+      <item>
+        <p><strong><code>struct sxml_schema</code> is in the internal header</strong> (processor, creating allocator, embedded components), so every <code>src/schema*.c</code> reaches the components; its functions stay 5.4's.</p>
+      </item>
+      <item>
+        <p><strong>Content models</strong> (5.6's plan): an opaque compiled model per complex type, in a block of the components (blocks never move, freed with the components, so no destroy hook): a deterministic Glushkov automaton, small maxOccurs expanded, large ones counted (as <ref kind="decision" to="D147"/>), UPA as a determinism check with element-over-wildcard, all groups as counted tables, open content as a matcher fallback, substitution groups as head transitions giving the member. The validator steps a cursor (<code>state</code> + caller-owned counter values) with start, step, can_end and list_expected.</p>
+      </item>
+      <item>
+        <p><strong>Validator seams</strong>, plain calls (<ref kind="decision" to="D71"/>): type alternatives and assertions (5.9), identity constraints (5.8) over a recorded subtree (an arena copy of the outermost element that needs one, with each element's governing declaration by node index), the ID table and the validator's report function (5.7), the derivation check (5.6) for xsi:type, substitution and type tables.</p>
+      </item>
+      <item>
+        <p><strong>Sharing the header</strong>: after <ref kind="packet" to="5.2"/>, <code>src/schema_internal.h</code> is shared like a ledger: a packet adds what its files need as one small insertion in its own section, committed alone; it does not change other packets' fields. The text form writer is 5.4's (<code>src/schema_text.c</code>).</p>
+      </item>
+    </list>
+  </body>
+</decision>

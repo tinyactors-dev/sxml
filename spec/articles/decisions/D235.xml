@@ -1,0 +1,38 @@
+<decision id="D235" status="accepted" source="docs/DECISIONS.md">
+  <title>XPath Full Text: a grammar of the feature; parser part extensions; the package's EXPath prefixes (packet 7.12d)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D111"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D208"/>, <ref kind="decision" to="D214"/>, <ref kind="decision" to="D227"/>. Amends <ref kind="decision" to="D214"/> ("XPath's Full Text is not implemented"). Verified as <ref kind="decision" to="D181"/> asks: the debug preset, the unit, CLI and QT4 driver tests touched, clang-tidy on the files changed, <code>tools/check-call-cycles.py</code>, the wasm preset's JavaScript tests, and the whole QT4 XP40 and XQ40 suites with the release driver, compared case by case.</p>
+    <list>
+      <item>
+        <p><strong>The grammar</strong>: XQuery and XPath Full Text 3.0, Appendix B (XPath 3.0 with Full Text) applied to XPath 4.0 as grammars/xquery applies Appendix A: FTContainsExpr as the operand of ComparisonExpr, FTScoreVar in the for bindings (SimpleForBinding, after XPath 4.0's positional variable), Pragma for FTExtensionSelection. XPath's let bindings take no score variable (B [13]: XPST0003). The productions are written once, in <code>grammars/xpath/full_text.js</code>; grammars/xquery uses them (its generated parser is byte-identical) and so does the new grammars/xpath_full_text.</p>
+      </item>
+      <item>
+        <p><strong>Why a grammar of its own</strong>: the productions in grammars/xpath grow its compiled parser from 310,662 to 505,223 bytes of wasm32 code and data (-Os, +194,561), all of it in the core <code>sxml.wasm</code>, against <ref kind="decision" to="D208"/>'s "keep the core lean". As a parser of its own, named only by the feature full-text (<code>sxml_full_text_operations.xpath_parser_part</code>), it costs the core nothing and the full module and the CLI 500,913 bytes (the full XPath parser again, with Full Text's states). Rejected: the XQuery parser for XPath text (string literal references, direct constructors, the namespace axis and the reserved names differ).</p>
+      </item>
+      <item>
+        <p><strong><ref kind="decision" to="D162"/>'s place for XPath</strong> is the grammar: without the feature, <code>sxml_xpath_compile</code> parses with grammars/xpath, which has no Full Text syntax, so the text is XPST0003 there, as for a processor without Full Text. With the feature it parses with the feature's part, then runs the feature's static rules (<code>check_rules</code>: XQST0089, FTST0009, FTST0019, XQST0079), then lowers. XSLT's own expressions keep grammars/xpath (Full Text extends XPath and XQuery, not XSLT); <code>xsl:evaluate</code>, which compiles through <code>sxml_xpath_compile</code>, has it.</p>
+      </item>
+      <item>
+        <p><strong>Parser part extensions</strong> (glossary <term name="parser_part_extension"/>; <code>src/xpath_ast_internal.h</code>): a parser part may name an extension, a part whose node types and fields the walker looks up after the part's and whose apply_token it offers a token after the part's. Full Text's node types, fields and tokens move from <code>src/xquery_parse.c</code> to <code>src/full_text_parse.c</code> (<code>sxml_full_text_parser_part</code>), the extension of XQuery's part and of the feature's XPath part, whose own tables are empty: one definition for both grammars. XQuery's apply_token leaves Full Text's nodes to the extension.</p>
+      </item>
+      <item>
+        <p><strong>Lowering</strong>: the lowering part full_text serves XPath too (its contains rule; the rule's step is the feature's, as for XQuery). The core's for binding (<code>src/xpath_lower.c</code>) binds a score variable after the feature's for score procedure (XQuery's, through the new operation <code>call_for_score</code>, so the core does not link it), before the binding's variables are in scope, as XQuery's for clause does.</p>
+      </item>
+      <item>
+        <p><strong>The QT4 driver</strong> supports fullText, fullText-ignore, fullText-units and fullText-defaults for XPath too. The ft-* cases are all XQ10+, so none runs under XP40. Measured by running them through the XPath API (the spec rule bypassed in a private build, not committed): the 48 written as XPath expressions all pass; the other 637 use XQuery syntax (626 declare variables, 10 use constructors, 1 order by) and are XPST0003 there, as they should be.</p>
+      </item>
+      <item>
+        <p><strong>Numbers</strong>: release, whole runs, 7749770 against the change: XP40 32,655 passed, 34 wrong errors, 82 failed; XQ40 45,914, 55, 239; no case changed. <code>tools/qt4-parse-check.py --spec XP40</code> classifies the 32,928 applicable cases alike with grammars/xpath and grammars/xpath_full_text (0 false rejects, 2 false accepts).</p>
+      </item>
+      <item>
+        <p><strong>Sizes</strong> (wasm preset, stripped / gzipped, before and after d25980e): <code>sxml.wasm</code> 2,087,567 / 729,646 to 2,088,782 / 730,104 (+1,215: the score binding 668, the extension loops 166, the contains rule 193), no budget raised; <code>sxml-full.wasm</code> 7,116,988 / 1,640,375 to 7,619,484 / 1,684,247; the CLI 8,711,495 / 1,921,864 to 9,213,991 / 1,965,878. Budgets (<ref kind="decision" to="D208"/>): the full module 8,000,000 / 2,800,000 (was 7,500,000 / 2,625,000), the CLI 9,500,000 / 2,100,000 (was 9,000,000 / 2,000,000). The core's size baseline is refreshed at 6c994b2 (it also takes in about 10 KB that other packets added since <ref kind="decision" to="D227"/>: xml_input, ir_global_read, the XML grammar).</p>
+      </item>
+      <item>
+        <p><strong>The JavaScript package's EXPath prefixes</strong>: as the sxml command binds bin and file (EXPath Binary 4.0, 1.5; EXPath File 4.0, 1.7), the package binds, for XPath and XQuery, the prefix of each feature the processor has: bin with expath-binary, file with expath-file (which the package's modules do not link). The caller's <code>namespaces</code> may rebind them. In TypeScript (<code>src/index.ts</code>), from the processor's feature list, so the core module, which has no feature, links nothing more.</p>
+      </item>
+      <item>
+        <p><strong>Left</strong>: the declaration of <code>sxml_full_text_feature()</code> in <code>include/sxml/xquery.h</code> still says "for XQuery" (see Proposed); the scanner is instantiated once per grammar (5,577 bytes again in the full module).</p>
+      </item>
+    </list>
+  </body>
+</decision>

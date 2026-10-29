@@ -1,0 +1,4 @@
+<term id="conjunct_break" source="docs/GLOSSARY.md">
+  <name>conjunct_break</name>
+  <definition>The Indic_Conjunct_Break property value of a codepoint (None, Linker, Consonant, Extend), for rule GB9c of UAX #29</definition>
+</term>

@@ -1,0 +1,35 @@
+<decision id="D75" status="accepted" source="docs/DECISIONS.md">
+  <title>The evaluator: an explicit-stack machine (packet <ref kind="packet" to="1.18"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. <code>src/evaluator.c</code> (dynamic context, machine, expressions), <code>src/evaluator_function.c</code> (atomization, effective boolean value, type matching, coercion, function items and bodies), <code>src/evaluator_path.c</code> (steps over XNodes and JNodes, document order, node sets, merge sort). Internal headers changed as <ref kind="decision" to="D71"/> requires.</p>
+    <list>
+      <item>
+        <p><strong>Machine</strong> (<ref kind="decision" to="D71"/>): every expression with a nested expression, every call and every native step is an <term name="evaluator_task"/> on a task stack in allocator memory; one loop runs the top task; a finished task hands its value to the task below. LET bodies, CONDITIONAL branches and calls in tail position replace their task; a tail call reuses the caller's frame (100k-deep non-tail recursion and 200k tail calls with depth limit 10 are tested, also on wasm). Leaf work (operators, casts, axes, atomization, matching) is plain C over explicit stacks of its own.</p>
+      </item>
+      <item>
+        <p><strong>Depth</strong> = calls in progress (IR calls and resumable native calls); <code>maximum_evaluation_depth</code> 0 means 10^6 (heap, not C stack, per level); beyond it LIMIT_EXCEEDED. <code>maximum_frame_slot_count</code> bounds slots.</p>
+      </item>
+      <item>
+        <p><strong>Reentry</strong>: <code>sxml_evaluator_evaluate</code>, <code>sxml_evaluator_call_function_item</code> and the call operations of IR, coerced and resumable native bodies run the machine only on an idle dynamic context (INVALID_ARGUMENT otherwise). Inside a run the machine recognizes those bodies by their operations pointer and calls them through tasks; maps, arrays, constructor functions and host bodies are leaves.</p>
+      </item>
+      <item>
+        <p><strong>Resumable native bodies</strong> (<code>function_library_internal.h</code>): a row with <code>CALLS_FUNCTION_ITEMS</code> has a <code>resumable_body</code> (step function, state size, <code>release_state</code>) instead of <code>call</code>. Each <term name="native_step"/> finishes with a value or asks for one call of a function item; the evaluator coerces the arguments, makes the call on its stack and runs the next step with the result (owned). State is evaluator memory, zeroed, released exactly once. 1.21 writes fn:for-each, filter, fold-*, sort with keys, apply, partial-apply's bodies, map:/array:for-each this way; <code>sxml_native_function_body_operations</code> is now defined in <code>src/evaluator_function.c</code>, because the evaluator dispatches on it.</p>
+      </item>
+      <item>
+        <p><strong>Lazy sequences</strong>: the evaluator makes none whose generator evaluates IR; MAP, FILTER, paths and calls build complete values (Phase 1).</p>
+      </item>
+      <item>
+        <p><strong>Coercion</strong> (XPath 4.0, 3.4): atomization, untypedAtomic cast (XPTY0117 for QName/NOTATION), numeric and URI promotion, relabelling to a derived type of the same primitive only when the cast keeps the value (3 to xs:positiveInteger yes, 4.2 to xs:integer no), function coercion by a coerced-function body (lower arity allowed, extra arguments dropped), then a full type match. Type matching handles occurrences, atomic, union, enumeration, node, JNode (key and value), function, map, array, record and choice types on an explicit stack with backtracking for choices.</p>
+      </item>
+      <item>
+        <p><strong>Paths</strong>: STEP from a JNode reads element tests as key tests and runs every axis over the JTree; several origins are put in document order; DOCUMENT_ORDER keeps sorted input as it is. Constant numeric predicates index directly.</p>
+      </item>
+      <item>
+        <p><strong>Errors</strong> get the source span of the failing expression when the record has no location. The implicit timezone is read from the clock only when an operand is a date, time or duration (null clock: UTC).</p>
+      </item>
+      <item>
+        <p><strong>Not yet</strong>: TRY_CATCH, constructors, APPLY_TEMPLATES and global initializers return UNSUPPORTED_FEATURE; static namespaces are not available to casts to xs:QName at run time (predeclared prefixes only).</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="content_model_transition" source="docs/GLOSSARY.md">
+  <name>content_model_transition</name>
+  <definition>A move of a content model state on an element declaration (with its substitutable members) or a schema wildcard, with counter tests and counter operations</definition>
+</term>

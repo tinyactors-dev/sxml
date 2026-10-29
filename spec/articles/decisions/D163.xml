@@ -1,0 +1,41 @@
+<decision id="D163" status="accepted" source="docs/DECISIONS.md">
+  <title>XSLT conformance sweep 2 (packet <ref kind="packet" to="4.17"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D99"/>, <ref kind="decision" to="D148"/>, <ref kind="decision" to="D159"/>, <ref kind="decision" to="D160"/>, <ref kind="decision" to="D161"/>, <ref kind="decision" to="D162"/>.</p>
+    <list>
+      <item>
+        <p><strong>Zero-length text nodes</strong> (<ref kind="decision" to="D159"/>'s Proposed item, accepted; additive to the frozen <code>include/sxml/tree.h</code>, <ref kind="decision" to="D99"/>): XDM 4.0, 7.5.7.1 lets a text node without a parent be empty ("text nodes are allowed to be empty only if they have no parents"). The builder contract: a parentless text whose events are all empty is a zero-length text node; inside a parent empty text still makes none, so the node disappears when it is added to content. TEXT_CONSTRUCTOR (XQuery <code>text {""}</code>, xsl:value-of, xsl:text) makes it; simple content drops zero-length text nodes first (XSLT 4.0, 5.7.2 step 1). <ref kind="decision" to="D110"/>'s deviation is gone.</p>
+      </item>
+      <item>
+        <p><strong>CDATA requests</strong> (additive to tree.h): <code>sxml_text_event. is_cdata_section</code> and <code>sxml_node_description.is_cdata_section</code> (glossary <term name="cdata_section"/>) carry XSLT 4.0, 11.4.3's cdata attribute of xsl:value-of and xsl:text (construction flag CDATA_SECTION; a computed value is one CONDITIONAL). A text node built from several events keeps the request when one has it (implementation-defined; value-of-012 expects mixed nodes and fails). Copies keep it; the serializer writes such a text node as CDATA sections with the XML and XHTML methods.</p>
+      </item>
+      <item>
+        <p><strong>Sized arena trees</strong>: the first node segment holds 2 nodes, a growable tree without initial memory takes 768 bytes with its own allocation as the arena's first memory, location segments are made only when kept, the base URI is an exact allocation, the text store starts at 64 bytes. A constructed tree of a few nodes is about 1.3 KB (was 5 to 9 KB). JSON parsing reuses the key items of a parse (a cache of 32 keys). array-022 (209,579 small element trees) runs within the driver's 512 MB.</p>
+      </item>
+      <item>
+        <p><strong>The evaluation memo</strong> is an open-addressing hash; subjects are the same when they are one node, atomic items of one type that are atomic-equal, or arrays whose members are, item by item. <strong>xsl:function cache="yes"</strong> (10.3.7; not for new-each-time="yes"): the full arity calls the internal row cached-call(number, [$p1, ...], body#n), body the sequence constructor's IR function; equal arguments give the first call's value (function-1031).</p>
+      </item>
+      <item>
+        <p><strong>The static context of a call at run time</strong> (<ref kind="decision" to="D159"/>'s Proposed item, accepted, <ref kind="decision" to="D149"/>'s names-as-strings item with it): one mechanism, the unit's modules (glossary <term name="ir_module"/>, widened from <ref kind="decision" to="D148"/>): a module may carry its own decimal formats and collations and its own static namespaces besides its static base URI; STATIC_CALL and the node constructors gained <code>module_number</code>. XSLT lowering makes one module per AST static context (xml:base, namespaces, [xsl:]default-collation, the package's decimal formats, 3.4.8) and the XPath lowerer stamps the function calls of an expression with its context's module (<code>sxml_xpath_static_context.ir_module_number</code>); XSLT stamps the elements, documents and temporary trees it constructs. The evaluator's lexical getters (<code>sxml_dynamic_context_get_static_base_uri</code>, new <code>_get_static_context</code>, <code>_get_static_namespaces</code>) read the innermost IR task's expression module, then its function's, then the unit's. So fn:static-base-uri, resolve-uri#1, doc, base URIs of constructed nodes, default collations, names given as strings (fn:key, system-property, function-available, format-number) and decimal formats per package follow the expression. Not covered: fn:function-lookup of fn:key and the accumulator functions (lowered snippets, not natives), and XSLT's own library calls (they read the unit's).</p>
+      </item>
+      <item>
+        <p><strong>Declarations local to a package</strong> (<ref kind="decision" to="D160"/>'s Proposed item, accepted; 3.4.8): one rule, each named-declaration table is keyed by name and the package of the declaration, and a reference looks up its own package's (as attribute sets and modes already were): keys (the XSLT function table has one state per package, so fn:key and fn:map-for-key of package P see P's keys; the accumulator table keeps each static context's inner table instead of the first context's), namespace aliases (collected after the package table), decimal formats (through the modules above), character maps and output definitions (each package has its unnamed definition; xsl:result-document reads its package's). The output compilation, which runs without the package table, names a package by its top module (<code>sxml_xslt_package_top_module</code>, the same rule the table uses). Accumulators themselves are still stylesheet-wide.</p>
+      </item>
+      <item>
+        <p><strong><ref kind="decision" to="D162"/> one-place rules</strong> (from <ref kind="decision" to="D161"/>): XTDE0160 for an instruction whose effective version is below 2.0 (3.8, 27.4: XSLT 2.0 and 3.0 modes run as 4.0) in <code>lower_child</code>; XTSE1650 (xsl:import-schema) and XTSE1660 ([xsl:]type, validation="strict", typed modes) in the reader's <code>reject_schema_awareness</code>; lax and preserve are taken as strip (27.2). One system property table (<code>src/system_property.c</code>, glossary <term name="system_property"/>) serves fn:system-properties and the XSLT fn:system-property.</p>
+      </item>
+      <item>
+        <p><strong>Merges</strong>: <code>sxml_ir_slot_atom</code> (10 copies), <code>sxml_xml_text_trim_ whitespace</code> (16), <code>sxml_xslt_lowering_resolve_declared_type</code> and <code>_expression_context</code> (3 and 2), the two remaining heapsorts onto <code>sxml_sort_in_place</code>, one boolean-attribute helper (yes, true, 1).</p>
+      </item>
+      <item>
+        <p>Lint at HEAD fixed: invocation global names are byte views (<code>src/xslt.c</code>), the driver's serialization comparison returns its verdict, <code>decide_role</code> reads a RULE frame's rule once.</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release, whole suites, before at 9e7f5fc, after at the last commit of this packet): XT40 in scope 7,879 to 7,986 of 8,728 (90.3 % to 91.5 %), errors 3 to 1; value-of 8 to 14 of 15 (53.3 % to 93.3 %, every core set now 80 % or more), seqtor 61 to 85 of 92, text 9 to 15, base-uri 32 to 49 of 52, collations 23 to 34, resolve-uri 15 to 21, use-package 34 to 41 of 53, error 465 to 470, function 111 to 113; no test set lost a case. XP40 30,646 to 30,647 and XQ40 40,030 to 40,034 passed, 0 errors; slices 198 and 186.</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong>: json-to-xml-013 still runs out of the driver's 512 MB: it turns a 19 MB file into 209,579 documents that an xsl:for-each returns as one sequence before the enclosing element copies them, and then a tree of 2.7 million nodes (2 GB without a budget); it needs content that streams into the constructor (Proposed). XTDE3052 for an abstract variable is still raised when the globals are computed, read or not (accept-042, -043a: XSLT globals are all computed first, so a lazy error needs lazy globals). Accumulators are stylesheet-wide; fn:function-lookup does not find fn:key or the accumulator functions (they are lowered stylesheet functions, not rows).</p>
+      </item>
+    </list>
+  </body>
+</decision>

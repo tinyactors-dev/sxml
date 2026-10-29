@@ -1,0 +1,38 @@
+<decision id="D228" status="accepted" source="docs/DECISIONS.md">
+  <title>A streamed principal source; template rules on open nodes (packet 7.6d)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D166"/>, <ref kind="decision" to="D212"/>, <ref kind="decision" to="D219"/>, <ref kind="decision" to="D222"/>, <ref kind="decision" to="D223"/>. Extends <ref kind="decision" to="D219"/> and <ref kind="decision" to="D223"/> to the principal source and to template rules; replaces <ref kind="decision" to="D219"/>'s and <ref kind="decision" to="D223"/>'s "the principal source (a host gives it as a tree; a streamed principal source would be an additive <code>xslt.h</code> field)".</p>
+    <list>
+      <item>
+        <p><strong>Header</strong> (<code>xslt.h</code>, additive, the rule of <ref kind="decision" to="D99"/> for stable headers): <code>sxml_xslt_transformation_request.streamed_source_uri</code>, an absolute URI read through the available documents and the resolver as xsl:source-document reads one (<ref kind="decision" to="D219"/>: the BYTES form streams, a node is read as a tree), and <code>sxml_xslt_stylesheet_streams_source</code>, which says whether a request's initial mode streams it. XSLT 4.0, 2.4.3 (with the streaming specification: a streaming processor should accept the initial match selection in streamed form when the initial mode is streamable). A streamed source is the initial match selection only: the global context item stays the host's, absent when it gives none (2.4.2: no streamed node is one). Rejected: bytes or a parser in the request (a second way to name a document beside the resolver), and making the document the global context item when it is not streamed (the library would need its own loader outside an evaluation; the query function lets the host choose, as the CLI does).</p>
+      </item>
+      <item>
+        <p><strong>When it streams</strong>: the initial mode is declared streamable, every template rule applicable to it is guaranteed-streamable (7.6a's analysis, by mode name, <code>sxml_xslt_mode_query.mode_name</code>), and no expression calls fn:accumulator-before or -after (<ref kind="decision" to="D223"/>: their values for window nodes are not computed). Otherwise the invocation grounds the whole document first: the same results (19.10).</p>
+      </item>
+      <item>
+        <p><strong>Lowering</strong>: the invocation unit binds the URI to an invocation global and its main function is STREAM OPENS_DOCUMENT over it, whose body is the APPLY_TEMPLATES of the document node in the STREAM's focus (<ref kind="decision" to="D223"/>'s <code>apply_templates.focus</code>): an open node, at depth 0.</p>
+      </item>
+      <item>
+        <p><strong>Template rules on open nodes</strong> (glossary <term name="streamed_template_rule"/>, <term name="grounding_stream"/>): every template rule of a streamed mode (the verdict above, asked once per mode) is prepared for an open node. A rule whose parameters are motionless and whose body reads its node only through one stream point (<ref kind="decision" to="D219"/>, <ref kind="decision" to="D223"/>'s planning, with a document focus for match="/") is lowered as a streamed body; every other rule's body runs inside a grounding stream, new IR form STREAM with axis SELF: its focus is bound to the origin's full window when the origin is the open node (the rest of its content read now; the whole document for the document node, after the events already queued), else to the origin itself, any value, so the IR serves streamed and unstreamed items alike. The built-in template of a streamed mode (6.10) applies templates to child::node() through a STREAM with shallow windows, its value a content LET (<ref kind="decision" to="D166"/>) so a delivering call delivers each child's value as it passes; the shallow copy's content is a content block of its own; a deep copy is grounded. An xsl:apply-templates without select is a stream point (child::node(), 6.6), and an apply point whose last step is a child step uses shallow windows, the rule chosen for each node streaming or grounding it (a descendant step's nodes inside a selected node still need its full window).</p>
+      </item>
+      <item>
+        <p><strong>avg</strong>: fn:avg of one streamed path without an attribute step folds as fn:sum in the fold slot and divides by the chain's counter (F&amp;O 4.0, 14.4.2: sum div count; () for no node).</p>
+      </item>
+      <item>
+        <p><strong>IR text</strong> (<code>src/ir.c</code>): "(stream ORIGIN self FOCUS BODY)", " fold $f", and an APPLY_TEMPLATES of a STREAM's focus written as its focus.</p>
+      </item>
+      <item>
+        <p><strong>CLI</strong>: <code>sxml transform</code> gives an INPUT file as a streamed principal source when the stylesheet streams the initial mode (standard input and other modes are parsed as before; an INPUT that is no file is reported by the parse, exit 3).</p>
+      </item>
+      <item>
+        <p><strong>Driver</strong>: the XSLT driver gives a source with role "." and streaming="true" (a file, no validation, DTD or XInclude) as the streamed principal source when the stylesheet streams the initial mode.</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release, <code>sxml transform</code>, a generated 100 MB document of 904,745 records; peak resident set): a rule for "/" with a for-each 673.2 MB before, 267.3 MB after (the input bytes the resolver holds, 100 MB, and the result, held whole until it is serialized, are most of it); template rules only (built-in shallow-skip, a rule per record, inside a result element) 658.8 MB as a tree, 267.3 MB streamed; the shallow-copy identity (94 MB of output) 980.4 MB as a tree, 588.7 MB streamed. Allocator peaks over the 2.4 MB document under a 1 MB limit, which every unstreamed run exceeds (<code>tests/evaluator_stream_test.c</code>): "/" with a for-each 204 KB, built-in rules and a grounded rule 212 KB, shallow copy 337 KB, sum 197 KB, avg as the other folds. XT40 (release, whole suite, case by case): no outcome lost at any step; with the driver streaming its streaming="true" sources, streamable-116 passes (11,849 to 11,857 with other packets' fixes in between).</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong>: accumulators computed while streaming, xsl:fork, xsl:merge with streamed inputs; xsl:next-match and xsl:apply-imports inside a grounded rule pass the shallow node, not its window, to the next rule (no XT40 case); the principal result is held whole until it is serialized, so a transformation whose output is as large as its input (the identity) keeps memory proportional to the output.</p>
+      </item>
+    </list>
+  </body>
+</decision>

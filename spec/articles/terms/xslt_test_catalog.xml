@@ -1,0 +1,4 @@
+<term id="xslt_test_catalog" source="docs/GLOSSARY.md">
+  <name>xslt_test_catalog</name>
+  <definition>The XSLT 4.0 suite's <code>catalog.xml</code> (<code>third_party/xslt40-test/</code>) as the driver holds it: its test-set entries and one open test set</definition>
+</term>

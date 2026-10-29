@@ -1,0 +1,23 @@
+<decision id="D111" status="accepted" source="docs/DECISIONS.md">
+  <title>The query AST for XQuery and the parser part seam (packet <ref kind="packet" to="3.1"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>, extending <ref kind="decision" to="D52"/> and <ref kind="decision" to="D59"/>. <code>src/xpath_ast_internal.h</code>.</p>
+    <list>
+      <item>
+        <p><strong>Kinds</strong>: 66 XQuery kinds appended to <code>sxml_ast_kind</code>, one per new visible node type of <code>grammars/xquery</code> (<code>SXML_AST_KIND_&lt;NODE TYPE&gt;</code>); <code>allowing_empty</code> is absorbed as flag ALLOWING_EMPTY. 24 fields appended (the grammar's, plus MODULE, which the front end gives the child of <code>module</code>, the one named child without a grammar field). Tokens in fields <term name="mode"/>/<code>kind</code> become the new detail <term name="keyword"/> (PRESERVE, STRIP, ORDERED, ..., LAX, STRICT); the decimal-format property name the detail <term name="decimal_format_property"/> (<code>sxml/xpath.h</code>'s kind); the other XQuery tokens flags (FIXED, EXTERNAL, STABLE, DESCENDING, EMPTY_GREATEST, EMPTY_LEAST, ONLY, STATIC, PRESERVE_NAMESPACES, INHERIT_NAMESPACES). Front-end marks: BOUNDARY_WHITESPACE on direct element text, NAMESPACE_DECLARATION_ATTRIBUTE on <code>xmlns</code> attributes. Leaves: QNAME has a name payload, the direct text kinds, CDATA, comments, pragma contents and string constructor characters a decoded text, a direct PI the new payload <code>processing_instruction</code> (target, content). The header writes out AST and IR of five XQuery examples (group by, a tumbling window, a direct constructor with namespaces, try/catch/finally, a prolog function).</p>
+      </item>
+      <item>
+        <p><strong>Parser part seam</strong>: <code>sxml_ast_build_with_parser_part(request, part, &amp;ast)</code> runs the one XPath walker (<ref kind="decision" to="D59"/>: iterative, A.3.2 and lookup key checks, depth bound) with a part's language and root node type, its sorted node type and field tables (consulted after XPath's), unnamed child fields, and three stateless hooks: <code>apply_token</code> (claims a token before the XPath rules), <code>describe_payload</code> (fills a payload before the XPath decoders, e.g. XQuery string literals with references) and <code>finish_node</code> (called once per node when it is complete, leaves at once; for XQST0118, XQST0040, boundary whitespace). Hooks reach the AST and source text through the opaque <code>sxml_ast_front_end</code>, add flags with <code>sxml_ast_add_flags</code>, and raise any err: code with <code>sxml_ast_front_end_raise</code> (the error record gets that code). Without a part the walk is unchanged: all 32,928 applicable XP40 queries build byte-identical ASTs. With a scratch part of only the tables, all 43,663 valid XQ40 queries and the 145 parsable library modules build.</p>
+      </item>
+      <item>
+        <p><strong>Who writes what</strong>: 3.2 defines <code>sxml_xquery_build_ast</code> (declared now) and its part in <code>src/xquery_parse.c</code>; it needs <code>sxml_grammar_xquery</code> added to the <code>sxml</code> link line of the root <code>CMakeLists.txt</code> (one word, 3.2 adds it). Parts are passed by each entry point, not registered by glob: the entry point chooses the grammar.</p>
+      </item>
+      <item>
+        <p><code>tests/xpath_parse_test.c</code>'s kind and field name tables grow with the enumerations (static asserts); 3.1 appended the XQuery names.</p>
+      </item>
+      <item>
+        <p>Rejected: a parser registry by glob (one grammar per entry point, so nothing to discover); the XQuery tables in <code>xpath_parse.c</code> (the part owns its grammar's names, as lowering parts own their kinds); hook state pointers (everything a hook needs is in the AST).</p>
+      </item>
+    </list>
+  </body>
+</decision>

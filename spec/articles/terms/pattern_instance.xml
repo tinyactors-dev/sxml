@@ -1,0 +1,4 @@
+<term id="pattern_instance" source="docs/GLOSSARY.md">
+  <name>pattern_instance</name>
+  <definition>A sch:pattern or sch:group with is-a: the abstract pattern it names, compiled with each placeholder replaced by the value of its sch:param, else the abstract pattern's default (<ref kind="decision" to="D315"/>)</definition>
+</term>

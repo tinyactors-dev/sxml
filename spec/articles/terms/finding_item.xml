@@ -1,0 +1,4 @@
+<term id="finding_item" source="docs/GLOSSARY.md">
+  <name>finding_item</name>
+  <definition>The array a compiled schematron rule adds to the transformation's raw result for one finding or fired rule: its assertion's or rule's index and the subject node, then the texts of the dynamic attribute values, the message, diagnostics and properties; <code>src/schematron.c</code> turns each into a schematron report (internal, <ref kind="decision" to="D315"/>)</definition>
+</term>

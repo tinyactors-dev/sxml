@@ -1,0 +1,296 @@
+<document id="QT4_CATALOG" source="docs/QT4_CATALOG.md">
+  <title>QT4 test catalog format</title>
+  <p>A reference for writing the conformance test driver. It covers the W3C QT4 test suite (<code>qt4cg/qt4tests</code>) and gives an outline of the XSLT 4.0 suite (<code>qt4cg/xslt40-test</code>). Both are vendored by <code>tools/update-test-suites.sh</code> into <code>third_party/</code> at the commits pinned in decision <ref kind="decision" to="D13"/>. The authoritative definition is <code>third_party/qt4tests/catalog-schema.xsd</code> together with <code>guide/running.html</code>.</p>
+  <section id="files">
+    <title>Files</title>
+    <list>
+      <item>
+        <p><code>catalog.xml</code>: root <code>&lt;catalog test-suite="FOTS" version="4.0"&gt;</code> in namespace <code>http://www.w3.org/2010/09/qt-fots-catalog</code>. It holds global <code>&lt;environment name="..."&gt;</code> elements and <code>&lt;test-set name="..." file="..."/&gt;</code> entries that point to the test-set files.</p>
+      </item>
+      <item>
+        <p>A test-set file (for example <code>fn/abs.xml</code>) has the root <code>&lt;test-set name&gt;</code>: <code>&lt;description&gt;</code>, <code>&lt;link&gt;</code>, local <code>&lt;environment name&gt;</code>, set-level <code>&lt;dependency&gt;</code> and one or more <code>&lt;test-case&gt;</code>.</p>
+      </item>
+      <item>
+        <p><code>&lt;test-case name&gt;</code> holds <code>description</code>, <code>created</code>, <code>modified*</code>, an optional <code>&lt;environment&gt;</code>, <code>&lt;module&gt;*</code>, <code>&lt;dependency&gt;*</code>, <code>&lt;test&gt;</code> and <code>&lt;result&gt;</code>.</p>
+      </item>
+      <item>
+        <p><code>&lt;test&gt;</code> holds the expression text, or <code>@file</code> names an external query (rare: encodings, large queries). An XQuery Update test case has several: the ones before the last (<code>@update="true"</code>) change the mutable sources, in order, and the last one's result is checked (<ref kind="decision" to="D187"/>). Every <code>file</code> attribute is resolved against the base URI of the XML file that contains it.</p>
+      </item>
+    </list>
+    <p>Test-set names are prefixed by area: <code>fn-</code>, <code>op-</code>, <code>math-</code>, <code>map-</code>, <code>array-</code>, <code>xs-</code>, <code>prod-</code> (grammar productions), <code>misc-</code>, <code>method-</code> (serialization), <code>app-</code> (use cases), <code>bin-</code> and <code>expath-</code> (EXPath), <code>upd-</code> (Update) and <code>ft-</code> (Full Text).</p>
+  </section>
+  <section id="environments">
+    <title>Environments</title>
+    <p>A test case's <code>&lt;environment&gt;</code> is one of three things:</p>
+    <list>
+      <item>
+        <p><code>ref="name"</code>: resolved first in the test-set file, then in <code>catalog.xml</code>.</p>
+      </item>
+      <item>
+        <p>An inline element with no <code>name</code> and no <code>ref</code>.</p>
+      </item>
+      <item>
+        <p>Absent, which means an empty static and dynamic context: the context item is absent.</p>
+      </item>
+    </list>
+    <p>The environment <code>empty</code> is explicitly empty. Children of an environment:</p>
+    <table>
+      <row header="true">
+        <cell>Element</cell>
+        <cell>Meaning</cell>
+      </row>
+      <row>
+        <cell>
+          <code>source role="." file uri validation</code>
+        </cell>
+        <cell>XML document. <code>role="."</code> makes it the context item. <code>role="$name"</code> binds an external variable. <code>uri</code> makes it available to <code>fn:doc(uri)</code>. A <code>validation</code> attribute (strict, lax) means schema awareness, so skip the test. <code>@dtd</code>, <code>@retain-location</code> (for <code>fn:location</code>) and <code>@mutable</code> (Update) also occur.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>param name select as source declared</code>
+        </cell>
+        <cell>External variable. <code>select</code> is an XPath expression, usually a literal or a constructor call. <code>source</code> names a source document. <code>declared="true"</code> means the query prolog already declares it.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>context-item select</code>
+        </cell>
+        <cell>The context item, given as an expression.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>resource uri file media-type encoding</code>
+        </cell>
+        <cell>Text resource for <code>unparsed-text*</code>, <code>json-doc</code> and similar, reached through <code>uri</code>.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>collection uri</code>
+        </cell>
+        <cell>Contains <code>source</code>, <term name="resource"/> and <code>query</code> elements. An empty or absent <code>uri</code> means the default collection. <code>query</code> is an XQuery expression whose result forms the collection.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>namespace prefix uri</code>
+        </cell>
+        <cell>Statically known namespace. An empty prefix sets the default element namespace. Only pure XPath tests use it.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>decimal-format name ...</code>
+        </cell>
+        <cell>A named or default decimal format for <code>format-number</code>. Properties are <code>decimal-separator</code>, <code>grouping-separator</code>, <code>zero-digit</code>, <code>digit</code>, <code>minus-sign</code>, <code>percent</code>, <code>per-mille</code>, <code>pattern-separator</code>, <code>exponent-separator</code>, <code>infinity</code> and <code>NaN</code>. In 4.0 a property may have the form <code>c:rendition</code>, for example <code>%:pc</code>. Only pure XPath tests use it.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>static-base-uri uri</code>
+        </cell>
+        <cell>The static base URI. <code>#UNDEFINED</code> means the base URI is absent. If no value is given, the base URI is the URI of the test file.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>collation uri default</code>
+        </cell>
+        <cell>The test uses this collation URI. <code>default="true"</code> makes it the default collation. Skip the test if the collation is not supported (only codepoint is required).</cell>
+      </row>
+      <row>
+        <cell>
+          <code>schema uri file</code>
+        </cell>
+        <cell>Schema import. This needs schema awareness, so skip the test.</cell>
+      </row>
+      <row>
+        <cell><code>function-library</code>, <code>sandpit path</code></cell>
+        <cell>XSLT/XQuery function library. <term name="sandpit"/> gives a writable copy of a directory (EXPath File).</cell>
+      </row>
+    </table>
+    <p>The <code>&lt;module uri file location&gt;</code> element in a test case maps <code>import module</code> (with an optional location hint) to a file. It is XQuery-only.</p>
+  </section>
+  <section id="dependencies">
+    <title>Dependencies</title>
+    <p><code>&lt;dependency type value satisfied="true|false"&gt;</code> can appear on a test set and on a test case. With <code>satisfied="false"</code>, the test runs only when the dependency is <em>not</em> satisfied.</p>
+    <p>The <code>spec</code> type takes space-separated tokens such as <code>XP40+ XQ40+</code>. A token matches if its language is right (<code>XP</code> or <code>XQ</code>, and <code>XT</code> in a few tests) and its version is equal, or, for a token with a trailing <code>+</code>, the version is equal or later. The test runs if any token matches.</p>
+    <list>
+      <item>
+        <p>A test-case <code>spec</code> replaces the test-set one. Under AND semantics 13 tests could never run (e.g. set <code>XQ10+</code>, case <code>XP30+ XQ30+</code>).</p>
+      </item>
+      <item>
+        <p>No <code>spec</code> anywhere means every version of both languages (about 15,600 cases, mainly in <code>fn-</code>, <code>op-</code> and <code>prod-</code>).</p>
+      </item>
+      <item>
+        <p>A run targets exactly one language and version: <code>XP40</code> or <code>XQ40</code>.</p>
+      </item>
+    </list>
+    <p>Other types (each value is described in <code>dependency_meanings.xml</code>):</p>
+    <list>
+      <item>
+        <p><code>feature</code>: <code>higherOrderFunctions</code>, <code>schemaImport</code>, <code>schemaValidation</code>, <code>typedData</code>, <code>staticTyping</code>, <term name="serialization"/>, <code>namespace-axis</code>, <code>xpath-1.0-compatibility</code>, <code>moduleImport</code>, <code>fn-load-xquery-module</code>, <code>fn-transform-XSLT</code>, <code>fn-transform-XSLT30</code>, <code>infoset-dtd</code>, <code>simple-uca-fallback</code>, <code>advanced-uca-fallback</code>, <code>non_unicode_codepoint_collation</code>, <code>collection-stability</code>, <code>directory-as-collection-uri</code>, <code>non_empty_sequence_collection</code>, <code>olson-timezone</code>, <code>arbitraryPrecisionDecimal</code>, <code>dtd-validation-option</code>, <code>xinclude-option</code>, <code>remote_http</code>, <code>fn-invisible-xml</code>, <code>fn-format-integer-CLDR</code>, <code>schema-location-hint</code>, <code>XQUpdate</code>, <code>fullText*</code>, <code>binary</code> and <code>expath-file</code>.</p>
+      </item>
+      <item>
+        <p><code>xml-version</code> (<code>1.0</code>, <code>1.1</code>, <code>1.0:4-</code>, <code>1.0:5+</code>), <code>xsd-version</code>, <code>language</code> and <code>default-language</code> (<code>en</code>, <code>de</code>, ...), <term name="calendar"/>, <code>format-integer-sequence</code>, <term name="limits"/> (<code>big_integer</code>, <code>year_lt_0</code>), <code>unicode-version</code>, <code>unicode-normalization-form</code> and <term name="revalidation"/>.</p>
+      </item>
+    </list>
+  </section>
+  <section id="result-assertions">
+    <title>Result assertions</title>
+    <p><code>&lt;result&gt;</code> contains exactly one assertion. <code>$result</code> stands for the value of the test expression. The expected values are themselves XPath expressions, unless the description below says otherwise.</p>
+    <table>
+      <row header="true">
+        <cell>Assertion</cell>
+        <cell>Passes when</cell>
+      </row>
+      <row>
+        <cell>
+          <code>assert-eq</code>
+        </cell>
+        <cell>The result is one atomic value, <code>eq</code> the expected expression. Numeric promotion and untypedAtomic casting apply.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>assert-deep-eq</code>
+        </cell>
+        <cell><code>deep-equal($result, expected)</code>.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>assert-permutation</code>
+        </cell>
+        <cell>Some permutation of the result is deep-equal to the expected value. NaN equals NaN.</cell>
+      </row>
+      <row>
+        <cell><code>assert-true</code> / <code>assert-false</code></cell>
+        <cell>The result is exactly <code>xs:boolean</code> true or false, not an effective boolean value.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>assert-empty</code>
+        </cell>
+        <cell>The result is <code>()</code>.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>assert-count</code>
+        </cell>
+        <cell>The result has N items. N is an integer literal.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>assert-type</code>
+        </cell>
+        <cell><code>$result instance of T</code>. The content is a SequenceType.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>assert</code>
+        </cell>
+        <cell>The effective boolean value of the content expression is true, with <code>$result</code> bound.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>assert-string-value</code>
+        </cell>
+        <cell><code>string-join($result ! string(), " ")</code> equals the literal text content. With <code>normalize-space="true"</code>, both sides are normalized.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>assert-xml</code>
+        </cell>
+        <cell>The result, serialized (<code>method=xml</code>, <code>indent=no</code>, no XML declaration), matches the literal XML fragment, or the one in <code>@file</code>. Compare canonically or with <code>deep-equal</code> after wrapping in an element. With <code>ignore-prefixes="true"</code>, prefixes are ignored.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>serialization-matches</code>
+        </cell>
+        <cell>The result, serialized with the query's own parameters, matches a regex (<code>@flags</code>, unanchored). The regex is literal text or <code>@file</code>.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>assert-serialization-error code</code>
+        </cell>
+        <cell>Evaluation succeeds and serialization fails.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>error code</code>
+        </cell>
+        <cell>Evaluation raises an error. <code>code</code> is an NCName in the <code>err</code> namespace, <code>Q{uri}local</code>, or <code>*</code>. A different code is usually reported as "pass, wrong error".</cell>
+      </row>
+      <row>
+        <cell><code>all-of</code> / <code>any-of</code></cell>
+        <cell>Every child or at least one child passes. These are used to allow implementation-dependent outcomes, often a value or an <code>error</code>.</cell>
+      </row>
+      <row>
+        <cell>
+          <code>not</code>
+        </cell>
+        <cell>The child assertion fails.</cell>
+      </row>
+    </table>
+    <p>Frequency: <code>assert-true</code> 11,638; <code>error</code> 10,063; <code>assert-eq</code> 6,500; <code>assert-string-value</code> 5,989; <code>assert-deep-eq</code> 5,013; <code>assert-false</code> 3,990; <code>assert-xml</code> 2,981; <code>assert</code> 2,931; <code>any-of</code> 2,163; <code>all-of</code> 1,770; <code>assert-type</code> 1,763; <code>assert-empty</code> 927; <code>serialization-matches</code> 794; others under 300.</p>
+  </section>
+  <section id="counts-pinned-qt4tests-commit">
+    <title>Counts (pinned qt4tests commit)</title>
+    <list>
+      <item>
+        <p>737 test sets with 47,313 test cases. XQ40: 46,444 cases in 737 sets. XP40: 32,928 cases in 540 sets.</p>
+      </item>
+      <item>
+        <p>Both XP40 and XQ40: 32,822. XQ40 only: 13,622. XP40 only: 106. Neither (1.0, 3.0 or 3.1 only): 763.</p>
+      </item>
+      <item>
+        <p>Every <code>prod-TryCatchExpr</code> test is XQ-only. In the suite, try/catch is XQuery-only.</p>
+      </item>
+    </list>
+  </section>
+  <section id="xslt40-test-layout">
+    <title>xslt40-test layout</title>
+    <p>Read by <code>sxml-xslt-test</code> (<code>tests/xslt/driver/</code>, <ref kind="decision" to="D117"/>), which this section describes as it reads the suite.</p>
+    <list>
+      <item>
+        <p><code>catalog.xml</code> is in namespace <code>http://www.w3.org/2012/10/xslt-test-catalog</code>. It holds only <code>&lt;test-set name file&gt;</code> entries: 250 active ones (28 more are commented out), with 13,867 test cases in all, and no environments ("at present there are no global environments", catalog-schema.xsd). 12,639 of them apply to XSLT 4.0 (tokens <code>XSLT10+</code> up to <code>XSLT40+</code>, or <code>XSLT40</code>; 12 cases have no spec at all and apply to every version).</p>
+      </item>
+      <item>
+        <p><code>tests/&lt;group&gt;/&lt;area&gt;/_&lt;area&gt;-test-set.xml</code> sits next to its <code>.xsl</code> and <code>.xml</code> files. The groups, with case counts: <code>misc</code> 3,123, <code>strm</code> (streaming) 2,564, <code>insn</code> 1,996, <code>attr</code> 1,634, <code>decl</code> 1,497, <code>fn</code> 1,339, <code>type</code> 975 and <code>expr</code> 739. <code>sandp</code> holds generated streamability-posture tests, none of them in the catalog today.</p>
+      </item>
+      <item>
+        <p>Scope (<ref kind="decision" to="D95"/>): of the 12,639, the 8,728 outside <code>strm</code> and <code>sandp</code> that need none of the features schema_aware, streaming, dtd, XML_1.1, XSD_1.1, backwards_compatibility, HTML4, ICU_spellout. A case that asks for one of them to be absent (<code>satisfied="false"</code>) stays in scope.</p>
+      </item>
+      <item>
+        <p>Dependencies sit inside a <code>&lt;dependencies&gt;</code> wrapper of the test set or the test case. Each child is one dependency, its element name the type: <code>&lt;spec value&gt;</code>, <code>&lt;feature value [satisfied]&gt;</code> and implementation-defined items such as <code>year_component_values</code>, <code>combinations_for_numbering</code>, <code>package_version_resolution</code>, <code>on-multiple-match</code> and <code>maximum_number_of_decimal_digits</code>. Their values are phrases ("support negative year", "CIRCLED DIGIT ONE"), not token lists; only spec values are space-separated tokens. A test-case spec replaces the test-set spec. <code>XPath_3.1</code> is XSLT 3.0's optional support of XPath 3.1, not a request for 3.1 behaviour.</p>
+      </item>
+      <item>
+        <p>Environments are named in the test set (<code>&lt;environment name&gt;</code>), referred to by <code>&lt;environment ref&gt;</code> in a test case, or inline there. They hold the QT4 children <code>source</code>, <code>param</code>, <term name="resource"/>, <term name="collection"/>, <term name="collation"/>, <term name="schema"/>, <code>context-item</code>, plus <term name="stylesheet"/>, <term name="package"/> and <code>output</code>. A <code>source</code> gives its document by <code>file</code> or inline in a <code>&lt;content&gt;</code> child (CDATA), may <code>select</code> the global context item within it (role "."), and has the flags <code>streaming</code>, <code>dtd</code>, <code>defines-stylesheet</code> (the document's xml-stylesheet processing instruction names the stylesheet: 16 cases), <term name="xinclude"/> and <code>xml-version</code>.</p>
+      </item>
+      <item>
+        <p><code>&lt;test&gt;</code> holds <code>package*</code>, <code>stylesheet*</code> (<code>file</code>, <code>role</code> principal or secondary; packages also <code>uri</code>, the package name, and <code>package-version</code>), <code>posture-and-sweep?</code>, <code>param*</code> (<code>name</code> an xs:QName, <code>select</code>, <code>as</code>, <code>static="yes"</code>), then one of <code>initial-template name?</code> (absent name: <code>xsl:initial-template</code>), <code>initial-mode name select?</code> (<code>#default</code>, <code>#unnamed</code> or a QName; <code>select</code> is the initial match selection) and <code>initial-function name</code>, each with its own <code>param</code> children (<code>tunnel</code> for templates and modes, by position for functions), and <code>output</code> (<code>serialize</code>, <term name="tree"/>, <code>well-formed</code>, <code>file</code>, <code>result-var</code>). Without an initial element the stylesheet is applied to the global context item in the default mode. The principal module is the first non-secondary module of <code>&lt;test&gt;</code>, else of the environment (8,913 cases have it in the test, 4,708 only in the environment). Counts: initial-template 6,312, initial-mode 156, initial-function 38; 422 tests use packages.</p>
+      </item>
+      <item>
+        <p>The assertions are the QT4 set plus <code>assert-result-document uri</code>, <code>assert-message</code>, <code>assert-warning</code>, <code>assert-serialization</code> (<code>method</code>, <code>file</code>), <code>serialization-matches</code> (<code>flags</code>), <code>assert-serialization-error code</code> and <code>assert-posture-and-sweep</code>. <code>assert</code> is evaluated with the document node of the principal result as the context item and the default element namespace none (not with <code>$result</code>); <code>assert-message</code> and <code>assert-result-document</code> each hold one assertion about one message or result document. Counts, as assertions (test cases): <code>assert</code> 8,998 (5,345), <code>assert-xml</code> 5,215 (5,178), <code>error</code> 2,828 (2,706), <code>all-of</code> 1,273, <code>serialization-matches</code> 890 (369), <code>assert-string-value</code> 350, <code>assert-result-document</code> 156 (74), <code>assert-serialization</code> 112, <code>assert-message</code> 92 (50), <code>assert-warning</code> 6; <code>assert-posture-and-sweep</code> occurs only in <code>sandp</code>.</p>
+      </item>
+      <item>
+        <p><code>admin/catalog-schema.xsd</code> defines the format. <code>runner/</code> holds an XSLT-based reference runner.</p>
+      </item>
+    </list>
+  </section>
+  <section id="xsts-layout-the-w3c-xsd-test-suite">
+    <title>XSTS layout (the W3C XSD test suite)</title>
+    <p>Read by <code>sxml-xsd-test</code> (<code>tests/xsd/driver/</code>, <ref kind="decision" to="D168"/>), which this section describes as it reads the suite (<code>third_party/xsdtests</code>, <ref kind="decision" to="D165"/>).</p>
+    <list>
+      <item>
+        <p>Every element is in namespace <code>http://www.w3.org/XML/2004/xml-schema-test-suite/</code>, every reference an <code>xlink:href</code> (<code>http://www.w3.org/1999/xlink</code>) relative to its file. <code>common/xsts.xsd</code> defines the format.</p>
+      </item>
+      <item>
+        <p><code>suite.xml</code> is a <code>testSuite</code> of 93 <code>testSetRef</code>s (two more, the precisionDecimal sets, are commented out and listed in <code>extra-suite.xml</code>). The first, <code>common/introspection.testSet</code>, validates the suite's own files against <code>common/xsts.xsd</code>; it is run since the driver serves the XLink schema document xsts.xsd imports (<code>third_party/w3c-xlink</code>, <ref kind="decision" to="D278"/>; <ref kind="decision" to="D165"/> left it out).</p>
+      </item>
+      <item>
+        <p>A <code>testSet</code> (<code>name</code>, <code>contributor</code>, <code>version?</code>) holds <code>testGroup</code>s (<code>name</code>, <code>version?</code>), each with at most one <code>schemaTest</code> and any number of <code>instanceTest</code>s (<code>name</code>, <code>version?</code>). A schema test lists its <code>schemaDocument</code>s (loaded one by one, in order, into one schema; valid means it compiles); an instance test has one <code>instanceDocument</code>, validated against the schema of its group's schema test, or against the built-in components alone when the group has none (55 groups). Each test has <code>expected validity version?</code> elements and a <code>current status</code> (submitted, accepted, stable, queried, disputed-test, disputed-spec). <code>testSet/@name</code> repeats across contributors (Assert, CTA, TargetNS, VC, Zone), so the driver names a set after its file: <code>saxonMeta/Assert.testSet</code> is <code>saxon-Assert</code>; a test is <code>GROUP/TEST</code>.</p>
+      </item>
+      <item>
+        <p>Version tokens (xsts.xsd, <code>version-info</code>): on testSet, testGroup and tests they are or-ed per element ("supports any of them"), on <code>expected</code> and-ed. Tokens fall into classes (XSD version, 1.0 edition, XML substrate, Unicode version, CTR-all behaviour, XPath in CTA, XDM filtering). In the suite: <code>1.1</code> 1,042 times, <code>1.0</code> 144, <code>full-xpath-in-CTA</code> 30, <code>restricted-xpath-in-CTA</code> 10, <code>Unicode_4.0.0</code> 9, <code>Unicode_6.0.0</code> 8; no other token occurs.</p>
+      </item>
+      <item>
+        <p>Counts: 41,643 tests in the 92 test sets besides the introspection one (92 more there); statuses accepted 40,635, stable 850, queried 57, submitted 12, disputed-spec 5, disputed-test 1; expected elements valid 26,515, invalid 15,312, indeterminate 16. In scope for an XSD 1.1 processor (each level's version applies, status not queried or disputed, valid or invalid expected): 41,518 (15,329 schema tests, 26,189 instance tests). <ref kind="decision" to="D165"/> counted 41,538 by or-ing the three levels' tokens together; <ref kind="decision" to="D168"/> applies each level, as xsts.xsd says, which leaves out 19 XSD 1.0 instance tests of <code>wgMeta/substitution-groups.testSet</code> (five of them name files that do not exist) and one 1.0 test group of Saxonica.</p>
+      </item>
+    </list>
+  </section>
+</document>

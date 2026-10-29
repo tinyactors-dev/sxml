@@ -1,0 +1,4 @@
+<term id="subtype_frame" source="docs/GLOSSARY.md">
+  <name>subtype_frame</name>
+  <definition>A conjunction or disjunction of subtype goals on the explicit stack of a subtype search, waiting for the answer of its current sub-goal</definition>
+</term>

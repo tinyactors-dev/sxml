@@ -1,0 +1,74 @@
+<decision id="D241" status="accepted" source="docs/DECISIONS.md">
+  <title>The Swift core: module Sxml, the merged archive, ARC and the test hooks (packet <ref kind="packet" to="6.7"/>)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D23"/>, <ref kind="decision" to="D35"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D138"/>, <ref kind="decision" to="D213"/>, <ref kind="decision" to="D238"/>, <ref kind="decision" to="D240"/>. Packet <ref kind="packet" to="6.7"/> added <code>Package.swift</code> at the root and <code>bindings/swift/</code> (module <code>Sxml</code>; the API of <code>docs/tasks/phase-6.md</code>, XPath half).</p>
+    <list>
+      <item>
+        <p><strong>Linking</strong>: <code>CSxmlHost</code> is a system module whose module map is <code>bindings/host/sxml_host.h</code> itself, with <code>link "sxml_host"</code>. No Swift-specific C.</p>
+        <list>
+          <item>
+            <p>On Linux, <code>bindings/swift/CMakeLists.txt</code> merges every static library <code>sxml_host</code> links (the shim, <code>sxml</code>, tree-sitter, the grammars, libmpdec) into one <code>lib/libsxml_host.a</code> with an <code>ar -M</code> script. The manifest then names one library, whatever <code>sxml</code> links.</p>
+          </item>
+          <item>
+            <p>The grammars are found through the global property <code>SXML_GRAMMAR_LIBRARIES</code>, because their link to <code>sxml</code> is deferred to the end of the root directory.</p>
+          </item>
+          <item>
+            <p>The manifest's include path (<code>-Xcc -I include</code>) and <code>-L</code> are unsafe flags, set only when <code>SXML_HOST_LIBRARY_PATH</code> is. A root package may use them. A package that depends on this one cannot, so it needs the XCFramework of 6.9.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>ctest <code>swift/linux</code></strong> runs <code>swift test --disable-xctest -Xswiftc -warnings-as-errors</code> with a scratch path in the build tree.</p>
+        <list>
+          <item>
+            <p>Under the sanitizer presets it adds <code>--sanitize=address</code>. swiftc has no <code>-sanitize=undefined</code> on Linux, but the ASan runtime has UBSan's handlers, so the <code>-fno-sanitize-recover</code> C code links and traps.</p>
+          </item>
+          <item>
+            <p><code>--disable-xctest</code>: XCTest's empty run leaks objects of its own, which LeakSanitizer reports. The tests use Swift Testing.</p>
+          </item>
+          <item>
+            <p>Skipped with code 77 and a message when no <code>swift</code> is found (<code>SXML_SWIFT</code>, else <code>PATH</code>). Registered on Linux hosts only.</p>
+          </item>
+          <item>
+            <p>gold prints "Cannot export local symbol '__asan_...'" warnings at the ASan link. They are harmless.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>API choices</strong> (defaults under <ref kind="decision" to="D208"/>):</p>
+        <list>
+          <item>
+            <p><code>SxmlError.description</code> is sxml's description, as the task file lists it, and so also the <code>CustomStringConvertible</code> text. <code>message</code> adds the code and location ("1:3: err:XPST0003: ..."), as the JavaScript <code>message</code> does.</p>
+          </item>
+          <item>
+            <p><code>Processor(... failingAllocationNumber: Int = 0)</code> is public, as <code>failingAllocationNumber</code> is in the JavaScript options.</p>
+          </item>
+          <item>
+            <p><code>CollationData.bundled</code> serves nothing until 6.8 adds the DUCET as a SwiftPM resource. It is then the one place to change.</p>
+          </item>
+          <item>
+            <p>Map keys of <code>[String: XdmInput?]</code> reach <code>fn:parse-json</code> in code point order: a Swift dictionary has no order of its own.</p>
+          </item>
+          <item>
+            <p>A <code>Value</code> inside an array or map is refused (<code>SxmlUsageError.unsupportedInput</code>). JSON-shaped data cannot hold it.</p>
+          </item>
+          <item>
+            <p><code>ResourceKind</code> cases are camelCase with the JavaScript names as raw values. <code>Status</code> cases are camelCase with <code>sxml_status</code>'s names as raw values.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Leak checks</strong>: a processor's <code>deinit</code> reports the allocations left to an internal <code>leakObserver</code>, which the tests set through <code>@testable import</code>. With ARC there is no dispose to call before the check.</p>
+      </item>
+      <item>
+        <p><strong>Tests</strong>: 27 in Swift Testing. 24 have the names of <code>test/package.test.ts</code>. The two disposal tests are replaced by three ARC tests: "a value keeps its processor alive", "an expression keeps its processor alive", and "values that are released return their memory".</p>
+      </item>
+      <item>
+        <p><strong>Toolchain</strong>: Swift 6.2 (<code>swift-6.2-RELEASE</code>, the Ubuntu 24.04 x86_64 tarball from download.swift.org), Swift Testing 6.2, tools version 6.0, Swift 6 language mode.</p>
+      </item>
+      <item>
+        <p><strong>For 6.9 (Apple)</strong>: there, <code>CSxmlHost</code> becomes a <code>binaryTarget</code> (<code>Sxml.xcframework</code>, whose static library is also <code>libsxml_host.a</code>). The headers and the module map go into the XCFramework. Merge with <code>libtool -static</code>, not <code>ar -M</code>. Check <code>swift test --sanitize=address --disable-xctest</code> there; it has not been run on macOS.</p>
+      </item>
+    </list>
+  </body>
+</decision>

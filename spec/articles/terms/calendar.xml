@@ -1,0 +1,4 @@
+<term id="calendar" source="docs/GLOSSARY.md">
+  <name>calendar</name>
+  <definition>The calendar a date is formatted in, named by a designator such as <code>AD</code> or <code>ISO</code> (F&amp;O 4.0, section 9.9.4.8)</definition>
+</term>

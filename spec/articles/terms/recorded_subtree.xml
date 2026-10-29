@@ -1,0 +1,4 @@
+<term id="recorded_subtree" source="docs/GLOSSARY.md">
+  <name>recorded_subtree</name>
+  <definition>The validated copy of an element and its descendants that the schema validator keeps while the element is open, for the XPath of assertions and identity constraints</definition>
+</term>

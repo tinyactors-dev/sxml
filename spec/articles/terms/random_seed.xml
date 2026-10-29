@@ -1,0 +1,4 @@
+<term id="random_seed" source="docs/GLOSSARY.md">
+  <name>random_seed</name>
+  <definition>The value that fixes the numbers of <code>fn:random-number-generator</code></definition>
+</term>

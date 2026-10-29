@@ -1,0 +1,4 @@
+<term id="static_parameter" source="docs/GLOSSARY.md">
+  <name>static_parameter</name>
+  <definition>A global <code>xsl:param</code> with <code>static="yes"</code>, given its value before compilation (XSLT 4.0, 9.6)</definition>
+</term>

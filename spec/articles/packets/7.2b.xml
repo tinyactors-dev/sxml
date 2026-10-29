@@ -1,0 +1,14 @@
+<packet id="7.2b" source="docs/tasks/phase-7.md">
+  <title>Core size audit (build)</title>
+  <body>
+    <p>After 7.14b and <ref kind="decision" to="D208"/>. The core <code>sxml.wasm</code> was 2,294,051 bytes stripped, over <ref kind="decision" to="D207"/>'s 2,200,000 / 770,000.</p>
+    <list>
+      <item>
+        <p><strong>Owns</strong>: the DTD validation feature (<code>include/sxml/schema.h</code>, additive; <code>src/schema_from_dtd.c</code>, <code>src/dtd_internal.h</code>), the loader's dtd-validation place in <code>src/processor.c</code>, single hunks in <code>src/optional_feature*.c/h</code>, <code>bindings/javascript/CMakeLists.txt</code> and <code>tests/xpath_test.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: per-object and per-commit growth measured; large separable parts behind <ref kind="decision" to="D189"/> features with their <ref kind="decision" to="D162"/> place; the core under budget, or a minimal raise recorded (<ref kind="decision" to="D208"/>); the touched QT4 and XT40 sets unchanged with all features; the xs:numeric Proposed item resolved by <ref kind="decision" to="D208"/>. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D211"/>): DTD validation is the optional feature "dtd-validation" (FODC0013 without it); <code>sxml.wasm</code> 2,294,051 / 801,273 to 2,128,754 / 741,943, no budget raised; counts unchanged.</p>
+      </item>
+    </list>
+  </body>
+</packet>

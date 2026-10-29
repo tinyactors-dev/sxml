@@ -1,0 +1,4 @@
+<term id="uri_collection" source="docs/GLOSSARY.md">
+  <name>uri_collection</name>
+  <definition>The sequence of <code>xs:anyURI</code> items <code>fn:uri-collection</code> returns for a URI</definition>
+</term>

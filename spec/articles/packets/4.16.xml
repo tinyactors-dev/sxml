@@ -1,0 +1,6 @@
+<packet id="4.16" source="docs/tasks/phase-4.md">
+  <title>Packages, minimal (implementation)</title>
+  <body>
+    <p>After <ref kind="packet" to="4.15"/>. Owns <code>src/xslt_package.c</code>, <code>tests/xslt_package_test.c</code>. xsl:package, use-package through the resolver (package-version ranges), visibility (public, private, final, abstract, hidden), accept, expose, override for functions, templates, variables, attribute sets and modes. Done when decl-package, use-package, accept, expose, override, attr-package-version ≥ 70%. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D160"/>): <code>src/xslt_package.c</code> (the package table), the reader's USED_PACKAGE modules, binding in the XSLT lowering, <code>tests/xslt_package_test.c</code>, the driver's version choice. In scope: package 94 %, override 89 %, accept 96 %, expose 100 %, package-version 97 %, use-package 64 % (76 % of the cases run: 8 need another package_version_resolution, 1 streaming).</p>
+  </body>
+</packet>

@@ -1,0 +1,4 @@
+<term id="castability" source="docs/GLOSSARY.md">
+  <name>castability</name>
+  <definition>Whether a value can be cast to a target type, as <code>castable as</code> answers</definition>
+</term>

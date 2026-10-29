@@ -1,0 +1,36 @@
+<packet id="6.3" source="docs/tasks/phase-6.md">
+  <title>Android build and the two fallbacks (implementation, here)</title>
+  <body>
+    <p><status value="paused" date="2026-10-20"/> (<ref kind="decision" to="D251"/>, <ref kind="decision" to="D255"/>): the fallbacks, the presets, <code>tools/build-android.sh</code> and <code>tools/fetch-binding-toolchains.sh</code> are committed. All four ABIs build with <code>-Werror</code> at android-24, and LOAD is 0x4000 on arm64-v8a and x86_64. Device runs are the owner's (no KVM here). Resume from <code>bindings/kotlin/DESIGN.md</code>. After <ref kind="packet" to="6.1"/>, and after any running packet commits its changes to <code>src/processor.c</code> (it was being edited when this plan was written). Owns:</p>
+    <list>
+      <item>
+        <p><code>src/allocator.c</code> (<code>sxml_heap_allocate</code>) and <code>src/processor.c</code> (the system clock), one <code>__ANDROID_API__</code> branch each;</p>
+      </item>
+      <item>
+        <p><code>CMakePresets.json</code> (new presets <code>android-arm64-v8a</code>, <code>android-armeabi-v7a</code>, <code>android-x86_64</code> and <code>android-x86</code>, toolchain <code>$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake</code>, <code>ANDROID_PLATFORM</code> android-24, MinSizeRel);</p>
+      </item>
+      <item>
+        <p>new <code>tools/build-android.sh</code> (all four ABIs, a size report);</p>
+      </item>
+      <item>
+        <p>new <code>tools/fetch-binding-toolchains.sh</code> (<code>ndk</code>, <code>android-sdk</code>, <code>kotlin</code>, <code>swift</code> into a named directory, with pinned versions and SHA-256 sums);</p>
+      </item>
+      <item>
+        <p><code>docs/C_GUIDELINES.md</code> (the Android platform note).</p>
+      </item>
+    </list>
+    <p>Done when:</p>
+    <list>
+      <item>
+        <p>all four ABIs build with <code>-Werror</code> at android-24, the library and the unit tests (built, not run);</p>
+      </item>
+      <item>
+        <p><code>readelf</code> shows 16 KB <code>LOAD</code> alignment on arm64-v8a and x86_64;</p>
+      </item>
+      <item>
+        <p>the <code>debug</code> preset still passes the allocator and clock tests.</p>
+      </item>
+    </list>
+    <p>Golden: the <code>_WIN32</code> branch of <code>src/allocator.c</code>.</p>
+  </body>
+</packet>

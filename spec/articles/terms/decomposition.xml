@@ -1,0 +1,4 @@
+<term id="decomposition" source="docs/GLOSSARY.md">
+  <name>decomposition</name>
+  <definition>The full canonical or full compatibility decomposition of a codepoint: its UnicodeData.txt mapping applied until nothing changes (UAX #15)</definition>
+</term>

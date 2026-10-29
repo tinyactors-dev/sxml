@@ -1,0 +1,4 @@
+<term id="schematron_report_sink" source="docs/GLOSSARY.md">
+  <name>schematron_report_sink</name>
+  <definition>The interface that receives every schematron report of one Schematron validation, in order (<ref kind="decision" to="D315"/>); a compilation's errors go to a schema report sink instead, as XSD's and (from 7.28) XSLT's do</definition>
+</term>

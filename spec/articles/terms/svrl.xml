@@ -1,0 +1,4 @@
+<term id="svrl" source="docs/GLOSSARY.md">
+  <name>svrl</name>
+  <definition>The Schematron Validation Report Language (ISO/IEC 19757-3, Annex D, informative): an XML form of one validation's reports; sxml writes it from schematron reports and the compiled schema's static table, never from its own data (<ref kind="decision" to="D313"/>, <ref kind="decision" to="D315"/>)</definition>
+</term>

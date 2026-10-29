@@ -1,0 +1,4 @@
+<term id="external_declaration" source="docs/GLOSSARY.md">
+  <name>external_declaration</name>
+  <definition>The element a sch:extends href names (5.4.4): a sch:schema or schematron library under a schema or library, a sch:rule under a rule; its children are put in place of the sch:extends, its attributes are not (<ref kind="decision" to="D315"/>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="evaluator_part" source="docs/GLOSSARY.md">
+  <name>evaluator_part</name>
+  <definition>One <code>src/evaluator_&lt;part&gt;.c</code> file defining <code>sxml_evaluator_part_&lt;part&gt;</code>: the IR expression kinds it evaluates and their step functions (<ref kind="decision" to="D101"/>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="byte_view" source="docs/GLOSSARY.md">
+  <name>byte_view</name>
+  <definition>A read-only pointer plus <term name="byte_count"/></definition>
+</term>

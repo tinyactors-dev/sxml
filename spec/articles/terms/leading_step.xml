@@ -1,0 +1,4 @@
+<term id="leading_step" source="docs/GLOSSARY.md">
+  <name>leading_step</name>
+  <definition>A step of an XNode pattern that is not on the right of <code>/</code> or <code>//</code>; it is matched on the axes child-or-top, attribute-or-top or namespace-or-top (XSLT 4.0, 6.3.2.2)</definition>
+</term>

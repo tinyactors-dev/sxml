@@ -1,0 +1,17 @@
+<packet id="perf-14" source="docs/tasks/phase-7.md">
+  <title>Running compiled Schematron (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D315"/>, <ref kind="decision" to="D323"/> and <ref kind="decision" to="D325"/>. On one EN 16931 UBL invoice, evaluating the Schematron that sxml compiles from the <code>.sch</code> sources costs 1.21 x 10^9 instructions; evaluating the official stylesheet compiled from the same rules by the ISO skeleton costs 0.55 x 10^9 (<ref kind="decision" to="D325"/>). The same rules, the same evaluator: the difference is in the stylesheet AST that <code>src/schematron*</code> builds (how patterns become modes, rules become templates and assertions become conditions, <ref kind="decision" to="D315"/>), or in how the lowering treats it.</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: profile both runs (callgrind, inclusive, by template and by IR kind) and explain the difference before changing anything; then change what the Schematron front end builds (or, if the cause is in the shared lowering or evaluator, a general mechanism there that helps XSLT too), keeping <ref kind="decision" to="D315"/>'s semantics: first matching rule per pattern, every rule of a group, phases, <code>let</code> per rule context, locations of both kinds.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/schematron*</code>, <code>tests/schematron_test.c</code>, <code>tests/bench/</code>; the shared lowering or evaluator files only if the profile shows the cause there (say which in the D-record).</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the explanation and before and after (instructions and seconds) in a D-record and the commit messages, on the invoice and on the 1,131 VEFA instances; Schematron findings byte-identical (JSON) on the 1,150 EN 16931 files <ref kind="decision" to="D325"/> compared; 7.30's suite 463 of 463 applicable; VEFA 1,133 of 1,133; if shared files change, QT4 XP40, XQ40 and XT40 whole, base and change in the same setup: no outcome changes, case by case. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D326"/>): the walk visited text nodes (@* | node()) and each visit calls every rule's match function; a pattern now walks only the node kinds its rule contexts may match. Invoice validation 1.208 to 0.479 x 10^9 (official 0.548), 0.362 to 0.296 s; VEFA 47.1 to 26.3 x 10^9, 7.5 to 4.7 s; findings byte-identical (1,150 files); suite 463/463, VEFA 1,133/1,133; no shared file changed.</p>
+      </item>
+    </list>
+  </body>
+</packet>

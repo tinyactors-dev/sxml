@@ -1,0 +1,4 @@
+<term id="full_text_selection" source="docs/GLOSSARY.md">
+  <name>full_text_selection</name>
+  <definition>The compiled form of an FTSelection: words, connectives, positional filters and match options, run as a match program (XQuery and XPath Full Text 3.0)</definition>
+</term>

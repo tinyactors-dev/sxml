@@ -1,0 +1,35 @@
+<decision id="D136" status="accepted" source="docs/DECISIONS.md">
+  <title>Node, sequence, string and type functions (packet <ref kind="packet" to="2.17"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. F&amp;O 4.0 sections are those of the current editor's draft.</p>
+    <list>
+      <item>
+        <p><strong>One options reader</strong> (glossary <term name="option_definition"/>): <code>sxml_function_library_read_options</code> (<code>src/function_library_options.c</code>, declared in <code>src/function_library_core_internal.h</code>) reads every map that follows the option parameter conventions (1.7): a definition is a name and a sequence type; values are coerced with <code>sxml_evaluator_coerce</code>; a string key that names no option is XPTY0004, an xs:QName key in a namespace is ignored. The string and JSON parts use it (their own readers are gone); the element-map, resource and serialization-parameter readers of other packets could move to it.</p>
+      </item>
+      <item>
+        <p><strong>xnode()?</strong> for fn:name, local-name, namespace-uri, node-name, base-uri, document-uri, nilled (as F&amp;O 4.0 types them): a JNode is XPTY0004 (QT4 PathExpr-J-461, -462).</p>
+      </item>
+      <item>
+        <p><strong>Node functions</strong> (<code>src/function_library_node.c</code>): siblings (the parent's child step); innermost/outermost in document order (a node's subtree follows it, so only the next member, or the last kept one, needs an ancestor walk); lang (caseless by full lower-case mapping); id, element-with-id and idref scan the target document for the is-id / is-idrefs nodes the parser marks (xml:id, DTD ID/IDREF/IDREFS), FODC0001 for a root that is not a document; path in every 4.0 form; location from the tree's <code>get_location</code> (<code>tree_internal.h</code>), as an fn:location-record: the processor's loader does not keep locations, so documents it parses give the empty sequence, which F&amp;O allows; fn:doc accepts and ignores <code>$options</code>.</p>
+      </item>
+      <item>
+        <p><strong>parse-xml-fragment</strong> (<code>src/function_library_json.c</code>): the entity, after a UTF-8 byte order mark and a text declaration (which must have an encoding and no standalone, else FODC0006), is parsed by the loader as the content of an element of a document made around it, whose children are copied into a new document node; binary input is taken as UTF-8. <strong>strip-space="all"</strong> (both parse functions) copies through a tree builder that drops whitespace-only text outside xml:space="preserve". <strong>system-properties</strong> (17.1.9) lives in the same part: the 14 built-in properties, sxml not schema-aware and without the optional features.</p>
+      </item>
+      <item>
+        <p><strong>Type part</strong> <code>src/function_library_type.c</code> (19.1): type-of; schema-type, atomic-type-annotation and node-type-annotation make an fn:schema-type-record from the type registry; base-type, primitive-type, members and matches are anonymous function items over native rows that capture the type identifier as xs:integer; constructor is the type's constructor body (as xs:T#1), absent for xs:anyAtomicType, xs:anySimpleType and namespace-sensitive types; variety "mixed" for xs:anyType and xs:untyped; xs names carry the xs prefix.</p>
+      </item>
+      <item>
+        <p><strong>String part</strong>: pad-string, index-of-substring (codepoint matching).</p>
+      </item>
+      <item>
+        <p><strong>Sequence part</strong>: starts-/ends-/contains-subsequence as one resumable body (<ref kind="decision" to="D75"/>): one call of <code>$compare</code> per step; without it fn:deep-equal's leaf entry, no calls.</p>
+      </item>
+      <item>
+        <p><strong>Collations</strong> (<ref kind="decision" to="D116"/>'s proposal for these bodies, accepted): fn:min, fn:max, fn:highest, fn:lowest, fn:sort-by, array:sort and array:sort-by resolve through <code>sxml_function_library_find_collation</code> / <code>_resolve_collation</code> and compare with <code>_compare_collated</code>; each sort key definition carries its collation (the default when a sort key record names none). <code>sxml_higher_order_check_collation</code> is gone; <code>sxml_function_library_check_collation</code> has no caller left (its definition in <code>src/function_library.c</code> may go). Order-by keys in the evaluator's SORT still accept only the codepoint collation.</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong>: a descending range for <code>count(reverse(1 to 10^11))</code> (one QT4 case, RangeExpr-408g; needs a frozen-header addition, see "Proposed"); the zero comparison bug in <code>src/xdm_atomic.c</code> (Proposed). Survey (every fn/map/array/math name of the XP40 sets, function-lookup at arities 0 to 6): 26 functions missing, all of packets <ref kind="packet" to="2.11"/>, <ref kind="packet" to="2.12"/>, <ref kind="packet" to="2.15"/>, <ref kind="packet" to="3.11"/> or <ref kind="decision" to="D97"/>'s non-goals (html-doc, parse-html, invisible-xml, xsd-validator, transform).</p>
+      </item>
+    </list>
+  </body>
+</decision>

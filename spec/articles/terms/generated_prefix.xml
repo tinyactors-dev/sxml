@@ -1,0 +1,4 @@
+<term id="generated_prefix" source="docs/GLOSSARY.md">
+  <name>generated_prefix</name>
+  <definition>A prefix namespace fixup makes up (<code>ns0</code>, <code>ns1</code>, ...) when a name's own prefix is taken by another namespace URI</definition>
+</term>

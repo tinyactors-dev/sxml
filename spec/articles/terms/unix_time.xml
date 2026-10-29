@@ -1,0 +1,4 @@
+<term id="unix_time" source="docs/GLOSSARY.md">
+  <name>unix_time</name>
+  <definition>Milliseconds since 1970-01-01T00:00:00Z, leap seconds not counted (fn:unix-dateTime)</definition>
+</term>

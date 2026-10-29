@@ -1,0 +1,20 @@
+<decision id="D74" status="accepted" source="docs/DECISIONS.md">
+  <title>libmpdec keeps no large buffers on the stack</title>
+  <body>
+    <p><recorded date="2026-10-16"/>, amending <ref kind="decision" to="D57"/>. Upstream <code>transpose.c</code> holds two <code>SIDE*SIDE</code>-word buffers in <code>squaretrans_pow2</code> (128 KiB with 32-bit words) and two <code>BUFSIZE</code>-word buffers in <code>swap_halfrows_pow2</code> (32 KiB). Every product of more than 1024 words (on WebAssembly 9216 digits, smaller operand above 2304) whose transform is not a power of two up to 4096 words takes the four- or six-step path through them and trapped on the 64 KiB WebAssembly stack; an untrusted query could do it within the default digit limit.</p>
+    <list>
+      <item>
+        <p><strong>Patch</strong> ("sxml patch (<ref kind="decision" to="D74"/>)" in <code>transpose.c</code>): both pairs are one heap block from <code>mpd_alloc</code> (the current decimal scope, <ref kind="decision" to="D42"/>), sized for the actual block; <code>squaretrans_pow2</code> now returns 0 on failure and <code>transpose_pow2</code> passes it on, so the product reports <code>MPD_Malloc_error</code> (OUT_OF_MEMORY) and leaks nothing.</p>
+      </item>
+      <item>
+        <p><strong>Audit</strong> (<code>-fstack-usage</code>, wasm32 at <code>-Os</code>): after the patch the largest libmpdec frame is 1248 bytes (<code>mpd_qpowmod</code>; 2.5 KiB on x86-64 GCC); the <code>MPD_MINALLOC_MAX</code> (64-word) buffers in <code>mpdecimal.c</code>, <code>basearith.c</code> and <code>io.c</code> and the 3-word arrays in <code>fourstep.c</code>, <code>sixstep.c</code>, <code>crt.c</code>, <code>numbertheory.c</code> stay. Measured by painting the stack under wasm: multiply needs 785 bytes, divide and integer divide at most 2.9 KiB, flat from 5000 to 16,000,000 digits.</p>
+      </item>
+      <item>
+        <p><strong>Recursion</strong> (<ref kind="decision" to="D71"/> exempts libmpdec): only <code>_kmul_worksize</code>, <code>_karatsuba_rec</code> (operands of at most 1024 words: depth 7) and <code>_karatsuba_rec_fnt</code> recurse. The last runs only for products above 3 * 2^25 words on 32-bit targets, more than two <code>MPD_MAX_PREC</code> (425 million digit) operands have, and above 3 * 2^32 words on 64-bit ones, depth log2 of the size ratio with frames under 100 bytes. Newton division and the integer power sxml uses are loops. So no recursion patch and no lower cap on <code>maximum_digit_count</code> are needed.</p>
+      </item>
+      <item>
+        <p><strong>Tests</strong> (<code>tests/decimal_test.c</code>): squares and quotients at 10,000 digits (four-step on wasm), 10^6000 * 10^6000 and two 10,000-digit operands refused with LIMIT_EXCEEDED, 60,000 digits (the plain six-step path on wasm), and every allocation failure of a long product reported and clean.</p>
+      </item>
+    </list>
+  </body>
+</decision>

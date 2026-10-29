@@ -1,0 +1,32 @@
+<decision id="D215" status="accepted" source="docs/DECISIONS.md">
+  <title>Invisible XML: fn:invisible-xml over an Earley parser (packet <ref kind="packet" to="7.18"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D13"/>, <ref kind="decision" to="D53"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>, <ref kind="decision" to="D208"/>. Replaces <ref kind="decision" to="D162"/>'s place for fn:invisible-xml (the function was absent, XPST0017; supports-invisible-xml false).</p>
+    <list>
+      <item>
+        <p><strong>No tree-sitter for user grammars</strong> (<ref kind="decision" to="D12"/> gives way, as <ref kind="decision" to="D53"/> did for regex): an iXML grammar is run-time data, the argument of fn:invisible-xml, and its language is any context-free language, so it needs a general parser built while the query runs (Earley, as the packet says). The iXML notation itself could be a tree-sitter grammar, but then sxml would carry two parsers for one job; instead the grammar of iXML grammars is compiled in as a constant table of its XML form, so the one Earley parser reads grammars and inputs alike.</p>
+      </item>
+      <item>
+        <p><strong>Optional feature</strong> <code>sxml_invisible_xml_feature()</code> ("invisible-xml", <code>include/sxml/processor.h</code>, additive), whose library_functions hold the one row (<ref kind="decision" to="D191"/>); in <code>sxml_all_optional_features()</code>, so the CLI, the drivers and <code>sxml-full.wasm</code> have it and <code>sxml.wasm</code> does not. supports-invisible-xml follows the feature.</p>
+      </item>
+      <item>
+        <p><strong>One compiler</strong> (<code>src/ixml.c</code>): the grammar builder reads the XML form ("IXML in XML") as tree builder events or as entries of the constant table <code>src/ixml_grammar_table.c</code>, which <code>tools/generate-ixml-grammar.py</code> makes from <code>tools/ixml-grammar.ixml</code> (the editorial draft of 2026-02-03: 1.0 with its errata and renaming). A grammar string is parsed with that table's grammar and its parse is sent to the builder; an ixml element is copied to it (<code>sxml_tree_builder_copy_node</code>); no grammar is the table itself. Elements and attributes in a namespace, comments and text are not part of the grammar. Groups, options and repetitions become hidden nonterminals, left-recursive ("Hints for Implementers" turned around, so Earley reads them in linear time); a string is one terminal per character; a class is a mask of general categories (the regex tables, Unicode 16.0; LC is Lu, Ll and Lt). S02, S03, S07, S08, S09, S10 and a malformed XML form are FOIX0001.</p>
+      </item>
+      <item>
+        <p><strong>Earley</strong> (<code>src/ixml_earley.c</code>, glossary <term name="earley_item"/>, <term name="parse_forest"/>): items keep the first way they were derived (predecessor and child); those always end, so the tree is read out of them with an explicit stack. A second derivation marks the item; the parse is ambiguous when a marked item is in the tree or two root items complete. Nullables: a nonterminal completed in its own set is recorded, so later items in that set advance over it. Every item and tree node is charged to the evaluation's step limit. Right recursion stays quadratic (no Leo items): <code>-r: 'a', r; .</code> over 3,000 characters makes about 4.5 million items.</p>
+      </item>
+      <item>
+        <p><strong>Constructing XML</strong>: marks, aliases, exposed attributes, insertions as the Specification says; the document element gets ixml:state="ambiguous", and for an unknown version ixml:state="version-mismatch" with ixml:version="1.1". sxml recognizes "1.0" and "1.1" (renaming, which the suite's 1.1 grammars use). A failed parse is <code>&lt;failed ixml:state="failed"&gt;</code> with line, column, position, the character found (or end-of-input) and each terminal expected, in ixml notation. D02 to D07 raise FOIX0002 whatever fail-on-error says: the parse has no XML, and F&amp;O names no other code. Input and grammar line ends are normalized and a leading BOM dropped ("Parsing").</p>
+      </item>
+      <item>
+        <p><strong>The parser function</strong> holds its compiled grammar as its body's state, reference-counted through retain and release, in item-heap memory.</p>
+      </item>
+      <item>
+        <p><strong>Test suite</strong> (<ref kind="decision" to="D13"/>, <ref kind="decision" to="D208"/>): the iXML community suite moved from GitHub to Codeberg in May 2026 (the GitHub repository's last commit only moves it); vendored from codeberg.org/InvisibleXML/ixml at d1f37f6bb1f86a1d370a2ada326d9430922e9967 (<code>third_party/ixml-tests</code>, its <code>tests/</code> without <code>performance/</code>, 78 MB, which no catalog of the top-level catalog names; 2.4 MB) with the repository's LICENSE (GPL-3.0; test data only, nothing links it). <code>tools/update-test-suites.sh</code> fetches it. The driver is an XQuery module run by <code>sxml xquery</code> (<code>tests/ixml/ixml-driver.xq</code>, one process per catalog through <code>tests/ixml/run-ixml-tests.sh</code>), so it uses only the public API; <code>ixml/suite</code> checks it against a baseline that only goes up. It compares with fn:deep-equal after dropping ixml:version, which the suite's results predate; tests that need a Unicode version other than 16.0 are not run.</p>
+      </item>
+      <item>
+        <p><strong>Counts</strong>: the suite 886 of 907 pass, 4 errors (inputs with C0 controls, which an xs:string cannot hold: fn:unparsed-text raises FOUT1190), 17 not run (Unicode versions); every grammar test (142) passes, and 711 of 715 test cases with a correct grammar (99.4 %; gate 90 %). QT4 fn-invisible-xml 16 of 16 (XP40 and XQ40; 6 before, as wrong errors); app-spec-examples' three invisible-xml cases pass; misc-BuiltInKeywords XQ40 297 to 298, XP40 296 to 297; fn-system-properties 23 of 35 unchanged (the -false case is not run, the true one runs). The driver's non-goal tables no longer name fn-invisible-xml, so the 16 cases count in the <ref kind="decision" to="D95"/> denominators.</p>
+      </item>
+    </list>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="particle" source="docs/GLOSSARY.md">
+  <name>particle</name>
+  <definition>The component that says how often a term may occur: minimum and maximum occurrences and the term (XSD 1.1 Part 1, 3.9)</definition>
+</term>

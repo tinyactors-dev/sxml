@@ -1,0 +1,14 @@
+<packet id="7.21" source="docs/tasks/phase-7.md">
+  <title>Fast Invisible XML (book, tests, implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D215"/> (7.18: the Earley parser, right recursion quadratic, every item a step). The owner: high performance; book first, then conformance and benchmarks, then the implementation.</p>
+    <list>
+      <item>
+        <p><strong>Owns</strong>: <code>docs/book/src/ixml*.md</code>, <code>docs/book/examples/ixml/</code>, <code>tests/bench/run-ixml-bench.py</code>, <code>tests/bench/ixml/</code>, <code>src/ixml.c</code>, <code>src/ixml_earley.c</code>, <code>src/ixml_tables.c</code>, <code>src/ixml_internal.h</code>, <code>src/function_library_ixml.c</code>, <code>tests/ixml_test.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the book's performance chapter passes (<code>run-ixml-bench.py --check</code> and its examples); no iXML suite or QT4 iXML case lost; <ref kind="decision" to="D71"/>, allocator memory, honest steps. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D283"/>): the part "Parsing Text with Invisible XML"; the benchmark suite; lookahead sets, Leo items, codepoint classes, grammar simplification. 1 MB in 0.18 to 0.53 s (was 1.1 to 3.2 s), right recursion linear; suite 886/907 and QT4 unchanged.</p>
+      </item>
+    </list>
+  </body>
+</packet>

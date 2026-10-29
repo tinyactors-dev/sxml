@@ -1,0 +1,4 @@
+<term id="traversal" source="docs/GLOSSARY.md">
+  <name>traversal</name>
+  <definition>A higher-order function's walk over the items of a sequence, members of an array or entries of a map, asking for one call of a function item per position (<code>fn:for-each</code>, <code>fn:filter</code>, <code>map:for-each</code>, ...)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="intermediate_representation" source="docs/GLOSSARY.md">
+  <name>intermediate_representation</name>
+  <definition>The shared IR; <code>ir</code> allowed as a module name only</definition>
+</term>

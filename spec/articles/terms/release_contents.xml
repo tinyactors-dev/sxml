@@ -1,0 +1,4 @@
+<term id="release_contents" source="docs/GLOSSARY.md">
+  <name>release_contents</name>
+  <definition>The cell class operation that releases what a cell holds before the heap frees it</definition>
+</term>

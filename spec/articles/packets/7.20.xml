@@ -1,0 +1,16 @@
+<packet id="7.20" source="docs/tasks/phase-7.md">
+  <title>Sweep: 7.11's open cases and the larger duplicates (implementation)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Cases</strong>: XT40 transform-004 (a static fn:transform, FOXT0004), transform-401 (a <code>~record</code> pattern), transform-009 (an assertion the XT40 driver did not check). Close 7.11's gate, or record exactly why a case cannot pass under the project's draft.</p>
+      </item>
+      <item>
+        <p><strong>Duplicates</strong> (<ref kind="decision" to="D237"/>, <ref kind="decision" to="D182"/>): the three UTF-8 and UTF-16 decoders; Full Text reading through the resolver itself; the private growable arrays; the schema reader's boolean and integer parsers; Gregorian day arithmetic; compile-report text; the text form writers; the serialization heapsorts.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: the core stays under budget (the <ref kind="decision" to="D225"/> guard). <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D249"/>): XT40 transform 10 of 12. transform-009 passes, and so do five result-document cases: the driver checks assert-serialization inside assert-result-document on the serialized result document. transform-004 cannot pass while <ref kind="decision" to="D71"/> holds: compiling a static fn:transform re-enters the compiler. transform-401 needs the newest draft's "~T" patterns: <ref kind="decision" to="D245"/> targets that draft, and packet 4.22 brings them. Merged: one decoder with an error rule, Full Text through <code>sxml_optional_feature_read_data</code>, <code>sxml_allocator_reserve_array</code>, the cast engine's boolean and digits, cycle days in <code>src/calendar.c</code>, compile reports built in one place, <code>src/text_form.c</code>, and <code>sxml_sort_in_place</code> for the serialization sorts. XT40 11,945 to 11,951 passed; XP40, XQ40 and XSD unchanged; <code>sxml.wasm</code> 2,089,167 (guard +345).</p>
+      </item>
+    </list>
+  </body>
+</packet>

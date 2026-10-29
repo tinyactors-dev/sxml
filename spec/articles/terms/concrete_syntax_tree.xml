@@ -1,0 +1,4 @@
+<term id="concrete_syntax_tree" source="docs/GLOSSARY.md">
+  <name>concrete_syntax_tree</name>
+  <definition>The tree-sitter parse tree of a query or document, before sxml builds its own structures</definition>
+</term>

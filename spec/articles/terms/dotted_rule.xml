@@ -1,0 +1,4 @@
+<term id="dotted_rule" source="docs/GLOSSARY.md">
+  <name>dotted_rule</name>
+  <definition>A production of an ixml grammar with a dot that says how much of it an Earley item has read; numbered so that the dotted rules of one production are consecutive, and advancing an item adds one (<ref kind="decision" to="D283"/>)</definition>
+</term>

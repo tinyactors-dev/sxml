@@ -1,0 +1,17 @@
+<packet id="perf-2" source="docs/tasks/phase-7.md">
+  <title>Evaluator performance, second round (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D224"/> (perf-1: its benchmarks, and what it left: describe_node 15 % and the machine loop 12 % of XMark-All, atomization, reference counts and small sequences, numeric index keys, hoisting of path MAPs, quantified expressions and sorts, the <code>$V[. instance of gnode()]</code> check per <code>match="$var"</code> test).</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: profile first (callgrind), then general mechanisms of the one IR and evaluator for the hot spots; <ref kind="decision" to="D223"/>'s rule (no IR pass moves STREAM bindings), <ref kind="decision" to="D71"/> and honest step counts kept.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/evaluator.c</code>, <code>src/evaluator_function.c</code>, <code>src/evaluator_path.c</code>, <code>src/evaluator_index.c</code>, <code>src/ir_loop_passes.c</code>, <code>src/tree_axis.c</code>, <code>src/arena_tree.c</code>, <code>src/tree.c</code>, <code>src/cast*.c</code>, <code>src/decimal.c</code>, <code>src/xdm*.c</code>, <code>tests/bench/</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: each change measured before and after, the numbers in its commit and in a D-record; no QT4 XQ40 or XT40 outcome changes. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D229"/>): Clinger's fast path for numbers to doubles; leaves in place; inline item lists and matcher frames; single-node atomization; the memoized match="$var" type check; numeric index keys; quantified hoisting. xmark-all 12.29 to 9.84 x 10^9 instructions (1.55 to 1.20 s), match="$var" 9.30 to 3.91; QT4 XQ40 and XT40 unchanged case by case.</p>
+      </item>
+    </list>
+  </body>
+</packet>

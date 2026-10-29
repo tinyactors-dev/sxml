@@ -1,0 +1,4 @@
+<term id="streamed_prong" source="docs/GLOSSARY.md">
+  <name>streamed_prong</name>
+  <definition>A prong of an xsl:fork in the body of a streamed xsl:source-document, streamed in a pass of its own over the document: a STREAM with OPENS_DOCUMENT over the same href (<ref kind="decision" to="D231"/>)</definition>
+</term>

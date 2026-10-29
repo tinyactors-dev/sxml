@@ -1,0 +1,4 @@
+<term id="scaled_integer" source="docs/GLOSSARY.md">
+  <name>scaled_integer</name>
+  <definition>A number written as sign, mantissa and power of ten, (-1)^sign x mantissa x 10^power, which Clinger's fast path turns into a double with one correctly rounded operation (internal, <code>src/decimal_internal.h</code>, <ref kind="decision" to="D229"/>)</definition>
+</term>

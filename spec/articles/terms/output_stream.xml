@@ -1,0 +1,5 @@
+<term id="output_stream" source="docs/GLOSSARY.md">
+  <name>output_stream</name>
+  <definition>Interface that receives bytes, written in order</definition>
+  <definition>Interface receiving bytes a command-line program writes (<code>sxml_cli_output_stream</code>)</definition>
+</term>

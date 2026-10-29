@@ -1,0 +1,4 @@
+<term id="facet" source="docs/GLOSSARY.md">
+  <name>facet</name>
+  <definition>One constraining facet of a simple type's restriction step (XSD 1.1 Part 2, 4.3): its <code>facet_kind</code> (length, pattern, enumeration, minInclusive, ...) and its value as text</definition>
+</term>

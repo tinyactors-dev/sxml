@@ -1,0 +1,37 @@
+<packet id="7.30" source="docs/tasks/phase-7.md">
+  <title>A Schematron conformance suite (tests)</title>
+  <body>
+    <p>The owner (2026-10-28): the standard (ISO/IEC 19757-3:2025, bought by the owner) cannot be committed, so sxml writes a comprehensive conformance suite of its own from it. No public Schematron conformance suite of that scope is known; check (SchXslt's own tests, schematron.com, the Schematron community's repositories) and record what exists and its licence before writing; reuse with attribution what a licence allows.</p>
+    <list>
+      <item>
+        <p><strong>Whom it serves</strong>: 7.28 (its gate), every later change to Schematron in sxml, and other implementations if the owner publishes it. Who pays: test files and a coverage list; no code in the library.</p>
+      </item>
+      <item>
+        <p><strong>The standard's text is data, not repository content</strong>: cite clause numbers, paraphrase in a few words; never copy sentences, examples or schemas from it. The extracted text is in the orchestrator's scratchpad (<code>iso-19757-3/standard.txt</code>), never committed.</p>
+      </item>
+      <item>
+        <p><strong>Layout</strong> (<code>tests/schematron/</code>, imitating the QT4 catalog of <code>third_party/qt4tests</code>: a catalog, test sets, test cases):</p>
+        <list>
+          <item>
+            <p><code>catalog.xml</code> naming the test sets; one test set per clause group (schema structure, patterns and rules, assertions and reports, <code>let</code> and parameters, abstract patterns and <code>extends</code>, inclusion, phases and <code>from</code>, diagnostics and properties, <code>name</code> and <code>value-of</code>, <code>group</code>, <code>library</code> and <code>rules</code>, <code>visit-each</code>, <code>severity</code>/<code>role</code>/<code>flag</code> and their dynamic evaluation, query bindings, <code>documents</code>, <code>schematronEdition</code>, SVRL, static errors);</p>
+          </item>
+          <item>
+            <p>each test case: the clause it covers, a schema (inline or a file), one or more instance documents, an optional phase and parameters, and the expected result, written neutrally (no sxml API, no sxml error codes): the set of findings (kind assert or report, id, the location as a node path, role, flag, severity, the message text after <code>value-of</code> and <code>name</code>), or "the schema is in error" (with the clause that makes it so), or "implementation-defined" with the clause that allows it;</p>
+          </item>
+          <item>
+            <p><code>coverage.xml</code>: every normative requirement of the standard (each "shall" and each definition that constrains behaviour), as clause number plus a short paraphrase, with the test cases covering it; a requirement without a test is listed as such.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Cross-checks</strong>: every case using only 3rd-edition constructs runs through SchXslt 1.10.1 on sxml (compile with the release CLI, which now has no step limit; <ref kind="decision" to="D314"/>) and must agree, or the disagreement is recorded with the clause that decides it. 2025-only cases are checked by a second, independent agent that derives each expected result from the clause without seeing the first one's answer.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>tests/schematron/</code> (new), a README there (format, licence, how to run the cross-check), a glossary term if needed, a D-record. Not the driver: 7.28 writes the driver that runs the suite against sxml.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: <code>coverage.xml</code> lists every normative requirement of clauses 4 to 7 and the annexes that are normative, each with at least one test (or a recorded reason); all cases are well-formed and validate against a schema for the catalog format; the SchXslt cross-check agrees on every 3rd-edition case or each difference is recorded; the independent check of the 2025-only cases is recorded; 7.28's gates name the suite (pass rate 100 % of applicable cases). <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D317"/>): 514 cases in 18 sets (<code>tests/schematron/</code>), 139 requirements in <code>coverage.xml</code> (131 with cases, 8 with reasons), an edge-case table of construct by dimension, the ambiguities of the standard in the README; SchXslt cross-check of the 369 2020 cases (281 agree, the rest decided by recorded clauses); all 145 2025-only cases checked independently in two rounds, none changed.</p>
+      </item>
+    </list>
+  </body>
+</packet>

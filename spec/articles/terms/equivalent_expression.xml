@@ -1,0 +1,4 @@
+<term id="equivalent_expression" source="docs/GLOSSARY.md">
+  <name>equivalent_expression</name>
+  <definition>The XPath expression of the same form as an XNode pattern, with its leading steps' axes adjusted, that defines what it matches (XSLT 4.0, 6.3.2.2)</definition>
+</term>

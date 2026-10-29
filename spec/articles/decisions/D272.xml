@@ -1,0 +1,40 @@
+<decision id="D272" status="accepted" source="docs/DECISIONS.md">
+  <title>One build with everything (owner, 2026-10-20)</title>
+  <body>
+    <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D189"/>, <ref kind="decision" to="D208"/>, <ref kind="decision" to="D227"/>, <ref kind="decision" to="D262"/>. The owner, on 4.25 leaving fn:load-xquery-module out of XSLT to keep XQuery out of XSLT builds: "We don't need to separate builds like this: with sxml you get everything (adjust size budgets as necessary), because halfway solutions already exist."</p>
+    <list>
+      <item>
+        <p><strong>Every shipped build has everything</strong>: the sxml command, the native libraries and the JavaScript package contain every language (XPath, XQuery, XSLT, XSD) and every optional feature. There is one WebAssembly module for JavaScript; hosts do not pick a smaller one.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: budgets are set for that one module and rise as features land (<ref kind="decision" to="D208"/>). The core <code>sxml.wasm</code> budget of <ref kind="decision" to="D189"/>/<ref kind="decision" to="D207"/> no longer limits what a feature may add; a large size growth is still reported (<ref kind="decision" to="D225"/>), as a fact, not a reason to leave something out.</p>
+      </item>
+      <item>
+        <p><strong>What stays</strong>: the optional-feature view (<ref kind="decision" to="D189"/>) and the per-language part lists (<ref kind="decision" to="D227"/>) are internal structure and public API that stay stable; no shipped build uses them to leave parts out. Feature data still comes from the host through the resolver.</p>
+      </item>
+      <item>
+        <p><strong>XSLT gets fn:load-xquery-module</strong> (XSLT 4.0 and F&amp;O 4.0), and any other function a language left out only for size is added.</p>
+      </item>
+      <item>
+        <p>Packet size-3 carries this out.</p>
+      </item>
+      <item>
+        <p><strong>Done by size-3</strong> (commits 4f5a8bf, a62058e, and the records):</p>
+        <list>
+          <item>
+            <p>fn:load-xquery-module's row is the library part <code>xquery_module</code> (<code>src/function_library_xquery_module.c</code>, <ref kind="decision" to="D101"/>) serving every language: XSLT and XPath too (F&amp;O 4.0, 18.2 leaves the host language to decide; the QT4 sets are XP31+ XQ31+). Its body stays in <code>src/xquery_load_module.c</code>; XQuery's own table keeps fn:put only. No header change. QT4 XP40 fn-load-xquery-module 0 to 56 passed (4 failed, 81 not run), fn-function-lookup 657 to 661; XQ40 sets unchanged; XT40 load-xquery-module wrong errors 4 to 1 (001: F&amp;O 4.0's FOQM0002 for a missing module, the suite wants XQST0059 or FOQM0006).</p>
+          </item>
+          <item>
+            <p>JavaScript: one module, <code>sxml.wasm</code>, 7,701,002 / 1,713,241 bytes (was 2,135,535 / 744,728; <code>sxml-full.wasm</code> was 7,700,970 / 1,713,185) under the full module's budget 8,000,000 / 2,800,000, not raised; the <ref kind="decision" to="D225"/> baseline is the one module's map. The export <code>./sxml-full.wasm</code> names <code>dist/sxml.wasm</code>; Sxml.features and createProcessor({ features }) are unchanged; load() refuses a module without the XQuery, XSLT and XSD exports. sxml_host_core_features.c is gone.</p>
+          </item>
+          <item>
+            <p>Already everything: the sxml command (one processor creation, <code>sxml_query_run_start</code>, with sxml_all_optional_features() and EXPath File under --allow-file-access), the native <code>sxml_host</code> (sxml_host_full_features.c) that the Kotlin and Swift bindings link, and the QT4, XSLT and XSD drivers. In the C library itself a host still names the features it wants (<ref kind="decision" to="D189"/>'s view stays).</p>
+          </item>
+          <item>
+            <p>Other size-only exclusions searched (DECISIONS, QUEUE, <code>src/</code>): none left. EXPath File stays out of sxml_all_optional_features() and the JavaScript module for access, not size (<ref kind="decision" to="D200"/>). XPath's Full Text parser stays a grammar of its own (<ref kind="decision" to="D235"/>): structure, every build has it. fn:put stays XQuery's (XQUF 3.0).</p>
+          </item>
+        </list>
+      </item>
+    </list>
+  </body>
+</decision>

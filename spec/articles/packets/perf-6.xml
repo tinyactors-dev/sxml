@@ -1,0 +1,17 @@
+<packet id="perf-6" source="docs/tasks/phase-7.md">
+  <title>Compile each regex once (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D53"/>, <ref kind="decision" to="D105"/> and <ref kind="decision" to="D114"/> (the regex engine and its library part) and the SchXslt measurements of perf-5. <code>compile_pattern</code> in <code>src/function_library_regex.c</code> parses and compiles the pattern and creates a matcher on every call of <code>fn:matches</code>, <code>fn:replace</code>, <code>fn:tokenize</code> and <code>fn:analyze-string</code>, also when the pattern and flags are literals. Measured (release, x86_64 Xeon 2.1 GHz): 20,000 calls of <code>replace($s, "(\W*)\$AMOUNT(\W*)", "$1x$2")</code> take 0.156 s, against 0.054 s for the literal pattern <code>"\$AMOUNT"</code>; SchXslt's expand stage of EN 16931 makes about 810,000 <code>fn:replace</code> calls with about 1,050 distinct patterns (about 9 s).</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: one general mechanism, no Schematron-specific machinery: a compiled regex (with its parsed flags) is reused for every call with the same pattern text and flags. Prefer a bounded cache owned by the evaluation (or the processor, if its lifetime and limits fit better), keyed by pattern and flags, its memory from the allocator and counted against the limits; state the bound and the eviction rule in the D-record. Where the pattern and flags are literals the lowering may compile once instead; one mechanism, not two, if the cache already gives the speed. Errors (FORX0001, FORX0002) and the regex step limit behave as before, per call. New terms go into the glossary first.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/function_library_regex.c</code>, <code>src/regex.c</code>, <code>src/regex_internal.h</code>, <code>tests/function_library_regex_test.c</code> (or the regex tests that exist), <code>tests/bench/</code> (a new <code>regex-reuse.xq</code>). Not <code>src/evaluator.c</code>, which perf-5 holds: if the cache needs a field there, write the need under "## Proposed" and use what the dynamic context already offers.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the benchmark before and after in the D-record and the commit messages; SchXslt's expand stage of EN 16931 measured; no QT4 XP40, XQ40 or XT40 outcome changes, case by case; the regex suites unchanged; <ref kind="decision" to="D71"/>, the memory limits and honest step counts kept. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D308"/>): a regex cache per evaluation in the evaluation memo (4,096 entries, 8 MiB, least recently used unused entry evicted); 20,000 replace calls 0.103 to 0.065 s, bench-real.xsl 0.550 to 0.488 s, SchXslt's expand stage 555 to 551 s (compiling under 1 %); QT4 and XT40 regex sets unchanged case by case.</p>
+      </item>
+    </list>
+  </body>
+</packet>

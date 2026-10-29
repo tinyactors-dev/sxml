@@ -1,0 +1,41 @@
+<decision id="D63" status="accepted" source="docs/DECISIONS.md">
+  <title>Static analysis and lowering (packet <ref kind="packet" to="1.12"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. <code>src/xpath_static_internal.h</code> (module <code>xpath_static</code>): <code>sxml_xpath_static_context</code> (heap, allocator, namespace bindings, variable declarations, function table); <code>sxml_xpath_resolve_name</code>, <code>_resolve_sequence_type</code> and <code>_resolve_item_type</code> (also for the type text of function library rows, <ref kind="decision" to="D55"/>); <code>sxml_xpath_lower</code> (AST to an unsealed unit) and <code>sxml_xpath_compile</code> (parse, lower, <code>sxml_ir_standard_passes</code>, seal), which 1.23 calls.</p>
+    <list>
+      <item>
+        <p><strong>Names</strong>: the AST's namespace declarations, then the configuration, then the predeclared prefixes; unprefixed functions are in fn, variables, attributes and QName literals in no namespace, element and type names in the default element namespace. Function names are found with <code>sxml_name_pool_find_name</code>: a name never interned is XPST0017. Global variable n is variable declaration n, referenced or not, so the processor binds by index.</p>
+      </item>
+      <item>
+        <p><strong>Shape</strong>: ANF blocks append LETs; atoms (literals, variables) are never bound. Left-recursive chains (binary operators, paths, filters, lookups, dynamic calls, arrows) are walked in a loop; other nesting costs one frame of the lowering machine in allocator memory (<ref kind="decision" to="D71"/>; no C recursion), bounded by <code>maximum_expression_depth</code> (default <code>SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH</code>, 10,000 levels, a few MB of frames at most; LIMIT_EXCEEDED beyond). The former default of 32 for the WebAssembly stack is gone. An inline function's free variables are found by walking its AST through parent links; each becomes a captured slot, except a constant (a <code>let</code> of a literal), which is substituted. Globals read in a function are captured (<ref kind="decision" to="D55"/>).</p>
+      </item>
+      <item>
+        <p><strong>Focus</strong>: slots made on first read (main, MAP, FILTER); absent in an inline function body (a RAISE of XPDY0002 where read); a focus function and <code>-&gt;</code> fix the value, with position and size 1.</p>
+      </item>
+      <item>
+        <p><strong>Paths</strong>: <code>E1/E2</code> is MAP then DOCUMENT_ORDER; <code>//</code> adds a MAP of <code>descendant-or-self::node()</code> and DOCUMENT_ORDER; a reverse-axis step is followed by DOCUMENT_ORDER after its predicates; default axis attribute or namespace for those tests; <code>node()</code> steps use the generic node type. A name test on a JNode origin is the evaluator's to read as a key test (XPath 4.0, 4.6.5), since STEP carries element(N).</p>
+      </item>
+      <item>
+        <p><strong>Calls</strong>: COERCE unless the type is <code>item()*</code> or a constant already matches; constructor functions are CAST allowing empty; a left-out context-value parameter is the focus value (static calls) or captured by a closure (<code>f#N</code>); <code>position()</code>/<code>last()</code> read focus slots; static placeholders make a closure (constant arguments in its body, others coerced and captured); dynamic placeholders call fn:partial-apply with <code>xs:positiveInteger</code> keys; keyword arguments are reordered; <code>and</code>/<code>or</code> are CONDITIONALs giving <code>true()</code>/<code>false()</code>, <code>otherwise</code> tests <code>instance of item()+</code>, string templates use fn:string-join#2 and <code>||</code>. fn:root, fn:partial-apply and fn:string-join must be in the table.</p>
+      </item>
+      <item>
+        <p><strong>Literals</strong>: integers inline or as decimal cells (hex and binary converted); doubles through decimal text, rounded once (<ref kind="decision" to="D57"/>).</p>
+      </item>
+      <item>
+        <p><strong>Not lowered in Phase 1</strong> (UNSUPPORTED_FEATURE, diagnostic filled): for member, for key/value, destructuring let, method calls, but with, dynamic node tests, the item axis, named namespace-axis tests (P4), jnode() selectors other than <code>*</code>, <code>()</code>, NCName, string, integer, boolean.</p>
+      </item>
+      <item>
+        <p><strong>Text form</strong>: nested expression operands start a line two columns past their parent's "(", except a LET's bound expression; constants print as XPath literals (doubles as <code>&lt;shortest decimal&gt;e0</code>).</p>
+      </item>
+      <item>
+        <p><strong>Checks</strong>: with a permissive function table, 29,653 of the 32,409 valid XP40 queries lower and pass the verifier; the rest are static errors from missing test environments, or the constructs above.</p>
+      </item>
+      <item>
+        <p><code>sxml_native_function</code> now has <code>properties</code> after <code>function_namespace</code> (no padding; clang-tidy's padding check failed on the first file to include it). Field order only.</p>
+      </item>
+      <item>
+        <p><code>sxml_function_table_find</code> (<ref kind="decision" to="D55"/>) is declared but nobody defines it yet; static analysis uses <code>sxml_xpath_find_function</code>; 1.20 may define the wrapper over it.</p>
+      </item>
+    </list>
+  </body>
+</decision>

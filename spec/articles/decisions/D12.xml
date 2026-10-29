@@ -1,0 +1,26 @@
+<decision id="D12" status="accepted" source="docs/DECISIONS.md">
+  <title>Parsing with tree-sitter</title>
+  <body>
+    <p><recorded date="2026-10-16"/>, at the owner's request ("use tree-sitter wherever you need parsing"), confirmed for XML as well as the query languages.</p>
+    <list>
+      <item>
+        <p>The tree-sitter runtime (MIT) is vendored under <code>third_party/tree-sitter/</code>, pinned to a release tag.</p>
+      </item>
+      <item>
+        <p>Grammars live under <code>grammars/&lt;language&gt;/grammar.js</code>. The generated parser (and any external scanner) is committed so the build needs no Node.js; a script regenerates it with a pinned <code>tree-sitter-cli</code>.</p>
+      </item>
+      <item>
+        <p>sxml walks the concrete syntax tree and builds its own structures (the XML tree arena, the XPath/XQuery abstract syntax, then the shared IR). The concrete syntax tree is freed before the parse function returns.</p>
+      </item>
+      <item>
+        <p>Any <code>ERROR</code> or <code>MISSING</code> node is a static error (XML: not well-formed; XPath/XQuery: <code>XPST0003</code>). Error recovery never accepts input.</p>
+      </item>
+      <item>
+        <p>What a context-free grammar cannot express (XML well-formedness constraints, entity expansion, namespace processing, XQuery lexical constraints) is checked in the tree-building step.</p>
+      </item>
+      <item>
+        <p>Vendored third-party code is exempt from <code>docs/C_GUIDELINES.md</code> and the lint gates. The tree-sitter runtime allocates with <code>malloc</code> unless <code>ts_set_allocator</code> is called, and that hook is process-global, so sxml does not call it. This exemption is limited to the parse step.</p>
+      </item>
+    </list>
+  </body>
+</decision>

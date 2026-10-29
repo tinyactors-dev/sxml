@@ -1,0 +1,4 @@
+<term id="duplicates_policy" source="docs/GLOSSARY.md">
+  <name>duplicates_policy</name>
+  <definition>The <code>duplicates</code> option of <code>map:build</code> and <code>map:merge</code>: reject, use-first, use-last, use-any, combine, or a function</definition>
+</term>

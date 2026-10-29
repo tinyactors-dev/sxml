@@ -1,0 +1,17 @@
+<packet id="perf-15" source="docs/tasks/phase-7.md">
+  <title>Template rules indexed by node kind and name (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D144"/>, <ref kind="decision" to="D149"/>, <ref kind="decision" to="D326"/> (perf-14, whose Proposed entry this is). In both EN 16931 stylesheets, sxml's compiled Schematron and the official one, match functions are about 92 % of evaluation steps: APPLY_TEMPLATES tries every rule of the mode in order for every item, and most rules cannot match the item's node kind or name. Any stylesheet with many template rules pays this.</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: profile first; at compile time, give each mode an index of its rules by what their pattern requires of the item (node kind, and the expanded name for name tests), keeping each rule's place in the conflict order (XSLT 4.0, 6.5 and 6.6: import precedence, then priority, then the last in document order, or the mode's on-multiple-match); at run time try only the rules indexed for the item's kind and name plus the rules that can match anything, in their conflict order. Patterns whose requirement the analysis cannot decide (variables, functions, predicates on the root, <code>.</code>) go with the rules that can match anything. One mechanism for xsl:apply-templates, xsl:next-match, xsl:apply-imports, streamed modes (<ref kind="decision" to="D223"/>: check what streaming needs) and the built-in rules.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/evaluator_template.c</code>, <code>src/xslt_lower_template.c</code>, <code>src/xslt_pattern.c</code> and their internal headers, the APPLY_TEMPLATES parts of <code>src/ir.c</code>, <code>src/ir_internal.h</code>, <code>src/ir_verify.c</code>, <code>tests/evaluator_template_test.c</code>, <code>tests/bench/</code> (a stylesheet with many rules).</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: before and after (steps, instructions and seconds) in a D-record and the commit messages on both EN 16931 runs, the new benchmark, xmark-all and the XT40 suite's run time; the same rule chosen for every item (the IR text form may change; outputs may not); QT4 XT40 whole (and XP40 and XQ40 if shared files change), base and change in the same setup: no outcome changes, case by case; the Schematron suite 463 of 463 and VEFA 1,133 of 1,133. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D327"/>): each mode's rules in rule buckets by node kind and name, merged in rule order at run time. Invoice transform 1.957 to 1.618 x 10^9 (transform 0.548 to 0.208), validate 1.903 to 1.613 (validation 0.479 to 0.189); match calls 44,422 to 2,739 and 36,612 to 2,526; xslt-many-rules 55.8 to 3.4 x 10^9 (7.0 to 0.46 s); XT40, XP40, XQ40 0 outcomes differ; suite 463/463, VEFA 1,133/1,133.</p>
+      </item>
+    </list>
+  </body>
+</packet>

@@ -1,0 +1,4 @@
+<term id="character_mapping" source="docs/GLOSSARY.md">
+  <name>character_mapping</name>
+  <definition>One pair of a character map: a codepoint and its <term name="replacement_text"/></definition>
+</term>

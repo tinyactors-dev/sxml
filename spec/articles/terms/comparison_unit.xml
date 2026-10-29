@@ -1,0 +1,4 @@
+<term id="comparison_unit" source="docs/GLOSSARY.md">
+  <name>comparison_unit</name>
+  <definition>One significant child (a node or a merged text run), or one top-level item, as deep equality compares it</definition>
+</term>

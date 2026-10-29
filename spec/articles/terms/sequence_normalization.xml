@@ -1,0 +1,4 @@
+<term id="sequence_normalization" source="docs/GLOSSARY.md">
+  <name>sequence_normalization</name>
+  <definition>Turning the sequence to serialize into one result tree: JNodes to their values, arrays flattened, atomic items to text, documents replaced by their children, adjacent text merged (Serialization 4.0, section 2)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="population" source="docs/GLOSSARY.md">
+  <name>population</name>
+  <definition>The sequence xsl:for-each-group groups, its select value, in population order (XSLT 4.0, 14.1)</definition>
+</term>

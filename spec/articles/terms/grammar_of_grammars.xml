@@ -1,0 +1,4 @@
+<term id="grammar_of_grammars" source="docs/GLOSSARY.md">
+  <name>grammar_of_grammars</name>
+  <definition>The iXML grammar of iXML grammars, compiled into sxml as a constant table of its XML form; a grammar in ixml notation is parsed with it (<ref kind="decision" to="D215"/>)</definition>
+</term>

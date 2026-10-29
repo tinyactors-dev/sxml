@@ -1,0 +1,4 @@
+<term id="counted_loop" source="docs/GLOSSARY.md">
+  <name>counted_loop</name>
+  <definition>A counted repetition <code>x{n,m}</code> compiled as <code>x</code> once plus a counter slot that counts its iterations, instead of copies of <code>x</code>; used when the copies would pass 256 instructions (<ref kind="decision" to="D147"/>)</definition>
+</term>

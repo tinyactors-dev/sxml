@@ -1,0 +1,4 @@
+<term id="boundary_whitespace" source="docs/GLOSSARY.md">
+  <name>boundary_whitespace</name>
+  <definition>Whitespace in direct element content delimited only by tags, direct constructors and enclosed expressions (XQuery 4.0, 4.12.1.4)</definition>
+</term>

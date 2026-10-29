@@ -1,0 +1,4 @@
+<term id="localization" source="docs/GLOSSARY.md">
+  <name>localization</name>
+  <definition>The optional feature that gives the formatting functions languages other than English and the calendars BE, JE, OS and AH from CLDR files the host serves (<code>sxml_localization_feature</code>; <ref kind="decision" to="D221"/>)</definition>
+</term>

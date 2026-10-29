@@ -1,0 +1,4 @@
+<term id="null_allocator" source="docs/GLOSSARY.md">
+  <name>null_allocator</name>
+  <definition>An <term name="allocator"/> whose operations is NULL: it never allocates; in a configuration it means "must not grow"</definition>
+</term>

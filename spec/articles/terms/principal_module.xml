@@ -1,0 +1,4 @@
+<term id="principal_module" source="docs/GLOSSARY.md">
+  <name>principal_module</name>
+  <definition>The stylesheet module the processor was asked to compile (module 1)</definition>
+</term>

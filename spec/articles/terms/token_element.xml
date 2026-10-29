@@ -1,0 +1,4 @@
+<term id="token_element" source="docs/GLOSSARY.md">
+  <name>token_element</name>
+  <definition>An <code>sxml:token</code> element: an anonymous syntax node that has a highlight, a field name or is missing, so it can carry attributes (<ref kind="decision" to="D285"/>)</definition>
+</term>

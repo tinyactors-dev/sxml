@@ -1,0 +1,4 @@
+<term id="backtrack_stack" source="docs/GLOSSARY.md">
+  <name>backtrack_stack</name>
+  <definition>The stack of choices and undo entries of a backtracking matcher; it grows through an allocator within a limit</definition>
+</term>

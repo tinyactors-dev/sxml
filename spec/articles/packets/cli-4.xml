@@ -1,0 +1,17 @@
+<packet id="cli-4" source="docs/tasks/phase-7.md">
+  <title>No step limit in the sxml command (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D313"/> (the owner: the sxml command sets no evaluation step limit). Today the command leaves <code>maximum_evaluation_step_count</code> at 0, the library's default of 10^8 steps (<ref kind="decision" to="D89"/>, <ref kind="decision" to="D259"/>), about 2 s of work after <ref kind="packet" to="perf-5"/> to <ref kind="packet" to="perf-7"/>; a long batch job such as a Schematron compile cannot finish, and there is no option to raise it. The library's default stays for embedders and the JavaScript package; the drivers keep their own bounds (<ref kind="decision" to="D166"/>, <ref kind="decision" to="D178"/>).</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: the command's processor configuration asks for no step bound. If the header has no way to say "no bound" (0 means the default), use the largest value and say so in the decision record, or propose a named constant under "## Proposed" if that reads better (PACKET.md step 4).</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>apps/sxml/</code> (the processor configuration only), the CLI tests that rely on the step limit, <code>docs/CLI.md</code>, and the book's pages that describe the command stopping: <code>performance.md</code> ("The step limit"), <code>appendix-differences.md</code>, <code>ixml-performance.md</code>, <code>javascript.md</code> (which keeps the default, but cites the chapter).</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: a command that ran into the bound runs to its end (an example that took more than 10^8 steps); the book's examples match (<code>tools/check-book-examples.sh</code>); the CLI tests pass. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D314"/>): the command's processor configuration sets the step bound to UINT64_MAX (0 would mean the default); the CLI test <code>xpath_no_step_limit</code> runs a comparison charged 4 x 10^8 steps to its end; the book's step-limit pages and docs/CLI.md updated.</p>
+      </item>
+    </list>
+  </body>
+</packet>

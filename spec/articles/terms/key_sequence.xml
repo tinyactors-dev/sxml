@@ -1,0 +1,4 @@
+<term id="key_sequence" source="docs/GLOSSARY.md">
+  <name>key_sequence</name>
+  <definition>The values an identity constraint's fields give for one node its selector selected, in field order; two are equal member for member by XSD's equality (XSD 1.1 Part 1, 3.11.4)</definition>
+</term>

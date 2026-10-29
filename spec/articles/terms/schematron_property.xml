@@ -1,0 +1,4 @@
+<term id="schematron_property" source="docs/GLOSSARY.md">
+  <name>schematron_property</name>
+  <definition>A sch:property that an assertion names in its properties attribute: a role, a scheme and text, evaluated for the same context item, in each schematron report of it (<ref kind="decision" to="D315"/>)</definition>
+</term>

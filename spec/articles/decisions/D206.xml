@@ -1,0 +1,32 @@
+<decision id="D206" status="accepted" source="docs/DECISIONS.md">
+  <title>XSLT 1.0 follow-ups: EXSLT common, text value templates, result documents (packet 7.4b)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D197"/> and <ref kind="decision" to="D99"/>. Follows up <ref kind="decision" to="D197"/>'s "Not done".</p>
+    <list>
+      <item>
+        <p><strong>name.h (frozen, additive, <ref kind="decision" to="D99"/>)</strong>: <code>SXML_NAMESPACE_EXSLT_COMMON = 15</code> for http://exslt.org/common, <code>SXML_NAMESPACE_WELL_KNOWN_COUNT</code> 16. Needed because a function row names its namespace by a well-known constant (<code>sxml_native_function.function_namespace</code>); the list only grows and no value changes.</p>
+      </item>
+      <item>
+        <p><strong>EXSLT common</strong>: <code>src/function_library_exslt.c</code>, an XSLT-only library part (as <code>output</code>, <ref kind="decision" to="D149"/>) with exsl:node-set (returns its argument: a temporary tree is already a document node in XSLT 2.0 and later) and exsl:object-type ("string", "number", "boolean", "node-set" for nodes and the empty sequence, "external" otherwise). function-available reports them. No other EXSLT module: DocBook tests the others (dyn:evaluate, set:leading, date:date-time, str:*) with function-available first, and no XT40 case needs them.</p>
+      </item>
+      <item>
+        <p><strong>exsl:document</strong> in an extension namespace (24.2) is read as xsl:result-document (<code>src/xslt_read.c</code>): its attributes are a subset of xsl:result-document's (26.2), all attribute value templates; an unprefixed version attribute reads as the standard attribute, as on any XSLT element. element-available('exsl:document') is true. DocBook's chunker writes its secondary files through it (docbook-001 raised XTMM9000 "Can't make chunks" without it). Outside an extension namespace it stays a literal result element.</p>
+      </item>
+      <item>
+        <p><strong>docbook-002's XPST0003</strong> was fo/autoidx.xsl's xsl:key: its use attribute names entities of the external parameter entity common/entities.ent, which the module reader did not retrieve, so the expression lost its first argument. 7.14 (<ref kind="decision" to="D199"/>, 7a0c96a) now reads a module's external entities through the resolver; nothing else was needed.</p>
+      </item>
+      <item>
+        <p><strong>Text value templates</strong> in an element with XSLT 1.0 behaviour are lowered without XPath 1.0 compatibility mode (XSLT 4.0, 3.8.1): the value template frame lowers its expressions in a copy of the element's static context with the mode off.</p>
+      </item>
+      <item>
+        <p><strong>xsl:result-document</strong> whose result is the principal result (no href) chooses its default method as an explicit result document: xhtml for an XHTML html element, also in a 1.0 stylesheet (XSLT 4.0, 26.1).</p>
+      </item>
+      <item>
+        <p><strong>Numbers</strong> (release, XT40 whole suite, case by case, against 46cc929): 8,940 to 8,943 passed: docbook-001, docbook-002, backwards-019b; no other case changed. Unit tests in <code>tests/xslt_compatibility_test.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Size</strong> (wasm preset, MinSizeRel objects): <code>src/xpath_compatibility.c</code> is 6,024 bytes of code and 1,133 of data before linking, all in <code>sxml.wasm</code>, because the XPath lowering calls it; the EXSLT part is 961 bytes of code and 285 of data, also linked into the core through the part registry. At 01a3993 <code>sxml.wasm</code> is 2,294,051 bytes stripped (801,300 gzipped), over its 2,200,000 / 770,000 budget; these two files are about 8.4 KB of that.</p>
+      </item>
+    </list>
+  </body>
+</decision>

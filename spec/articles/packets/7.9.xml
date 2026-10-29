@@ -1,0 +1,37 @@
+<packet id="7.9" source="docs/tasks/phase-7.md">
+  <title>EXPath File (design and implementation)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: EXPath File Module 4.0, as the QT4 expath-file set tests it (namespace <code>http://expath.org/ns/file</code>; file:exists, file:list, file:read-text, file:write, file:create-dir, file:delete, file:path-to-uri, and the others; the file: errors).</p>
+      </item>
+      <item>
+        <p><strong>Unlocks</strong>: 271 XQ40 and 268 XP40 (expath-file 270, plus 1).</p>
+      </item>
+      <item>
+        <p><strong>Replaces</strong>: the functions are absent (XPST0017), and supports-file-library is false.</p>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong>: library code never touches the file system. A host interface does, next to the resolver and the clock: a file system with an operations table (read, write, append, list, stat, create, delete, move; each with at most three parameters, using request structs). The functions are nondeterministic, and evaluation order is the evaluator's. Off by default: the null file system makes every function raise file:io-error.</p>
+      </item>
+      <item>
+        <p><strong>Header</strong>: <code>processor.h</code>, additive: <code>sxml_file_system</code> in the processor configuration, with a record.</p>
+      </item>
+      <item>
+        <p><strong>CLI</strong>: implements the interface over POSIX and Windows. It is off unless <code>--allow-file-access</code> is given (owner question 7).</p>
+      </item>
+      <item>
+        <p><strong>After</strong>: 7.2 (in a browser the feature is never linked).</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: new <code>src/function_library_file.c</code>, and the CLI's platform file (single hunks).</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: 20–30 KB, none in the JavaScript package.</p>
+      </item>
+      <item>
+        <p><strong>Gate</strong>: ≥ 90 % of the 271. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D200"/>): expath-file 270 of 270 (XQ40) and 267 of 267 (XP40; 3 cases are XQuery-only); fn-system-properties' file case passes. About 66 KB native, none in the JavaScript modules. The CLI's Windows file system is not written yet.</p>
+      </item>
+    </list>
+  </body>
+</packet>

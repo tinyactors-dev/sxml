@@ -1,0 +1,4 @@
+<term id="lexical_form" source="docs/GLOSSARY.md">
+  <name>lexical_form</name>
+  <definition>A string in the lexical space of a type (XSD 1.1 Part 2): what a cast from <code>xs:string</code> parses</definition>
+</term>

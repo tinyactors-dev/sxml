@@ -1,0 +1,6 @@
+<packet id="3.2" source="docs/tasks/phase-3.md">
+  <title>XQuery front end (implementation) — Early</title>
+  <body>
+    <p>After <ref kind="packet" to="3.1"/>. Owns <code>src/xquery_parse.c</code>, <code>tests/xquery_parse_test.c</code>. CST of <code>grammars/xquery</code> to the AST: direct constructors (XQST0118 end tags, XQST0040 duplicate attributes, namespace declaration attributes XQST0070/0071, boundary whitespace marked, character and entity references XQST0090), CDATA, pragmas, string constructors, the three <ref kind="decision" to="D29"/> false accepts. Done when all 43,663 valid XQ40 queries and the 145 parsable library modules build an AST and the 772 XPST0003 cases fail statically (<code>tools/qt4-parse-check.py --spec XQ40</code>). <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D121"/>): the XQuery parser part in <code>src/xquery_parse.c</code>; all 43,663 valid XQ40 queries and 145 library modules build (70 raise the static error their test expects), all 772 XPST0003 cases fail. Prolog XQST0070 and expanded-name XQST0040 are left to 3.10 and lowering.</p>
+  </body>
+</packet>

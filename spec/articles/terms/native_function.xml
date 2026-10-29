@@ -1,0 +1,4 @@
+<term id="native_function" source="docs/GLOSSARY.md">
+  <name>native_function</name>
+  <definition>A function written in C, described by one row of static data (name, parameters, result type, properties, body)</definition>
+</term>

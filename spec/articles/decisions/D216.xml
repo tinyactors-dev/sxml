@@ -1,0 +1,26 @@
+<decision id="D216" status="accepted" source="docs/DECISIONS.md">
+  <title>JavaScript bindings for XQuery, XSLT and XSD validation (packet <ref kind="packet" to="js-1"/>)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D10"/>, <ref kind="decision" to="D138"/>, <ref kind="decision" to="D187"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D205"/>, <ref kind="decision" to="D207"/>, <ref kind="decision" to="D208"/>. The package (<code>bindings/javascript</code>) covered XPath only.</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: <ref kind="decision" to="D189"/>'s two links. The full module links four more shim files (<code>sxml_javascript_full.c</code>, <code>_xquery.c</code>, <code>_xslt.c</code>, <code>_schema.c</code>); the core module links none, so <code>sxml.wasm</code> is byte for byte what it was. The package tells the modules apart by the exports (<code>sxml_javascript_query_compile</code> present or not), not by a feature: XQuery, XSLT and XSD are whole front ends, not optional features of a processor. The handles and helpers both links share moved to <code>sxml_javascript_internal.h</code>, still <code>static</code> (an inline hint on all of them made the core 1,609 bytes larger).</p>
+      </item>
+      <item>
+        <p><strong>API</strong> (<code>src/index.ts</code>), in the XPath style, compile once, run many times: <code>Processor.compileQuery(text, { namespaces, baseUri })</code> gives an <code>XQuery</code> (<code>evaluate({ context, variables, updates, messages })</code> to a Value, <code>serialize(value)</code> with the prolog's output declarations, <code>run()</code> both, <code>isUpdating</code>); <code>Processor.compileStylesheet(text, { baseUri, staticParameters })</code> gives a <code>Stylesheet</code> (<code>transform({ source, initialMatchSelection, initialMode, initialTemplate, initialFunction, args, parameters, templateParameters, tunnelParameters, baseOutputUri, delivery, resultDocumentDelivery, serialization, messages })</code> to <code>{ output, value, resultDocuments }</code>); <code>Processor.compileSchema(documents, { baseUri })</code> gives a <code>Schema</code> (<code>validate(text or node, { mode, type, uri })</code> to <code>{ validity, reports, document }</code>). Errors are SxmlError (now with <code>sourceName</code>); a schema that does not compile throws <code>SchemaError</code> with every report. Library modules, included modules, packages and schema documents come through the resolver.</p>
+      </item>
+      <item>
+        <p><strong>Side results</strong> (glossary <term name="side_result"/>): what a call delivers besides its result (updated trees and fn:put documents of the update sink, result documents from the built-in collector, trace output, schema reports) is kept by the handle until its next call and written into the request; the package adopts every value at once, then hands them to the <code>updates</code> sink and <code>messages</code> callback after the call, also when it failed. No host import is added: callbacks never run inside sxml.</p>
+      </item>
+      <item>
+        <p><strong>Defaults taken</strong> (<ref kind="decision" to="D208"/>): invalid input is a result, not an exception; a transformation without <code>source</code> and <code>initialMatchSelection</code> calls xsl:initial-template, as <code>sxml transform</code> does; <term name="serialization"/> replaces the unnamed xsl:output's parameters, method included (the parameter reader cannot merge); fn:put without <code>putDocument</code> raises FOUP0002 (xquery.h); text is validated in one pass by the XML parser without external entities (the null entity resolver), so reports have lines and columns, a node by copy (sxml_schema_validate_node's steps, keeping the validator for the not-known outcome that function does not give); xsl:message as the text method writes it, fn:trace and fn:message by the adaptive method.</p>
+      </item>
+      <item>
+        <p><strong>Sizes</strong> (stripped / gzip -9): <code>sxml.wasm</code> 2,134,058 / 730,518 unchanged; <code>sxml-full.wasm</code> 3,666,545 / 1,124,343 to 6,570,723 / 1,328,474, almost all the XQuery compiler and its grammar. The full budget rises to 7,000,000 / 2,450,000 (<ref kind="decision" to="D208"/>; <ref kind="decision" to="D207"/>'s ratio of 0.35).</p>
+      </item>
+      <item>
+        <p><strong>Tests</strong>: <code>test/full.test.ts</code>, 24 tests under Node 22, as <code>javascript/languages_full</code>; <code>javascript/languages</code> runs it on the core module, where it checks that the three are refused. The existing package tests pass on both modules.</p>
+      </item>
+    </list>
+  </body>
+</decision>

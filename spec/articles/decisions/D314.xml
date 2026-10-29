@@ -1,0 +1,20 @@
+<decision id="D314" status="accepted" source="docs/DECISIONS.md">
+  <title>The sxml command asks for no step bound (packet <ref kind="packet" to="cli-4"/>)</title>
+  <body>
+    <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D313"/> (9), <ref kind="decision" to="D89"/>, <ref kind="decision" to="D259"/>.</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: the command's one processor configuration (<code>apps/sxml/query_command.c</code>, shared by xpath, xquery, transform, serialize, validate and check) sets <code>sxml_processor_limits.maximum_evaluation_step_count</code> to <code>UINT64_MAX</code> (<code>SXML_QUERY_MAXIMUM_EVALUATION_STEP_COUNT</code>). The header has no value for "no bound": 0 means the library's default of 10^8. The largest count is no bound in practice (about 585 years at a step a nanosecond), and the charge in <code>sxml_dynamic_context_charge_steps</code> cannot overflow at it. No named constant is proposed: the header's interface stays as it is (<ref kind="decision" to="D99"/>), and an embedder that wants no bound writes the same value.</p>
+      </item>
+      <item>
+        <p><strong>Kept</strong>: the library's default for embedders and the JavaScript package; the conformance drivers' bounds (<ref kind="decision" to="D166"/>, <ref kind="decision" to="D178"/>); entity expansion stays bounded to 4 MiB; a run is stopped with Ctrl-C.</p>
+      </item>
+      <item>
+        <p><strong>Test</strong>: <code>cli/xpath_no_step_limit</code>, <code>(1 to 20000) = (1 to 20000)</code>: a general comparison is charged a step per pair up front (<ref kind="decision" to="D89"/>), 4 x 10^8, and finds its match at once. It gave LIMIT_EXCEEDED (exit 4) before and gives true() now, in milliseconds under every preset; a loop of 10^8 real steps takes 25 s in a loaded release build and far longer under the sanitizers, so no test runs one.</p>
+      </item>
+      <item>
+        <p><strong>Book</strong>: "The step limit" (performance.md) shows the command running past the default and says how to stop a run; appendix-differences.md, ixml-performance.md and javascript.md cite it; c.md still shows the default for a C program. <code>docs/CLI.md</code> has a "Limits" rule.</p>
+      </item>
+    </list>
+  </body>
+</decision>

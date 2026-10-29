@@ -1,0 +1,99 @@
+<packet id="7.28" source="docs/tasks/phase-7.md">
+  <title>Schematron as a front end to the XSLT AST (implementation)</title>
+  <body>
+    <p>After the owner's review of 7.27 (<ref kind="decision" to="D315"/>, <ref kind="decision" to="D313"/>), after <ref kind="packet" to="7.29"/> (the locations a validation keeps; both touch <code>apps/sxml/</code>), after <ref kind="packet" to="7.30"/>'s suite exists (<code>tests/schematron/</code>, gate 6) and cli-4 (which holds <code>apps/sxml/</code> and <code>docs/CLI.md</code>). Implements <code>include/sxml/schematron.h</code> as <ref kind="decision" to="D315"/> (revised) designs it, against ISO/IEC 19757-3:2025 (the owner's copy; cite clauses, copy no text); a change to the header needs a record first.</p>
+    <list>
+      <item>
+        <p><strong>Owns</strong>:</p>
+        <list>
+          <item>
+            <p>new: <code>src/schematron_internal.h</code> (the index, the table of assertions and rules, the layout of a finding item), <code>src/schematron_read.c</code> (documents, <code>sch:include</code>, <code>sch:extends href</code> and <code>sch:library</code>, the index, the query binding: <ref kind="decision" to="D315"/>'s one place for the bindings sxml does not read, every error to the compile report sink), <code>src/schematron_expand.c</code> (the placeholder scan over the instance's and the schema's parameters, defaults, expansion segments), <code>src/schematron_build.c</code> (the stylesheet AST: variables and their scopes, groups, visit-each, from, <code>#ANY</code>, dynamic attribute values), <code>src/schematron.c</code> (the public API: compile, describe, validate, reports), <code>src/schematron_svrl.c</code> (SVRL from reports and the static table, Annex D);</p>
+          </item>
+          <item>
+            <p>changed: <code>src/xslt.c</code> and <code>src/xslt_transform_internal.h</code> (compile a given AST: the part of <code>sxml_xslt_compile</code> after reading; a compile report sink through reading and static analysis, <ref kind="decision" to="D315"/> "Compile errors"), <code>include/sxml/xslt.h</code> (additive: <code>sxml_xslt_configuration.report_sink</code>, <code>sxml_schema_report_sink</code> reused; a record of its own), <code>src/xslt_read.c</code>'s and the static analysis' error paths that go on after an error, <code>apps/sxml/command_transform.c</code> and its tests (every compile error on its own line), the JavaScript <code>compileStylesheet</code> (<code>reports</code> on the error) and the book where it shows a stylesheet error, <code>src/xslt_read.c</code> and <code>src/xslt_read_internal.h</code> (read one foreign XSLT declaration into a given AST under a given parent, with extra namespace bindings);</p>
+          </item>
+          <item>
+            <p>tests: <code>tests/schematron_test.c</code> (reading, placeholders, each construct of the 2025 edition, error codes with their locations, several errors from one compile, the lifecycle under the counting allocator), small <code>.sch</code> fixtures in <code>tests/schematron/</code>, and a driver <code>tests/schematron/driver/</code> (<code>sxml-schematron-test</code>, not shipped, as the XSD driver: the VEFA unit tests of EN 16931 and the differential test);</p>
+          </item>
+          <item>
+            <p>vendored test data in <code>third_party/</code>, pinned in <code>tools/update-test-suites.sh</code> (<ref kind="decision" to="D13"/>), none of it shipped: EN 16931's validation artefacts (ConnectingEurope/eInvoicing-EN16931, EUPL 1.2: <code>src/ubl/schematron</code>, <code>src/cii/schematron</code>, <code>src/test</code>), XRechnung's Schematron (itplr-kosit/xrechnung-schematron v2.6.0, Apache 2.0: <code>src/validation/schematron</code> and its test instances), SchXslt 1.10.1 (MIT, its <code>2.0/</code> directory; <ref kind="decision" to="D313"/>, item 6);</p>
+          </item>
+          <item>
+            <p><code>apps/sxml/command_validate.c</code>, its tests in <code>tests/cli/</code>, and <code>docs/CLI.md</code>'s validate section (<ref kind="decision" to="D315"/>, "The CLI");</p>
+          </item>
+          <item>
+            <p>the JavaScript package's Schematron API (<code>bindings/javascript/src/index.ts</code>, <code>sxml_javascript_exports.c</code>, <code>sxml_javascript_full_exports.c</code>, its tests; <ref kind="decision" to="D315"/>, "JavaScript");</p>
+          </item>
+          <item>
+            <p>a book chapter (<code>docs/book/src/schematron.md</code> and SUMMARY.md), with real output;</p>
+          </item>
+          <item>
+            <p>glossary terms it adds, LOG, its record.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Order</strong>, a commit after each step:</p>
+        <list ordered="true">
+          <item>
+            <p><code>src/xslt.c</code>: compile a given AST (no change in behaviour). 1b. The XSLT compile report sink: <code>xslt.h</code>, reading and static analysis go on after an error, <code>sxml transform</code> and JavaScript report them all. XT40 unchanged case by case (the null sink keeps today's first-error behaviour).</p>
+          </item>
+          <item>
+            <p><code>src/xslt_read.c</code>: read one foreign declaration into a given AST. XT40 unchanged case by case after steps 1 and 2.</p>
+          </item>
+          <item>
+            <p>Read, inclusions (include, extends href, library), index and query binding (case ignored; none, xslt and xpath as 4.0), every error to the report sink, with unit tests.</p>
+          </item>
+          <item>
+            <p>Placeholders: the scan (whole name token, the instance's table then the schema's, abstract defaults, values not scanned again) and expansion segments (error offsets), with unit tests.</p>
+          </item>
+          <item>
+            <p>Build, compile and validate the third-edition constructs, with fixtures; variables and their scopes (<ref kind="decision" to="D315"/>, "Variables"); reports with both locations. 5b. The 2025 constructs, a fixture each: group, rules, visit-each (rule lets once per context node), severity and the error-finding rule (severity decides when present), dynamic flag, role and severity (variable references, AVTs), let/@as, phase from, when with <code>#ANY</code>, schematronEdition (any value, reported), the message context (6.3), expression rule contexts (with from, with documents, under <code>#ANY</code>).</p>
+          </item>
+          <item>
+            <p>Vendor EN 16931, XRechnung and SchXslt; the driver; gates 1 and 2.</p>
+          </item>
+          <item>
+            <p>SVRL; the differential test (gate 3).</p>
+          </item>
+          <item>
+            <p>The CLI (<code>--schematron-param</code>, <code>--phase=#ANY</code>). 9. JavaScript.</p>
+          </item>
+          <item>
+            <p>The book chapter.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Gates</strong>:</p>
+        <list ordered="true">
+          <item>
+            <p><em>EN 16931</em>: the UBL unit tests, 1,133 of 1,133 checks, and the CII unit tests, 9 of 9, pass with the rules compiled from the <code>.sch</code> sources (<code>EN16931-UBL-validation.sch</code>, <code>EN16931-CII-validation.sch</code>), counted as on 2026-10-28 (each test's rules in scope must or must not fire, with their counts).</p>
+          </item>
+          <item>
+            <p><em>Compile time</em>: compiling <code>EN16931-UBL-validation.sch</code> takes well under a second in a release build (measured, with peak memory, and reported beside SchXslt's 10.5 s), within the library's default step bound (10^8 steps; compiling evaluates only static expressions), and each unit test validates within it too.</p>
+          </item>
+          <item>
+            <p><em>Differential</em>: for the EN 16931 UBL and CII rule sets and XRechnung's UBL and CII rule sets, over their test instances, the set of (pattern, assertion id, kind, subject path) in sxml's reports equals the set of (id, kind, location) in the SVRL that SchXslt 1.10.1 running on sxml makes from the same <code>.sch</code>, and the fired rules (context, node) agree. A difference is fixed or explained in the record (a value that SchXslt scans again, a placeholder SchXslt matched by prefix, <ref kind="decision" to="D315"/>), never reclassified (<ref kind="decision" to="D178"/>). SchXslt has no 2025 constructs: gate 6 covers them.</p>
+          </item>
+          <item>
+            <p><em>Errors in the <code>.sch</code></em>: each <code>schematron:*</code> code, and a syntax error in a test, in a rule context, in a <code>sch:param</code> value (an instance's, a schema's, a configured one) and in a foreign <code>xsl:function</code>, has a test of its file, line and column; one <code>.sch</code> with errors of several kinds gives all of them in one compile, in the C API, the CLI and JavaScript; a dynamic error in a test names its assertion's line.</p>
+          </item>
+          <item>
+            <p><em>Locations of findings</em>: the instance's line and column in text, JSON and JavaScript reports, on an EN 16931 test instance.</p>
+          </item>
+          <item>
+            <p><em>The 2025 edition</em>: 7.30's suite (<code>tests/schematron/</code>) passes, 100 % of its applicable cases, run by the driver; each construct of step 5b, each Annex B constraint and each query binding name (cases mixed; xslt4 and xpath4 read; xquery3 and an unknown name refused with exit status 1) is among them, reports and SVRL (active-group, severity, visit-each, schematronEdition) included. The driver keeps a list of deliberate deviations, each with its record: <code>edition-other-value</code> (<ref kind="decision" to="D315"/> 8b, best-effort validation of other editions) and the cases that depend on reading the <code>xslt</code> binding and relative xpath contexts as sxml does (<ref kind="decision" to="D313"/>, <ref kind="decision" to="D315"/>); a deviation outside that list is a failure. 6b. <em>Expression rule contexts</em>: 7.30's cases whose rule contexts are expressions but not patterns (<code>(//item)[1]</code>, <code>../x</code>, under xpath and xslt bindings, with <code>from</code> and <code>documents</code>) pass; a context that is a pattern compiles as before (no global, no intersect).</p>
+          </item>
+          <item>
+            <p><em>Compile errors of XSLT</em>: a stylesheet with errors in several declarations gives each through the sink, in C, <code>sxml transform</code> (one line each, exit 1) and JavaScript; the null sink gives the first as before; XT40 unchanged case by case.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the gates pass; the C, CLI and JavaScript APIs are tested end to end (text, JSON and SVRL; <code>--schema</code> with <code>--schematron</code>; exit statuses 0, 1 (an unsupported binding among them), 2, 3 and 4); the book chapter's examples match (<code>tools/check-book-examples.sh</code>); clang-tidy and the call-cycle check are clean; QT4 and XT40 unchanged; the <code>sxml.wasm</code> and CLI size budgets raised in the same change if needed (<ref kind="decision" to="D208"/>), with the growth reported.</p>
+      </item>
+    </list>
+    <p><strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D323"/>): steps 1 to 10. The suite passes 463 of 463 applicable normative cases with 3 listed deviations (<code>edition-other-value</code>, <code>binding-xpath2-no-maps</code>, <code>error-context-is-expression</code>); EN 16931 UBL 1,133 of 1,133, compile 0.53 s within the default step bound; the differential agrees on all four rule sets (CII and XRechnung patched); XT40 unchanged. Open, for the owner: the EN 16931 CII and XRechnung sources are not correct Schematron as read (<ref kind="decision" to="D323"/>, "Proposed"), so ctest runs the UBL unit tests only; the JavaScript additions are not built (no WASI SDK).</p>
+  </body>
+</packet>

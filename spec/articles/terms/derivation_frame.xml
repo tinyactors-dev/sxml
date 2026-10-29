@@ -1,0 +1,4 @@
+<term id="derivation_frame" source="docs/GLOSSARY.md">
+  <name>derivation_frame</name>
+  <definition>A union base type on the explicit stack of a derivation question, whose members are tried in turn</definition>
+</term>

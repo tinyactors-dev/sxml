@@ -1,0 +1,4 @@
+<term id="data_element" source="docs/GLOSSARY.md">
+  <name>data_element</name>
+  <definition>A top-level element outside the XSLT namespace, ignored by the processor (XSLT 4.0, 3.6.4)</definition>
+</term>

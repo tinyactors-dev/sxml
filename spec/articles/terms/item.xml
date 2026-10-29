@@ -1,0 +1,4 @@
+<term id="item" source="docs/GLOSSARY.md">
+  <name>item</name>
+  <definition>One XDM item: a node, an atomic item, or a function item (maps and arrays are function items)</definition>
+</term>

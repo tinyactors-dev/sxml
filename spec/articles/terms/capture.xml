@@ -1,0 +1,4 @@
+<term id="capture" source="docs/GLOSSARY.md">
+  <name>capture</name>
+  <definition>A node that a pattern of a tree-sitter query names with <code>@name</code>; the last highlights pattern that captures a node gives its <code>highlight</code> attribute</definition>
+</term>

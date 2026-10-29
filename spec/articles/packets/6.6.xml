@@ -1,0 +1,33 @@
+<packet id="6.6" source="docs/tasks/phase-6.md">
+  <title>Android library (implementation; assemble here, devices: owner)</title>
+  <body>
+    <p>After <ref kind="packet" to="6.3"/> and <ref kind="packet" to="6.5"/>. Owns:</p>
+    <list>
+      <item>
+        <p><code>bindings/kotlin/android/</code>: a Gradle project, AGP with <code>externalNativeBuild</code> running the top-level CMake with <code>SXML_BUILD_TESTS=OFF</code>, <code>SXML_BUILD_APPS=OFF</code> and <code>SXML_BUILD_KOTLIN=ON</code> for the four ABIs;</p>
+      </item>
+      <item>
+        <p>the shared Kotlin sources by <code>srcDir</code>, consumer ProGuard rules (keep the native methods and the request classes);</p>
+      </item>
+      <item>
+        <p><code>androidTest</code>, which is the same test sources run by an instrumentation runner;</p>
+      </item>
+      <item>
+        <p><code>bindings/kotlin/size-budget.txt</code>.</p>
+      </item>
+    </list>
+    <p>Done here when:</p>
+    <list>
+      <item>
+        <p><code>assembleRelease</code> and <code>assembleAndroidTest</code> succeed;</p>
+      </item>
+      <item>
+        <p>the AAR holds the four <code>.so</code> files and <code>allkeys.txt</code>;</p>
+      </item>
+      <item>
+        <p>the size report is below the budget, proposed (<ref kind="decision" to="D208"/>) at 9,000,000 bytes stripped and 2,400,000 gzipped for <code>libsxml_kotlin.so</code> on arm64-v8a (the probe's whole <code>libsxml.so</code>: 7,693,024 and 1,910,096).</p>
+      </item>
+    </list>
+    <p>Owner: <code>connectedAndroidTest</code> on an x86_64 emulator at API 24 and 35 and on one arm64 device.</p>
+  </body>
+</packet>

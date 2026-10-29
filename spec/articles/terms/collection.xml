@@ -1,0 +1,4 @@
+<term id="collection" source="docs/GLOSSARY.md">
+  <name>collection</name>
+  <definition>The sequence of items <code>fn:collection</code> returns for a URI</definition>
+</term>

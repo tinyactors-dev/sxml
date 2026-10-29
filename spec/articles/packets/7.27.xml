@@ -1,0 +1,58 @@
+<packet id="7.27" source="docs/tasks/phase-7.md">
+  <title>Schematron as a front end to the XSLT AST (design)</title>
+  <body>
+    <p>The owner accepted Schematron on 2026-10-28, as a front end beside XSLT and XQuery, not by generating XSLT text. The owner settled the open points in <ref kind="decision" to="D313"/> (edition 2025, bindings, outputs, exit status, order with XSD, SchXslt as a test reference only): the design follows them. No phase covered it (PLAN.md names XSD only): the packet's decision record brings it into Phase 7. Evidence from 2026-10-28 (see <ref kind="decision" to="D309"/>, <ref kind="decision" to="D310"/> and the queue):</p>
+    <list>
+      <item>
+        <p>the official pre-compiled EN 16931 stylesheets pass all 1,133 checks of the EN 16931 UBL unit tests on sxml;</p>
+      </item>
+      <item>
+        <p>SchXslt 1.10.1 running on sxml compiles the EN 16931 sources into a stylesheet that also passes 1,133 of 1,133, but its text pipeline costs 10.5 s for EN 16931 (8 min 56 s before perf-5 to perf-7 and without SchXslt's sort-once fix) and needs more than the default step bound: the cost is in generating XSLT text, not in Schematron;</p>
+      </item>
+      <item>
+        <p>XRechnung's rules embed XSLT (<code>xsl:function</code> for <code>xr:checkIBAN</code>), as the <code>xslt2</code> and <code>xslt3</code> query bindings allow;</p>
+      </item>
+      <item>
+        <p>findings today are SVRL with an XPath for a location, and errors in a rule point into the generated stylesheet, not the <code>.sch</code>.</p>
+      </item>
+      <item>
+        <p><strong>Whom it serves, first</strong>: the maintainer of a rule set (errors at <code>rules.sch:LINE:COLUMN</code>) and the person reading a finding (the document's line and column, with the locations proposal under "## Proposed" in DECISIONS.md); then embedders (C, JavaScript) who validate many documents without bundling a third-party stylesheet. Who pays: a reader and an expansion pass in C, one public header, a CLI option, the JavaScript API, the book; nothing per event of other languages.</p>
+      </item>
+      <item>
+        <p><strong>Design</strong> (decision record, glossary terms first, public header):</p>
+        <list>
+          <item>
+            <p><em>The path</em>: the <code>.sch</code> document is parsed by the processor's XML parser (with locations kept); a Schematron reader builds the XSLT AST (<code>src/xslt_ast_internal.h</code>: <code>sxml_xslt_ast_add_node</code>, <code>_add_attribute</code>, <code>_append_child</code>), as <code>src/xslt_read.c</code> does for a stylesheet, with each node's source location in the <code>.sch</code>; the existing XSLT lowering makes IR. No IR kind, no evaluator change, no generated XSLT text. Lowering Schematron to IR directly is rejected: it would duplicate modes, patterns and priorities.</p>
+          </item>
+          <item>
+            <p><em>The mapping</em>, each with its section of ISO/IEC 19757-3 (the packet names the edition it implements, after checking the current one): pattern to mode; rule to template rule matching its <code>context</code>, rule order to priority (the first matching rule of a pattern fires); <code>let</code> to a variable; <code>assert</code> and <code>report</code> to a condition that adds a finding; <code>value-of</code>, <code>name</code>, diagnostics, properties, <code>role</code> and <code>flag</code>; phases selecting modes; <code>ns</code> declarations; <code>include</code>, <code>extends</code> and abstract patterns expanded while reading, in one linear pass (each placeholder replaced once, longest name first, without a regex per parameter); <code>documents</code>. Foreign <code>xsl:function</code>, <code>xsl:key</code>, <code>xsl:include</code> and <code>xsl:import</code> children of <code>sch:schema</code> under the <code>xslt2</code> and <code>xslt3</code> bindings become the same AST nodes <code>src/xslt_read.c</code> makes; other bindings are rejected in one place with the error the standard gives, or mapped if the decision record shows they are the same language.</p>
+          </item>
+          <item>
+            <p><em>Findings</em>: a public <code>sxml_schematron_report</code> modelled on <code>sxml_schema_report</code> (<code>include/sxml/schema.h</code>): the assert or report id, its role and flag, the message text, the rule's location in the <code>.sch</code> and the node's location in the document; delivered to a report sink like the XSD validator's. SVRL is one output form, made from the reports, not the engine's data.</p>
+          </item>
+          <item>
+            <p><em>API</em> (<code>include/sxml/schematron.h</code>, new, additive; at most three parameters; the object lifecycle of CLAUDE.md): compile a Schematron schema once (with phase and parameters), validate many documents or nodes with it; typed (validated) input allowed.</p>
+          </item>
+          <item>
+            <p><em>CLI</em> (<code>docs/CLI.md</code>, <ref kind="decision" to="D44"/>: no new command): <code>sxml validate --schematron=FILE [--phase=NAME]</code>, combinable with <code>--schema</code>; text and <code>--format=json</code> reports as for XSD, the same exit statuses; <code>--format=svrl</code> if the decision record keeps it.</p>
+          </item>
+          <item>
+            <p><em>JavaScript</em>: the same compile-once, validate-many shape in the package.</p>
+          </item>
+          <item>
+            <p><em>Out of scope</em>: streaming validation, Schematron Quick Fix, any output other than reports and SVRL.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>include/sxml/schematron.h</code> (new), the decision record, <code>docs/GLOSSARY.md</code> terms, and the implementation packet <ref kind="packet" to="7.28"/>'s text (its files, gates and order). The CLI design is written in the decision record: <code>docs/CLI.md</code> is cli-4's while 7.27 runs, and 7.28 updates its validate section.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the owner has reviewed the header and the decision record; 7.28 is written with its file list and gates.</p>
+      </item>
+    </list>
+    <p><strong>Designed</strong> 2026-10-28 (<ref kind="decision" to="D315"/>), for the owner's review: <code>include/sxml/schematron.h</code> (compiles with the project's flags under clang and gcc, implemented by nothing yet), <ref kind="decision" to="D315"/>, the glossary's Schematron terms, 7.28 below. Not ticked: the owner's review is the gate.</p>
+    <p><strong>Revised</strong> 2026-10-28 after the owner's review (<ref kind="decision" to="D315"/>, points A to D; <ref kind="decision" to="D313"/> point 2 amended: no queryBinding, <code>xslt</code> and <code>xpath</code> are read as XSLT 4.0 and XPath 4.0) and against the text of ISO/IEC 19757-3:2025: every construct of the 2025 edition designed with its clause (group, library, rules, extends at the top, schema and abstract-pattern params, let/@as, visit-each, severity, dynamic flag/role/severity, phase from/when and <code>#ANY</code>, schematronEdition); compile errors through a report sink; exit status 1 for an unsupported binding. The header, <ref kind="decision" to="D315"/>, the glossary and 7.28 below follow.</p>
+    <p><strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D315"/>, accepted by the owner): the owner answered the revision's eight choices (<ref kind="decision" to="D315"/>, "The owner's answers": severity decides when present; <code>xslt4</code>/<code>xpath4</code> as 4.0; rule contexts are XSLT patterns under every binding; no text value templates; schema parameters are compile-time text; rule lets once per context node; XSLT's compiler gets a report sink in 7.28; any <code>schematronEdition</code> accepted and reported). The header, the glossary and 7.28 follow.</p>
+  </body>
+</packet>

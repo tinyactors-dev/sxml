@@ -1,0 +1,4 @@
+<term id="all_matches" source="docs/GLOSSARY.md">
+  <name>all_matches</name>
+  <definition>The set of matches a full-text selection gives over the tokens of a node, with their positions (XQuery and XPath Full Text 3.0, "AllMatches")</definition>
+</term>

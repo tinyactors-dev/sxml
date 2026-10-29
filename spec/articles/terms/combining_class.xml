@@ -1,0 +1,4 @@
+<term id="combining_class" source="docs/GLOSSARY.md">
+  <name>combining_class</name>
+  <definition>The Canonical_Combining_Class of a codepoint, 0 to 254; 0 is a starter (UAX #15)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="operator" source="docs/GLOSSARY.md">
+  <name>operator</name>
+  <definition>The token that selects what an operator expression computes (<code>SXML_AST_OPERATOR_PLUS</code>); in the IR, what a binary or unary expression computes</definition>
+</term>

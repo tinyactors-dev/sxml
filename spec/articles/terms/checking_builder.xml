@@ -1,0 +1,4 @@
+<term id="checking_builder" source="docs/GLOSSARY.md">
+  <name>checking_builder</name>
+  <definition>The tree builder a validating parse sends its events to besides the parse's own builder: a schema validator whose result builder is the null builder</definition>
+</term>

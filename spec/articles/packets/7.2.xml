@@ -1,0 +1,23 @@
+<packet id="7.2" source="docs/tasks/phase-7.md">
+  <title>Optional features and the size budget (design, build)</title>
+  <body>
+    <p>After the owner's size decision (<ref kind="decision" to="D183"/> Proposed).</p>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: none. This is an engineering mechanism.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>include/sxml/processor.h</code> (option 2: <code>sxml_optional_feature</code>, <code>sxml_optional_feature_view</code> as the last field of <code>sxml_processor_configuration</code>, and the record), new <code>src/optional_feature.c</code> and <code>src/optional_feature_internal.h</code>, <code>bindings/javascript/</code> (module variants, the feature list in the API, the budgets in <code>CMakeLists.txt</code>), and the CLI's and drivers' processor setup (single hunks).</p>
+      </item>
+      <item>
+        <p><strong>Header change</strong>: under option 2, an additive change to <code>processor.h</code>; under option 3, none (CMake options and stub files); under option 4, new resource kinds, added by the packets that need them.</p>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong>: a feature's operations table is <code>static const</code>. The core finds it by kind in the processor (no global state) and never calls one feature from another (<ref kind="decision" to="D71"/>). The <ref kind="decision" to="D162"/> place of each feature becomes "this feature is not configured".</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the mechanism exists, with one feature-free test feature; the size test checks both modules; and the size of <code>sxml.wasm</code> is measured before and after (it must not grow). <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D189"/>): <code>sxml.wasm</code> 2,003,575 to 2,004,485 bytes (the mechanism's own 910 bytes; no feature in the core), <code>sxml-full.wasm</code> 2,005,513; budgets 2,100,000 and 3,000,000.</p>
+      </item>
+    </list>
+  </body>
+</packet>

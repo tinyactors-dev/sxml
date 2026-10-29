@@ -1,0 +1,41 @@
+<decision id="D187" status="accepted" source="docs/DECISIONS.md">
+  <title>The XQuery Update Facility 3.0 (packet 7.7a)</title>
+  <body>
+    <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D99"/>, <ref kind="decision" to="D137"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>. The owner chose XQUF 3.0 first (<ref kind="decision" to="D184"/>): packet 7.7a designs it and does the 3.0 expressions and their application (the task file's 7.7a and 7.7b); 7.7b is now the 4.0 draft's additions and 7.7c fn:put and revalidation.</p>
+    <list>
+      <item>
+        <p><strong>Grammar</strong> (<code>grammars/xquery</code>, <ref kind="decision" to="D12"/>): XQUF 3.0, Appendix A: the revalidation declaration, "declare updating" (the compatibility annotation, accepted before the other annotations), insert, delete, replace (value of), rename, copy-modify, transform-with (at the arrow level, under XQuery 4.0's pipeline) and "invoke updating". The 17 new keywords stay names. Every query and module of the upd-* sets parses; the rest of XQ40 parses as before.</p>
+      </item>
+      <item>
+        <p><strong>AST</strong>: ten kinds, the fields modify and source, the keywords FIRST, LAST, INTO, AFTER, BEFORE, SKIP, the flag VALUE_OF.</p>
+      </item>
+      <item>
+        <p><strong>Static rules</strong> (XQUF 3.0, 2.2, 5.1 to 5.4) in <code>src/xquery_update.c</code>: one post-order walk over a module's AST by its links (no stack, <ref kind="decision" to="D71"/>) gives each expression a category, simple, updating or vacuous, and checks XUST0001, XUST0002 and XUST0028. %updating and %simple are accepted on functions and function items, XUST0032 on variables and XUST0033 twice: this replaces <ref kind="decision" to="D162"/>'s place, the XQST0045 of <code>check_annotations</code> in <code>src/xquery_static.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>A pending update list is a sequence.</strong> Each update primitive is a function item named upd:insertInto ... upd:rename whose body raises XUDY0038 when called; its captured values are the target, the parameter and the kind. So no item kind is added (xdm.h is frozen, <ref kind="decision" to="D99"/>), the evaluator keeps no update state, and merging the lists of the comma, FLWOR, conditional and function call expressions is concatenation (upd:mergeUpdates is a union); a try clause that fails loses its updates with its value. The static rules keep primitives where no XDM value is read.</p>
+      </item>
+      <item>
+        <p><strong>Lowering</strong> (the part <term name="update"/>, <code>src/xquery_lower_update.c</code>): every update expression is a STATIC_CALL of an internal native row in no function table, as group by is (<ref kind="decision" to="D137"/>), which checks the operands (XUTY0004 to XUTY0013, XUDY0009, XUDY0023, XUDY0027, XUDY0029, XUDY0030, XUTY0022) and returns the primitives. replace value of takes its value through a TEXT_CONSTRUCTOR (5.4.3.2: "as in a text node constructor"). copy-modify is copy(E) per variable, the modify clause, then modify-copies, which applies the clause's list to the copies (XUDY0014) and rebinds the variables for the return clause.</p>
+      </item>
+      <item>
+        <p><strong>Application</strong> (<code>src/xquery_update_apply.c</code>, upd:applyUpdates): the compatibility checks (XUDY0015, XUDY0016, XUDY0017, XUDY0024), then each target tree is rebuilt through the tree builder in one pass over the old tree with every primitive of a node applied in the order of 3.2.2; tree.h does not change (<ref kind="decision" to="D183"/>). Changed elements and their ancestors become untyped; a duplicate attribute is XUDY0021.</p>
+      </item>
+      <item>
+        <p><strong>The host</strong> (<code>include/sxml/xquery.h</code>, additive): an updating query is a unit whose main function carries %updating; sxml_xquery_query_is_updating says so, and the evaluation request's update sink receives each changed tree (its old and new roots) after the snapshot. How a change is made persistent is the host's (upd:applyUpdates: implementation-defined).</p>
+      </item>
+      <item>
+        <p><strong>QT4 driver</strong>: XQUpdate is supported; the tests of a test case run in order, each updating one's changed trees replace the sources they came from, and the last test's result is checked.</p>
+      </item>
+      <item>
+        <p><strong>Done in 7.7a</strong> (amended at the end of the packet): besides the above, transform-with (a MAP whose body copies the item and lowers the modify clause with the copy as fixed focus), the prolog's construction and copy-namespaces modes for copies and for the nodes insert and replace copy in, upd:removeType (only the primitives that change a type touch their node and its ancestors, which become xs:anyType when typed), upd:propagateNamespace under no-inherit, XUDY0021 also inside removed subtrees, and <code>sxml xquery</code> writing the context document as an updating query left it (no flag; the file is not changed).</p>
+      </item>
+      <item>
+        <p><strong>upd-* (XQ40, release driver)</strong>: before 0 of 825 run; after 733 passed (10 of them with another error code), 24 failed, 0 errors, 68 not run: 27 staticTyping, 40 revalidation lax and strict (XUST0026 until 7.7c), 1 that needs skip unsupported.</p>
+      </item>
+      <item>
+        <p><strong>Left for 7.7b (the 4.0 draft)</strong>: the updating return clause of copy-modify (id-transform-expr-014), XUDY0038 on a dynamic call of an updating function item (no test), the 4.0 draft's other additions. <strong>For 7.7c</strong>: fn:put (13 cases) and revalidation lax and strict (40, with revalidate-valtrans-ins-003). <strong>Not ours</strong>: copies made with construction strip keep is-id and is-idrefs (sxml_tree_builder_copy_node, src/tree.c: "the ID properties stay"), so 11 cases that ask for schema IDs to go fail (setToUntyped, transform-expr-045 to -048); 6 propagateNamespace cases differ only in whitespace that assert-xml compares; valskip-repnode-006 revalidates a source with an IDREF.</p>
+      </item>
+    </list>
+  </body>
+</decision>

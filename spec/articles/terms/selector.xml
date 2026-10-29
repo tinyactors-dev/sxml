@@ -1,0 +1,4 @@
+<term id="selector" source="docs/GLOSSARY.md">
+  <name>selector</name>
+  <definition>A non-navigational step from a JNode, or a dynamic node test: its atomized value selects the children whose ·jkey· is atomic-equal to one of its items (XPath 4.0, section 4.7.5.4)</definition>
+</term>

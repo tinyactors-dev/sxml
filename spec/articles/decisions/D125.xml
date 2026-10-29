@@ -1,0 +1,17 @@
+<decision id="D125" status="accepted" source="docs/DECISIONS.md">
+  <title>fn:divide-decimals and the precision it supports (packet <ref kind="packet" to="2.7"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. <code>sxml_decimal_divide_to_precision</code> (<code>src/decimal.c</code>), part <code>numeric</code> row <code>divide-decimals</code>.</p>
+    <list>
+      <item>
+        <p><strong>Method</strong>: the divisor's power of ten is shifted by -precision (exact, no digits move) and libmpdec's truncating <code>mpd_qdivint</code> and <code>mpd_qrem</code> give quotient * 10^precision and the remainder value - quotient * divisor in one exact step each (F&amp;O 4.0, section 4.3.1); the quotient has the sign of value / divisor, the remainder that of the value.</p>
+      </item>
+      <item>
+        <p><strong>Precision range</strong> (the rules' "adjusted to the nearest value supported"): a positive precision is lowered until quotient and remainder both fit <code>maximum_digit_count</code> (bounds from the adjusted exponents and the divisor's digits), to 0 at least; one below every digit of the quotient is raised to just below it (the quotient is 0 either way). So <code>divide-decimals(10, 3, 100_000)</code> gives 9,997 decimal places at the default limit; an integer quotient wider than the limit is FOAR0002; a zero divisor FOAR0001.</p>
+      </item>
+      <item>
+        <p><strong>Result</strong>: a map with keys "quotient" and "remainder" (xs:decimal), row result type <code>record(quotient as xs:decimal, remainder as xs:decimal)</code>. It is not annotated with fn:division-record: no static context knows the F&amp;O named record types yet (the Proposed item of <ref kind="decision" to="D122"/>; QT4 divide-decimals-019 to -021 and fn-random-number-generator-35a to -37a wait for it).</p>
+      </item>
+    </list>
+  </body>
+</decision>

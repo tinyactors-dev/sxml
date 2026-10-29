@@ -1,0 +1,4 @@
+<term id="prolog" source="docs/GLOSSARY.md">
+  <name>prolog</name>
+  <definition>The declarations of an XQuery module before its query body: setters, namespace declarations, imports, variables, functions, types, options (XQuery 4.0, section 5)</definition>
+</term>

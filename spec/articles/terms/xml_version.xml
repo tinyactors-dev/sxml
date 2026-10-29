@@ -1,0 +1,4 @@
+<term id="xml_version" source="docs/GLOSSARY.md">
+  <name>xml_version</name>
+  <definition>The version of XML a document follows, 1.0 or 1.1, read from its XML declaration (<code>sxml_xml_version</code>; XML 1.1, section 4.3.4); it decides the characters allowed, the line ends and whether prefixes may be undeclared</definition>
+</term>

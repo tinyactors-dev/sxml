@@ -1,0 +1,4 @@
+<term id="regex" source="docs/GLOSSARY.md">
+  <name>regex</name>
+  <definition>A compiled regular expression of the F&amp;O 4.0 dialect (F&amp;O 4.0, section 6.1), immutable once compiled (<code>sxml_regex</code>); never <code>regexp</code> or <term name="pattern"/> (<term name="pattern"/> is the XSLT match pattern)</definition>
+</term>

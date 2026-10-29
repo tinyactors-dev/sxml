@@ -1,0 +1,4 @@
+<term id="content_model_cursor" source="docs/GLOSSARY.md">
+  <name>content_model_cursor</name>
+  <definition>Where matching an element's children has reached in its content model: a state and the counter values</definition>
+</term>

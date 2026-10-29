@@ -1,0 +1,4 @@
+<term id="lookahead_group" source="docs/GLOSSARY.md">
+  <name>lookahead_group</name>
+  <definition>A captured group of a capturing subexpression within a lookahead assertion; it may lie outside the matching segment (F&amp;O 4.0, <code>fn:analyze-string</code>)</definition>
+</term>

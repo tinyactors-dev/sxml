@@ -1,0 +1,4 @@
+<term id="qt4_collection" source="docs/GLOSSARY.md">
+  <name>qt4_collection</name>
+  <definition>A collection of a QT4 environment for <code>fn:collection</code>: sources, resources and queries under one URI</definition>
+</term>

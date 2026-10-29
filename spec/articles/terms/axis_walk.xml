@@ -1,0 +1,4 @@
+<term id="axis_walk" source="docs/GLOSSARY.md">
+  <name>axis_walk</name>
+  <definition>Walks the nodes of one axis from an origin node and hands out each with its description, one description per node (internal, <code>src/tree_axis.c</code>, <ref kind="decision" to="D224"/>)</definition>
+</term>

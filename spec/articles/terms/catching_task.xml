@@ -1,0 +1,4 @@
+<term id="catching_task" source="docs/GLOSSARY.md">
+  <name>catching_task</name>
+  <definition>An evaluator task marked to receive the dynamic or type errors raised above it: the machine unwinds to it instead of ending the evaluation (<code>try</code>/<code>catch</code>, <ref kind="decision" to="D101"/>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="caller_focus" source="docs/GLOSSARY.md">
+  <name>caller_focus</name>
+  <definition>The focus of a static call, passed by lowering as three extra arguments (context value, position, size) to a native function that hands it on (fn:function-lookup binds a context-dependent function it finds to it)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="function_entry" source="docs/GLOSSARY.md">
+  <name>function_entry</name>
+  <definition>What a function table finds: the target and its signature for one arity</definition>
+</term>

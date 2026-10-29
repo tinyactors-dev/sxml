@@ -1,0 +1,6 @@
+<packet id="1.9" source="docs/tasks/phase-1.md">
+  <title>Maps and records (implementation)</title>
+  <body>
+    <p>After <ref kind="packet" to="1.7"/>. Owns <code>src/xdm_map.c</code>, <code>tests/xdm_map_test.c</code>. <ref kind="decision" to="D37"/>: entry order, lazy hash index, persistent put/remove, duplicate policies, records sharing registry shapes. Done when map-merge-401 order and map-get-014 (NaN key) hold and <code>map:put</code> on a record gives a map. Spec: XDM 4.0 §8.2, §8.3. <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D61"/>): entry blocks (index built while making, for duplicates), persistent maps of two AVL trees, records with lazily made field keys; P3 (<code>sxml_map_get_entry</code> on a record may fail for memory).</p>
+  </body>
+</packet>

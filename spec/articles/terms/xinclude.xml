@@ -1,0 +1,4 @@
+<term id="xinclude" source="docs/GLOSSARY.md">
+  <name>xinclude</name>
+  <definition>XInclude processing: copying a document with each <code>xi:include</code> element replaced by the document or text its <code>href</code> names, or by its <code>xi:fallback</code>'s children when that cannot be read; the <term name="xinclude"/> option of fn:doc and fn:parse-xml (XInclude 1.0)</definition>
+</term>

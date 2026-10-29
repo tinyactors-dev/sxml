@@ -1,0 +1,4 @@
+<term id="json_value" source="docs/GLOSSARY.md">
+  <name>json_value</name>
+  <definition>The ·jvalue· of a JNode: the value it wraps</definition>
+</term>

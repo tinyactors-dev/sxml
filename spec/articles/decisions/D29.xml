@@ -1,0 +1,32 @@
+<decision id="D29" status="accepted" source="docs/DECISIONS.md">
+  <title>Query grammars: XPath, XQuery and XSLT patterns</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. Grammars <code>grammars/xpath</code>, <code>grammars/xquery</code> and <code>grammars/xslt_pattern</code>, written from the QT4 CG drafts (XPath/XQuery 4.0 Appendix A, XSLT 4.0 section 6.3 and Appendix E; drafts of 13 October 2026). Where the test suites still use syntax the drafts have dropped (XSLT type patterns <code>~T</code>), the drafts win. (This record was first committed as a second "<ref kind="decision" to="D27"/>"; renumbered.)</p>
+    <list>
+      <item>
+        <p>Inheritance: <code>xquery</code> and <code>xslt_pattern</code> are <code>grammar(require('../xpath/grammar'), ...)</code>. tree-sitter takes the first rule as the start rule, so a derived grammar moves its start rule (<code>module</code>, <term name="pattern"/>) to the front of the rule table. Keyword lists and name regular expressions are in <code>grammars/xpath/lexical.js</code>.</p>
+      </item>
+      <item>
+        <p>Node names are the EBNF production names in snake_case with abbreviations spelled out (<code>VarRef</code> is <code>variable_reference</code>, <code>CompElemConstructor</code> is <code>computed_element_constructor</code>); choice productions such as <code>ExprSingle</code> are hidden. Operands, steps, axes, clauses and bindings are named fields; binary operators are left-recursive nodes with <code>left</code>, <term name="operator"/>, <code>right</code>. XSLT pattern productions ending in "P" become <code>..._pattern</code> nodes.</p>
+      </item>
+      <item>
+        <p>Keywords are not reserved (A.3): every keyword is a tree-sitter reserved word, so the lexer always returns the keyword token, as the context-free tokenizer of A.3 would; every name position accepts each keyword aliased to <code>ncname</code>, except function names (A.4 reserved function names; in patterns also <code>atomic</code> and <code>empty-sequence</code>) and XQuery computed-constructor names (xgc: unreserved-name).</p>
+      </item>
+      <item>
+        <p>One stateless external scanner, <code>grammars/common/query_scanner.h</code>, included by each <code>src/scanner.c</code>: nested comments, string template fixed parts, string constructor characters, all of direct constructor syntax (tags, attribute values, content, comments, PIs, CDATA) and pragmas. All grammars declare the same external token list. In XQuery the scanner applies the "&lt;" rules of A.3 without regard to context: a direct constructor is recognized even where the operator "&lt;" is expected, and the parse fails.</p>
+      </item>
+      <item>
+        <p>GLR conflicts are declared only where one token of lookahead is not enough: <code>namespace #x {}</code> against <code>namespace#1</code>; <code>element instance {}</code> against <code>element instance of T</code> (also attribute, namespace, processing-instruction); and the two prolog groups, where <code>declare</code> may continue either group or start the query body.</p>
+      </item>
+      <item>
+        <p>In patterns, a step at the outermost level has no JNodeType test, so <code>jnode(</code> always starts a JNodePattern.</p>
+      </item>
+      <item>
+        <p>Checked later, in the tree builder (XPST0003 unless noted): terminal delimitation (A.3.2, two non-delimiting terminals with no separator, e.g. <code>10div 3</code>); a prefixed name as a lookup key (accepted so that <code>a:b</code> stays one token); end tag name equal to start tag name (XQST0118); duplicate attributes, QName and namespace well-formedness; reserved PI target names in computed constructors.</p>
+      </item>
+      <item>
+        <p><code>tools/qt4-parse-check.py</code> (with <code>tools/qt4-parse-harness.c</code>, which also applies the A.3.2 delimitation check) parses every applicable query. Results on 2026-10-16: XP40 0 false rejects of 32,118 valid queries, 2 false accepts of 363 XPST0003 queries; XQ40 0 of 43,663 and 3 of 772; XSLT 4.0 patterns 3 false rejects of 19,168 (invalid DocBook patterns). Details in <code>grammars/xquery/README.md</code>.</p>
+      </item>
+    </list>
+  </body>
+</decision>

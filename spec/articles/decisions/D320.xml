@@ -1,0 +1,23 @@
+<decision id="D320" status="accepted" source="docs/DECISIONS.md">
+  <title>A compile report sink for XSLT (packet <ref kind="packet" to="7.28"/>)</title>
+  <body>
+    <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D315"/> ("Compile errors", the owner's 7b), <ref kind="decision" to="D99"/> and <ref kind="decision" to="D139"/>. The header change <ref kind="decision" to="D315"/> announced for 7.28.</p>
+    <list>
+      <item>
+        <p><strong>Header</strong> (additive): <code>include/sxml/xslt.h</code> includes <code>sxml/schema.h</code> and <code>sxml_xslt_stylesheet_configuration</code> gains, at its end, <code>sxml_schema_report_sink report_sink;</code> (XSD's sink type, reused: one report of a compile error, code, description and location, for every language). The null sink, the zero value, keeps the first-error behaviour exactly.</p>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong> (glossary <term name="compile_report_sink"/>, <term name="error_collector"/>): one internal collector (<code>sxml_xslt_error_collector</code>, src/xslt_ast.c) that the reader and lowering write each error into and ask whether to go on. With a sink a static or type error goes there and the work goes on: the reader leaves out the attribute in error (and the element's whole-element checks, which would report what follows from that), or the element when the element itself is wrong, and reads the rest; lowering goes on with the next template rule, stylesheet function or global variable (each lowering enters and leaves its own function, so nothing is left half-open). Nothing is lowered once reading reported an error, and no unit is made once lowering did. An error that stops a stage (a dynamic error of a static expression, the in-scope schemas, outputs, streamability) goes to the sink too, once. The record holds the first error.</p>
+      </item>
+      <item>
+        <p><strong>Users</strong>: <code>sxml transform</code> gives the sink a receiver that writes each error as the one line it always wrote (<code>FILE:LINE:COLUMN: CODE: description</code>) and exits 1 after the compilation; Schematron (<ref kind="decision" to="D315"/>) passes its own sink to <code>sxml_xslt_stylesheet_create_from_ast</code>; the JavaScript <code>compileStylesheet</code> keeps throwing the first error and adds every report (<code>reports</code>).</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong>: errors inside one template rule after its first (a template is one unit of lowering); errors of included modules that are not well-formed stop reading as before.</p>
+      </item>
+      <item>
+        <p><strong>Evidence</strong>: <code>xslt_test</code> <code>report_sink_receives_every_compile_error</code> (four reading errors in three declarations, three analysis errors in two template rules and a function, the null sink giving the first); CLI tests <code>transform_compile_errors</code>, <code>transform_analysis_errors</code>. XT40, release, case by case against the base commit built the same way: 0 outcomes differ (12,185 passed).</p>
+      </item>
+    </list>
+  </body>
+</decision>

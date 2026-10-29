@@ -1,0 +1,4 @@
+<term id="xslt_test_driver" source="docs/GLOSSARY.md">
+  <name>xslt_test_driver</name>
+  <definition>The XSLT 4.0 test-suite driver: the developer tool <code>sxml-xslt-test</code> under <code>tests/xslt/driver/</code>, a sibling of the QT4 driver that links its library (<ref kind="decision" to="D117"/>)</definition>
+</term>

@@ -1,0 +1,17 @@
+<packet id="perf-16" source="docs/tasks/phase-7.md">
+  <title>IR passes after <ref kind="packet" to="perf-12"/>: item demands and child walks (implementation)</title>
+  <body>
+    <p>After <ref kind="decision" to="D259"/> (item demands), <ref kind="decision" to="D324"/> and <ref kind="decision" to="D327"/>. Validating one EN 16931 invoice with <code>sxml validate --schematron</code> costs 1.61 x 10^9 instructions, 87 % of it compiling the <code>.sch</code>; the IR passes are 31 %, led by <code>sxml_ir_set_item_demands</code> (12.4 % inclusive, 4.2 % self) and <code>push_every_child</code> (6.5 % self), with <code>children_of</code> and <code>make_owners</code> behind them (<code>src/ir.c</code>, <code>src/ir_loop_passes.c</code>).</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: profile first (callgrind on that run, the pre-compiled invoice run and perf-12's growth series); find why item demands and the child walks cost what they do (repeated whole-unit walks, walks per function or per pass that could share one) and make them proportional to the unit once; the IR text form after the passes stays identical.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/ir.c</code>, <code>src/ir_loop_passes.c</code>, <code>src/ir_global_read.c</code>, <code>src/ir_internal.h</code> and <code>src/ir_pass_internal.h</code> (their pass parts), <code>tests/ir_test.c</code>, <code>tests/ir_loop_passes_test.c</code>, <code>tests/bench/</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: before and after (instructions and seconds) in a D-record on both invoice runs, the growth series, xmark-all and the XT40 compile; IR text identical on EN 16931 and the XT40 units; QT4 XP40, XQ40 and XT40 whole, base and change in the same setup: no outcome changes, case by case; Schematron 463 of 463, VEFA 1,133. <strong>Done</strong> 2026-10-28 (<ref kind="decision" to="D330"/>): the passes walked the unit about ten times at about 130 instructions per expression; the child walk writes in place, the demand pass walks each body once, the descendant census and fusion's choice of functions come from owners. Invoice validate 1.613 to 1.413 x 10^9, transform 1.618 to 1.506; IR text and demands identical (EN 16931, growth, 414,470 XT40 units); XP40, XQ40, XT40 0 outcomes differ; suite 463/463, VEFA 1,133/1,133.</p>
+      </item>
+    </list>
+  </body>
+</packet>

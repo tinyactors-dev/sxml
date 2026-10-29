@@ -1,0 +1,4 @@
+<term id="part_registry" source="docs/GLOSSARY.md">
+  <name>part_registry</name>
+  <definition>The list of library parts, evaluator parts or lowering parts that CMake generates from the glob of their files, so a new part needs no edit elsewhere (<ref kind="decision" to="D101"/>, <ref kind="decision" to="D103"/>)</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="ideographic_numerals" source="docs/GLOSSARY.md">
+  <name>ideographic_numerals</name>
+  <definition>The Japanese numbering by ideographs that the token <code>一</code> (U+4E00) asks for: digits <code>一</code> to <code>九</code>, multipliers <code>十 百 千</code> within each group of four digits, myriad units <code>万 億 兆 京</code>; no zero digit and no <code>一</code> before <code>十 百 千</code> (<code>百五十一</code> is 151, <code>一万</code> 10,000)</definition>
+</term>

@@ -1,0 +1,26 @@
+<decision id="D59" status="accepted" source="docs/DECISIONS.md">
+  <title>The XPath front end (packet <ref kind="packet" to="1.16"/>)</title>
+  <body>
+    <p><recorded date="2026-10-16"/>. <code>src/xpath_parse.c</code> builds the AST of <ref kind="decision" to="D52"/> in one iterative walk of a tree-sitter cursor in source order; the current AST parent is kept through the AST's own parent links, so nesting depth costs no C stack (20,000 nested parentheses pass under the <code>wasm</code> preset). Node types and field names map to kinds and fields through sorted static tables; the AST capacity is <code>ts_node_descendant_count</code> of the top node.</p>
+    <list>
+      <item>
+        <p>Checks of <ref kind="decision" to="D29"/> in the walk: A.3.2 delimitation over the terminals in order (non-delimiting: keywords, <code>ncname</code>, <code>prefixed_name</code>, <code>uri_qualified_name</code> and the numeric literals; a comment separates) and a <code>prefixed_name</code> in the <code>key</code> field of <code>lookup</code> or <code>unary_lookup</code>. Every failure, and the first ERROR or MISSING node, is XPST0003 with a static description, the source name, line, codepoint column and byte offset. With these, XP40 has no false rejects or false accepts left (32,542 valid queries build; Lookup-156 and MapConstructor-025a, the two <ref kind="decision" to="D29"/> false accepts, now fail).</p>
+      </item>
+      <item>
+        <p>A sequence type is parsed as the type of <code>() instance of T</code>: the prefix is served before the text through a <code>TSInput</code> callback (no copy), the result must be that instance-of expression with the type starting in the text, and spans are relative to the text.</p>
+      </item>
+      <item>
+        <p>tree-sitter aliases each token of <code>alias(seq('(', ')'), jroot_selector)</code> separately; the front end makes one JROOT_SELECTOR spanning both.</p>
+      </item>
+      <item>
+        <p><code>maximum_expression_depth</code> counts AST nodes from the root (depth 1).</p>
+      </item>
+      <item>
+        <p>The only memory taken from the request's allocator is the AST, one allocation; tree-sitter's parser, tree and cursors use malloc (<ref kind="decision" to="D12"/>).</p>
+      </item>
+      <item>
+        <p>AST builder tests are in <code>tests/xpath_ast_test.c</code> (module prefix <code>xpath</code>, <ref kind="decision" to="D45"/>), front-end tests in <code>tests/xpath_parse_test.c</code>.</p>
+      </item>
+    </list>
+  </body>
+</decision>

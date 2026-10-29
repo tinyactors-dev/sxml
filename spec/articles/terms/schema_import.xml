@@ -1,0 +1,4 @@
+<term id="schema_import" source="docs/GLOSSARY.md">
+  <name>schema_import</name>
+  <definition>One request for schema components by namespace: XQuery's "import schema" or XSLT's xsl:import-schema, with its location hints or (XSLT) its inline xs:schema element; a stylesheet's schema imports compile into one schema, its in-scope schemas after the host's (<code>src/xslt_schema.c</code>, <ref kind="decision" to="D179"/>)</definition>
+</term>

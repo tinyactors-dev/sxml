@@ -1,0 +1,4 @@
+<term id="canonical_text" source="docs/GLOSSARY.md">
+  <name>canonical_text</name>
+  <definition>The canonical lexical form of a value as UTF-8 bytes (F&amp;O 4.0, section 19.1.2, casting to <code>xs:string</code>)</definition>
+</term>

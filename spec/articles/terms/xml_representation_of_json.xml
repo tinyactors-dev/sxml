@@ -1,0 +1,4 @@
+<term id="xml_representation_of_json" source="docs/GLOSSARY.md">
+  <name>xml_representation_of_json</name>
+  <definition>The elements <term name="map"/>, <term name="array"/>, <term name="string"/>, <code>number</code>, <code>boolean</code> and <code>null</code> in the fn namespace, with <code>key</code>, <code>escaped</code> and <code>escaped-key</code> attributes, that stand for a JSON text (F&amp;O 4.0, section 17.4.2)</definition>
+</term>

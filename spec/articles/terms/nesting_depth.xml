@@ -1,0 +1,4 @@
+<term id="nesting_depth" source="docs/GLOSSARY.md">
+  <name>nesting_depth</name>
+  <definition>How many modules lie between a stylesheet module and the principal module in the module tree</definition>
+</term>

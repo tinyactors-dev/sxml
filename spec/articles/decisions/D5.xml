@@ -1,0 +1,6 @@
+<decision id="D5" status="accepted" source="docs/DECISIONS.md">
+  <title>Build on an existing engine?</title>
+  <body>
+    <p>Start from scratch in C. Study Xee (Rust, MIT, https://github.com/Paligo/xee) closely: it implements most of XPath 3.1 with one IR and bytecode interpreter shared by XPath and XSLT, the same architecture as this plan. Confirmed at the Phase 0 gate: the substrate keeps the IR out of the value model (function bodies are an interface, <ref kind="decision" to="D38"/>), and parsing uses tree-sitter (<ref kind="decision" to="D12"/>) rather than a hand-written parser.</p>
+  </body>
+</decision>

@@ -1,0 +1,4 @@
+<term id="built_in_template" source="docs/GLOSSARY.md">
+  <name>built_in_template</name>
+  <definition>The template function a mode calls for an item no template rule matches: the built-in template rule of its on-no-match (XSLT 4.0, 6.10)</definition>
+</term>

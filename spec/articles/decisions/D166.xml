@@ -1,0 +1,32 @@
+<decision id="D166" status="accepted" source="docs/DECISIONS.md">
+  <title>Content that streams into a constructor; XSLT sweep 3 (packet <ref kind="packet" to="4.17"/>)</title>
+  <body>
+    <p><recorded date="2026-10-18"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D101"/>, <ref kind="decision" to="D110"/>, <ref kind="decision" to="D163"/>. Accepts <ref kind="decision" to="D163"/>'s Proposed item "content that streams into a constructor", as one mechanism of the shared evaluator and IR, used by XSLT and XQuery alike.</p>
+    <list>
+      <item>
+        <p><strong>Receiving and delivering tasks</strong> (glossary <term name="receiving_task"/>, <term name="delivering_task"/>; <code>src/evaluator_machine_internal.h</code>, "Delivering"): a document or element constructor (and SHALLOW_COPY of an element or document) whose content expression is not a <ref kind="decision" to="D110"/> enclosed list opens its node, sets its part task's <code>receive</code> function and pushes the content as a delivering task (<code>sxml_evaluator_task.delivers_content</code>). When a delivering task finishes, the machine hands its value to the nearest receiving task below and the task below gets (). Delivering passes on only where a value reaches the receiver unchanged: LET bodies and conditional branches (they replace their task), a content LET's bound expression, each body of a MAP (not a path's MAP, whose body may select JNodes), the body of a function a delivering call enters (not through a coerced function item: its COERCE_RESULT task delivers), and the template calls of a delivering APPLY_TEMPLATES (which delivers its separators itself). A try/catch body never delivers, so no caught error leaves part of a content behind. The order and the rules of XSLT 4.0, 5.7.1 and XQuery 4.0, 4.12.1.3 are those of the content sequence: the receiver adds each value as before (arrays flattened, atomic items joined within one enclosed expression, nodes copied, documents unwrapped, XTDE0410 and XQTY0024 from the same state).</p>
+      </item>
+      <item>
+        <p><strong>Building into the receiver</strong>: a constructor in a delivering task builds its node in the receiver's tree when that is what copying a tree of its own would give (<code>sxml_construction_open</code>): the same rules and construction flags and copy-namespaces preserve; no-inherit becomes the element start's <code>ignores_parent_namespaces</code>; a document's children become the content. Text, attribute, comment and processing-instruction constructors add their node directly (a namespace node keeps its own tree, whose builder checks XQDY0101); xsl:copy of another node delivers the node, which the receiver copies.</p>
+      </item>
+      <item>
+        <p><strong>Content LETs</strong> (glossary <term name="content_let"/>, <code>sxml_ir_let.is_content</code>, printed <code>(let $n content ...)</code>): a LET whose variable only the result of its block reads, first and in order; in a delivering task its bound expression delivers too. Lowering marks them with <code>sxml_xpath_lowerer_mark_content_let</code> (the block's open LET made for the item, else marking stops unless the item is ()). The machine also evaluates <code>let $v := E return $v</code> as E in place.</p>
+      </item>
+      <item>
+        <p><strong>Lowerings</strong>: an XSLT literal result element, xsl:element, xsl:document and a temporary tree (9.4) compute their content in a block inside the constructor; a sequence constructor marks its children's LETs when it is a body or content (not with xsl:on-empty or xsl:on-non-empty, which read the atoms). XQuery computed element and document constructors do the same; a direct element constructor too, literal text as text constructors, unless two enclosed expressions are adjacent (<code>&lt;c&gt;{1}{2}&lt;/c&gt;</code> stays a <ref kind="decision" to="D110"/> enclosed list). Other temporary trees (with-param, message bodies) still take their content as a value.</p>
+      </item>
+      <item>
+        <p><strong>Arena nodes</strong>: content and in-scope namespaces share a union (a node has one or the other by kind), 72 to 56 bytes.</p>
+      </item>
+      <item>
+        <p><strong>XSLT driver</strong>: result documents are collected only for assert-result-document (else the null handler, which still checks them); the evaluation step budget is 4 x the QT4 driver's (<ref kind="decision" to="D89"/>), as json-to-xml-013 takes about 190 million steps.</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong> (release, whole suites, before at 53bd400): json-to-xml-013 peaks at about 410 MB (2.1 GB before) and passes; XT40 in scope 7,986 to 7,987 of 8,728 (91.5 %), errors 1 to 0, no test set lost a case; XP40 30,647 and XQ40 40,034 passed, 0 errors; slices 198 and 147. The driver change was committed with 457f530 (packet <ref kind="packet" to="5.3"/>), which took the working tree's file.</p>
+      </item>
+      <item>
+        <p><strong>Not done</strong>: XTDE3052 when an abstract variable is read (accept-042, -043a): v1-proxy is a global that reads the abstract v1, and globals are computed before the evaluation (XQuery's too, <ref kind="decision" to="D148"/>: only unreferenced ones are skipped), so a lazy error needs globals computed on first read, which a step function's synchronous atom reads cannot do today (Proposed). A RAISE read in place of the abstract variable alone was tried and dropped: v1-proxy still raises when it is computed.</p>
+      </item>
+    </list>
+  </body>
+</decision>

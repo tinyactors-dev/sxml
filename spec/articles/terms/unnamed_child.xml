@@ -1,0 +1,4 @@
+<term id="unnamed_child" source="docs/GLOSSARY.md">
+  <name>unnamed_child</name>
+  <definition>A named concrete syntax tree child that its grammar gives no field (XQuery's module); a parser part names its AST field</definition>
+</term>

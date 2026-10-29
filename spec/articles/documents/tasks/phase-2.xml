@@ -1,0 +1,113 @@
+<document id="tasks/phase-2" source="docs/tasks/phase-2.md">
+  <title>Phase 2: XPath 4.0 and F&amp;O 4.0</title>
+  <p>Goal (PLAN.md): full XPath 4.0 syntax and the whole F&amp;O 4.0 function library; the first public release. Gate: <strong>90% of the applicable XP40 test cases pass</strong> (<ref kind="decision" to="D95"/>; Phase 1 ended at 21,443 of about 31,500, 68%). Packets are one agent session each and run in parallel in one working tree under the Phase 1 rules (<ref kind="decision" to="D45"/>, repeated below); the overlap with Phases 3 and 4 follows <ref kind="decision" to="D96"/>. Scope decisions (collations, HTML parsing, non-goals) are <ref kind="decision" to="D97"/>.</p>
+  <section id="rules-for-parallel-packets-d45-d96">
+    <title>Rules for parallel packets (<ref kind="decision" to="D45"/>, <ref kind="decision" to="D96"/>)</title>
+    <list>
+      <item>
+        <p><strong>Ownership.</strong> Each packet names the files it <strong>owns</strong>; packets that run at the same time never share one. A file named by two packets belongs to the earlier wave; the later packet starts only after the earlier one is committed. Ledgers (<code>docs/DECISIONS.md</code>, <code>GLOSSARY.md</code>, <code>LOG.md</code>): one small insertion, committed at once and alone.</p>
+      </item>
+      <item>
+        <p><strong>Registration is by glob.</strong> After <ref kind="packet" to="2.0"/>, a library part is a file <code>src/function_library_&lt;part&gt;.c</code> defining <code>sxml_function_library_&lt;part&gt;</code>; the processor and the fuzz fixture find it without an edit. Evaluator parts and lowering parts (2.0, 2.1) work the same way.</p>
+      </item>
+      <item>
+        <p><strong>Design</strong> packets may change headers; <strong>implementation</strong> packets must not (they write the need under "Proposed" in <code>docs/DECISIONS.md</code>). After <ref kind="packet" to="2.2"/> the public headers change only through a decision record until the release (2.18) makes them stable (<ref kind="decision" to="D47"/>).</p>
+      </item>
+      <item>
+        <p><strong>Every packet</strong> imitates its named golden files (default: <code>src/memory.c</code>, <code>tests/memory_test.c</code>; for a library part <code>src/function_library_math.c</code> and <code>tests/function_library_test.c</code>; for resumable natives <code>src/function_library_higher_order.c</code>); has allocation-failure loops and leak checks (<code>sxml_item_heap_read_counts</code>); cites the specification by section title; uses no C recursion (<ref kind="decision" to="D71"/>); is done when <code>debug</code>, <code>debug-gcc</code> and <code>wasm</code> pass, <code>tools/lint.sh</code> is clean, the slice holds at 198 and the XP40 pass count (<code>docs/CONFORMANCE.md</code>) has not dropped.</p>
+      </item>
+      <item>
+        <p><strong>Acceptance</strong> names QT4 test sets. "fn-x ≥ N%" means the passed share of the applicable cases of that set in <code>sxml-qt4 run --spec=XP40 --test-set=fn-x</code>, release build; the packet's LOG entry gives before and after counts.</p>
+      </item>
+      <item>
+        <p>The CLI is not a packet: it gains options (<code>--decimal-format</code>, text resources) only when a packet makes them real (docs/CLI.md).</p>
+      </item>
+    </list>
+  </section>
+  <section id="parallelism-plan">
+    <title>Parallelism plan</title>
+    <p>"Early" packets of later phases (<ref kind="decision" to="D96"/>) may run in the same waves; they own no file of this phase.</p>
+    <table>
+      <row header="true">
+        <cell>Wave</cell>
+        <cell>Phase 2 packets (run together)</cell>
+        <cell>Early packets of Phases 3 and 4</cell>
+      </row>
+      <row>
+        <cell>0</cell>
+        <cell>2.0 registration and evaluator seams, 2.1 lowering seam, 2.2 public API, 2.3 regex engine</cell>
+        <cell>4.2 stylesheet AST</cell>
+      </row>
+      <row>
+        <cell>1</cell>
+        <cell>2.4 Unicode, 2.5 lowering, 2.6 evaluator and references, 2.7 numeric, 2.8 date and time, 2.9 number formatting, 2.10 element maps, 2.11 URIs and hashes, 2.12 resources and processor</cell>
+        <cell>3.0 API, 3.1 query AST, 3.5 constructors, 3.6 try/catch, 4.3 value templates, 4.4 patterns</cell>
+      </row>
+      <row>
+        <cell>2</cell>
+        <cell>2.13 collations and comparison, 2.14 date formatting, 2.15 CSV, 2.16 driver</cell>
+        <cell>3.2 XQuery front end, 3.3 XML serializer, 4.0 XSLT API</cell>
+      </row>
+      <row>
+        <cell>3</cell>
+        <cell>2.17 node, sequence and string functions, 2.18 JavaScript package</cell>
+        <cell>3.4 other serializers, 3.7 FLWOR lowering, 4.1 XSLT driver</cell>
+      </row>
+      <row>
+        <cell>4</cell>
+        <cell>2.19 conformance sweeps (as many as files allow)</cell>
+        <cell>the rest of Phase 3 as its "After" lists allow</cell>
+      </row>
+      <row>
+        <cell>5</cell>
+        <cell>2.20 review (gate)</cell>
+        <cell/>
+      </row>
+    </table>
+    <p>Critical path: 2.0 2.4 2.13 2.17 2.19 2.20. Decimal, date/time and regex come first, as PLAN.md's risk table asks (2.3, 2.7, 2.8 in waves 0 and 1).</p>
+  </section>
+  <section id="packets">
+    <title>Packets</title>
+    <include kind="packet" to="2.0"/>
+    <include kind="packet" to="2.1"/>
+    <include kind="packet" to="2.2"/>
+    <include kind="packet" to="2.3"/>
+    <include kind="packet" to="2.4"/>
+    <include kind="packet" to="2.5"/>
+    <include kind="packet" to="2.6"/>
+    <include kind="packet" to="2.7"/>
+    <include kind="packet" to="2.8"/>
+    <include kind="packet" to="2.9"/>
+    <include kind="packet" to="2.10"/>
+    <include kind="packet" to="2.11"/>
+    <include kind="packet" to="2.12"/>
+    <include kind="packet" to="2.13"/>
+    <include kind="packet" to="2.14"/>
+    <include kind="packet" to="2.15"/>
+    <include kind="packet" to="2.16"/>
+    <include kind="packet" to="2.17"/>
+    <include kind="packet" to="2.18"/>
+    <include kind="packet" to="2.19"/>
+    <include kind="packet" to="2.20"/>
+  </section>
+  <section id="gate">
+    <title>Gate</title>
+    <list>
+      <item checked="true">
+        <p>XP40 (<ref kind="decision" to="D95"/> denominator) ≥ 90% pass, each of the areas fn, op, prod, map, array, math, xs ≥ 80%, under <term name="release"/>; slice 198/198 in CI. (agent review, <ref kind="decision" to="D151"/>: 97.0 %, the lowest area fn 95.5 %; slice 198/198, run locally as <ref kind="decision" to="D123"/> says)</p>
+      </item>
+      <item checked="true">
+        <p>No XP40 case crashes, leaks or ends in an "error" outcome. (agent review, <ref kind="decision" to="D151"/>)</p>
+      </item>
+      <item checked="true">
+        <p>Every F&amp;O 4.0 function is in the library but <ref kind="decision" to="D97"/>'s non-goals. (agent review, <ref kind="decision" to="D151"/>; fn:load-xquery-module is 3.11's, as <ref kind="decision" to="D97"/> says)</p>
+      </item>
+      <item checked="false">
+        <p>Release 0.2.0 tagged; the JavaScript package passes under Node.js. (the package passes, <ref kind="decision" to="D151"/>; the tag is the owner's)</p>
+      </item>
+      <item checked="true">
+        <p>Review agent pass (<ref kind="decision" to="D11"/>), findings fixed. (agent review, <ref kind="decision" to="D151"/>; the larger follow-ups are listed there)</p>
+      </item>
+    </list>
+  </section>
+</document>

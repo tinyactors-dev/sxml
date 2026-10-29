@@ -1,0 +1,4 @@
+<term id="branch_node" source="docs/GLOSSARY.md">
+  <name>branch_node</name>
+  <definition>An array node with a left and a right subtree; its members are the left's followed by the right's</definition>
+</term>

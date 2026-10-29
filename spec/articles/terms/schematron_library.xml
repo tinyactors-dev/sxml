@@ -1,0 +1,4 @@
+<term id="schematron_library" source="docs/GLOSSARY.md">
+  <name>schematron_library</name>
+  <definition>A sch:library: a document element holding external declarations (abstract rules, patterns, groups, lets, schema parameters, diagnostics, properties) that a sch:extends href at the top of a schema puts into it in its place (ISO/IEC 19757-3:2025, 5.4.4, 5.4.8; <ref kind="decision" to="D315"/>)</definition>
+</term>

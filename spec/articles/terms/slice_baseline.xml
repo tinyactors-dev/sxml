@@ -1,0 +1,4 @@
+<term id="slice_baseline" source="docs/GLOSSARY.md">
+  <name>slice_baseline</name>
+  <definition>The number of torture-slice test cases that must pass (<code>tests/qt4/slice-baseline.txt</code>); it only goes up</definition>
+</term>

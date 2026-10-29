@@ -1,0 +1,4 @@
+<term id="finding" source="docs/GLOSSARY.md">
+  <name>finding</name>
+  <definition>A failed assert or a successful report for one context item: what a Schematron validation finds (<ref kind="decision" to="D315"/>)</definition>
+</term>

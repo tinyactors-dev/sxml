@@ -1,0 +1,34 @@
+<packet id="7.5" source="docs/tasks/phase-7.md">
+  <title>disable-output-escaping (implementation; proposed, <ref kind="decision" to="D183"/>)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: XSLT 4.0, 26.2 "Disabling Output Escaping" (deprecated, optional, and its permission to drop the marker when the result is not serialized); Serialization 4.0, 2 (the phases).</p>
+      </item>
+      <item>
+        <p><strong>Unlocks</strong>: XT40 disabling_output_escaping 32 (disable-output-escaping 28, bug 4, and others).</p>
+      </item>
+      <item>
+        <p><strong>Replaces</strong>: today the attribute is read and ignored (<code>src/xslt_read.c</code>); the place where it is ignored is the place.</p>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong> (changed by <ref kind="decision" to="D188"/>, on the owner's prompt): a text node mark, as <ref kind="decision" to="D163"/>'s CDATA request, additive to <code>tree.h</code> (<code>disables_output_escaping</code>); the XML, XHTML and HTML methods write marked text unescaped. The JAXP processing-instruction pair is not used.</p>
+      </item>
+      <item>
+        <p><strong>Header</strong>: none; a comment in <code>serialize.h</code>.</p>
+      </item>
+      <item>
+        <p><strong>After</strong>: nothing.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: the d-o-e branches in <code>src/xslt_lower_construct.c</code>, and <code>src/serialize_xml.c</code> and <code>src/serialize_html.c</code> (the pair).</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: about 3 KB, in the CLI only (the serializer is in <code>sxml.wasm</code>: under 1 KB there).</p>
+      </item>
+      <item>
+        <p><strong>Gate</strong>: ≥ 90 % of the 32. <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D188"/>): disable-output-escaping 25 of 25 run pass (7 not run: 3 need streaming, 1 is XSLT 2.0 only, 3 need the feature absent), bug 4 more; XT40 8,759 to 8,784 passed, 0 errors, none lost (5 cases that need the feature absent are not run any more).</p>
+      </item>
+    </list>
+  </body>
+</packet>

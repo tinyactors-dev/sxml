@@ -1,0 +1,4 @@
+<term id="resumable_native_body" source="docs/GLOSSARY.md">
+  <name>resumable_native_body</name>
+  <definition>A native function body written as native steps, so a higher-order function never re-enters the evaluator on the C stack</definition>
+</term>

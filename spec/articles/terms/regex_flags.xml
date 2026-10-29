@@ -1,0 +1,4 @@
+<term id="regex_flags" source="docs/GLOSSARY.md">
+  <name>regex_flags</name>
+  <definition>The flags of a regular expression, from the <code>$flags</code> string: <code>s</code> dot-all, <code>m</code> multi-line, <code>i</code> case-insensitive, <code>x</code> whitespace removed, <code>q</code> literal, <code>c</code> comments (F&amp;O 4.0, section 6.2)</definition>
+</term>

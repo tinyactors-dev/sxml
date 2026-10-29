@@ -1,0 +1,4 @@
+<term id="start_node" source="docs/GLOSSARY.md">
+  <name>start_node</name>
+  <definition>A node an active pattern is applied to: the instance document root, or under a phase with from each node from selects (5.5.7); an expression rule context is evaluated from each (<ref kind="decision" to="D315"/>)</definition>
+</term>

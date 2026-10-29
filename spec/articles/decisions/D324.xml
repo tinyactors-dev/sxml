@@ -1,0 +1,43 @@
+<decision id="D324" status="accepted" source="docs/DECISIONS.md">
+  <title>Compiling large stylesheets in linear time (packet <ref kind="packet" to="perf-12"/>)</title>
+  <body>
+    <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D46"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D223"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D259"/>, <ref kind="decision" to="D322"/>. No public header changed; the IR after the passes is the same.</p>
+    <list>
+      <item>
+        <p><strong>Whom it serves</strong>: every compile of a large unit, first the pre-compiled Schematron stylesheets (EN 16931, 900 KB of XSLT) that <code>sxml transform</code> and, after <ref kind="packet" to="7.28"/>, every Schematron compile pay for.</p>
+      </item>
+      <item>
+        <p><strong>Profile</strong> (callgrind, release, at 5bd945281): one EN 16931 invoice 2.680 x 10^9 instructions, 79 % the compile; the descendant pass 12.5 % and the global-read pass 8.6 % self. A growth series of generated stylesheets (N blocks of 8 template rules with 3 Schematron-style assertions and 8 globals, N = 8 to 128; and 2 blocks whose templates hold 6 to 384 assertions; the generator was a scratch script) found three costs that grow faster than the unit:</p>
+        <list>
+          <item>
+            <p>the descendant pass scanned every expression of the unit once per function for the ones it owns (functions times expressions);</p>
+          </item>
+          <item>
+            <p>the global-read pass climbed each expression's LET chain to its head (chain length times expressions), and searched a chain's list of globals for each global read;</p>
+          </item>
+          <item>
+            <p>the XPath lowerer checked an embedding's variable declarations for duplicate names on every embedded expression, every global against every other (globals squared times expressions; <code>src/xpath_lower.c</code>).</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Mechanism</strong>, no new machinery: the descendant pass groups the expressions of <code>owners</code> by function once (a counting sort, each group in index order, so the visit order is the one before); the global-read pass finds each chain head once along the path climbed and marks a global per chain head; the lowerer keeps the variable declaration view it last found free of duplicates (<code>sxml_xpath_lowerer.checked_declarations</code>, <code>src/xpath_lower_internal.h</code>) and checks only another view: a stylesheet's expressions share their package's view. A view's array must not change while a lowerer uses it, as the static context's other parts already must not.</p>
+      </item>
+      <item>
+        <p><strong>The next costs in these files</strong> (on the invoice after the above): the fusion pass (<ref kind="decision" to="D259"/>) made a slot census and the demand members of every function; a plain walk now finds whether the body holds a QUANTIFIED, without which nothing fuses (73.6 to 41.7 x 10^6). The XPath front end found each node's AST kind by binary search over the type names, twice per node; the kind is now kept per grammar symbol for the parse (<code>sxml_xpath_parse</code> 662.2 to 639.9 x 10^6). <code>push_every_child</code> reads expressions in place (-6 x 10^6).</p>
+      </item>
+      <item>
+        <p><strong>Measured</strong>, instructions x 10^9 (callgrind, release; base 5bd945281 and the change built alike from <code>git archive</code> snapshots): invoice 2.680 to 2.135 (the three linear fixes) to 2.076 (the rest), -22.5 %; growth N = 8, 16, 32, 64, 128: 0.472, 1.143, 3.305, 12.101, 57.091 to 0.357, 0.704, 1.413, 2.908, 6.192 (each doubling x 2.0 to 2.1, was x 2.4 to 4.7); in it the descendant pass 0.089 to 21.569 becomes 0.0017 to 0.027, the declaration check 0.0075 to 29.054 becomes 0.0002 to 0.0033; templates of 6, 24, 96, 384 assertions 0.188, 0.647, 2.582, 11.833 to 0.167, 0.566, 2.164, 8.534, the global-read pass 0.0023, 0.015, 0.162, 2.281 to 0.0019, 0.0068, 0.027, 0.106; xmark-all 8.641 to 8.639; SchXslt expand 47.452 to 47.450, its output equal to <code>s2.sch</code>. Processor seconds (fastest of five, interleaved, a shared machine): invoice 0.386 to 0.305; N = 128 4.34 to 0.91; 384 assertions 2.18 to 1.36; expand and xmark-all within the machine's noise (instructions equal).</p>
+      </item>
+      <item>
+        <p><strong>Same result</strong>: the IR text form after the passes (<code>src/ir.c</code>'s printer, dumped by a scratch-only hook in <code>sxml_ir_run_passes</code>) is byte-identical on the EN 16931 stylesheet (141 MB of text) and the growth stylesheets, and on all 414,483 units the XT40 suite compiles (a hash per unit, in order). The VEFA harness: EN 16931's 1,133 UBL checks pass. <strong>Conformance setup</strong>: base and change built alike (preset <term name="release"/>), run one after the other on the same machine with TZ, LANG and LC_ALL unset, from each snapshot's root: <code>sxml-qt4 run --spec=XP40 --format=json</code>, <code>sxml-qt4 run --spec=XQ40 --format=json</code>, <code>sxml-xslt-test run --format=json</code> (default catalogs, no test list). XP40 32,785, XQ40 46,114 and XT40 12,185 passed in both: 0 outcomes differ, case by case. debug-gcc: 439 of 439 tests pass; clang-tidy clean on the changed files. <ref kind="decision" to="D71"/> holds (loops only).</p>
+      </item>
+      <item>
+        <p><strong>Deviation</strong>: <code>src/xpath_lower_internal.h</code> (one field of the lowerer) is outside the packet's list; no other packet owns it.</p>
+      </item>
+      <item>
+        <p><strong>Left</strong> (see "## Proposed"): on the growth series the XSLT component graph (<code>add_named_edges</code>, <code>sxml_xslt_package_bind</code>, <code>src/xslt_lower_control.c</code>, <code>src/xslt_package.c</code>) is now the largest cost that grows with the square of the unit (0.120 to 0.480 x 10^9 from N = 64 to 128). On the invoice the compile is 72 %: tree-sitter parses of XPath 31 % (a parser made and deleted per expression, 1.6 %), the XML read 19 %, value templates 6.3 % (attributes of literal result elements without "{" are parsed too), the IR passes 13.6 %, of which the demand pass 5.4 % and the four walks that make <code>owners</code> 3.8 %.</p>
+      </item>
+    </list>
+  </body>
+</decision>

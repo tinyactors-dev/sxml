@@ -1,0 +1,6 @@
+<packet id="3.6" source="docs/tasks/phase-3.md">
+  <title>try/catch in the evaluator (implementation) — Early</title>
+  <body>
+    <p>After <ref kind="packet" to="2.0"/>. Owns <code>src/evaluator_try.c</code>, <code>tests/evaluator_try_test.c</code>. TRY_CATCH with name tests and wildcards, <code>$err:code</code>, description, value, module, line-number, column-number, additional, the 4.0 <code>$err:map</code>, and <code>finally</code> (an error in finally replaces the first). Only dynamic and type errors with an error record are caught; LIMIT_EXCEEDED and allocation failures are never caught. Unwinding uses the machine API of 2.0. Done when every rule has a unit case, also for an error raised inside a resumable native call. Spec: XQuery 4.0 "Try/Catch Expressions". <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D109"/>): own error record when the caller passes none; <code>$err:map</code> keys for lowering; IR adders for catch clauses proposed. <strong>3.6b IR extensions done</strong> 2026-10-17 (<ref kind="decision" to="D124"/>): adders for name tests, catch clauses and namespace bindings; <term name="construction_flags"/> and <term name="name_namespaces"/> on constructors, honoured by the evaluator; verifier and text form for TRY_CATCH and the constructor kinds.</p>
+  </body>
+</packet>

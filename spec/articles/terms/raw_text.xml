@@ -1,0 +1,4 @@
+<term id="raw_text" source="docs/GLOSSARY.md">
+  <name>raw_text</name>
+  <definition>Text the serializer writes unescaped whatever the escape style: the content of HTML <code>script</code> and <code>style</code> elements (character context <code>RAW_TEXT</code>)</definition>
+</term>

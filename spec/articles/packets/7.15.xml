@@ -1,0 +1,76 @@
+<packet id="7.15" source="docs/tasks/phase-7.md">
+  <title>Full UCA collations (implementation, two packets)</title>
+  <body>
+    <list>
+      <item>
+        <p><strong>Specifications</strong>: F&amp;O 4.0, 5.2.4 "The Unicode Collation Algorithm" (the URI parameters fallback, lang, version, strength, maxVariable, alternate, backwards, normalization, caseLevel, caseFirst, numeric, reorder; FOCH0002); UTS #10 (UCA, version 16.0, matching sxml's Unicode 16.0.0 tables) with its DUCET; UTS #35, Part 5 (CLDR collation: the root collation, tailoring rule syntax, the case and numeric options).</p>
+      </item>
+      <item>
+        <p><strong>Unlocks</strong>:</p>
+        <list>
+          <item>
+            <p>QT4 advanced-uca-fallback 49 (fn-compare, fn-contains, fn-starts-with, fn-substring-after and others);</p>
+          </item>
+          <item>
+            <p>non_unicode_codepoint_collation 13 XQ40 / 5 XP40;</p>
+          </item>
+          <item>
+            <p>the 4 XQST0038 failures;</p>
+          </item>
+          <item>
+            <p>XSLT sorts with <code>lang</code>;</p>
+          </item>
+          <item>
+            <p>for the unit tests, Unicode's CollationTest files (owner question 4).</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Replaces</strong>: in <code>src/collation.c</code>, the UCA fallback and the FOCH0002 of fallback=no; the driver's advanced-uca-fallback.</p>
+      </item>
+      <item>
+        <p><strong>7.15a DUCET and the algorithm</strong>:</p>
+        <list>
+          <item>
+            <p>a collation element table (glossary <term name="collation_element_table"/>) generated from <code>allkeys.txt</code> by <code>tools/generate-unicode-tables.py</code>, with implicit weights for Han and unassigned code points computed, not stored;</p>
+          </item>
+          <item>
+            <p>contractions and expansions, variable weighting, and the parameters strength, alternate, maxVariable, backwards, caseLevel, caseFirst, numeric and normalization;</p>
+          </item>
+          <item>
+            <p>the existing sort-key form (<code>fn:collation-key</code>) and substring matching by collation units (F&amp;O 4.0, 5.2) over the new elements;</p>
+          </item>
+          <item>
+            <p>the fallback becomes the table's behaviour.</p>
+          </item>
+          <item>
+            <p><strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D213"/>): the table is read at first use from the DUCET the host serves (option 4; no generated tables, so <code>tools/generate-unicode-tables.py</code> is unchanged); QT4 advanced-uca-fallback 49 of 49 and non_unicode_codepoint_collation 13 of 13 (XQ40) and 5 of 5 (XP40), the XQST0038 cases pass; CollationTest samples (non-ignorable and shifted) pass in <code>tests/collation_uca_test.c</code>. The gate is met. Left for 7.15b: tailorings (lang, reorder) and the XSLT driver serving the DUCET.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>7.15b Tailoring</strong>: <code>lang</code> and <code>reorder</code> through CLDR rules compiled at first use into a tailoring (glossary <term name="tailoring"/>). The rules are a built-in set for a few languages, or come through the resolver (option 4). Owner question 5 names the set.</p>
+        <list>
+          <item>
+            <p><strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D220"/>): option 4 over one resource kind (COLLATION_DATA with <code>urn:sxml:collation-data:</code> + a CLDR path, no COLLATION_TAILORING kind): the CLDR root (<code>allkeys_CLDR.txt</code>) and the LDML files of en, de, fr, it, es, nl and their regions (CLDR 47, <code>third_party/cldr</code>), compiled at first use by <code>src/collation_tailoring.c</code>; reorder over the groups of the generated <code>src/collation_tables.c</code> (<code>tools/generate-collation-tables.py</code>; the DUCET part of <code>tools/generate-unicode-tables.py</code> stays unused). The QT4 and XSLT drivers and the sxml command serve the data; xsl:sort lang works. No QT4 or XT40 case lost. Left: <code>[before n]</code>, special reset positions, prefixes and <code>[suppressContractions]</code> (root's search, eor and emoji types), the JavaScript package's data.</p>
+          </item>
+        </list>
+      </item>
+      <item>
+        <p><strong>Header</strong>: none (the collation URIs are already public). With option 4, <code>processor.h</code> gets the resource kinds COLLATION_DATA and COLLATION_TAILORING.</p>
+      </item>
+      <item>
+        <p><strong>After</strong>: 7.2; 7.15b after 7.15a.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: <code>src/collation.c</code>, <code>src/collation_internal.h</code>, new <code>src/collation_uca.c</code>, <code>src/collation_tailoring.c</code> and <code>src/collation_tables.c</code> (generated), and <code>tools/generate-unicode-tables.py</code> (the DUCET part).</p>
+      </item>
+      <item>
+        <p><strong>Size</strong>: 170–280 KB with built-in tables; about 15 KB of code with option 4.</p>
+      </item>
+      <item>
+        <p><strong>Gate</strong>: ≥ 95 % of the 49 and ≥ 90 % of the others; CollationTest (non-ignorable and shifted) passes in a unit test.</p>
+      </item>
+    </list>
+  </body>
+</packet>

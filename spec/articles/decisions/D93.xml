@@ -1,0 +1,20 @@
+<decision id="D93" status="accepted" source="docs/DECISIONS.md">
+  <title>WebAssembly slice: preopens and the first size budget (packet <ref kind="packet" to="1.28"/>)</title>
+  <body>
+    <p><recorded date="2026-10-17"/>. Node 22.22, WASI SDK 34, <code>wasm</code> preset (MinSizeRel).</p>
+    <list>
+      <item>
+        <p><strong>Preopens</strong>: <code>tools/run-wasi.mjs</code> preopens the working directory as "." (as before) and the source tree, the parent of <code>tools/</code>, under its own absolute path. Tests that find files from <code>__FILE__</code> (<code>xml_conformance</code>: <code>&lt;root&gt;/tests/../third_party/xmlconf</code>) now run under WASI instead of "skipped": 601/175/948, as native. The whole tree, not only <code>third_party/</code>, because wasi-libc picks a preopen by path prefix without resolving "..". <code>qt4/slice</code> already ran in the repository root; 198/198 pass under <code>wasm</code>. The CLI's <code>cli/xpath_*</code> goldens (19) already run under WASI, so no new e2e tests.</p>
+      </item>
+      <item>
+        <p><strong>Sizes</strong> (module stripped with <code>llvm-strip</code>; gzip -9): <code>sxml</code> CLI 1,534,842 bytes raw, 1,213,261 stripped, 358,020 gzip (code 808 KB, data 401 KB of which 374 KB read-only: parse tables); <code>sxml-qt4</code> 1,588,530 / 1,264,250 / 376,528. Archives: <code>libsxml.a</code> 947,910; tree-sitter 189,342; mpdecimal 153,762; grammars xml 93,664, xpath 340,646. Native release <code>sxml</code> stripped: 1,743,480 (x86-64).</p>
+      </item>
+      <item>
+        <p><strong>Time</strong> (3 runs, 4 cores): the slice, <code>sxml-qt4 run tests/qt4/torture-slice.txt</code>: native release 0.89-1.00 s, <code>wasm</code> 1.88-1.92 s (about 2x; Node start-up 0.05 s); <code>xml_conformance</code> 0.11 s native, 0.26 s <code>wasm</code>.</p>
+      </item>
+      <item>
+        <p><strong>Budget</strong> (PLAN.md risks): the stripped <code>sxml</code> CLI module stays under 1.5 MB and 450 KB gzipped until a decision raises it; a change that adds more than 50 KB stripped logs the growth (as 1.2 did). Not yet checked by CI: that needs a size test in CMake or <code>ci.yml</code> (not this packet's files).</p>
+      </item>
+    </list>
+  </body>
+</decision>

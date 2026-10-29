@@ -1,0 +1,4 @@
+<term id="comparator" source="docs/GLOSSARY.md">
+  <name>comparator</name>
+  <definition>A function item of <code>fn:sort-with</code> that orders two items by returning a negative, zero or positive integer</definition>
+</term>

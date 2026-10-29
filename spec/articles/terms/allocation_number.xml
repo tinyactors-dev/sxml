@@ -1,0 +1,4 @@
+<term id="allocation_number" source="docs/GLOSSARY.md">
+  <name>allocation_number</name>
+  <definition>Position of an allocate call among all calls to one allocator, from 1</definition>
+</term>
