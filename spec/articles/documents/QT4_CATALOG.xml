@@ -40,63 +40,43 @@
         <cell>Meaning</cell>
       </row>
       <row>
-        <cell>
-          <code>source role="." file uri validation</code>
-        </cell>
+        <cell><code>source role="." file uri validation</code></cell>
         <cell>XML document. <code>role="."</code> makes it the context item. <code>role="$name"</code> binds an external variable. <code>uri</code> makes it available to <code>fn:doc(uri)</code>. A <code>validation</code> attribute (strict, lax) means schema awareness, so skip the test. <code>@dtd</code>, <code>@retain-location</code> (for <code>fn:location</code>) and <code>@mutable</code> (Update) also occur.</cell>
       </row>
       <row>
-        <cell>
-          <code>param name select as source declared</code>
-        </cell>
+        <cell><code>param name select as source declared</code></cell>
         <cell>External variable. <code>select</code> is an XPath expression, usually a literal or a constructor call. <code>source</code> names a source document. <code>declared="true"</code> means the query prolog already declares it.</cell>
       </row>
       <row>
-        <cell>
-          <code>context-item select</code>
-        </cell>
+        <cell><code>context-item select</code></cell>
         <cell>The context item, given as an expression.</cell>
       </row>
       <row>
-        <cell>
-          <code>resource uri file media-type encoding</code>
-        </cell>
+        <cell><code>resource uri file media-type encoding</code></cell>
         <cell>Text resource for <code>unparsed-text*</code>, <code>json-doc</code> and similar, reached through <code>uri</code>.</cell>
       </row>
       <row>
-        <cell>
-          <code>collection uri</code>
-        </cell>
+        <cell><code>collection uri</code></cell>
         <cell>Contains <code>source</code>, <term name="resource"/> and <code>query</code> elements. An empty or absent <code>uri</code> means the default collection. <code>query</code> is an XQuery expression whose result forms the collection.</cell>
       </row>
       <row>
-        <cell>
-          <code>namespace prefix uri</code>
-        </cell>
+        <cell><code>namespace prefix uri</code></cell>
         <cell>Statically known namespace. An empty prefix sets the default element namespace. Only pure XPath tests use it.</cell>
       </row>
       <row>
-        <cell>
-          <code>decimal-format name ...</code>
-        </cell>
+        <cell><code>decimal-format name ...</code></cell>
         <cell>A named or default decimal format for <code>format-number</code>. Properties are <code>decimal-separator</code>, <code>grouping-separator</code>, <code>zero-digit</code>, <code>digit</code>, <code>minus-sign</code>, <code>percent</code>, <code>per-mille</code>, <code>pattern-separator</code>, <code>exponent-separator</code>, <code>infinity</code> and <code>NaN</code>. In 4.0 a property may have the form <code>c:rendition</code>, for example <code>%:pc</code>. Only pure XPath tests use it.</cell>
       </row>
       <row>
-        <cell>
-          <code>static-base-uri uri</code>
-        </cell>
+        <cell><code>static-base-uri uri</code></cell>
         <cell>The static base URI. <code>#UNDEFINED</code> means the base URI is absent. If no value is given, the base URI is the URI of the test file.</cell>
       </row>
       <row>
-        <cell>
-          <code>collation uri default</code>
-        </cell>
+        <cell><code>collation uri default</code></cell>
         <cell>The test uses this collation URI. <code>default="true"</code> makes it the default collation. Skip the test if the collation is not supported (only codepoint is required).</cell>
       </row>
       <row>
-        <cell>
-          <code>schema uri file</code>
-        </cell>
+        <cell><code>schema uri file</code></cell>
         <cell>Schema import. This needs schema awareness, so skip the test.</cell>
       </row>
       <row>
@@ -140,21 +120,15 @@
         <cell>Passes when</cell>
       </row>
       <row>
-        <cell>
-          <code>assert-eq</code>
-        </cell>
+        <cell><code>assert-eq</code></cell>
         <cell>The result is one atomic value, <code>eq</code> the expected expression. Numeric promotion and untypedAtomic casting apply.</cell>
       </row>
       <row>
-        <cell>
-          <code>assert-deep-eq</code>
-        </cell>
+        <cell><code>assert-deep-eq</code></cell>
         <cell><code>deep-equal($result, expected)</code>.</cell>
       </row>
       <row>
-        <cell>
-          <code>assert-permutation</code>
-        </cell>
+        <cell><code>assert-permutation</code></cell>
         <cell>Some permutation of the result is deep-equal to the expected value. NaN equals NaN.</cell>
       </row>
       <row>
@@ -162,57 +136,39 @@
         <cell>The result is exactly <code>xs:boolean</code> true or false, not an effective boolean value.</cell>
       </row>
       <row>
-        <cell>
-          <code>assert-empty</code>
-        </cell>
+        <cell><code>assert-empty</code></cell>
         <cell>The result is <code>()</code>.</cell>
       </row>
       <row>
-        <cell>
-          <code>assert-count</code>
-        </cell>
+        <cell><code>assert-count</code></cell>
         <cell>The result has N items. N is an integer literal.</cell>
       </row>
       <row>
-        <cell>
-          <code>assert-type</code>
-        </cell>
+        <cell><code>assert-type</code></cell>
         <cell><code>$result instance of T</code>. The content is a SequenceType.</cell>
       </row>
       <row>
-        <cell>
-          <code>assert</code>
-        </cell>
+        <cell><code>assert</code></cell>
         <cell>The effective boolean value of the content expression is true, with <code>$result</code> bound.</cell>
       </row>
       <row>
-        <cell>
-          <code>assert-string-value</code>
-        </cell>
+        <cell><code>assert-string-value</code></cell>
         <cell><code>string-join($result ! string(), " ")</code> equals the literal text content. With <code>normalize-space="true"</code>, both sides are normalized.</cell>
       </row>
       <row>
-        <cell>
-          <code>assert-xml</code>
-        </cell>
+        <cell><code>assert-xml</code></cell>
         <cell>The result, serialized (<code>method=xml</code>, <code>indent=no</code>, no XML declaration), matches the literal XML fragment, or the one in <code>@file</code>. Compare canonically or with <code>deep-equal</code> after wrapping in an element. With <code>ignore-prefixes="true"</code>, prefixes are ignored.</cell>
       </row>
       <row>
-        <cell>
-          <code>serialization-matches</code>
-        </cell>
+        <cell><code>serialization-matches</code></cell>
         <cell>The result, serialized with the query's own parameters, matches a regex (<code>@flags</code>, unanchored). The regex is literal text or <code>@file</code>.</cell>
       </row>
       <row>
-        <cell>
-          <code>assert-serialization-error code</code>
-        </cell>
+        <cell><code>assert-serialization-error code</code></cell>
         <cell>Evaluation succeeds and serialization fails.</cell>
       </row>
       <row>
-        <cell>
-          <code>error code</code>
-        </cell>
+        <cell><code>error code</code></cell>
         <cell>Evaluation raises an error. <code>code</code> is an NCName in the <code>err</code> namespace, <code>Q{uri}local</code>, or <code>*</code>. A different code is usually reported as "pass, wrong error".</cell>
       </row>
       <row>
@@ -220,9 +176,7 @@
         <cell>Every child or at least one child passes. These are used to allow implementation-dependent outcomes, often a value or an <code>error</code>.</cell>
       </row>
       <row>
-        <cell>
-          <code>not</code>
-        </cell>
+        <cell><code>not</code></cell>
         <cell>The child assertion fails.</cell>
       </row>
     </table>

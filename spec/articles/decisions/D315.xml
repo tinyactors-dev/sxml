@@ -19,9 +19,7 @@
       </item>
     </list>
     <p><strong>Whom it serves, who pays.</strong> First the maintainer of a rule set (every error at <code>rules.sch:LINE:COLUMN</code> in one run, also inside abstract patterns) and the person reading a finding (the document's line and column beside the XPath); then hosts in C and JavaScript that validate many documents without a third-party stylesheet or its 10 s compile. They pay: a reader, an expander and a builder in C (six source files), one public header, the <code>validate</code> command's options, the JavaScript API, a book chapter, and two small entries in existing files (<code>src/xslt_read.c</code> reads one foreign declaration into a given AST; <code>src/xslt.c</code> compiles a given AST). Nothing per event of XPath, XQuery or XSLT: no IR kind, no evaluator change, no generated XSLT text. Validation costs one walk of the document per active pattern (EN 16931: 3, XRechnung: 4).</p>
-    <p>
-      <strong>The path.</strong>
-    </p>
+    <p><strong>The path.</strong></p>
     <list ordered="true">
       <item>
         <p><em>Read</em> (<code>src/schematron_read.c</code>): the schematron document is parsed by the processor's XML parser into an arena tree with locations; one walk with an explicit stack (<ref kind="decision" to="D71"/>) resolves inclusions in place (6.2): <code>sch:include</code> (5.4.6) and <code>sch:extends href</code> (5.4.4), each document parsed once, by absolute URI; a document on the path of inclusions is <code>schematron:include</code>. It checks the query binding first (see "Query bindings"), and records the <em>index</em>: the <code>ns</code>, schema <code>param</code>, <code>let</code>, <code>phase</code>, <term name="pattern"/> and <code>group</code> (abstract or not), <code>rules</code>, <code>diagnostics</code>, <code>properties</code>, <code>title</code> and foreign XSLT children of the schema, those an external declaration brings included, in order, as (tree, node) pairs, with tables of ids for patterns, abstract rules, diagnostics, properties and phases. Every error found goes to the report sink and reading goes on (A).</p>
@@ -62,9 +60,7 @@
         <p><em>from</em> (5.5.7): evaluated at the instance root; its nodes, less those inside another of them (so no node is visited twice), are where the phase's patterns start instead of the node; an item that is not a node is XPTY0004. Not for patterns with <code>documents</code> (5.5.7). Variables outside rules are unaffected (5.5.7), being globals.</p>
       </item>
     </list>
-    <p>
-      <strong>The mapping, construct by construct.</strong>
-    </p>
+    <p><strong>The mapping, construct by construct.</strong></p>
     <list>
       <item>
         <p><term name="schema"/> (5.4.17): <code>queryBinding</code> (see "Query bindings"); <code>defaultPhase</code> (an id that names no phase is <code>schematron:reference</code>); <code>title</code>, <code>schemaVersion</code> and <code>schematronEdition</code> go to SVRL and to <code>sxml_schematron_describe</code>; <code>id</code> is not used. <code>schematronEdition</code> (5.5.15): any value is accepted, never an error (the owner, 8b; the "shall be 2025" binds schema authors), and its value or absence is reported at user option, as 5.5.15 requires, by <code>sxml_schematron_describe</code>, the CLI's JSON and SVRL's attribute. <code>ns prefix uri</code> (5.4.10) are the statically known namespaces of every Schematron expression, besides XPath's predeclared ones; the XML namespace declarations of the documents are not (5.4.10 says so; SchXslt's generated templates agree). <em>Amended 2026-10-29 (<ref kind="decision" to="D331"/>):</em> "XPath's predeclared ones" are the prefixes of the function library, <code>xs</code>, <code>fn</code>, <code>math</code>, <term name="map"/>, <term name="array"/> and <code>err</code>, which every binding makes available (Annexes H to L) and which 7.28 had left out; they are bound without <code>sch:ns</code>, an <code>sch:ns</code> of one of them wins, and <code>xml</code> is XPath's own. <code>sch:p</code> is not used.</p>
@@ -246,9 +242,7 @@
       </item>
     </list>
     <p><strong>JavaScript</strong> (the same compile-once, validate-many shape as <code>Processor.compileSchema</code> and <code>Schema.validate</code>): <code>processor.compileSchematron(schema: string | {text?: string | Uint8Array, uri?: string}, options?: {phase?: string, baseUri?: string, parameters?: Record&lt;string, string&gt;}): Schematron</code>, throwing a <code>SchemaError</code> with every report when the schema has errors, as <code>compileSchema</code> does; <code>schematron.title</code>, <code>.schemaVersion</code>, <code>.schematronEdition</code>, <code>.queryBinding</code>, <code>.phase</code>; <code>schematron.validate(input: Value | string | Uint8Array, options?: {uri?: string, firedRules?: boolean, svrl?: boolean}): SchematronResult</code>, where <code>SchematronResult</code> is <code>{valid: boolean, phase: string, findings: SchematronFinding[], svrl?: string}</code> and a finding has <code>kind</code>, <code>id</code>, <code>role</code>, <code>flag</code>, <code>severity</code>, <code>isError</code>, <code>message</code>, <code>diagnostics</code> (<code>{id, language, text}</code>), <code>properties</code> (<code>{id, role, scheme, text}</code>), <code>patternId</code>, <code>test</code>, <code>path</code>, <code>sourceName</code>, <code>lineNumber</code>, <code>columnNumber</code> (the instance) and <code>schemaSourceName</code>, <code>schemaLineNumber</code>, <code>schemaColumnNumber</code> (the assertion). Text input is parsed with locations. <code>dispose()</code> as for <code>Schema</code>. Field names follow the package's (<code>lineNumber</code>, <code>sourceName</code>).</p>
-    <p>
-      <strong>Where the standard overturned the first version.</strong>
-    </p>
+    <p><strong>Where the standard overturned the first version.</strong></p>
     <list>
       <item>
         <p>Binding names are compared ignoring case (6.5, every annex), not case-sensitively.</p>
@@ -290,9 +284,7 @@
         <p>Exit status 1, not 4, for an unsupported binding (the owner, C); <code>xslt</code>, <code>xpath</code> and no attribute read as 4.0 (the owner, B).</p>
       </item>
     </list>
-    <p>
-      <strong>Rejected.</strong>
-    </p>
+    <p><strong>Rejected.</strong></p>
     <list>
       <item>
         <p>Generating XSLT text and compiling it (the owner, 7.27): the cost is in the text, and errors point into generated text.</p>

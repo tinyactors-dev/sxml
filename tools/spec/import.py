@@ -6,7 +6,7 @@
 While the Markdown files under docs/ are the source (spec/README.md, "The
 shadow period"), this script makes the shadow copy from them again: it
 replaces spec/articles/ entirely and writes each article in canonical form
-(`sxml serialize --indent`). `tools/spec/spec roundtrip` then checks that
+(spec/queries/canonicalize.xq). `tools/spec/spec roundtrip` then checks that
 the articles assemble back to the same text.
 
 Articles: a decision per "### Dn." of DECISIONS.md, a proposal per item of
@@ -15,7 +15,6 @@ of docs/tasks/, a log entry per "##" section of LOG.md, and a document for
 each Markdown file, which includes the articles taken out of it.
 """
 import argparse
-import concurrent.futures
 import os
 import re
 import shutil
@@ -267,11 +266,11 @@ def mark_status(article, body):
     paragraph.insert(0, status)
 
 
-def canonicalize(program, path):
-    result = subprocess.run([program, "serialize", "--indent", "--output", path, "--force", path],
-                            capture_output=True, text=True)
+def canonicalize(program):
+    result = subprocess.run([program, "xquery", "--allow-put", "--force", "spec/queries/canonicalize.xq"],
+                            cwd=ROOT, capture_output=True, text=True)
     if result.returncode != 0:
-        raise SystemExit("import: %s: %s" % (path, result.stderr.strip()))
+        raise SystemExit("import: " + result.stderr.strip())
 
 
 def main():
@@ -289,8 +288,7 @@ def main():
         os.makedirs(os.path.dirname(path), exist_ok=True)
         ElementTree.ElementTree(element).write(path, encoding="unicode")
         written.append(path)
-    with concurrent.futures.ThreadPoolExecutor(os.cpu_count() or 4) as pool:
-        list(pool.map(lambda path: canonicalize(arguments.sxml, path), written))
+    canonicalize(arguments.sxml)
     counts = {}
     for name in importer.articles:
         counts[name.split(os.sep)[0]] = counts.get(name.split(os.sep)[0], 0) + 1

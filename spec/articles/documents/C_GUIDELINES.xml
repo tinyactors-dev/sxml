@@ -181,9 +181,7 @@ typedef struct sxml_allocator {
         <p><strong>Interfaces are passed by value.</strong> They are two pointers.</p>
       </item>
       <item>
-        <p>
-          <strong>Lifetime is stated where the interface is accepted.</strong>
-        </p>
+        <p><strong>Lifetime is stated where the interface is accepted.</strong></p>
       </item>
       <item>
         <p><strong>Calls go through small wrappers</strong>, such as <code>sxml_allocator_allocate(allocator, request, &amp;memory)</code>.</p>
@@ -213,14 +211,10 @@ typedef struct sxml_allocator {
         <p><strong>Detailed diagnostics</strong> go into an optional diagnostic record supplied by the caller, never into global state or <code>errno</code>.</p>
       </item>
       <item>
-        <p>
-          <strong>Library code never calls <code>abort</code> or <code>exit</code>, and never prints.</strong>
-        </p>
+        <p><strong>Library code never calls <code>abort</code> or <code>exit</code>, and never prints.</strong></p>
       </item>
       <item>
-        <p>
-          <strong>Every early return releases what the function acquired.</strong>
-        </p>
+        <p><strong>Every early return releases what the function acquired.</strong></p>
       </item>
     </list>
   </section>
@@ -253,9 +247,7 @@ typedef struct sxml_memory_view {
         <p><strong>Untrusted input cannot cause unbounded work or memory.</strong> Limits such as maximum nesting depth are part of the configuration.</p>
       </item>
       <item>
-        <p>
-          <strong>No variable-length arrays and no <code>alloca</code>.</strong>
-        </p>
+        <p><strong>No variable-length arrays and no <code>alloca</code>.</strong></p>
       </item>
       <item>
         <p><strong>No recursion.</strong> No function calls itself, directly, through other functions, or through a function pointer or operations table. Walks over trees, expressions, types, patterns and nested values use a loop with an explicit stack or work list that lives in allocator memory and is bounded by a configured limit. Nesting depth in the input then costs heap, never C stack, so deep input cannot overflow the stack on any platform (WebAssembly has 64 KiB by default). Enforced by clang-tidy <code>misc-no-recursion</code> within a file; recursion through function pointers or across files is checked in review. Vendored third-party code is exempt (<ref kind="decision" to="D12"/>).</p>
@@ -284,9 +276,7 @@ typedef struct sxml_memory_view {
         <p><strong><code>static</code> for everything not exported</strong>; only the public API is exported.</p>
       </item>
       <item>
-        <p>
-          <strong>No global mutable state.</strong>
-        </p>
+        <p><strong>No global mutable state.</strong></p>
       </item>
     </list>
   </section>
@@ -310,17 +300,13 @@ typedef struct sxml_memory_view {
         <p><strong>Enums</strong> for closed sets; <code>switch</code> on enums lists every case and has no <code>default</code>.</p>
       </item>
       <item>
-        <p>
-          <strong><code>const</code> everywhere it is true.</strong>
-        </p>
+        <p><strong><code>const</code> everywhere it is true.</strong></p>
       </item>
       <item>
         <p><strong>One declaration per line</strong>, at first use, initialized.</p>
       </item>
       <item>
-        <p>
-          <strong>Macros only for what functions cannot do.</strong>
-        </p>
+        <p><strong>Macros only for what functions cannot do.</strong></p>
       </item>
       <item>
         <p><strong>No implicit conversions</strong> that change sign or lose precision.</p>
@@ -361,9 +347,7 @@ typedef struct sxml_memory_view {
         <p><strong>Headers first.</strong> Implementation tasks may not edit public headers.</p>
       </item>
       <item>
-        <p>
-          <strong>Glossary before code.</strong>
-        </p>
+        <p><strong>Glossary before code.</strong></p>
       </item>
       <item>
         <p><strong>Small, gated tasks</strong> with defined tests.</p>
@@ -372,9 +356,7 @@ typedef struct sxml_memory_view {
         <p><strong>Separate review pass</strong> that reports findings without rewriting.</p>
       </item>
       <item>
-        <p>
-          <strong>Fix drift immediately.</strong>
-        </p>
+        <p><strong>Fix drift immediately.</strong></p>
       </item>
     </list>
   </section>

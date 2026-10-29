@@ -17,44 +17,32 @@
       <row>
         <cell>spec</cell>
         <cell>The Vane protocol as an Internet-Draft in XML: indexes of requirements and terms, checks, targeted edits, HTML and RFC-style text</cell>
-        <cell>
-          <code>examples/spec/</code>
-        </cell>
+        <cell><code>examples/spec/</code></cell>
       </row>
       <row>
         <cell>svg</cell>
         <cell>A small diagramming tool: a graph description, a computed layout, SVG written by XQuery and XSLT, SVG transformed</cell>
-        <cell>
-          <code>examples/svg/</code>
-        </cell>
+        <cell><code>examples/svg/</code></cell>
       </row>
       <row>
         <cell>scxml</cell>
         <cell>A flag's rollout lifecycle as an SCXML machine whose data and events carry XSD types and whose states carry XHTML documentation; checks and generated documentation</cell>
-        <cell>
-          <code>examples/scxml/</code>
-        </cell>
+        <cell><code>examples/scxml/</code></cell>
       </row>
       <row>
         <cell>call-chains</cell>
         <cell>The flag service's TypeScript before and after a change, its call graph, and the diff of its call chains</cell>
-        <cell>
-          <code>examples/call-chains/</code>
-        </cell>
+        <cell><code>examples/call-chains/</code></cell>
       </row>
       <row>
         <cell>traces</cell>
         <cell>OTLP JSON traces of the same change before and after, and the diff of cardinalities and participants, rendered as HTML and SVG</cell>
-        <cell>
-          <code>examples/traces/</code>
-        </cell>
+        <cell><code>examples/traces/</code></cell>
       </row>
       <row>
         <cell>codegen (book-22)</cell>
         <cell>Vane's API as XSD types and remote functions; generated SDK clients for the browser and Node.js, the service's request validation and an OpenAPI document</cell>
-        <cell>
-          <code>examples/codegen/</code>
-        </cell>
+        <cell><code>examples/codegen/</code></cell>
       </row>
     </table>
     <p>The links between projects are real and small: the machine's <code>vane:implements</code> attributes name the draft's requirement anchors; the machine's numbers (3 failed checks, 600 s rollout steps, a 300 s pause) are the draft's; the code change of call-chains is the change the traces record; the diagram vocabulary of svg draws the system, the machine, the call-chain diff and the trace diff; the codegen project generates the SDK clients and request checks of the API that the traces record. The book says once, early (introduction), that the projects share a story, and each project chapter can be read on its own.</p>

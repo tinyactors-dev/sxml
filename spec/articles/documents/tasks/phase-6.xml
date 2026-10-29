@@ -23,9 +23,7 @@
         <p><strong>The same API in three languages</strong> (below): a <code>Processor</code> (resolver, optional features), <code>parse</code>, <code>compile</code> once and <code>evaluate</code> many times, <code>value</code> from host data by the <code>fn:parse-json</code> rule, <code>serialize</code> with <code>fn:serialize</code>'s options, XQuery (<code>compileQuery</code>), XSLT (<code>compileStylesheet</code>), XSD (<code>compileSchema</code>), side results delivered after the call, errors with status, code, description, source name, line and column, and the DUCET shipped beside the library.</p>
       </item>
       <item>
-        <p>
-          <strong>Ownership is explicit.</strong>
-        </p>
+        <p><strong>Ownership is explicit.</strong></p>
         <list>
           <item>
             <p>Kotlin: every object that owns C memory is <code>AutoCloseable</code> (<code>use {}</code>). A <code>java.lang.ref.Cleaner</code> releases what is never closed, as the JavaScript package's <code>FinalizationRegistry</code> does. Objects made by a processor hold it strongly, so it is not collected while they live. Closing a processor closes everything it made.</p>

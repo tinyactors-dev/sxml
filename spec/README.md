@@ -48,7 +48,7 @@ This is a **shadow copy** for now: `docs/` is still the source (see
 - **State**: a decision's `@status` (`accepted`, `superseded` with
   `@superseded-by`); a packet's `<status value="done" date="..."/>` at the
   start of its body (it renders as `**Done** 2026-10-20`).
-- **Canonical form**: a file as `sxml serialize --indent` writes it, with
+- **Canonical form**: a file as `spec:put` writes it: indented, except inside the elements that hold text, with
   a final newline. `spec:store` writes nothing else, so one changed field
   is one changed line in `git diff`.
 

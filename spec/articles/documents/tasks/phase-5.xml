@@ -131,21 +131,15 @@
         <cell>Description</cell>
       </row>
       <row>
-        <cell>
-          <code>--schema=SCHEMA</code>
-        </cell>
+        <cell><code>--schema=SCHEMA</code></cell>
         <cell>A schema document; repeatable, at least one. All of them, with every document they include, import, redefine or override (local files, relative to the referring document's path), form one schema</cell>
       </row>
       <row>
-        <cell>
-          <code>--mode=MODE</code>
-        </cell>
+        <cell><code>--mode=MODE</code></cell>
         <cell><code>strict</code> (default): each FILE's document element must have a global declaration; <code>lax</code>: one without is assessed laxly and is "not known"</cell>
       </row>
       <row>
-        <cell>
-          <code>--format=FORMAT</code>
-        </cell>
+        <cell><code>--format=FORMAT</code></cell>
         <cell>Report format: <code>text</code> (default) or <code>json</code></cell>
       </row>
     </table>

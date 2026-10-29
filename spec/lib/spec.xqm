@@ -17,6 +17,16 @@ import schema default element namespace "" at "../schema/spec.xsd";
 declare variable $spec:root as xs:string := resolve-uri("../../", static-base-uri());
 
 (:~ The directory of each kind of article, under spec/articles. :)
+(:~
+ : The canonical form of an article file: indented, except inside the
+ : elements whose content is text, where indentation would add text.
+ :)
+declare variable $spec:serialization as map(*) := {
+  "indent": true(),
+  "suppress-indentation": ("title", "summary", "name", "definition", "p", "heading", "cell",
+                           "strong", "em", "link", "code", "pre", "comment") ! xs:QName(.)
+};
+
 declare variable $spec:directories as map(xs:string, xs:string) := {
   "decision": "decisions", "proposal": "proposals", "term": "terms",
   "packet": "packets", "log-entry": "log", "document": "documents"
@@ -214,12 +224,49 @@ declare function spec:summary($article as element()) as xs:string {
 
 (:~ NODE (an article, section or block) as Markdown, with heading LEVEL. :)
 declare function spec:markdown($spec as map(*), $node as element(), $level as xs:integer) as xs:string {
-  string-join(spec:blocks($spec, $node, $level, "", true()), "&#10;")
+  string-join(spec:wrap(spec:blocks($spec, $node, $level, "", true()), 79), "&#10;")
 };
 
 (:~ NODE as Markdown, each included article as one line naming it. :)
 declare function spec:outline-markdown($spec as map(*), $node as element(), $level as xs:integer) as xs:string {
-  string-join(spec:blocks($spec, $node, $level, "", false()), "&#10;")
+  string-join(spec:wrap(spec:blocks($spec, $node, $level, "", false()), 79), "&#10;")
+};
+
+(:~
+ : LINES of Markdown with each paragraph line wrapped at WIDTH columns:
+ : continuation lines are indented under the text of a list item or
+ : quoted. Code fences, tables, headings and comments are left alone, and
+ : no line starts with a word that would begin a block there.
+ :)
+declare function spec:wrap($lines as xs:string*, $width as xs:integer) as xs:string* {
+  let $fences := for $line at $position in $lines where matches($line, "^\s*(> )*```") return $position
+  for $line at $position in $lines
+  let $in-fence := count($fences[. le $position]) mod 2 = 1 or $position = $fences
+  return
+    if ($in-fence or string-length($line) le $width or matches($line, "^\s*(> )*(\||#|<!--)")) then $line
+    else
+      let $prefix := replace($line, "^((\s*(> )*)([-*+] |\d+[.)] )?(\[[ xX]\] )?).*$", "$1")
+      let $continuation := replace($prefix, "[-*+\d.)\[\]xX ]", " ") => replace("^(\s*)((> )*)", "$1$2")
+      let $continuation := string-join((
+        replace($prefix, "^(\s*(> )*).*$", "$1"),
+        (1 to string-length($prefix) - string-length(replace($prefix, "^(\s*(> )*).*$", "$1"))) ! " "))
+      let $words := tokenize(substring($line, string-length($prefix) + 1), " ")[.]
+      return spec:fill($words, $prefix, $continuation, $width)
+};
+
+declare %private function spec:fill($words as xs:string*, $prefix as xs:string, $continuation as xs:string,
+    $width as xs:integer) as xs:string* {
+  let $lines := fold-left($words, [], fn($lines, $word) {
+    if (array:size($lines) = 0) then [$prefix || $word]
+    else
+      let $last := array:foot($lines)
+      return
+        if (string-length($last) + 1 + string-length($word) le $width
+            or matches($word, "^([-*+>|=]+|\d+[.)]|#+|```.*|<!--.*)$")) then
+          array:put($lines, array:size($lines), $last || " " || $word)
+        else array:append($lines, $continuation || $word)
+  })
+  return $lines?*
 };
 
 declare %private function spec:blocks($spec as map(*), $node as element(), $level as xs:integer,
@@ -440,13 +487,14 @@ declare function spec:check($spec as map(*)) as xs:string* {
 };
 
 (:~
- : The article files not in canonical form, as `sxml serialize --indent`
- : and spec:store write it. A file that is not was written by hand.
+ : The article files not in canonical form ($spec:serialization, with a
+ : final newline), the form spec:put writes. One that is not was edited
+ : as text.
  :)
 declare function spec:not-canonical($spec as map(*)) as xs:string* {
   for $article in $spec?articles
   let $uri := document-uri($article)
-  where serialize($article, { "indent": true() }) || "&#10;" ne unparsed-text($uri)
+  where serialize($article, $spec:serialization) || "&#10;" ne unparsed-text($uri)
   return "error: " || substring-after($uri, $spec:root) || " is not in canonical form; it was edited as text"
 };
 
@@ -482,14 +530,19 @@ declare function spec:refusals($spec as map(*), $changed as element()*) as xs:st
 
 (:~
  : Store CHANGED, new or replacing articles with the same keys, each in
- : canonical form (indented, as `sxml serialize --indent` writes), or
+ : canonical form (spec:put), or
  : store nothing and raise spec:refused with what the change would break.
  :)
 declare updating function spec:store($spec as map(*), $changed as element()*) {
   let $refusals := spec:refusals($spec, $changed)
   return
     if (exists($refusals)) then error(xs:QName("spec:refused"), "refused: " || string-join($refusals, "&#10;"))
-    else for $article in $changed return put(document { $article, text { "&#10;" } }, spec:file($spec, $article), { "indent": true() })
+    else for $article in $changed return spec:put($article, spec:file($spec, $article))
+};
+
+(:~ Write ARTICLE to the file URI in canonical form. :)
+declare updating function spec:put($article as element(), $uri as xs:string) {
+  put(document { $article, text { "&#10;" } }, $uri, $spec:serialization)
 };
 
 (:~ DOCUMENT with an include of ARTICLE added at the end of SECTION (or the document). :)

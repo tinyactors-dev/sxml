@@ -10,9 +10,7 @@
         <p><strong>Deviation: the request names its processor.</strong> <code>sxml_host_resource_request</code> gains a last field, <term name="processor"/>: the processor that asks. A host copies its answer into memory from <code>sxml_host_allocate</code> on that processor, so every host needs it. The JavaScript import needs it too, because the package finds its processor state by that address. A resolver state cannot hold the processor, because the state is set before the processor exists. The struct is 6 words on wasm32 (was 5). The package reads only the first 5, so <code>src/index.ts</code> does not change.</p>
       </item>
       <item>
-        <p>
-          <strong>Deviation: three JavaScript files instead of two.</strong>
-        </p>
+        <p><strong>Deviation: three JavaScript files instead of two.</strong></p>
         <list>
           <item>
             <p><code>sxml_javascript_exports.c</code> holds the exports of both modules.</p>
