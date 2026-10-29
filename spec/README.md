@@ -151,11 +151,10 @@ invalid article, a broken reference or a stale page is an error.
 
 ## Committing
 
-Commit the articles a change writes with the pages: `git commit -m "..."
--- spec/articles/decisions/D332.xml docs/`. Every write is whole and
-checked, so a shared article (this week's log entry, a document) or a
-page that holds another agent's finished write can be committed with
-yours.
+Commit the spec as a whole, new articles included, in one command:
+`git add spec/articles docs && git commit -m "..." -- spec/articles docs`.
+A pathspec alone leaves new files out. Every write is whole and checked,
+so another agent's finished writes can be committed with yours.
 
 ## Checks and tests
 

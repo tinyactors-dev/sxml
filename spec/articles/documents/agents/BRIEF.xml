@@ -77,7 +77,7 @@
         <p>Never move the shared branch back (<code>git reset</code>, <code>git commit --amend</code>, <code>git rebase -i</code> of pushed commits): another agent's commit may be on top. A commit that took something by mistake stays; report it.</p>
       </item>
       <item>
-        <p>The spec is one file per article, and every write of <code>tools/spec/spec</code> is whole and checked. Commit the articles you wrote with the pages they change: <code>git commit -m "..." -- spec/articles/decisions/D332.xml docs/</code>. A shared article (this week's log entry, a document) or a page may hold another agent's finished write; committing it with yours is harmless.</p>
+        <p>The spec is one file per article, and every write of <code>tools/spec/spec</code> is whole and checked. Commit the spec as a whole, new articles included, in one command: <code>git add spec/articles docs &amp;&amp; git commit -m "..." -- spec/articles docs</code> (a pathspec alone leaves new files out). It may hold another agent's finished writes; committing them with yours is harmless.</p>
       </item>
       <item>
         <p>For part of a shared file outside the spec (a driver's tables, <code>src/system_property.c</code>), stage only your hunk (<code>git apply --cached</code> of your patch) and then commit the index with <strong>no pathspec</strong> (<code>git commit -m "..."</code>) in the same command: a commit with a pathspec takes the named files from the working tree, others' unfinished edits too. Check <code>git show --stat HEAD</code> before pushing.</p>

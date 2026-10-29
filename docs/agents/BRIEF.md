@@ -80,10 +80,10 @@ you implement or use.
   rebase -i` of pushed commits): another agent's commit may be on top. A commit
   that took something by mistake stays; report it.
 - The spec is one file per article, and every write of `tools/spec/spec` is
-  whole and checked. Commit the articles you wrote with the pages they change:
-  `git commit -m "..." -- spec/articles/decisions/D332.xml docs/`. A shared
-  article (this week's log entry, a document) or a page may hold another
-  agent's finished write; committing it with yours is harmless.
+  whole and checked. Commit the spec as a whole, new articles included, in one
+  command: `git add spec/articles docs && git commit -m "..." -- spec/articles
+  docs` (a pathspec alone leaves new files out). It may hold another agent's
+  finished writes; committing them with yours is harmless.
 - For part of a shared file outside the spec (a driver's tables,
   `src/system_property.c`), stage only your hunk (`git apply --cached` of your
   patch) and then commit the index with **no pathspec** (`git commit -m "..."`)
