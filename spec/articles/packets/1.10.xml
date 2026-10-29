@@ -1,4 +1,4 @@
-<packet id="1.10" source="docs/tasks/phase-1.md">
+<packet id="1.10">
   <title>Arrays and function items (implementation)</title>
   <body>
     <p>After <ref kind="packet" to="1.7"/>. Owns <code>src/xdm_array.c</code>, <code>src/xdm_function.c</code>, <code>tests/xdm_array_test.c</code>, <code>tests/xdm_function_test.c</code>. Persistent arrays with O(log n) put, insert, remove and slice; function items (<ref kind="decision" to="D38"/>); maps and arrays answering <code>sxml_function_item_call</code>. Done when 10⁵ appends stay O(n log n) and captures are released with the item. Spec: XDM 4.0 §8.1, §8.4. <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D64"/>): AVL arrays of flat, run and branch nodes (split and join; 10^5 appends at most 1 + 3 x height allocations each), function items with retained captures and body state, maps and arrays as map:get and array:get.</p>

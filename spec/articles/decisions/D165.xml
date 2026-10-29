@@ -1,4 +1,4 @@
-<decision id="D165" status="accepted" source="docs/DECISIONS.md">
+<decision id="D165" status="accepted">
   <title>Phase 5 design: schema.h, the substrate additions, the XSD suite (packet <ref kind="packet" to="5.1"/>)</title>
   <body>
     <p><recorded date="2026-10-18"/>. Plans Phase 5 (<ref kind="decision" to="D164"/>) in <code>docs/tasks/phase-5.md</code>; completes <ref kind="decision" to="D98"/>'s deferred "registering schema-derived atomic types" and the Phase 5 notes of <ref kind="decision" to="D32"/>, <ref kind="decision" to="D53"/>, <ref kind="decision" to="D58"/>, <ref kind="decision" to="D97"/> and <ref kind="decision" to="D162"/>.</p>

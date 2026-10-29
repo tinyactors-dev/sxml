@@ -1,4 +1,4 @@
-<decision id="D180" status="accepted" source="docs/DECISIONS.md">
+<decision id="D180" status="accepted">
   <title>Conformance sweep 2 (packet <ref kind="packet" to="5.13"/>)</title>
   <body>
     <p><recorded date="2026-10-18"/>. Clears <ref kind="decision" to="D179"/>'s six XT40 errors at their causes; resolves the Proposed item "xslt.h reads the host's in-scope schemas".</p>

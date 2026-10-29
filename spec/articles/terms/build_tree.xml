@@ -1,4 +1,4 @@
-<term id="build_tree" source="docs/GLOSSARY.md">
+<term id="build_tree">
   <name>build_tree</name>
   <definition>The <code>build-tree</code> setting of an output definition: whether an unserialized result is turned into a document node (XSLT 4.0, 26.1)</definition>
 </term>

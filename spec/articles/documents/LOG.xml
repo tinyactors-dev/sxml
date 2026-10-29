@@ -1,6 +1,6 @@
-<document id="LOG" source="docs/LOG.md">
+<document id="LOG" file="docs/LOG.md">
   <title>Weekly log</title>
-  <p>One short entry per week, newest first: what passed, what's next, what is blocked.</p>
+  <p>One short entry per week, newest first: what passed, what's next, what is blocked. Add an item to this week's entry with <code>tools/spec/spec log TEXT</code>.</p>
   <include kind="log-entry" to="week-of-2026-10-26"/>
   <include kind="log-entry" to="week-of-2026-10-19"/>
   <include kind="log-entry" to="open-questions-at-the-phase-0-gate-task-0-8"/>

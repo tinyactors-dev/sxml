@@ -1,4 +1,4 @@
-<term id="unexpanded_declaration" source="docs/GLOSSARY.md">
+<term id="unexpanded_declaration">
   <name>unexpanded_declaration</name>
   <definition>A markup declaration of external DTD text with parameter-entity references outside its literals, which matches its production only after the references are replaced (XML 1.0, section 4.4.8)</definition>
 </term>

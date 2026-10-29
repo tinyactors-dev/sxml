@@ -1,4 +1,4 @@
-<term id="output_buffer" source="docs/GLOSSARY.md">
+<term id="output_buffer">
   <name>output_buffer</name>
   <definition>The built-in output stream: collects bytes in memory</definition>
 </term>

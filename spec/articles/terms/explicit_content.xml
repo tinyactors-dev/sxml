@@ -1,4 +1,4 @@
-<term id="explicit_content" source="docs/GLOSSARY.md">
+<term id="explicit_content">
   <name>explicit_content</name>
   <definition>The particle a complex type definition's XML representation gives itself, before the complex types stage combines it with the base type's (XSD 1.1 Part 1, 3.4.2.3.3)</definition>
 </term>

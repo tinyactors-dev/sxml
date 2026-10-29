@@ -1,4 +1,4 @@
-<decision id="D316" status="accepted" source="docs/DECISIONS.md">
+<decision id="D316" status="accepted">
   <title>Cheap coercion of one item: single-item shortcuts (packet <ref kind="packet" to="perf-8"/>)</title>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D85"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D259"/>, <ref kind="decision" to="D281"/>, <ref kind="decision" to="D309"/>. No public header changed.</p>

@@ -1,4 +1,4 @@
-<term id="module_record" source="docs/GLOSSARY.md">
+<term id="module_record">
   <name>module_record</name>
   <definition>The result of fn:load-xquery-module: the public variables and functions of the loaded module (F&amp;O 4.0, 18.1)</definition>
 </term>

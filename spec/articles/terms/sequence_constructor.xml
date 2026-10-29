@@ -1,4 +1,4 @@
-<term id="sequence_constructor" source="docs/GLOSSARY.md">
+<term id="sequence_constructor">
   <name>sequence_constructor</name>
   <definition>The children of a stylesheet element that are evaluated to make a sequence (XSLT 4.0, 5.7)</definition>
 </term>

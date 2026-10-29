@@ -1,4 +1,4 @@
-<decision id="D57" status="accepted" source="docs/DECISIONS.md">
+<decision id="D57" status="accepted">
   <title>Decimal arithmetic over libmpdec (packet <ref kind="packet" to="1.2"/>)</title>
   <body>
     <p><recorded date="2026-10-16"/>, completing <ref kind="decision" to="D42"/> and <ref kind="decision" to="D49"/>.</p>

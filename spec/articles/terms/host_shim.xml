@@ -1,4 +1,4 @@
-<term id="host_shim" source="docs/GLOSSARY.md">
+<term id="host_shim">
   <name>host_shim</name>
   <definition>The C layer in <code>bindings/host/</code> that the JavaScript, Kotlin and Swift bindings share: handles, flat requests, one error per processor, side results and JSON-shaped input, over the public API only, with the resolver as a state and function (<ref kind="decision" to="D238"/>)</definition>
 </term>

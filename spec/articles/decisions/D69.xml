@@ -1,4 +1,4 @@
-<decision id="D69" status="accepted" source="docs/DECISIONS.md">
+<decision id="D69" status="accepted">
   <title>No-inherit for the top element of a copy (P6)</title>
   <body>
     <p><recorded date="2026-10-16"/> by packet <ref kind="packet" to="1.14"/>, on the orchestrator's acceptance of P6 (design edit to <code>include/sxml/tree.h</code>). <code>sxml_element_start_event</code> gains <code>bool ignores_parent_namespaces</code>: true makes the element start from the xml binding alone (plus its own bindings and fixup), not from its parent's in-scope namespaces. Named so that zero, the default of every existing designated initializer, keeps inheriting (P6 had proposed <code>inherits_namespaces</code> defaulting to true, which zero cannot express). <code>sxml_tree_builder_copy_node</code> sets it on the copy's top element when <code>inherits_namespaces</code> is false (XQuery 4.0 copy-namespaces no-inherit); descendants inherit from the top element as usual. The arena tree honours it when it computes the header element's inherited list.</p>

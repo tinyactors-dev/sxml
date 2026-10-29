@@ -1,4 +1,4 @@
-<decision id="D162" status="accepted" source="docs/DECISIONS.md">
+<decision id="D162" status="accepted">
   <title><ref kind="decision" to="D97"/>'s exclusions are delays, not non-goals (owner)</title>
   <body>
     <p><recorded date="2026-10-18"/> on the owner's word: "<ref kind="decision" to="D97"/> is accepted only as a delay -- these features need to be supported ultimately." Amends <ref kind="decision" to="D97"/> and the "Not in year one" list of PLAN.md.</p>

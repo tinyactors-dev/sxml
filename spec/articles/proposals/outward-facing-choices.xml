@@ -1,6 +1,6 @@
-<proposal id="outward-facing-choices" source="docs/DECISIONS.md">
+<proposal id="outward-facing-choices">
   <title>Outward-facing choices</title>
   <body>
-    <p> (<ref kind="decision" to="D208"/>; for the owner): tagging and publishing releases (0.2.0 and after, <code>docs/RELEASE.md</code>, the archives of <code>mise run dist</code>, <ref kind="decision" to="D256"/>), macOS and Windows code signing, and when the repository moves to tinyactors-dev. The license (MIT) and the npm name (<code>@tinyactors/sxml</code>) are settled in <ref kind="decision" to="D239"/>; everything else takes its proposed default (<ref kind="decision" to="D208"/>).</p>
+    <p>(<ref kind="decision" to="D208"/>; for the owner): tagging and publishing releases (0.2.0 and after, <code>docs/RELEASE.md</code>, the archives of <code>mise run dist</code>, <ref kind="decision" to="D256"/>), macOS and Windows code signing, and when the repository moves to tinyactors-dev. The license (MIT) and the npm name (<code>@tinyactors/sxml</code>) are settled in <ref kind="decision" to="D239"/>; everything else takes its proposed default (<ref kind="decision" to="D208"/>).</p>
   </body>
 </proposal>

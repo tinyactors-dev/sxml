@@ -1,4 +1,4 @@
-<term id="validity_constraint" source="docs/GLOSSARY.md">
+<term id="validity_constraint">
   <name>validity_constraint</name>
   <definition>A rule of XML 1.0 marked "VC" that only a validating processor checks; sxml checks those no schema component expresses in the parser and the rest with the schema validator (<ref kind="decision" to="D199"/>)</definition>
 </term>

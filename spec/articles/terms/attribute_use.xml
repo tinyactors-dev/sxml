@@ -1,4 +1,4 @@
-<term id="attribute_use" source="docs/GLOSSARY.md">
+<term id="attribute_use">
   <name>attribute_use</name>
   <definition>The component that says whether an attribute is required, with which declaration and value constraint, in a complex type or attribute group (XSD 1.1 Part 1, 3.5)</definition>
 </term>

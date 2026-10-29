@@ -1,4 +1,4 @@
-<term id="principal_result" source="docs/GLOSSARY.md">
+<term id="principal_result">
   <name>principal_result</name>
   <definition>The result of the invocation itself, as opposed to the result documents (XSLT 4.0, 2.4.6)</definition>
 </term>

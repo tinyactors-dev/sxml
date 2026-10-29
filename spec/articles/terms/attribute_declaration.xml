@@ -1,4 +1,4 @@
-<term id="attribute_declaration" source="docs/GLOSSARY.md">
+<term id="attribute_declaration">
   <name>attribute_declaration</name>
   <definition>The schema component that governs attributes of one name: simple type and value constraint (XSD 1.1 Part 1, 3.2)</definition>
 </term>

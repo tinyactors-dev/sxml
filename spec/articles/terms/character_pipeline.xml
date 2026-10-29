@@ -1,4 +1,4 @@
-<term id="character_pipeline" source="docs/GLOSSARY.md">
+<term id="character_pipeline">
   <name>character_pipeline</name>
   <definition>What text goes through on its way out: character maps, Unicode normalization, escaping, line endings, encoding (Serialization 4.0, section 4)</definition>
 </term>

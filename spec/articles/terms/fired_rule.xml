@@ -1,4 +1,4 @@
-<term id="fired_rule" source="docs/GLOSSARY.md">
+<term id="fired_rule">
   <name>fired_rule</name>
   <definition>A schematron rule applied to a node it matched (in a schematron pattern only the first matching rule is); reported only when the host asks, as SVRL does (<ref kind="decision" to="D315"/>)</definition>
 </term>

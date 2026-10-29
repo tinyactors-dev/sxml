@@ -1,4 +1,4 @@
-<term id="well_known_namespace" source="docs/GLOSSARY.md">
+<term id="well_known_namespace">
   <name>well_known_namespace</name>
   <definition>A namespace with a fixed <term name="namespace_uri_identifier"/> in every name pool (<code>SXML_NAMESPACE_XML_SCHEMA</code>)</definition>
 </term>

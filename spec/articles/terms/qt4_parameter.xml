@@ -1,4 +1,4 @@
-<term id="qt4_parameter" source="docs/GLOSSARY.md">
+<term id="qt4_parameter">
   <name>qt4_parameter</name>
   <definition>A <code>&lt;param&gt;</code> of a QT4 environment: an external variable with a <code>select</code> expression and an optional declared type</definition>
 </term>

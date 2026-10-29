@@ -1,4 +1,4 @@
-<decision id="D2" status="accepted" source="docs/DECISIONS.md">
+<decision id="D2" status="accepted">
   <title>Core language</title>
   <body>
     <p>Portable C17 with C23 features behind macros, following <code>docs/C_GUIDELINES.md</code>. Chosen for the widest linking reach (every platform and language can call C). Memory-safety risk is mitigated by sanitizers, fuzzing and checked arithmetic.</p>

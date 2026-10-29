@@ -1,4 +1,4 @@
-<decision id="D137" status="accepted" source="docs/DECISIONS.md">
+<decision id="D137" status="accepted">
   <title>Group by and window clauses (packet <ref kind="packet" to="3.8"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D55"/> and <ref kind="decision" to="D126"/> for these clauses. No IR kind added; contract in <code>src/xquery_flwor_internal.h</code>: lowering in <code>src/xquery_lower_window.c</code>, two internal native rows in <code>src/xquery_flwor.c</code> in no function table (a STATIC_CALL targets the row: <code>Q{}group-by#3</code>, <code>Q{}window#4</code>).</p>

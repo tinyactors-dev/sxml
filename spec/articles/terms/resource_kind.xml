@@ -1,4 +1,4 @@
-<term id="resource_kind" source="docs/GLOSSARY.md">
+<term id="resource_kind">
   <name>resource_kind</name>
   <definition>What a resource is wanted for: an XML document for <code>fn:doc</code>, ...</definition>
 </term>

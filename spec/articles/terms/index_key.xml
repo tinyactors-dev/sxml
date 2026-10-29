@@ -1,4 +1,4 @@
-<term id="index_key" source="docs/GLOSSARY.md">
+<term id="index_key">
   <name>index_key</name>
   <definition>The operand of a filter index's comparison that is computed from the focus value alone; the IR holds copies of its expressions</definition>
 </term>

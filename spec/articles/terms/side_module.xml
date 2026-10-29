@@ -1,4 +1,4 @@
-<term id="side_module" source="docs/GLOSSARY.md">
+<term id="side_module">
   <name>side_module</name>
   <definition>A WebAssembly module with a <code>dylink.0</code> section (WebAssembly tool conventions, "Dynamic linking") that imports the memory, function table and stack pointer of the module it is linked into, and places its data and its functions at the bases it is given (<code>__memory_base</code>, <code>__table_base</code>) (<ref kind="decision" to="D293"/>)</definition>
 </term>

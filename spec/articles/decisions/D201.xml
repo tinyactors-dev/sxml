@@ -1,4 +1,4 @@
-<decision id="D201" status="accepted" source="docs/DECISIONS.md">
+<decision id="D201" status="accepted">
   <title>HTML5 parsing: a hand-written tokenizer, tree construction on a working tree (packet 7.10a)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D53"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>. fn:parse-html and fn:html-doc (F&amp;O 4.0, 17.3) as the optional feature <code>sxml_html_parser_feature()</code> (name "html"), after the HTML Living Standard of 16 October 2026, 13.2.</p>

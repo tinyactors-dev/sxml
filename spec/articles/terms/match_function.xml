@@ -1,4 +1,4 @@
-<term id="match_function" source="docs/GLOSSARY.md">
+<term id="match_function">
   <name>match_function</name>
   <definition>The IR function of one parameter, returning xs:boolean, that a template rule's pattern is lowered to</definition>
 </term>

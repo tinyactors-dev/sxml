@@ -1,4 +1,4 @@
-<term id="context_size" source="docs/GLOSSARY.md">
+<term id="context_size">
   <name>context_size</name>
   <definition>The size part of the focus (<code>fn:last</code>)</definition>
 </term>

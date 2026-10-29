@@ -1,4 +1,4 @@
-<term id="xsd_test_driver" source="docs/GLOSSARY.md">
+<term id="xsd_test_driver">
   <name>xsd_test_driver</name>
   <definition>The XSD 1.1 test-suite driver: the developer tool <code>sxml-xsd-test</code> under <code>tests/xsd/driver/</code>, a sibling of the QT4 and XSLT drivers that links the QT4 driver's library (packet <ref kind="packet" to="5.3"/>)</definition>
 </term>

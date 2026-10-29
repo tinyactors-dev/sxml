@@ -1,4 +1,4 @@
-<decision id="D304" status="accepted" source="docs/DECISIONS.md">
+<decision id="D304" status="accepted">
   <title>The website: sxml.tinyactors.dev on GitHub Pages</title>
   <body>
     <p><recorded date="2026-10-21"/>, at the owner's request, after the repository moved to tinyactors-dev/sxml.</p>

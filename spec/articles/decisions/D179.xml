@@ -1,4 +1,4 @@
-<decision id="D179" status="accepted" source="docs/DECISIONS.md">
+<decision id="D179" status="accepted">
   <title>Schema-aware XSLT (packet <ref kind="packet" to="5.12"/>)</title>
   <body>
     <p><recorded date="2026-10-18"/>. Replaces <ref kind="decision" to="D162"/>'s two XSLT rejection places (<code>reject_schema_awareness</code>'s XTSE1660 and XTSE1650 in <code>src/xslt_read.c</code>, <ref kind="decision" to="D163"/>, <ref kind="decision" to="D169"/>) with <ref kind="decision" to="D174"/>'s mechanisms; golden <code>src/xquery_static.c</code> (import schema), <code>tests/xquery_schema_test.c</code>.</p>

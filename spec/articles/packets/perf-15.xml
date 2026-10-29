@@ -1,4 +1,4 @@
-<packet id="perf-15" source="docs/tasks/phase-7.md">
+<packet id="perf-15">
   <title>Template rules indexed by node kind and name (implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D144"/>, <ref kind="decision" to="D149"/>, <ref kind="decision" to="D326"/> (perf-14, whose Proposed entry this is). In both EN 16931 stylesheets, sxml's compiled Schematron and the official one, match functions are about 92 % of evaluation steps: APPLY_TEMPLATES tries every rule of the mode in order for every item, and most rules cannot match the item's node kind or name. Any stylesheet with many template rules pays this.</p>

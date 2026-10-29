@@ -1,4 +1,4 @@
-<term id="formatting_elements" source="docs/GLOSSARY.md">
+<term id="formatting_elements">
   <name>formatting_elements</name>
   <definition>The HTML parser's list of active formatting elements and markers, which reconstruction reopens (13.2.4.3)</definition>
 </term>

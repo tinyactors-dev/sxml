@@ -1,4 +1,4 @@
-<packet id="7.3" source="docs/tasks/phase-7.md">
+<packet id="7.3">
   <title>xsl:evaluate (implementation; proposed, <ref kind="decision" to="D183"/>)</title>
   <body>
     <list>

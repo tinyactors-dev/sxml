@@ -1,4 +1,4 @@
-<packet id="6.6" source="docs/tasks/phase-6.md">
+<packet id="6.6">
   <title>Android library (implementation; assemble here, devices: owner)</title>
   <body>
     <p>After <ref kind="packet" to="6.3"/> and <ref kind="packet" to="6.5"/>. Owns:</p>

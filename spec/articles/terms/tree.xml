@@ -1,4 +1,4 @@
-<term id="tree" source="docs/GLOSSARY.md">
+<term id="tree">
   <name>tree</name>
   <definition>One XML document or fragment, stored in an arena</definition>
 </term>

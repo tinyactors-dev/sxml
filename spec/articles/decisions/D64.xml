@@ -1,4 +1,4 @@
-<decision id="D64" status="accepted" source="docs/DECISIONS.md">
+<decision id="D64" status="accepted">
   <title>Arrays and function items (packet <ref kind="packet" to="1.10"/>)</title>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/xdm_array.c</code>, <code>src/xdm_function.c</code>.</p>

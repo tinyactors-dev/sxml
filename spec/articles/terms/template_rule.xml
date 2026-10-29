@@ -1,4 +1,4 @@
-<term id="template_rule" source="docs/GLOSSARY.md">
+<term id="template_rule">
   <name>template_rule</name>
   <definition>An XSLT rule: a match function, a template function, priority and import precedence</definition>
 </term>

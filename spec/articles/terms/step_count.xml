@@ -1,4 +1,4 @@
-<term id="step_count" source="docs/GLOSSARY.md">
+<term id="step_count">
   <name>step_count</name>
   <definition>Instructions a regex matcher has run in one search; <code>maximum_step_count</code> bounds it for untrusted regexes</definition>
 </term>

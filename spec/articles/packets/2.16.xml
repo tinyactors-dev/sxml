@@ -1,4 +1,4 @@
-<packet id="2.16" source="docs/tasks/phase-2.md">
+<packet id="2.16">
   <title>QT4 driver for Phase 2 (implementation)</title>
   <body>
     <p>After <ref kind="packet" to="2.2"/>. Owns <code>tests/qt4/driver/</code>. Environments: <code>decimal-format</code>, <term name="collation"/>, <term name="resource"/>, <term name="collection"/> (sources and resources; <code>query</code> waits for 3.13); <code>--spec=XQ40</code> listing; a JSON per-area summary for the dashboard (<code>tools/conformance-report.py</code> reads it; 1.27 owns that file, so coordinate by format only). Done when the fn-unparsed-text<em>, fn-format-number and fn-collection cases resolve, golden tests cover each environment kind and <code>--spec=XP40</code> lists the <ref kind="decision" to="D95"/> denominator. *</em>Done** 2026-10-17 (<ref kind="decision" to="D108"/>): those sets have no environment skips left (only spec and feature dependencies); <code>list --spec=XP40</code> 31,543 in scope (XQ40 41,174); goldens <code>run_environments</code>, <code>run_environments_json</code>, <code>list_environments</code>; XP40 23,146 to 24,451 passed, slice 198/198.</p>

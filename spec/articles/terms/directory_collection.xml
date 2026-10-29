@@ -1,4 +1,4 @@
-<term id="directory_collection" source="docs/GLOSSARY.md">
+<term id="directory_collection">
   <name>directory_collection</name>
   <definition>The <code>sxml</code> command's collection of a local directory (<ref kind="decision" to="D298"/>): the XML documents (<code>fn:collection</code>) or the URIs (<code>fn:uri-collection</code>) of its files that a collection URI's <code>select</code>, <code>recurse</code> and <code>on-error</code> parameters choose, sorted by path</definition>
 </term>

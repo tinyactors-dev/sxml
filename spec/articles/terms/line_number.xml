@@ -1,4 +1,4 @@
-<term id="line_number" source="docs/GLOSSARY.md">
+<term id="line_number">
   <name>line_number</name>
   <definition>Line of a source position, from 1; 0 means unknown</definition>
 </term>

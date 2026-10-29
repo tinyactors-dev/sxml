@@ -1,4 +1,4 @@
-<term id="flat_node" source="docs/GLOSSARY.md">
+<term id="flat_node">
   <name>flat_node</name>
   <definition>An array node that holds its members inline, as <code>sxml_array_make</code> builds them</definition>
 </term>

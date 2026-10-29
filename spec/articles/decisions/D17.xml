@@ -1,4 +1,4 @@
-<decision id="D17" status="accepted" source="docs/DECISIONS.md">
+<decision id="D17" status="accepted">
   <title>Lint gates</title>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.3). <code>tools/lint.sh</code> runs the ast-grep rule self-tests and the <code>lint</code> CMake target (<code>lint-clang-tidy</code> + <code>lint-ast-grep</code>) in the <code>debug</code> build tree. clang-tidy covers <code>src/</code>, <code>tests/</code> and the header check units; <code>.clang-tidy</code> header filter now also covers <code>tests/</code>. ast-grep (<code>@ast-grep/cli</code> <code>0.45.3</code>, pinned in <code>tools/package.json</code>) rules in <code>tools/ast-grep/rules/</code>, with examples in <code>tools/ast-grep/tests/</code>: banned abbreviations and single-letter names (as a whole name or one snake_case word), allocation outside <code>src/allocator.c</code>, abort/exit/printing in <code>src/</code>, more than three parameters (variadic counts), bare <code>bool</code> parameters. The guideline rule "pointer parameters without a length" is not yet a lint: it needs the view types from task 0.5 first.</p>

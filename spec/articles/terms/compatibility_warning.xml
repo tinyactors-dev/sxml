@@ -1,4 +1,4 @@
-<term id="compatibility_warning" source="docs/GLOSSARY.md">
+<term id="compatibility_warning">
   <name>compatibility_warning</name>
   <definition>A report of a Schematron compile report sink with the code <code>schematron:compatibility</code>: a known deviation of real rule sets from ISO/IEC 19757-3:2025 that sxml reads as its authors mean it (a parameter named twice in one pattern instance, a pattern variable read outside its pattern, a rule's let after its assertions), with the clause it deviates from; no error, never in the error record (<ref kind="decision" to="D331"/>)</definition>
 </term>

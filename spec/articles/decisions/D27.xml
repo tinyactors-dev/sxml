@@ -1,4 +1,4 @@
-<decision id="D27" status="accepted" source="docs/DECISIONS.md">
+<decision id="D27" status="accepted">
   <title>string.h implemented in Phase 0</title>
   <body>
     <p><recorded date="2026-10-16"/>, amending the last sentence of <ref kind="decision" to="D25"/>: <code>src/string.c</code> implements <code>include/sxml/string.h</code> unchanged, with 29 cases in <code>tests/string_test.c</code> (including an exhaustive check of all scalar values and of every lead/second byte pair against table 3-7). Choices the header leaves open: on bytes that are not well-formed, decoding stays within the view, decodes a byte that cannot start an encoding as itself, and decodes a truncated encoding from the bytes present; <code>sxml_string_codepoint_at</code> returns <code>SXML_STATUS_INDEX_OUT_OF_RANGE</code> when the bytes run out before the index, and takes the ASCII fast path only when the index is also below <term name="byte_count"/>. <code>compare</code> and <code>equals</code> work on bytes (<ref kind="decision" to="D25"/>). Validation is a plain byte loop; a word-at-a-time ASCII scan can come later without an interface change.</p>

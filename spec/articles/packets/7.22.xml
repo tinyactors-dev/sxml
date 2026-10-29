@@ -1,4 +1,4 @@
-<packet id="7.22" source="docs/tasks/phase-7.md">
+<packet id="7.22">
   <title>Source code as XML: tree-sitter trees with highlights (design and implementation)</title>
   <body>
     <list>

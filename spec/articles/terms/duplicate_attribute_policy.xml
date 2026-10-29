@@ -1,4 +1,4 @@
-<term id="duplicate_attribute_policy" source="docs/GLOSSARY.md">
+<term id="duplicate_attribute_policy">
   <name>duplicate_attribute_policy</name>
   <definition>What a tree builder does with a second attribute of the same name: reject (XQuery) or replace (XSLT)</definition>
 </term>

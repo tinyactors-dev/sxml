@@ -1,4 +1,4 @@
-<term id="json_tree" source="docs/GLOSSARY.md">
+<term id="json_tree">
   <name>json_tree</name>
   <definition>A JTree: the JNodes reachable from one root JNode</definition>
 </term>

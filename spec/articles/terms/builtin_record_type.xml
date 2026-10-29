@@ -1,4 +1,4 @@
-<term id="builtin_record_type" source="docs/GLOSSARY.md">
+<term id="builtin_record_type">
   <name>builtin_record_type</name>
   <definition>A nominative record type of F&amp;O 4.0 (appendix C, <code>fn:dateTime-record</code>) that the function library declares in its processor's type registry, so every static context knows it</definition>
 </term>

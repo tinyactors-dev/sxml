@@ -1,4 +1,4 @@
-<term id="element_slot" source="docs/GLOSSARY.md">
+<term id="element_slot">
   <name>element_slot</name>
   <definition>The work record <code>fn:element-to-map</code> keeps per node of the converted tree: chosen layout and the value built, filled in reverse document order (<ref kind="decision" to="D71"/>)</definition>
 </term>

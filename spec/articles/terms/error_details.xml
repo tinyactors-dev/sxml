@@ -1,4 +1,4 @@
-<term id="error_details" source="docs/GLOSSARY.md">
+<term id="error_details">
   <name>error_details</name>
   <definition>What a caught error binds in a catch clause, copied out of the error record: code, description, value, module, line and column number; bound as the map <code>$err:map</code> (XQuery 4.0, "Try/Catch Expressions"; <ref kind="decision" to="D109"/>)</definition>
 </term>

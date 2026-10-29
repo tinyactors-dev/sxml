@@ -1,4 +1,4 @@
-<term id="update" source="docs/GLOSSARY.md">
+<term id="update">
   <name>update</name>
   <definition>Describes one change to a persistent map or array (<code>map_update</code>, <code>array_update</code>)</definition>
 </term>

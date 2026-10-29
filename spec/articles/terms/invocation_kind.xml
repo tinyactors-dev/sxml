@@ -1,4 +1,4 @@
-<term id="invocation_kind" source="docs/GLOSSARY.md">
+<term id="invocation_kind">
   <name>invocation_kind</name>
   <definition>How a transformation starts: apply-templates, call-template or a function call (XSLT 4.0, 2.4.3 to 2.4.5)</definition>
 </term>

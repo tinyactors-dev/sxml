@@ -1,4 +1,4 @@
-<term id="leo_item" source="docs/GLOSSARY.md">
+<term id="leo_item">
   <name>leo_item</name>
   <definition>Leo's transitive item: for an item set and a nonterminal that exactly one item there waits for, as its last symbol, the topmost item that completing the nonterminal reaches up the right recursion, so the chain completes in one step; the items in between are made only for the parse tree (<ref kind="decision" to="D283"/>)</definition>
 </term>

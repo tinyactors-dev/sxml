@@ -1,4 +1,4 @@
-<term id="written_bindings" source="docs/GLOSSARY.md">
+<term id="written_bindings">
   <name>written_bindings</name>
   <definition>The namespace bindings already declared for the open elements, against which an element's declarations and undeclarations are computed</definition>
 </term>

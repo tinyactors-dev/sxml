@@ -1,4 +1,4 @@
-<decision id="D299" status="accepted" source="docs/DECISIONS.md">
+<decision id="D299" status="accepted">
   <title>The book teaches with five projects of one story (packet book-5)</title>
   <body>
     <p><recorded date="2026-10-21"/>, after <ref kind="decision" to="D257"/>, <ref kind="decision" to="D270"/>, <ref kind="decision" to="D282"/>, <ref kind="decision" to="D292"/>. The owner: restructure the book around useful examples (structured specifications kept in XML, creating and transforming SVG, SCXML annotated with data schemas and XHTML, a diff of call chains through the tree-sitter bridge, a diff of OTel traces before and after a change) instead of the library/loans data. The plan is <code>docs/tasks/book.md</code>; this record keeps the choices later packets must not reopen.</p>

@@ -1,4 +1,4 @@
-<term id="descending_integer_range" source="docs/GLOSSARY.md">
+<term id="descending_integer_range">
   <name>descending_integer_range</name>
   <definition>A sequence representation holding an <term name="integer_range"/> whose items run from <code>last_integer</code> down to <code>first_integer</code> (<code>fn:reverse</code> of a range, <ref kind="decision" to="D143"/>)</definition>
 </term>

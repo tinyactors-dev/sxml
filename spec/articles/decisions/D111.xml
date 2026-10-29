@@ -1,4 +1,4 @@
-<decision id="D111" status="accepted" source="docs/DECISIONS.md">
+<decision id="D111" status="accepted">
   <title>The query AST for XQuery and the parser part seam (packet <ref kind="packet" to="3.1"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, extending <ref kind="decision" to="D52"/> and <ref kind="decision" to="D59"/>. <code>src/xpath_ast_internal.h</code>.</p>

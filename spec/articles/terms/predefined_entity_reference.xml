@@ -1,4 +1,4 @@
-<term id="predefined_entity_reference" source="docs/GLOSSARY.md">
+<term id="predefined_entity_reference">
   <name>predefined_entity_reference</name>
   <definition><code>&amp;lt;</code>, <code>&amp;gt;</code>, <code>&amp;amp;</code>, <code>&amp;quot;</code> or <code>&amp;apos;</code> in the same places (XQuery 4.0, 4.3.1.2)</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D84" status="accepted" source="docs/DECISIONS.md">
+<decision id="D84" status="accepted">
   <title>(not used)</title>
   <body>
     <p><recorded date="2026-10-17"/> at the Phase 1 gate review. No record ever took this number (packets 1.18b and 1.26 recorded <ref kind="decision" to="D85"/> and <ref kind="decision" to="D86"/> out of order, now sorted); it stays empty so later references keep their numbers.</p>

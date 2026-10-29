@@ -1,4 +1,4 @@
-<term id="registered_language" source="docs/GLOSSARY.md">
+<term id="registered_language">
   <name>registered_language</name>
   <definition>A source code language a host gives the processor (<code>sxml_processor_configuration.source_code_languages</code>): a tree-sitter grammar and its query texts; one with a built-in language's name replaces it (<ref kind="decision" to="D288"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<packet id="6.4" source="docs/tasks/phase-6.md">
+<packet id="6.4">
   <title>Kotlin core (implementation, here)</title>
   <body>
     <p><status value="done" date="2026-10-20"/> (<ref kind="decision" to="D247"/>): <code>bindings/kotlin/</code> (glue, <code>sxml_kotlin.map</code>, the binding, 36 tests), <code>tools/run-kotlin-tests.sh</code>, ctest <code>kotlin/jvm</code>; Kotlin 2.2.20 on JDK 21, 0 leaks. The JVM half only; Android is 6.6's. After <ref kind="packet" to="6.2"/> and <ref kind="packet" to="6.3"/>. Owns new <code>bindings/kotlin/</code>: <code>CMakeLists.txt</code> (target <code>sxml_kotlin</code>, a shared library of the library, the host shim and the glue, with a version script exporting <code>Java_*</code> and <code>JNI_OnLoad</code> only), <code>src/main/c/sxml_kotlin_jni.c</code>, <code>src/main/kotlin/</code> (Processor, Value, XPathExpression, Resolver, ResourceKind, Status, SxmlException, the internal <code>Native</code> object and request classes), <code>src/test/kotlin/</code> (the package tests), and <code>tools/run-kotlin-tests.sh</code>.</p>

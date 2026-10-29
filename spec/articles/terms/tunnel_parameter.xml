@@ -1,4 +1,4 @@
-<term id="tunnel_parameter" source="docs/GLOSSARY.md">
+<term id="tunnel_parameter">
   <name>tunnel_parameter</name>
   <definition>A template parameter with <code>tunnel="yes"</code>, passed on through every template to the ones that declare it (XSLT 4.0, 10.1.6)</definition>
 </term>

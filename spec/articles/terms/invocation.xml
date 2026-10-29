@@ -1,4 +1,4 @@
-<term id="invocation" source="docs/GLOSSARY.md">
+<term id="invocation">
   <name>invocation</name>
   <definition>How the main function starts a transformation: a template to call, or templates applied to the global context item in an initial mode (XSLT 4.0, 2.4)</definition>
   <definition>What a command function receives: program, command, parsed arguments, writers</definition>

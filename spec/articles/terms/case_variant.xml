@@ -1,4 +1,4 @@
-<term id="case_variant" source="docs/GLOSSARY.md">
+<term id="case_variant">
   <name>case_variant</name>
   <definition>A character that <code>i</code> matches in place of another: same <code>fn:lower-case</code> or same <code>fn:upper-case</code> (F&amp;O 4.0, section 6.2)</definition>
 </term>

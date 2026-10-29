@@ -1,4 +1,4 @@
-<decision id="D223" status="accepted" source="docs/DECISIONS.md">
+<decision id="D223" status="accepted">
   <title>More streamed shapes: streamed paths and aggregates (packet 7.6c)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D212"/>, <ref kind="decision" to="D219"/>, <ref kind="decision" to="D222"/>. Extends <ref kind="decision" to="D219"/>'s streamed bodies of xsl:source-document streamable="yes"; the rest of <ref kind="decision" to="D219"/> stands.</p>

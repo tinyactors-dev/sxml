@@ -1,4 +1,4 @@
-<term id="context_function" source="docs/GLOSSARY.md">
+<term id="context_function">
   <name>context_function</name>
   <definition>An XSLT function whose value an enclosing instruction sets lexically: fn:current-group, fn:current-grouping-key, fn:current-merge-group, fn:current-merge-key; lowering reads a variable of the same local name in the XSLT namespace, absent when none is in scope (<ref kind="decision" to="D152"/>)</definition>
 </term>

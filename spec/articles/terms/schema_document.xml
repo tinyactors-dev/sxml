@@ -1,4 +1,4 @@
-<term id="schema_document" source="docs/GLOSSARY.md">
+<term id="schema_document">
   <name>schema_document</name>
   <definition>An XML document whose document element is xs:schema (XSD 1.1 Part 1, 3.17.2); read by the XML parser, found through the resource resolver (kind <code>SCHEMA_DOCUMENT</code>)</definition>
 </term>

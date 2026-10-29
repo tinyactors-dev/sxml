@@ -1,4 +1,4 @@
-<term id="character_reference" source="docs/GLOSSARY.md">
+<term id="character_reference">
   <name>character_reference</name>
   <definition><code>&amp;#N;</code> or <code>&amp;#xH;</code> in an XQuery string literal, BracedURILiteral or direct constructor text, replaced by its character, which must be an XML 1.0 character (XQuery 4.0, 4.3.1.2; XQST0090)</definition>
 </term>

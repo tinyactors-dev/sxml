@@ -1,4 +1,4 @@
-<term id="package" source="docs/GLOSSARY.md">
+<term id="package">
   <name>package</name>
   <definition>An XSLT package: the principal module or the module an <code>xsl:use-package</code> read, with the modules it includes and imports; an <code>xsl:stylesheet</code> is an implicit package (XSLT 4.0, 3.4; <ref kind="decision" to="D160"/>)</definition>
 </term>

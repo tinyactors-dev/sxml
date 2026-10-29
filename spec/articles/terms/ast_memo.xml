@@ -1,4 +1,4 @@
-<term id="ast_memo" source="docs/GLOSSARY.md">
+<term id="ast_memo">
   <name>ast_memo</name>
   <definition>The ASTs one compilation has parsed, keyed by front end, expression text and the parse's limits, so a text met again is parsed once and each use takes a copy (<code>sxml_ast_memo</code>, perf-17)</definition>
 </term>

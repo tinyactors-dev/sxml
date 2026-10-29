@@ -1,4 +1,4 @@
-<decision id="D50" status="accepted" source="docs/DECISIONS.md">
+<decision id="D50" status="accepted">
   <title>A status for failed input and output</title>
   <body>
     <p><recorded date="2026-10-16"/> (was P1, from <ref kind="decision" to="D44"/>; accepted by the orchestrator, added in packet <ref kind="packet" to="1.0"/>). <code>SXML_STATUS_INPUT_OUTPUT_FAILED</code> in <code>include/sxml/status.h</code> means the platform refused to read or write bytes for a host interface (a closed pipe, a full disk, a missing file) while the sxml object and its arguments were fine. Host callbacks that read or write bytes return it: the CLI's output streams and platform layer now, the serializer's output and the document resolver of <ref kind="decision" to="D30"/> later. It carries no error record; a host that maps it to a specification error (for example <code>fn:doc</code> and FODC0002) does so itself. Rejected: reusing <code>SXML_STATUS_INVALID_ARGUMENT</code>, which blames the caller for a platform failure.</p>

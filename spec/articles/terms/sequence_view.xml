@@ -1,4 +1,4 @@
-<term id="sequence_view" source="docs/GLOSSARY.md">
+<term id="sequence_view">
   <name>sequence_view</name>
   <definition>A read-only pointer to sequences plus <code>sequence_count</code></definition>
 </term>

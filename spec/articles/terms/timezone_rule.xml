@@ -1,4 +1,4 @@
-<term id="timezone_rule" source="docs/GLOSSARY.md">
+<term id="timezone_rule">
   <name>timezone_rule</name>
   <definition>A TZ string read (POSIX XBD 8.3, the footer of a TZif file): a zone's standard time and its daylight saving time with when it starts and ends each year, for instants after the zone's last transition (<ref kind="decision" to="D209"/>)</definition>
 </term>

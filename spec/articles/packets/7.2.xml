@@ -1,4 +1,4 @@
-<packet id="7.2" source="docs/tasks/phase-7.md">
+<packet id="7.2">
   <title>Optional features and the size budget (design, build)</title>
   <body>
     <p>After the owner's size decision (<ref kind="decision" to="D183"/> Proposed).</p>

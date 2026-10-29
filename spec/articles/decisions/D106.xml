@@ -1,4 +1,4 @@
-<decision id="D106" status="accepted" source="docs/DECISIONS.md">
+<decision id="D106" status="accepted">
   <title>The XQuery and serialization API (packet <ref kind="packet" to="3.0"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>. <code>include/sxml/xquery.h</code> is new; <code>serialize.h</code> grows by new constants at the end of <code>sxml_serialization_method</code> and new fields in <code>sxml_serialization_parameters</code>, regrouped by size (enumerations, presence flags, views) because clang-tidy's padding check rejects the interleaved order. Callers initialize by field name, so Phase 1 and 2 code compiles unchanged (zero is still the adaptive method with its defaults); nothing is ABI-stable before 0.2.0 (<ref kind="decision" to="D99"/>).</p>

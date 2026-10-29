@@ -1,4 +1,4 @@
-<term id="serialization_parameters" source="docs/GLOSSARY.md">
+<term id="serialization_parameters">
   <name>serialization_parameters</name>
   <definition>The Serialization 4.0 parameters of one serialization (method, item separator, ...)</definition>
 </term>

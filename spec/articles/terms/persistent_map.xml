@@ -1,4 +1,4 @@
-<term id="persistent_map" source="docs/GLOSSARY.md">
+<term id="persistent_map">
   <name>persistent_map</name>
   <definition>A map made by put or remove: an entry tree and a key tree that share structure with the map they came from (<ref kind="decision" to="D61"/>)</definition>
 </term>

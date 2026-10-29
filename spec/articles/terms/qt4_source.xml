@@ -1,4 +1,4 @@
-<term id="qt4_source" source="docs/GLOSSARY.md">
+<term id="qt4_source">
   <name>qt4_source</name>
   <definition>A document of a QT4 environment: the context item (<code>role="."</code>), an external variable (<code>role="$name"</code>) or a document available by URI</definition>
 </term>

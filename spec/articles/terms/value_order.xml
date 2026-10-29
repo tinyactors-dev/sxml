@@ -1,4 +1,4 @@
-<term id="value_order" source="docs/GLOSSARY.md">
+<term id="value_order">
   <name>value_order</name>
   <definition>XSD's order of two values of one primitive type: less, equal, greater or incomparable (partial for dates, times and durations, NaN incomparable; XSD 1.1 Part 2, 2.2.3)</definition>
 </term>

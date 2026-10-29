@@ -1,4 +1,4 @@
-<decision id="D185" status="accepted" source="docs/DECISIONS.md">
+<decision id="D185" status="accepted">
   <title>XSLT conformance sweep after the Phase 4 gate (packet 4.19)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D29"/>, <ref kind="decision" to="D98"/>, <ref kind="decision" to="D152"/>, <ref kind="decision" to="D160"/>, <ref kind="decision" to="D169"/>, <ref kind="decision" to="D181"/>. Verified as <ref kind="decision" to="D181"/> asks: the debug preset, the unit and CLI tests touched, clang-tidy and the call-cycle check on the files changed, and the whole XT40 suite with the release driver after each change, compared case by case (it runs in about a minute here). <strong>XT40 8,650 to 8,759 passed, 0 errors, no case lost.</strong></p>

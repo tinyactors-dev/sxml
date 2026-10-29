@@ -1,4 +1,4 @@
-<term id="construction_mode" source="docs/GLOSSARY.md">
+<term id="construction_mode">
   <name>construction_mode</name>
   <definition><code>strip</code> or <code>preserve</code> (XQuery 4.0 construction declaration): whether constructed and copied nodes become untyped or keep their types</definition>
 </term>

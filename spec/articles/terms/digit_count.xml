@@ -1,4 +1,4 @@
-<term id="digit_count" source="docs/GLOSSARY.md">
+<term id="digit_count">
   <name>digit_count</name>
   <definition>A number of decimal digits (<code>maximum_digit_count</code>, <code>division_digit_count</code>)</definition>
 </term>

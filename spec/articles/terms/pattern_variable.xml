@@ -1,4 +1,4 @@
-<term id="pattern_variable" source="docs/GLOSSARY.md">
+<term id="pattern_variable">
   <name>pattern_variable</name>
   <definition>A sch:let of a schematron pattern: a global variable under a synthesized name, which the pattern's expressions reach as a placeholder is replaced and its templates through a local binding of the written name, so that it is in scope in that pattern only (3.23; <ref kind="decision" to="D323"/>)</definition>
 </term>

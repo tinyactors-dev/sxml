@@ -1,4 +1,4 @@
-<term id="item_heap" source="docs/GLOSSARY.md">
+<term id="item_heap">
   <name>item_heap</name>
   <definition>Per-processor owner of the reference-counted cells that items and sequences point to</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="test_check" source="docs/GLOSSARY.md">
+<term id="test_check">
   <name>test_check</name>
   <definition>One checked condition within a test case</definition>
 </term>

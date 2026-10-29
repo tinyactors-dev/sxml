@@ -1,4 +1,4 @@
-<decision id="D301" status="accepted" source="docs/DECISIONS.md">
+<decision id="D301" status="accepted">
   <title>The book's story is Vane, a feature-flag service (packet book-14)</title>
   <body>
     <p><recorded date="2026-10-21"/>, after <ref kind="decision" to="D299"/>. The owner rejected the Latch story (door locks, a controller and its services: "nobody thinks of doors") and chose a feature-flag service, something developers know. The five projects of <ref kind="decision" to="D299"/> stay; only the story and its names change.</p>

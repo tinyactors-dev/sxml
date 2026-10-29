@@ -1,4 +1,4 @@
-<term id="name_token" source="docs/GLOSSARY.md">
+<term id="name_token">
   <name>name_token</name>
   <definition>One token of a name-list attribute of an XSLT element: a name, a wildcard, or <code>#default</code>, <code>#unnamed</code>, <code>#current</code>, <code>#all</code></definition>
 </term>

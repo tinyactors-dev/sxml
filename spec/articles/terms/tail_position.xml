@@ -1,4 +1,4 @@
-<term id="tail_position" source="docs/GLOSSARY.md">
+<term id="tail_position">
   <name>tail_position</name>
   <definition>Where <code>xsl:next-iteration</code> and <code>xsl:break</code> may stand: last in the body of <code>xsl:iterate</code>, or in the tail position of an <code>xsl:if</code>, <code>xsl:when</code>, <code>xsl:otherwise</code>, <code>xsl:try</code> or <code>xsl:catch</code> that is (XSLT 4.0, 7.2)</definition>
 </term>

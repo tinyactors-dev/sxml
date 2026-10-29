@@ -1,4 +1,4 @@
-<term id="text_form_writer" source="docs/GLOSSARY.md">
+<term id="text_form_writer">
   <name>text_form_writer</name>
   <definition>The bounded writer every text form writes through: it writes into caller memory what fits and counts every byte, so a caller can ask for the size first (<code>sxml_text_form_writer</code>; <ref kind="decision" to="D249"/>)</definition>
 </term>

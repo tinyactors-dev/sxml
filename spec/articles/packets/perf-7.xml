@@ -1,4 +1,4 @@
-<packet id="perf-7" source="docs/tasks/phase-7.md">
+<packet id="perf-7">
   <title>Faster regex matching (implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D53"/>, <ref kind="decision" to="D105"/> (the backtracking matcher) and <ref kind="decision" to="D308"/> (perf-6: compiling is now under 5 % of a regex-heavy workload; matching is the rest). Measured (release, x86_64 Xeon 2.1 GHz): 200,000 calls of <code>matches("abc_def ghi " || ., "\w+\s\w+\s\d+")</code> take 0.80 s, and 0.71 s with explicit ranges <code>[a-z_]+ [a-z]+ [0-9]+</code>, against 0.12 s for the same loop with <code>contains</code>: about 3 microseconds a match of a 15-character string, whatever the character classes.</p>

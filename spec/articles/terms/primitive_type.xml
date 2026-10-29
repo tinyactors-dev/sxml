@@ -1,4 +1,4 @@
-<term id="primitive_type" source="docs/GLOSSARY.md">
+<term id="primitive_type">
   <name>primitive_type</name>
   <definition>The primitive atomic type an atomic type is derived from (<code>xs:integer</code> gives <code>xs:decimal</code>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="byte_offset" source="docs/GLOSSARY.md">
+<term id="byte_offset">
   <name>byte_offset</name>
   <definition>A position measured in bytes from the start of something</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="absolute_uri" source="docs/GLOSSARY.md">
+<term id="absolute_uri">
   <name>absolute_uri</name>
   <definition>A URI with a scheme, after resolving a reference against a base URI (RFC 3986, section 5)</definition>
 </term>

@@ -1,0 +1,4 @@
+<term id="generated_page">
+  <name>generated_page</name>
+  <definition>A Markdown file under <code>docs/</code> that <code>tools/spec/spec generate</code> writes from a document (its <code>file</code>); read and changed through <code>tools/spec/spec</code>, never edited</definition>
+</term>

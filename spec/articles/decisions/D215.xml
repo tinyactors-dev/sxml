@@ -1,4 +1,4 @@
-<decision id="D215" status="accepted" source="docs/DECISIONS.md">
+<decision id="D215" status="accepted">
   <title>Invisible XML: fn:invisible-xml over an Earley parser (packet <ref kind="packet" to="7.18"/>)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D13"/>, <ref kind="decision" to="D53"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>, <ref kind="decision" to="D208"/>. Replaces <ref kind="decision" to="D162"/>'s place for fn:invisible-xml (the function was absent, XPST0017; supports-invisible-xml false).</p>

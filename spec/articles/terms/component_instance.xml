@@ -1,4 +1,4 @@
-<term id="component_instance" source="docs/GLOSSARY.md">
+<term id="component_instance">
   <name>component_instance</name>
   <definition>One component as one package contains it, with its visibility there: declared in the package, accepted from a used package, or overriding one (XSLT 4.0, 3.4.5, the "containing package")</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="article" source="docs/GLOSSARY.md">
+<term id="article">
   <name>article</name>
   <definition>One XML file under <code>spec/articles/</code>: a decision, proposal, term, packet, log entry or document, with a kind and an identifier; read with queries and written with node updates through <code>tools/spec/spec</code>, never as text (<code>spec/README.md</code>)</definition>
 </term>

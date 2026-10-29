@@ -1,4 +1,4 @@
-<decision id="D157" status="accepted" source="docs/DECISIONS.md">
+<decision id="D157" status="accepted">
   <title>The XSLT API, the XSLT driver's runs and sxml transform (packet <ref kind="packet" to="4.15"/>)</title>
   <body>
     <p><recorded date="2026-10-18"/>, after <ref kind="decision" to="D112"/>, <ref kind="decision" to="D117"/>, <ref kind="decision" to="D139"/>, <ref kind="decision" to="D144"/>, <ref kind="decision" to="D145"/>, <ref kind="decision" to="D149"/>, <ref kind="decision" to="D150"/>, <ref kind="decision" to="D156"/>. <code>src/xslt.c</code> implements <code>include/sxml/xslt.h</code> (unchanged), imitating <code>src/xquery.c</code>; no IR kind, no evaluator change, no public header.</p>

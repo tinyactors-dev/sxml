@@ -1,4 +1,4 @@
-<packet id="perf-1" source="docs/tasks/phase-7.md">
+<packet id="perf-1">
   <title>Evaluator performance (implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D182"/> (the evaluator runs about 4 million steps a second and has no index for joins), <ref kind="decision" to="D178"/> (QT4 app-Demos itunes is quadratic by its own text, 72 s) and <ref kind="decision" to="D185"/> (<code>match="$var"</code> membership is a linear scan).</p>

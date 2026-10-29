@@ -1,4 +1,4 @@
-<decision id="D61" status="accepted" source="docs/DECISIONS.md">
+<decision id="D61" status="accepted">
   <title>Maps and records (packet <ref kind="packet" to="1.9"/>)</title>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/xdm_map.c</code>; three cell classes behind <code>SXML_ITEM_REPRESENTATION_MAP_CELL</code>, told apart by cell class.</p>

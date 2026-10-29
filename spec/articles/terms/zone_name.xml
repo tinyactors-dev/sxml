@@ -1,4 +1,4 @@
-<term id="zone_name" source="docs/GLOSSARY.md">
+<term id="zone_name">
   <name>zone_name</name>
   <definition>An IANA timezone name such as <code>Europe/Berlin</code> (an "Olson name"), a place of fn:civil-timezone and the formatting functions</definition>
 </term>

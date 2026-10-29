@@ -1,4 +1,4 @@
-<term id="lowering_block" source="docs/GLOSSARY.md">
+<term id="lowering_block">
   <name>lowering_block</name>
   <definition>The LETs bound while one expression is lowered, closed by its result (administrative normal form)</definition>
 </term>

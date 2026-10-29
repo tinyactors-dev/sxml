@@ -1,4 +1,4 @@
-<term id="query_run" source="docs/GLOSSARY.md">
+<term id="query_run">
   <name>query_run</name>
   <definition>In the <code>sxml</code> program: one run of a query command (<code>xpath</code>, <code>xquery</code>, <code>serialize</code>): its processor, <code>--param</code> bindings and context item (<code>apps/sxml/query_command.h</code>)</definition>
 </term>

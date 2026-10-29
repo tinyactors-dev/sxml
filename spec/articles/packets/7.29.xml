@@ -1,4 +1,4 @@
-<packet id="7.29" source="docs/tasks/phase-7.md">
+<packet id="7.29">
   <title>Source locations for parsed input documents (design and implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D87"/>, <ref kind="decision" to="D313"/> and perf-8 (which holds <code>src/evaluator.c</code> and <code>src/evaluator_function.c</code>). <ref kind="decision" to="D313"/> settles the behaviour: a processor setting <code>AUTOMATIC</code> (the zero value), <code>ALWAYS</code>, <code>NEVER</code>; under <code>AUTOMATIC</code> documents a host parses keep locations, and where sxml parses for a program the compiled program decides (it calls <code>fn:location</code>, can reach functions dynamically, or is a validation); dynamic errors that name an input node print its line and column; <code>--locations=</code> in the sxml command, the same three values in JavaScript. Today <code>sxml_processor_parse_document</code> sets <code>keeps_locations = false</code> (<code>src/processor.c</code>), so <code>fn:location</code> is the empty sequence for every input document; the arena tree and the parser already support locations.</p>

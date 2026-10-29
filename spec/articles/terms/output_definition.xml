@@ -1,4 +1,4 @@
-<term id="output_definition" source="docs/GLOSSARY.md">
+<term id="output_definition">
   <name>output_definition</name>
   <definition>The serialization parameters and <code>build-tree</code> of one <code>xsl:output</code> declaration, named or unnamed (XSLT 4.0, 26.1)</definition>
 </term>

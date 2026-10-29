@@ -1,4 +1,4 @@
-<term id="schema_parameter" source="docs/GLOSSARY.md">
+<term id="schema_parameter">
   <name>schema_parameter</name>
   <definition>A sch:param child of sch:schema or of a schematron library (5.4.11): a name and a query fragment, its value attribute or the value the configuration gives instead, replaced as a placeholder in every expression of the schema (<ref kind="decision" to="D315"/>)</definition>
 </term>

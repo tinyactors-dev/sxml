@@ -1,4 +1,4 @@
-<term id="ast_field" source="docs/GLOSSARY.md">
+<term id="ast_field">
   <name>ast_field</name>
   <definition>The role of a child in its AST parent: a field name of the grammar (<code>left</code>, <code>predicate</code>, <code>argument</code>)</definition>
 </term>

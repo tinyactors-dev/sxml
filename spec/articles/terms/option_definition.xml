@@ -1,4 +1,4 @@
-<term id="option_definition" source="docs/GLOSSARY.md">
+<term id="option_definition">
   <name>option_definition</name>
   <definition>One option of a library function that follows the option parameter conventions (F&amp;O 4.0, section 1.7): its name and the type its value is coerced to</definition>
 </term>

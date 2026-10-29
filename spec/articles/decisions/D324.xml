@@ -1,4 +1,4 @@
-<decision id="D324" status="accepted" source="docs/DECISIONS.md">
+<decision id="D324" status="accepted">
   <title>Compiling large stylesheets in linear time (packet <ref kind="packet" to="perf-12"/>)</title>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D46"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D223"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D259"/>, <ref kind="decision" to="D322"/>. No public header changed; the IR after the passes is the same.</p>

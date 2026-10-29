@@ -1,4 +1,4 @@
-<packet id="6.3" source="docs/tasks/phase-6.md">
+<packet id="6.3">
   <title>Android build and the two fallbacks (implementation, here)</title>
   <body>
     <p><status value="paused" date="2026-10-20"/> (<ref kind="decision" to="D251"/>, <ref kind="decision" to="D255"/>): the fallbacks, the presets, <code>tools/build-android.sh</code> and <code>tools/fetch-binding-toolchains.sh</code> are committed. All four ABIs build with <code>-Werror</code> at android-24, and LOAD is 0x4000 on arm64-v8a and x86_64. Device runs are the owner's (no KVM here). Resume from <code>bindings/kotlin/DESIGN.md</code>. After <ref kind="packet" to="6.1"/>, and after any running packet commits its changes to <code>src/processor.c</code> (it was being edited when this plan was written). Owns:</p>

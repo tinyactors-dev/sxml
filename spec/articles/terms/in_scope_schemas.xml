@@ -1,4 +1,4 @@
-<term id="in_scope_schemas" source="docs/GLOSSARY.md">
+<term id="in_scope_schemas">
   <name>in_scope_schemas</name>
   <definition>The compiled schemas a static context imports: their types, element and attribute declarations are XPath 4.0's in-scope schema definitions (section 2.2.1)</definition>
 </term>

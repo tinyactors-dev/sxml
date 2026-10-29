@@ -1,4 +1,4 @@
-<term id="phase_selection" source="docs/GLOSSARY.md">
+<term id="phase_selection">
   <name>phase_selection</name>
   <definition>What "#ANY" asks for (5.4.13, 5.5.22): each validation's phase is the first sch:phase in schema order whose when expression is true at the instance document root, else every pattern is active; compiled into one stylesheet (<ref kind="decision" to="D315"/>)</definition>
 </term>

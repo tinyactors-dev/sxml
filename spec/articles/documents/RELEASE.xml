@@ -1,4 +1,4 @@
-<document id="RELEASE" source="docs/RELEASE.md">
+<document id="RELEASE" file="docs/RELEASE.md">
   <title>Releasing sxml</title>
   <p>How a release is cut. The owner tags it and publishes it, and agents prepare everything up to that point (<ref kind="decision" to="D138"/>). The first public release is 0.2.0, made at the end of Phase 2 (PLAN.md, phase 2 gate).</p>
   <section id="what-a-version-promises">

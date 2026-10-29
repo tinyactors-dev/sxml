@@ -1,4 +1,4 @@
-<decision id="D26" status="accepted" source="docs/DECISIONS.md">
+<decision id="D26" status="accepted">
   <title>Lint for byte pointers without a length</title>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.6), completing <ref kind="decision" to="D17"/>. The ast-grep rule <code>pointer-parameter-without-length</code> flags parameters in <code>include/</code> and <code>src/</code> that are a single pointer to <code>char</code>, <code>signed char</code>, <code>unsigned char</code>, <code>uint8_t</code> or <code>int8_t</code>. Object pointers, <code>void *</code> state or memory, and pointers to pointers are allowed. An external boundary that takes a NUL-terminated string (so far only <code>sxml_byte_view_from_c_string</code>) marks the line before with <code>// ast-grep-ignore: pointer-parameter-without-length</code>. <code>tests/</code> is not covered: the test runner takes <code>argv</code>. <code>SXML_TEST_REQUIRE</code> now branches on the condition itself, so clang-analyzer knows what holds after it.</p>

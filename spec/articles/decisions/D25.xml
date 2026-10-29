@@ -1,4 +1,4 @@
-<decision id="D25" status="accepted" source="docs/DECISIONS.md">
+<decision id="D25" status="accepted">
   <title>Strings validate eagerly</title>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.5). <ref kind="decision" to="D6"/> holds: <code>sxml_string</code> is a UTF-8 byte view with an <term name="is_ascii"/> flag and a codepoint count. Both are computed in the same pass that validates the bytes (<code>sxml_string_from_utf8</code>), so "cached on first use" is "computed at construction", with no extra pass and no mutable cache in a value type. <code>is_ascii == false</code> makes no claim, so a zero-initialized <code>sxml_string</code> is a valid empty string. Validation is strict (Unicode 16.0 §3.9 table 3-7: no overlongs, surrogates or values above U+10FFFF). Comparison is by codepoint, implemented as byte comparison, which gives the same order for well-formed UTF-8. A constructor for producers that already know the count (the XML parser) can be added later as a new function. <code>string.h</code> is designed but not implemented in Phase 0.</p>

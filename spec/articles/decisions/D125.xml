@@ -1,4 +1,4 @@
-<decision id="D125" status="accepted" source="docs/DECISIONS.md">
+<decision id="D125" status="accepted">
   <title>fn:divide-decimals and the precision it supports (packet <ref kind="packet" to="2.7"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>. <code>sxml_decimal_divide_to_precision</code> (<code>src/decimal.c</code>), part <code>numeric</code> row <code>divide-decimals</code>.</p>

@@ -1,4 +1,4 @@
-<term id="accumulator" source="docs/GLOSSARY.md">
+<term id="accumulator">
   <name>accumulator</name>
   <definition>The value a fold carries from one call of its function item to the next (<code>fn:fold-left</code>, <code>fn:scan</code>)</definition>
 </term>

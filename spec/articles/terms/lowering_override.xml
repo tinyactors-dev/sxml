@@ -1,4 +1,4 @@
-<term id="lowering_override" source="docs/GLOSSARY.md">
+<term id="lowering_override">
   <name>lowering_override</name>
   <definition>One node of one XPath AST that a procedure of the caller lowers instead of the rule of its kind, wherever lowering meets it (<code>sxml_xpath_lowering_override</code>, <ref kind="decision" to="D223"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="mode" source="docs/GLOSSARY.md">
+<term id="mode">
   <name>mode</name>
   <definition>An XSLT mode: its template rules and its built-in rule</definition>
 </term>

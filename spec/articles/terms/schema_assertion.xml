@@ -1,4 +1,4 @@
-<term id="schema_assertion" source="docs/GLOSSARY.md">
+<term id="schema_assertion">
   <name>schema_assertion</name>
   <definition>An xs:assert of a complex type or an xs:assertion facet of a simple type: an XPath test that must be true (XSD 1.1 Part 1, 3.13)</definition>
 </term>

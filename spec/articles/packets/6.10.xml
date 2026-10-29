@@ -1,4 +1,4 @@
-<packet id="6.10" source="docs/tasks/phase-6.md">
+<packet id="6.10">
   <title>Device CI (write here; the owner enables it)</title>
   <body>
     <p>After <ref kind="packet" to="6.6"/> and <ref kind="packet" to="6.9"/>'s scripts. Owns new <code>.github/workflows/bindings.yml</code>, disabled as <ref kind="decision" to="D123"/> asks (<code>workflow_dispatch</code> only) until the owner turns CI back on. The jobs:</p>

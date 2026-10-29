@@ -1,4 +1,4 @@
-<decision id="D314" status="accepted" source="docs/DECISIONS.md">
+<decision id="D314" status="accepted">
   <title>The sxml command asks for no step bound (packet <ref kind="packet" to="cli-4"/>)</title>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D313"/> (9), <ref kind="decision" to="D89"/>, <ref kind="decision" to="D259"/>.</p>

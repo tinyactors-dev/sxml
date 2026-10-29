@@ -1,4 +1,4 @@
-<decision id="D152" status="accepted" source="docs/DECISIONS.md">
+<decision id="D152" status="accepted">
   <title>Sorting and grouping (packet <ref kind="packet" to="4.9"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D79"/>, <ref kind="decision" to="D116"/>, <ref kind="decision" to="D118"/>, <ref kind="decision" to="D136"/>, <ref kind="decision" to="D137"/>, <ref kind="decision" to="D142"/>, <ref kind="decision" to="D144"/>, <ref kind="decision" to="D145"/>. <code>src/xslt_lower_group.c</code>, <code>src/xslt_group.c</code> (<code>src/xslt_group_internal.h</code>), <code>tests/xslt_group_test.c</code>; hooks in <code>src/xslt_lower.c</code>, <code>src/xslt_lower_control.c</code> (xsl:for-each), <code>src/xslt_lower_template.c</code> (xsl:apply-templates), <code>src/xpath_lower.c</code> (context functions), <code>src/evaluator.c</code> (SORT). No IR kind, no public header.</p>

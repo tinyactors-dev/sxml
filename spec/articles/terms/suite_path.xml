@@ -1,4 +1,4 @@
-<term id="suite_path" source="docs/GLOSSARY.md">
+<term id="suite_path">
   <name>suite_path</name>
   <definition>The path of a QT4 suite file relative to the directory of <code>catalog.xml</code>, with <code>.</code> and <code>..</code> segments removed</definition>
 </term>

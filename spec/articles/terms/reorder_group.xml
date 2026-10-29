@@ -1,4 +1,4 @@
-<term id="reorder_group" source="docs/GLOSSARY.md">
+<term id="reorder_group">
   <name>reorder_group</name>
   <definition>A run of primary weights of the root collation that a reorder code moves as a whole: space, punct, symbol, currency, digit, or one or more scripts (UTS #35, Part 5, section 3.13)</definition>
 </term>

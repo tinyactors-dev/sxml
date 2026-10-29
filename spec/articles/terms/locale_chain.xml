@@ -1,4 +1,4 @@
-<term id="locale_chain" source="docs/GLOSSARY.md">
+<term id="locale_chain">
   <name>locale_chain</name>
   <definition>The CLDR files a language tag is looked up in, from the most specific to root: <code>de_AT</code>, <code>de</code>, <code>root</code> (inheritance by truncation, UTS #35, Part 1, section 4.1)</definition>
 </term>

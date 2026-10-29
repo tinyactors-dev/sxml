@@ -1,4 +1,4 @@
-<term id="receiving_task" source="docs/GLOSSARY.md">
+<term id="receiving_task">
   <name>receiving_task</name>
   <definition>A node constructor's part task while its content is evaluated: the values of the delivering tasks above it go into its construction as they are made (<ref kind="decision" to="D166"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="schema_aware_test" source="docs/GLOSSARY.md">
+<term id="schema_aware_test">
   <name>schema_aware_test</name>
   <definition>A QT4 test case that needs schema awareness: it requires schemaImport, schemaValidation or typedData, or its environment has a schema or a validated source; the dashboard's area "schema-aware" (<ref kind="decision" to="D174"/>)</definition>
 </term>

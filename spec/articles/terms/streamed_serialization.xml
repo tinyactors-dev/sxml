@@ -1,4 +1,4 @@
-<term id="streamed_serialization" source="docs/GLOSSARY.md">
+<term id="streamed_serialization">
   <name>streamed_serialization</name>
   <definition>An XML or text serialization fed by tree builder events, writing each start tag, text and end tag as it arrives and holding only the open elements (<ref kind="decision" to="D231"/>, <ref kind="decision" to="D295"/>)</definition>
 </term>

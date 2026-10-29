@@ -1,4 +1,4 @@
-<term id="grouping_method" source="docs/GLOSSARY.md">
+<term id="grouping_method">
   <name>grouping_method</name>
   <definition>How xsl:for-each-group forms groups: by key, by adjacent keys (each composite or not), starting or ending with a pattern (<ref kind="decision" to="D152"/>)</definition>
 </term>

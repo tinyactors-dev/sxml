@@ -1,4 +1,4 @@
-<term id="parameter_map" source="docs/GLOSSARY.md">
+<term id="parameter_map">
   <name>parameter_map</name>
   <definition>A map(xs:QName, item()*) of the parameters supplied to a template: one for the non-tunnel and one for the tunnel parameters (<ref kind="decision" to="D144"/>)</definition>
 </term>

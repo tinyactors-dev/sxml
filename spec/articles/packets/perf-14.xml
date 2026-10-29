@@ -1,4 +1,4 @@
-<packet id="perf-14" source="docs/tasks/phase-7.md">
+<packet id="perf-14">
   <title>Running compiled Schematron (implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D315"/>, <ref kind="decision" to="D323"/> and <ref kind="decision" to="D325"/>. On one EN 16931 UBL invoice, evaluating the Schematron that sxml compiles from the <code>.sch</code> sources costs 1.21 x 10^9 instructions; evaluating the official stylesheet compiled from the same rules by the ISO skeleton costs 0.55 x 10^9 (<ref kind="decision" to="D325"/>). The same rules, the same evaluator: the difference is in the stylesheet AST that <code>src/schematron*</code> builds (how patterns become modes, rules become templates and assertions become conditions, <ref kind="decision" to="D315"/>), or in how the lowering treats it.</p>

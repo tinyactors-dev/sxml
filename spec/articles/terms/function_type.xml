@@ -1,4 +1,4 @@
-<term id="function_type" source="docs/GLOSSARY.md">
+<term id="function_type">
   <name>function_type</name>
   <definition>The item type of function items with given parameter and result types; a function's signature</definition>
 </term>

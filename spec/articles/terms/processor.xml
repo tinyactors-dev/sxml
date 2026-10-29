@@ -1,4 +1,4 @@
-<term id="processor" source="docs/GLOSSARY.md">
+<term id="processor">
   <name>processor</name>
   <definition>The object (Phase 1) that owns one name pool, type registry and item heap and compiles and runs queries</definition>
 </term>

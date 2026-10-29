@@ -1,4 +1,4 @@
-<term id="evaluation_step" source="docs/GLOSSARY.md">
+<term id="evaluation_step">
   <name>evaluation_step</name>
   <definition>One unit of evaluator work counted against <code>maximum_evaluation_step_count</code>: a task the machine runs, or an item pair a general comparison reads</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="initial_context_value" source="docs/GLOSSARY.md">
+<term id="initial_context_value">
   <name>initial_context_value</name>
   <definition>The context value of the query body and of every variable initializer: a context value declaration's value, else the host's (XQuery 4.0, 5.17)</definition>
 </term>

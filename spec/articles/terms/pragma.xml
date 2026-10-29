@@ -1,4 +1,4 @@
-<term id="pragma" source="docs/GLOSSARY.md">
+<term id="pragma">
   <name>pragma</name>
   <definition>XQuery <code>(# name contents #)</code> before an extension expression</definition>
 </term>

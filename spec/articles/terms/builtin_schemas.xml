@@ -1,4 +1,4 @@
-<term id="builtin_schemas" source="docs/GLOSSARY.md">
+<term id="builtin_schemas">
   <name>builtin_schemas</name>
   <definition>The schemas a processor compiles for itself and keeps: the built-in components alone (XSD 1.1 Part 1, 3.4.7) and the fn: namespace (F&amp;O 4.0, appendix D); for XPath's functions, the optional feature <code>sxml_builtin_schemas_feature</code> (<ref kind="decision" to="D225"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="visibility" source="docs/GLOSSARY.md">
+<term id="visibility">
   <name>visibility</name>
   <definition>Public, private, final, abstract or hidden: who may refer to or override a component instance (XSLT 4.0, 3.4.5.1)</definition>
 </term>

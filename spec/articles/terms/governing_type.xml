@@ -1,4 +1,4 @@
-<term id="governing_type" source="docs/GLOSSARY.md">
+<term id="governing_type">
   <name>governing_type</name>
   <definition>The type a validation root is assessed against when the caller names one (XQuery <code>validate type</code>, XSLT <code>type</code>); otherwise the declaration of its name decides (XSD 1.1 Part 1, "governing type definition", 3.3.4)</definition>
 </term>

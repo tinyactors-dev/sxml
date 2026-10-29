@@ -1,4 +1,4 @@
-<term id="group_array" source="docs/GLOSSARY.md">
+<term id="group_array">
   <name>group_array</name>
   <definition>One group of xsl:for-each-group as the array [current group, current grouping key] (<ref kind="decision" to="D152"/>)</definition>
 </term>

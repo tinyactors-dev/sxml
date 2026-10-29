@@ -1,4 +1,4 @@
-<decision id="D177" status="accepted" source="docs/DECISIONS.md">
+<decision id="D177" status="accepted">
   <title>Identity constraints (packet <ref kind="packet" to="5.8"/>)</title>
   <body>
     <p><recorded date="2026-10-18"/>. IDENTITY_CONSTRAINTS and the identity seam of <ref kind="decision" to="D167"/> (<code>src/schema_identity.c</code>, <code>tests/schema_identity_test.c</code>); golden <code>src/schema_resolve.c</code>, <code>src/schema_validate_record.c</code>.</p>

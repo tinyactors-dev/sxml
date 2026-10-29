@@ -1,4 +1,4 @@
-<term id="field_name" source="docs/GLOSSARY.md">
+<term id="field_name">
   <name>field_name</name>
   <definition>The name a grammar gives a child of a syntax node by its role, such as <code>name</code> or <code>body</code>; the <code>field</code> attribute of its element</definition>
 </term>

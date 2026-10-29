@@ -1,4 +1,4 @@
-<decision id="D78" status="accepted" source="docs/DECISIONS.md">
+<decision id="D78" status="accepted">
   <title>Function library: core (packet <ref kind="packet" to="1.20"/>)</title>
   <body>
     <p><recorded date="2026-10-16"/>; written first so packet <ref kind="packet" to="1.21"/> can rely on it.</p>

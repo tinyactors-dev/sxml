@@ -1,4 +1,4 @@
-<term id="content_frame" source="docs/GLOSSARY.md">
+<term id="content_frame">
   <name>content_frame</name>
   <definition>An entry of a node constructor's explicit stack of arrays whose members are being added to a content sequence (<ref kind="decision" to="D71"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="substitution_group" source="docs/GLOSSARY.md">
+<term id="substitution_group">
   <name>substitution_group</name>
   <definition>The element declarations that may appear where a head declaration is expected: those whose substitution group affiliations reach it (XSD 1.1 Part 1, 3.3.6.2)</definition>
 </term>

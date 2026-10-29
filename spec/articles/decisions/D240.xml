@@ -1,4 +1,4 @@
-<decision id="D240" status="accepted" source="docs/DECISIONS.md">
+<decision id="D240" status="accepted">
   <title>The host shim's resolver, request and export files (packet <ref kind="packet" to="6.2"/>)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D138"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D216"/>, <ref kind="decision" to="D225"/>, <ref kind="decision" to="D238"/>. Packet <ref kind="packet" to="6.2"/> moved the JavaScript shim to <code>bindings/host/</code> as the host shim (<code>sxml_host_*</code>, header <code>bindings/host/sxml_host.h</code>) and kept the JavaScript export names.</p>

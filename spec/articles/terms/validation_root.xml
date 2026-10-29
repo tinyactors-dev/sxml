@@ -1,4 +1,4 @@
-<term id="validation_root" source="docs/GLOSSARY.md">
+<term id="validation_root">
   <name>validation_root</name>
   <definition>The element (or attribute) where one validation starts: its subtree is assessed, and IDs and IDREFs are checked within it (XSD 1.1 Part 1, "validation root", cvc-id)</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D231" status="accepted" source="docs/DECISIONS.md">
+<decision id="D231" status="accepted">
   <title>The last streamed shapes: accumulators, xsl:fork and the principal result while streaming (packet 7.6e)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D155"/>, <ref kind="decision" to="D166"/>, <ref kind="decision" to="D212"/>, <ref kind="decision" to="D219"/>, <ref kind="decision" to="D223"/>, <ref kind="decision" to="D228"/>. Replaces <ref kind="decision" to="D223"/>'s and <ref kind="decision" to="D228"/>'s "accumulators computed while streaming are not done" and their rule that a stylesheet reading an accumulator streams nothing.</p>

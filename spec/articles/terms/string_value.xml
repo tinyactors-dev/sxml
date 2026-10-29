@@ -1,4 +1,4 @@
-<term id="string_value" source="docs/GLOSSARY.md">
+<term id="string_value">
   <name>string_value</name>
   <definition><code>dm:string-value</code> of a node</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D276" status="accepted" source="docs/DECISIONS.md">
+<decision id="D276" status="accepted">
   <title>XSLT conformance sweep: instruction locations, next-match in attribute sets, parameter and static error codes (packet 4.28)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D245"/>, <ref kind="decision" to="D271"/>, <ref kind="decision" to="D273"/>, <ref kind="decision" to="D274"/>. Verified as <ref kind="decision" to="D181"/> asks: the debug preset (the xslt<em>, xslt_declaration, xslt_key, xslt_read, xslt_lower_control and cli tests), clang-tidy on the changed files, the call-cycle check, the book examples (<ref kind="decision" to="D257"/>, 397 match), and the whole XT40 suite with the release driver after each change, case by case. *</em>XT40 12,239 to 12,250 passed (107 to 104 wrong error), 279 to 268 failed, 0 errors, no case lost**, from a whole run at c238bc6 (with 2.25's commits up to it). Commits 8ea4281, 47981ac, d02aba3, ff27d21.</p>

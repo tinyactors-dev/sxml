@@ -1,4 +1,4 @@
-<term id="parser_token" source="docs/GLOSSARY.md">
+<term id="parser_token">
   <name>parser_token</name>
   <definition>A concrete syntax tree child that makes no AST node and is absorbed into its parent's detail or flags as the parent is described</definition>
 </term>

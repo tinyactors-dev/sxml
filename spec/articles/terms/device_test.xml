@@ -1,4 +1,4 @@
-<term id="device_test" source="docs/GLOSSARY.md">
+<term id="device_test">
   <name>device_test</name>
   <definition>A binding test run on an Android emulator or device, or an iOS simulator or device, rather than on the build host (Phase 6 gate)</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D48" status="accepted" source="docs/DECISIONS.md">
+<decision id="D48" status="accepted">
   <title>A regular expression seed in Phase 1</title>
   <body>
     <p><recorded date="2026-10-16"/>. Three slice tests need <code>fn:tokenize</code>, but the <ref kind="decision" to="D9"/> engine is a Phase 2 packet. Phase 1 has a small backtracking matcher for a subset of the XPath dialect behind <code>src/regex_internal.h</code> (compile, match at a position, step limit), which the <ref kind="decision" to="D9"/> engine later implements unchanged. Syntax outside the subset raises FORX0002 rather than matching wrongly.</p>

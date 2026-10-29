@@ -1,4 +1,4 @@
-<term id="whitespace_facet" source="docs/GLOSSARY.md">
+<term id="whitespace_facet">
   <name>whitespace_facet</name>
   <definition>How a type treats whitespace before parsing a lexical form: preserve, replace or collapse (XSD 1.1 Part 2, section 4.3.6)</definition>
 </term>

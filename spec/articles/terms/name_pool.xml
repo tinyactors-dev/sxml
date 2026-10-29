@@ -1,4 +1,4 @@
-<term id="name_pool" source="docs/GLOSSARY.md">
+<term id="name_pool">
   <name>name_pool</name>
   <definition>Per-processor table that interns namespace URIs, prefixes and expanded names into small identifiers</definition>
 </term>

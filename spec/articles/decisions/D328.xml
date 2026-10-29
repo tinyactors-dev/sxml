@@ -1,4 +1,4 @@
-<decision id="D328" status="accepted" source="docs/DECISIONS.md">
+<decision id="D328" status="accepted">
   <title>Union patterns keep one default priority, the lowest of their alternatives' (packet <ref kind="packet" to="fix-5"/>)</title>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D118"/>, <ref kind="decision" to="D144"/>, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D276"/>, <ref kind="decision" to="D327"/>. No source change and no public header; one new unit test case.</p>

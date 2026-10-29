@@ -1,4 +1,4 @@
-<term id="sort_key" source="docs/GLOSSARY.md">
+<term id="sort_key">
   <name>sort_key</name>
   <definition>An expression whose value orders the items of a sort, with direction and empty order</definition>
 </term>

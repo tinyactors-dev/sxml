@@ -1,4 +1,4 @@
-<term id="utf8" source="docs/GLOSSARY.md">
+<term id="utf8">
   <name>utf8</name>
   <definition>UTF-8 encoded text, as a byte view; allowed short form</definition>
 </term>

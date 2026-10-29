@@ -1,4 +1,4 @@
-<term id="csv_cursor" source="docs/GLOSSARY.md">
+<term id="csv_cursor">
   <name>csv_cursor</name>
   <definition>Where reading a CSV text continues: a byte offset and whether it is at the start of a row, after a field that ended its row, or at the end</definition>
 </term>

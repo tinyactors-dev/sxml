@@ -1,4 +1,4 @@
-<decision id="D228" status="accepted" source="docs/DECISIONS.md">
+<decision id="D228" status="accepted">
   <title>A streamed principal source; template rules on open nodes (packet 7.6d)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D166"/>, <ref kind="decision" to="D212"/>, <ref kind="decision" to="D219"/>, <ref kind="decision" to="D222"/>, <ref kind="decision" to="D223"/>. Extends <ref kind="decision" to="D219"/> and <ref kind="decision" to="D223"/> to the principal source and to template rules; replaces <ref kind="decision" to="D219"/>'s and <ref kind="decision" to="D223"/>'s "the principal source (a host gives it as a tree; a streamed principal source would be an additive <code>xslt.h</code> field)".</p>

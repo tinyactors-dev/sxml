@@ -1,4 +1,4 @@
-<decision id="D92" status="accepted" source="docs/DECISIONS.md">
+<decision id="D92" status="accepted">
   <title>The QT4 driver: running tests, assertions, reports (packet <ref kind="packet" to="1.25"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>. <code>sxml-qt4 run [--catalog] [--spec] [--test-set=NAME | TEST-LIST] [--format=text|json]</code>; <code>tests/qt4/driver/test_run.c</code>, <code>assertion.c</code>, <code>report.c</code>, <code>reason.c</code>, <code>command_run.c</code>.</p>

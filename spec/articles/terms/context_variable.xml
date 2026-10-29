@@ -1,4 +1,4 @@
-<term id="context_variable" source="docs/GLOSSARY.md">
+<term id="context_variable">
   <name>context_variable</name>
   <definition>The variable Q{XSLT}N an XSLT instruction puts in scope for a context function, read by a parameter default (<code>SXML_PARAMETER_DEFAULT_CONTEXT_VARIABLE</code>) named N; in a template function, where none is in scope, the entry N of the tunnel parameters it received (its received context variables, scope entry Q{XSLT}context-variables, <ref kind="decision" to="D262"/>); else the empty sequence (<ref kind="decision" to="D153"/>)</definition>
 </term>

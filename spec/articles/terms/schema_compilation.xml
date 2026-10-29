@@ -1,4 +1,4 @@
-<term id="schema_compilation" source="docs/GLOSSARY.md">
+<term id="schema_compilation">
   <name>schema_compilation</name>
   <definition>The state one compilation passes from stage to stage: the configuration, the schema components and the count of errors reported</definition>
 </term>

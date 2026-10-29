@@ -1,4 +1,4 @@
-<term id="unpermitted_escape" source="docs/GLOSSARY.md">
+<term id="unpermitted_escape">
   <name>unpermitted_escape</name>
   <definition>A JSON escape sequence for a codepoint that is not a <term name="permitted_character"/> (U+0000, an unpaired surrogate, U+FFFE, U+FFFF); what the <code>fallback</code> option of <code>fn:parse-json</code> is called with (<ref kind="decision" to="D143"/>)</definition>
 </term>

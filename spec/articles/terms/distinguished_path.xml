@@ -1,4 +1,4 @@
-<term id="distinguished_path" source="docs/GLOSSARY.md">
+<term id="distinguished_path">
   <name>distinguished_path</name>
   <definition>The path of an LDML element from below the root, each step with its distinguishing attributes, as <code>dates/calendars/calendar[@type='gregorian']/months</code> (UTS #35, Part 1, section 5.1.1)</definition>
 </term>

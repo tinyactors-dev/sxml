@@ -1,4 +1,4 @@
-<decision id="D262" status="accepted" source="docs/DECISIONS.md">
+<decision id="D262" status="accepted">
   <title>XSLT conformance sweep: dynamic captured groups and <ref kind="decision" to="D260"/>'s leftovers (packet 4.25)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D84"/>, <ref kind="decision" to="D153"/>, <ref kind="decision" to="D252"/>, <ref kind="decision" to="D260"/>, <ref kind="decision" to="D261"/>. Verified as <ref kind="decision" to="D181"/> asks: the debug and debug-gcc presets, the touched unit tests (xslt, xslt_key, xslt_package, xslt_lower<em>, xpath</em>, xquery<em>, cli), clang-tidy on the changed files, the call-cycle check, the book examples (<ref kind="decision" to="D257"/>), and the whole XT40 suite with the release driver after each change, case by case. *</em>XT40 12,157 to 12,187 passed (120 to 118 wrong error), 361 to 331 failed, 0 errors, no case lost.** Commits 205e937, 03cf112, f611f74, aaa0dbe, 7b9dd14, b4a4769, 926eae5.</p>

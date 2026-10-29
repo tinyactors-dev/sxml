@@ -1,4 +1,4 @@
-<term id="primary_format_token" source="docs/GLOSSARY.md">
+<term id="primary_format_token">
   <name>primary_format_token</name>
   <definition>The part of a <code>fn:format-integer</code> picture before its last semicolon: a digit pattern or a numbering token such as <code>a</code>, <code>I</code>, <code>Ww</code></definition>
 </term>

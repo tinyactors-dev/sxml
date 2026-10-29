@@ -1,4 +1,4 @@
-<term id="decoding_error_rule" source="docs/GLOSSARY.md">
+<term id="decoding_error_rule">
   <name>decoding_error_rule</name>
   <definition>What the one decoder of UTF-8, UTF-16, ISO-8859-1 and US-ASCII octets does with octets that do not decode: fail (the XML parser; text decoding without fallback), or replace each maximal subpart by one U+FFFD and go on (text decoding with fallback; the HTML input stream) (<code>sxml_xml_decoder</code>; Unicode 16.0, 3.9.6; <ref kind="decision" to="D249"/>)</definition>
 </term>

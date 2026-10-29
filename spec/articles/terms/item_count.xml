@@ -1,4 +1,4 @@
-<term id="item_count" source="docs/GLOSSARY.md">
+<term id="item_count">
   <name>item_count</name>
   <definition>Number of items: <code>uint64_t</code> for a sequence (a range may hold more than fits in memory), <code>size_t</code> in an <term name="item_view"/></definition>
 </term>

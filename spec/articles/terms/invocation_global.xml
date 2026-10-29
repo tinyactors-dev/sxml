@@ -1,4 +1,4 @@
-<term id="invocation_global" source="docs/GLOSSARY.md">
+<term id="invocation_global">
   <name>invocation_global</name>
   <definition>A global of a stylesheet's IR unit through which the host supplies an invocation's run-time values (the template and tunnel parameter maps, the initial match selection, the initial function's arguments), bound by name as stylesheet parameters are (<ref kind="decision" to="D157"/>)</definition>
 </term>

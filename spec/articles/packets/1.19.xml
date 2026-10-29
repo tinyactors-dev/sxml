@@ -1,4 +1,4 @@
-<packet id="1.19" source="docs/tasks/phase-1.md">
+<packet id="1.19">
   <title>Comparisons and arithmetic (implementation)</title>
   <body>
     <p>After <ref kind="packet" to="1.8"/>, <ref kind="packet" to="1.15"/>. Owns <code>src/operator.c</code>, <code>src/operator_compare.c</code>, <code>src/operator_internal.h</code>, <code>tests/operator_test.c</code>. Numeric promotion, arithmetic with integer overflow into libmpdec, value and general comparisons with untypedAtomic rules. Done when those slice lines pass as unit cases. Spec: XPath 4.0 "Arithmetic Expressions", "Comparison Expressions". <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D68"/>, <ref kind="decision" to="D72"/>): also <code>src/operator_temporal.c</code>, GNode comparisons; P2 and P3 accepted.</p>

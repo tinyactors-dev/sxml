@@ -1,4 +1,4 @@
-<packet id="wasm-1" source="docs/tasks/phase-7.md">
+<packet id="wasm-1">
   <title>Build and test the JavaScript package after this round (tests)</title>
   <body>
     <p>The owner (2026-10-29): sxml.wasm can be built in this environment. wasi-sdk-34, the version <code>mise.toml</code> pins, is installed at <code>/opt/wasi-sdk</code> (the toolchain file's default); the <code>wasm</code> preset configures. Since 7.29, 7.28, fix-7 and perf-17, the JavaScript package was written and typechecked but never built or run here: the <code>locations</code> option (<ref kind="decision" to="D318"/>), the Schematron API and its warnings and documents (<ref kind="decision" to="D323"/>, <ref kind="decision" to="D331"/>), and the size budget after <ref kind="packet" to="perf-17"/>'s parser tables (about +206 KB, <ref kind="decision" to="D329"/>).</p>

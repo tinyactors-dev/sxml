@@ -1,4 +1,4 @@
-<term id="updated_tree" source="docs/GLOSSARY.md">
+<term id="updated_tree">
   <name>updated_tree</name>
   <definition>The new tree that applying a pending update list rebuilt from an old one, with every change made (<ref kind="decision" to="D187"/>)</definition>
 </term>

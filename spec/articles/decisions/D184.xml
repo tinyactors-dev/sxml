@@ -1,4 +1,4 @@
-<decision id="D184" status="accepted" source="docs/DECISIONS.md">
+<decision id="D184" status="accepted">
   <title>Phase 7 scope, size and access choices (owner)</title>
   <body>
     <p><recorded date="2026-10-19"/> on the owner's answers to <ref kind="decision" to="D183"/>'s questions.</p>

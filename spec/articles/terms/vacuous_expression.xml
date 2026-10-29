@@ -1,4 +1,4 @@
-<term id="vacuous_expression" source="docs/GLOSSARY.md">
+<term id="vacuous_expression">
   <name>vacuous_expression</name>
   <definition><code>()</code>, a call of fn:error, or an expression made only of those: allowed where an updating or a simple expression is required (XQuery Update Facility 3.0, 2.2)</definition>
 </term>

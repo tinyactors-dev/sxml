@@ -3,9 +3,10 @@
 #
 # Every command is an XQuery of spec/queries/ run by the sxml command
 # ($SXML, else build/release/apps/sxml, else sxml on PATH) from the
-# repository root. Reads print text; writes store articles through
+# repository root. Reads print text. Writes store articles through
 # spec:store, which validates them and refuses a change that adds an
-# error to `check`. Run `tools/spec/spec help` for the commands.
+# error to `check`, then generate the pages under docs/ again.
+# Run `tools/spec/spec help` for the commands.
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -26,34 +27,45 @@ Read (NAME is D238, 6.2, host_shim, PLAN, tasks/phase-6#packets, or KIND:ID):
   show NAME [--depth=0|1|2]   what it is, its state and summary; 1: what it
                               cites and what cites it; 2: and its text
   refs NAME                   every reference to NAME, with its context
-  brief NAME                  all a packet's text, and one line on each
+  brief NAME                  all of a packet, and one line on each
                               decision, packet and term it cites
-  status [DOCUMENT]           packets and gate boxes of docs/tasks/
+  status [DOCUMENT]           packets and gate boxes of the task documents
   list [KIND] [--status=WORD] [--since=DATE] [--missing-summary]
   find WORDS... [--limit=N]   full-text search (all words, stemmed)
+  text NAME                   NAME's text in source form, to edit and give
+                              back to `amend NAME --body=-`
+  markdown NAME [--output=FILE]
+                              NAME as people read it, includes expanded
   query EXPRESSION [--method=M]
                               any XQuery, with $spec (spec:load()) and
                               $articles bound and spec.xqm imported
-  markdown NAME [--output=FILE]
-                              NAME as Markdown, includes expanded
-  check                       references, keys and placement; exit 1 on error
-  roundtrip [DOCUMENT]        do the documents assemble to their docs/ sources?
+  check                       schema, canonical form, references, placement,
+                              and pages up to date; exit 1 on an error
 
-Write (prose arguments are Markdown: `code` (a term when it is one), **, *,
-[text](url), [[kind:id]], and D238; "-" reads standard input):
+Write (text in source form: Markdown where `code` naming a term is that
+term, D238 is a decision, [[kind:id]] any other reference; "-" reads
+standard input). Each write generates docs/ again:
   add decision --title=T [--summary=S] [--after='D1 D2'] [--body=TEXT]
   add proposal --title=T [--summary=S] [--body=TEXT]
-  add term NAME --definition=TEXT [--after=TERM]
+  add term NAME --definition=TEXT
   add packet ID --document=tasks/phase-7 --title=T [--summary=S] [--body=TEXT]
   amend NAME --title=T | --summary=S | --body=TEXT | --definition=TEXT [--number=N]
+                              NAME may be a document or a section: --body is
+                              then its text, each subsection kept as the
+                              line [[section:ID]] that `text` shows
   supersede DECISION --by=DECISION
   rename TERM NEW-NAME        renames the term and every use of it
   set-status PACKET VALUE [--date=YYYY-MM-DD]
                               VALUE: done, paused, design, designed, revised
+  log TEXT [--date=YYYY-MM-DD]
+                              a new first item in this week's log entry
+  remove NAME                 delete an article nothing refers to (and a
+                              document's page)
   update NAME EXPRESSION      an XQuery Update expression applied to a copy
                               of NAME (the context item), then stored
   apply EXPRESSION            an XQuery expression ($spec bound) whose value
                               is the new versions of the articles to store
+  generate                    write the pages under docs/ (writes do it)
 EOF
 }
 
@@ -62,12 +74,15 @@ run() {
   local errors status=0
   errors=$(mktemp)
   "$sxml" xquery "$@" 2> "$errors" || status=$?
-  sed -E 's/^spec\/(lib|queries)\/[a-z.]+:[0-9]+:[0-9]+: (spec:[a-z-]+: )?/spec: /; s/^spec: refused: refused: /spec: refused: /' "$errors" >&2
+  sed -E 's/^(spec\/(lib|queries)\/[a-z.]+|expression):[0-9]+:[0-9]+: (spec:[a-z-]+: )?/spec: /; s/^spec: refused: refused: /spec: refused: /; s/\\x0A/\n  /g' "$errors" >&2
   rm -f "$errors"
   return $status
 }
 
 read_query() { run --method=text "spec/queries/$1.xq" "${@:2}"; }
+generate() { run --method=text --allow-file-access spec/queries/generate.xq "$@"; }
+store() { run --allow-put --force "$@" && generate > /dev/null; }
+write() { store spec/queries/write.xq "--param=verb=$1" "${@:2}"; }
 
 # --name=value options become --param=name=value; "-" reads standard input.
 parameters=()
@@ -82,6 +97,7 @@ parse() {
         parameters+=("--param=$key=$value") ;;
       --missing-summary) parameters+=("--param=missing-summary=yes") ;;
       --*) echo "spec: unknown option '$argument'" >&2; exit 2 ;;
+      -) positional+=("$(cat)") ;;
       *) positional+=("$argument") ;;
     esac
   done
@@ -91,7 +107,7 @@ need() {
   if (( ${#positional[@]} < $1 )); then echo "spec: $command needs $2" >&2; exit 2; fi
 }
 
-option() {  # option NAME: the value of --NAME, renamed for write.xq
+option() {  # option NAME: the value of --NAME
   local entry
   for entry in "${parameters[@]}"; do
     [[ $entry == "--param=$1="* ]] && { printf '%s' "${entry#--param=$1=}"; return; }
@@ -99,7 +115,9 @@ option() {  # option NAME: the value of --NAME, renamed for write.xq
   return 0
 }
 
-write() { run --allow-put --force spec/queries/write.xq "--param=verb=$1" "${@:2}"; }
+prolog='import module namespace spec = "urn:sxml:spec" at "spec/lib/spec.xqm";
+declare variable $spec := spec:load();
+declare variable $articles := $spec?articles;'
 
 command=${1:-help}
 shift || true
@@ -119,24 +137,26 @@ case $command in
   status) read_query status "--param=name=${positional[0]:-}" ;;
   list) read_query list "--param=kind=${positional[0]:-}" "${parameters[@]}" ;;
   find) need 1 "WORDS"; read_query find "--param=words=${positional[*]}" "${parameters[@]}" ;;
+  text)
+    need 1 "a NAME"
+    run --method=text "--param=name=${positional[0]}" --expression="$prolog
+declare variable \$name as xs:string external;
+spec:source(\$spec, spec:one(\$spec, \$name)) || '&#10;'" ;;
+  query)
+    need 1 "an EXPRESSION"
+    method=$(option method)
+    run --method="${method:-adaptive}" --expression="$prolog
+${positional[0]}" ;;
   check)
     status=0
     find spec/articles -name '*.xml' -print0 | xargs -0 "$sxml" validate --schema=spec/schema/spec.xsd || status=1
     result=$(read_query check)
-    printf '%s\n' "$result"
-    if grep -q '^error:' <<< "$result"; then status=1; fi
+    pages=$(generate --param=check=yes)
+    printf '%s\n' "$result" "$pages" | sed 's/^stale: /error: stale page: /'
+    if grep -q '^error:' <<< "$result" || grep -q '^stale:' <<< "$pages"; then status=1; fi
     exit $status ;;
-  roundtrip)
-    result=$(read_query roundtrip "--param=document=${positional[0]:-}")
-    printf '%s\n' "$result" | sed 's/^ //'
-    ! grep -q 'differs:' <<< "$result" ;;
-  query)
-    need 1 "an EXPRESSION"
-    method=$(option method)
-    run --method="${method:-adaptive}" --expression="import module namespace spec = \"urn:sxml:spec\" at \"spec/lib/spec.xqm\";
-declare variable \$spec := spec:load();
-declare variable \$articles := \$spec?articles;
-${positional[0]}" ;;
+  selftest) read_query selftest ;;
+  generate) generate ;;
   add)
     need 1 "a kind: decision, proposal, term or packet"
     case ${positional[0]} in
@@ -158,17 +178,26 @@ ${positional[0]}" ;;
   supersede) need 1 "a DECISION"; write supersede "--param=name=${positional[0]}" "--param=by=$(option by)" ;;
   rename) need 2 "a TERM and its NEW-NAME"; write rename-term "--param=name=${positional[0]}" "--param=to=${positional[1]}" ;;
   set-status) need 2 "a PACKET and a VALUE"; write set-status "--param=name=${positional[0]}" "--param=value=${positional[1]}" "--param=date=$(option date)" ;;
+  log) need 1 "the entry's TEXT"; write log "--param=text=${positional[0]}" "--param=date=$(option date)" ;;
+  remove)
+    need 1 "a NAME"
+    files=$(read_query remove "--param=name=${positional[0]}")
+    while read -r file; do rm -- "$file"; done <<< "$files"
+    generate > /dev/null ;;
   update)
     need 2 "a NAME and an EXPRESSION"
-    run --allow-put --force "--param=name=${positional[0]}" --expression="import module namespace spec = \"urn:sxml:spec\" at \"spec/lib/spec.xqm\";
+    store "--param=name=${positional[0]}" --expression="$prolog
 declare variable \$name as xs:string external;
-declare variable \$spec := spec:load();
-spec:store(\$spec, spec:one(\$spec, \$name) transform with { ${positional[1]} })" ;;
+let \$target := spec:one(\$spec, \$name)
+let \$article := \$target/ancestor-or-self::*[last()]
+return spec:store(\$spec,
+  if (\$target is \$article) then \$article transform with { ${positional[1]} }
+  else
+    let \$section := \$target transform with { ${positional[1]} }
+    return \$article transform with { replace node .//section[@id = \$target/@id] with \$section })" ;;
   apply)
     need 1 "an EXPRESSION"
-    run --allow-put --force --expression="import module namespace spec = \"urn:sxml:spec\" at \"spec/lib/spec.xqm\";
-declare variable \$spec := spec:load();
-declare variable \$articles := \$spec?articles;
+    store --expression="$prolog
 spec:store(\$spec, (${positional[0]}))" ;;
   *) echo "spec: no command '$command'; see tools/spec/spec help" >&2; exit 2 ;;
 esac

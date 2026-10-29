@@ -1,4 +1,4 @@
-<term id="raised_error" source="docs/GLOSSARY.md">
+<term id="raised_error">
   <name>raised_error</name>
   <definition>The error an item heap keeps for an error record whose description or value was computed (<code>sxml_item_heap_raise_error</code>)</definition>
 </term>

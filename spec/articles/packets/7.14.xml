@@ -1,4 +1,4 @@
-<packet id="7.14" source="docs/tasks/phase-7.md">
+<packet id="7.14">
   <title>DTD processing: entities, defaults, validation (design and implementation, two packets; proposed, <ref kind="decision" to="D183"/>)</title>
   <body>
     <list>

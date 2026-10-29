@@ -1,4 +1,4 @@
-<term id="template_function" source="docs/GLOSSARY.md">
+<term id="template_function">
   <name>template_function</name>
   <definition>The IR function an <code>xsl:template</code> (or a built-in template) lowers to: the focus (item, position, size) and the two parameter maps are its five parameters (<ref kind="decision" to="D144"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D100" status="accepted" source="docs/DECISIONS.md">
+<decision id="D100" status="accepted">
   <title>Phase 1 gate review (packet <ref kind="packet" to="1.29"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/> by the review agent (<ref kind="decision" to="D11"/>), who did not write Phase 1.</p>

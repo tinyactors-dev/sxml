@@ -1,4 +1,4 @@
-<decision id="D329" status="accepted" source="docs/DECISIONS.md">
+<decision id="D329" status="accepted">
   <title>Parsing XPath: fewer reductions, each text once per compilation (packet <ref kind="packet" to="perf-17"/>)</title>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D232"/>, <ref kind="decision" to="D324"/> and <ref kind="decision" to="D325"/>. No public header changed; the ASTs and the IR are the same.</p>

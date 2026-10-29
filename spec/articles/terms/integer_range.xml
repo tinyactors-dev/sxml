@@ -1,4 +1,4 @@
-<term id="integer_range" source="docs/GLOSSARY.md">
+<term id="integer_range">
   <name>integer_range</name>
   <definition>The bounds of a range sequence (<code>first_integer</code> to <code>last_integer</code>)</definition>
 </term>

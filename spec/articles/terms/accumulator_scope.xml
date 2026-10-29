@@ -1,4 +1,4 @@
-<term id="accumulator_scope" source="docs/GLOSSARY.md">
+<term id="accumulator_scope">
   <name>accumulator_scope</name>
   <definition>The xslt accumulators applicable to one tree when they are restricted: for the initial match selection, those use-accumulators of the initial mode names; kept in the evaluation memo (XSLT 4.0, 19.2; <ref kind="decision" to="D155"/>)</definition>
 </term>

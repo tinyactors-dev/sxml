@@ -1,4 +1,4 @@
-<term id="uri_escaping" source="docs/GLOSSARY.md">
+<term id="uri_escaping">
   <name>uri_escaping</name>
   <definition>NFC and %-escaping of non-ASCII characters in a URI attribute value of an HTML element (Serialization 4.0, section 4, rule a; appendix D)</definition>
 </term>

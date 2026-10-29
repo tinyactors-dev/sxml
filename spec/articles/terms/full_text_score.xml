@@ -1,4 +1,4 @@
-<term id="full_text_score" source="docs/GLOSSARY.md">
+<term id="full_text_score">
   <name>full_text_score</name>
   <definition>The relevance of a match, a number in [0, 1] computed from the matches and their weights (Full Text 3.0, 2.3; <ref kind="decision" to="D214"/>)</definition>
 </term>

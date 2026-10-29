@@ -1,4 +1,4 @@
-<term id="node_height" source="docs/GLOSSARY.md">
+<term id="node_height">
   <name>node_height</name>
   <definition>Of an array node: 0 for leaves, one more than the taller subtree for a branch node (AVL balance)</definition>
 </term>

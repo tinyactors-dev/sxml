@@ -1,4 +1,4 @@
-<decision id="D249" status="accepted" source="docs/DECISIONS.md">
+<decision id="D249" status="accepted">
   <title>7.11's open cases; one decoder, one feature data path, one array helper, one text form writer (packet <ref kind="packet" to="7.20"/>)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D29"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D169"/>, <ref kind="decision" to="D182"/>, <ref kind="decision" to="D185"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D203"/>, <ref kind="decision" to="D225"/>, <ref kind="decision" to="D237"/>, <ref kind="decision" to="D245"/>. Verified as <ref kind="decision" to="D181"/> asks: debug and debug-gcc build with <code>-Werror</code>, the touched unit and CLI tests pass, clang-tidy is clean on the changed files, <code>tools/check-call-cycles.py</code> finds no cycle (230 files), and XT40, XP40, XQ40 and XSD were run whole with the release drivers before (6e1a371) and after, case by case.</p>

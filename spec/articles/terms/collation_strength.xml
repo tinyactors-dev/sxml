@@ -1,4 +1,4 @@
-<term id="collation_strength" source="docs/GLOSSARY.md">
+<term id="collation_strength">
   <name>collation_strength</name>
   <definition>How many levels of collation elements a UCA collation compares, primary to identical (UTS #10; the <code>strength</code> parameter)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="local_time_type" source="docs/GLOSSARY.md">
+<term id="local_time_type">
   <name>local_time_type</name>
   <definition>What local time is at an instant in a zone: its offset from UTC, whether it is daylight saving time, and its abbreviation (RFC 8536, 3.2, "local time type records"; <ref kind="decision" to="D209"/>)</definition>
 </term>

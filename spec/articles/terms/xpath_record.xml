@@ -1,4 +1,4 @@
-<term id="xpath_record" source="docs/GLOSSARY.md">
+<term id="xpath_record">
   <name>xpath_record</name>
   <definition>XSD's XPath Expression property record: the expression text with its namespace context, and its compiled form once a stage compiles it (XSD 1.1 Part 1, 3.13.1)</definition>
 </term>

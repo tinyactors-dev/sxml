@@ -1,4 +1,4 @@
-<document id="tasks/phase-0" source="docs/tasks/phase-0.md">
+<document id="tasks/phase-0" file="docs/tasks/phase-0.md">
   <title>Phase 0: Substrate design</title>
   <p>Goal: reviewed public headers for the substrate, a golden module, and CI that enforces the guidelines on every change. No XPath evaluation yet.</p>
   <p>Do the tasks in order. Finish each with a commit and a short entry in <code>docs/LOG.md</code>. Stop at the gate.</p>

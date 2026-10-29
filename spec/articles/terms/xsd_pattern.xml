@@ -1,4 +1,4 @@
-<term id="xsd_pattern" source="docs/GLOSSARY.md">
+<term id="xsd_pattern">
   <name>xsd_pattern</name>
   <definition>A regular expression of XSD's own dialect (XSD 1.1 Part 2, appendix G), the value of a pattern facet: anchored to the whole value, without F&amp;O's additions; the regex engine's <code>is_xsd_pattern</code> flag (<ref kind="decision" to="D53"/>, <ref kind="decision" to="D171"/>)</definition>
 </term>

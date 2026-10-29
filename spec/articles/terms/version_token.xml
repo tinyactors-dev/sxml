@@ -1,4 +1,4 @@
-<term id="version_token" source="docs/GLOSSARY.md">
+<term id="version_token">
   <name>version_token</name>
   <definition>A token of an XSD test suite <code>version</code> attribute (<code>1.1</code>, <code>XML-1.0-5e</code>, <code>full-xpath-in-CTA</code>): a test set, group or test applies when, for each token class it names, it names a token the driver supports; an <code>expected</code> applies when the driver supports all its tokens</definition>
 </term>

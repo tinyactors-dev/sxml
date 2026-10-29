@@ -1,4 +1,4 @@
-<term id="serialization_parameter_reader" source="docs/GLOSSARY.md">
+<term id="serialization_parameter_reader">
   <name>serialization_parameter_reader</name>
   <definition>Reads serialization parameters from a parameter document or an options map and keeps what they refer to</definition>
 </term>

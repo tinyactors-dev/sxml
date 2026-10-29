@@ -1,4 +1,4 @@
-<term id="record_field" source="docs/GLOSSARY.md">
+<term id="record_field">
   <name>record_field</name>
   <definition>An attribute of <code>xsl:record</code>: the field name is its local name, the value its expression</definition>
   <definition>One field of a record type: a name and a sequence type</definition>

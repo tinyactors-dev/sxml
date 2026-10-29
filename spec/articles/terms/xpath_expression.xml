@@ -1,4 +1,4 @@
-<term id="xpath_expression" source="docs/GLOSSARY.md">
+<term id="xpath_expression">
   <name>xpath_expression</name>
   <definition>An XPath expression compiled for one processor, evaluated any number of times</definition>
 </term>

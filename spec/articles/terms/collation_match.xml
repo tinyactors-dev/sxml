@@ -1,4 +1,4 @@
-<term id="collation_match" source="docs/GLOSSARY.md">
+<term id="collation_match">
   <name>collation_match</name>
   <definition>The bytes of a string that equal a search string under a collation, starting and ending at collation unit boundaries</definition>
 </term>

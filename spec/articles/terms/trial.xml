@@ -1,4 +1,4 @@
-<term id="trial" source="docs/GLOSSARY.md">
+<term id="trial">
   <name>trial</name>
   <definition>In an unordered deep-equal comparison, the comparison of one unit with one candidate; a difference inside it moves on to the next candidate</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D42" status="accepted" source="docs/DECISIONS.md">
+<decision id="D42" status="accepted">
   <title>libmpdec allocation through a scoped allocator</title>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.8), completing <ref kind="decision" to="D8"/>. Checked in mpdecimal 2.5.1 (<code>mpalloc.c</code>, as bundled by CPython 3.12): <code>mpd_mallocfunc</code>, <code>mpd_callocfunc</code>, <code>mpd_reallocfunc</code> and <code>mpd_free</code> are process-global function pointers without a state argument, <code>MPD_MINALLOC</code> and <code>mpd_traphandler</code> are globals too, and the internal resize path (<code>mpd_qresize</code>; about 90 allocation call sites in <code>mpdecimal.c</code> alone) receives no context. Chosen, for the decimal packet of Phase 2:</p>

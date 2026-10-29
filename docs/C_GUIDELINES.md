@@ -1,3 +1,5 @@
+<!-- Generated from spec/articles by tools/spec/spec generate. Do not edit: change it with tools/spec/spec (spec/README.md). -->
+
 # C Coding Guidelines
 
 C in this project should read like a well-edited specification: every name says
@@ -14,7 +16,8 @@ written down next to the code.
 
 ## Naming
 
-Spell identifiers out. We are not saving characters; we are saving the reader's time.
+Spell identifiers out. We are not saving characters; we are saving the reader's
+time.
 
 - **Case:** `snake_case` for functions, variables, fields and types;
   `UPPER_SNAKE_CASE` for macros and enum constants.
@@ -22,16 +25,17 @@ Spell identifiers out. We are not saving characters; we are saving the reader's 
   `sxml_tree_append_child`.
 - **Functions are verb phrases:** `sxml_reader_read_line`, not `sxml_rdln`.
   Predicates read as questions: `sxml_node_is_element`.
-- **Types are noun phrases:** `sxml_parser`, `sxml_parser_configuration`.
-  Use no `_t` suffix, which POSIX reserves.
+- **Types are noun phrases:** `sxml_parser`, `sxml_parser_configuration`. Use
+  no `_t` suffix, which POSIX reserves.
 - **Variables say what they hold, including units:** `byte_count`,
   `codepoint_count`, `timeout_milliseconds`, not `n`, `len`, `t`.
-- **Loop indices** are named after what they index: `entry_index`, not `i`.
-  A loop over a plain counter may use `index`.
+- **Loop indices** are named after what they index: `entry_index`, not `i`. A
+  loop over a plain counter may use `index`.
 - **Booleans** are named as true statements: `has_namespace`, `is_empty`.
 
 **Glossary.** Each domain term has exactly one spelling, listed in
-`docs/GLOSSARY.md`. New terms are added there before they appear in code.
+`docs/GLOSSARY.md`. New terms are added (`tools/spec/spec add term`) before
+they appear in code.
 
 **Banned abbreviations** (non-exhaustive, enforced by lint): `ctx`, `buf`,
 `len`, `str`, `ptr`, `tmp`, `cnt`, `idx`, `num`, `cfg`, `res`, `ret`, `val`,
@@ -46,7 +50,8 @@ Every project-owned function and function-pointer type takes at most three
 parameters, counting state and outputs. A required external callback signature
 may exceed this, with the exception documented at the declaration.
 
-Three parameters force each argument group to name a real concept. Common shapes:
+Three parameters force each argument group to name a real concept. Common
+shapes:
 
 - `owner, request, output` — act on an object with a described request and
   produce a result.
@@ -84,15 +89,16 @@ allowed only as a named struct field, never as a bare positional argument.
 Every pointer in an interface is either borrowed or owned, and the declaration
 says which.
 
-- **Borrowed is the default.** A function that receives a pointer may use it only
-  for the duration of the call and must not free or store it.
+- **Borrowed is the default.** A function that receives a pointer may use it
+  only for the duration of the call and must not free or store it.
 - **Storing a pointer** beyond the call is part of the contract and is
-  documented: "`index` keeps a reference to `string_table`, which must outlive it."
+  documented: "`index` keeps a reference to `string_table`, which must outlive
+  it."
 - **Transfer of ownership** is visible in the name: `sxml_list_take_entry`,
   `sxml_buffer_release_bytes`. A function that returns owned memory says so and
   names how to release it.
-- **Library code never calls `malloc` or `free` directly.** Memory comes from the
-  caller or from an allocator interface.
+- **Library code never calls `malloc` or `free` directly.** Memory comes from
+  the caller or from an allocator interface.
 - **Arenas for many small objects.** When objects are created in bulk and die
   together, allocate them from an arena and refer to them by index rather than
   pointer, so their lifetime is the arena's.
@@ -104,8 +110,8 @@ and the header states which.
 
 Every object type supports two lifecycles: one where the caller provides the
 memory, and one where the library allocates it through an allocator. The
-caller-provided path is the primitive; the allocating path is a thin convenience
-built on it.
+caller-provided path is the primitive; the allocating path is a thin
+convenience built on it.
 
 | Pair | Who owns the object's memory | What it does |
 | --- | --- | --- |
@@ -146,27 +152,29 @@ void sxml_parser_destroy(sxml_parser *parser);
 
 Rules for both paths:
 
-- **`initialize` never allocates on its own.** It checks that the memory is large
-  enough and correctly aligned, and returns `SXML_STATUS_INSUFFICIENT_MEMORY` or
-  `SXML_STATUS_MISALIGNED_MEMORY` otherwise.
-- **Growth is explicit in the configuration.** An object that needs memory after
-  initialization either receives an allocator in its configuration or works
-  within a fixed capacity and reports `SXML_STATUS_CAPACITY_EXCEEDED`.
+- **`initialize` never allocates on its own.** It checks that the memory is
+  large enough and correctly aligned, and returns
+  `SXML_STATUS_INSUFFICIENT_MEMORY` or `SXML_STATUS_MISALIGNED_MEMORY`
+  otherwise.
+- **Growth is explicit in the configuration.** An object that needs memory
+  after initialization either receives an allocator in its configuration or
+  works within a fixed capacity and reports `SXML_STATUS_CAPACITY_EXCEEDED`.
 - **Objects do not move.** After `initialize`, the memory stays at the same
   address until `finalize`. A type that is safe to copy byte-for-byte says so.
-- **Composite objects compose requirements**, rounded up for alignment, so a whole
-  object graph can live in one caller-provided block.
+- **Composite objects compose requirements**, rounded up for alignment, so a
+  whole object graph can live in one caller-provided block.
 - **`destroy` and `finalize` accept `NULL`** and do nothing.
-- **`create` stores its allocator** inside the object so `destroy` needs no extra argument.
+- **`create` stores its allocator** inside the object so `destroy` needs no
+  extra argument.
 - **No fixed-size storage structs in public headers** unless the size is
   deliberately frozen as part of the ABI.
 
 ## Interfaces
 
-An interface is a pair: a pointer to the implementation's state and a pointer to
-a constant table of operations. The library depends on interfaces wherever the
-host should be able to substitute behaviour: memory allocation, input and output
-streams, document resolution, clocks.
+An interface is a pair: a pointer to the implementation's state and a pointer
+to a constant table of operations. The library depends on interfaces wherever
+the host should be able to substitute behaviour: memory allocation, input and
+output streams, document resolution, clocks.
 
 ```c
 typedef struct sxml_allocation_request {
@@ -189,13 +197,15 @@ typedef struct sxml_allocator {
 
 - **Operations tables are `static const`** and shared by every instance.
   Per-instance data lives only in `state`.
-- **Every operation takes `state` first** and follows the three-parameter limit.
+- **Every operation takes `state` first** and follows the three-parameter
+  limit.
 - **Interfaces are passed by value.** They are two pointers.
 - **Lifetime is stated where the interface is accepted.**
 - **Calls go through small wrappers**, such as
   `sxml_allocator_allocate(allocator, request, &memory)`.
 - **Every interface has a default implementation** and a test double.
-- **Interfaces are not extended in place.** Publish a new interface type instead.
+- **Interfaces are not extended in place.** Publish a new interface type
+  instead.
 
 ## Errors
 
@@ -206,10 +216,10 @@ parameter. Never signal errors through magic return values.
   `SXML_STATUS_UNEXPECTED_END_OF_INPUT`.
 - **Ignored errors fail the build.** Mark status-returning functions with the
   project's `SXML_NODISCARD` macro.
-- **XPath, XQuery and XSLT dynamic errors** carry their specification error code
-  (for example `FOAR0001`) in an error record that the caller can inspect.
-- **Detailed diagnostics** go into an optional diagnostic record supplied by the
-  caller, never into global state or `errno`.
+- **XPath, XQuery and XSLT dynamic errors** carry their specification error
+  code (for example `FOAR0001`) in an error record that the caller can inspect.
+- **Detailed diagnostics** go into an optional diagnostic record supplied by
+  the caller, never into global state or `errno`.
 - **Library code never calls `abort` or `exit`, and never prints.**
 - **Every early return releases what the function acquired.**
 
@@ -229,8 +239,10 @@ typedef struct sxml_memory_view {
 } sxml_memory_view;
 ```
 
-- **Units are in the name.** `byte_count` and `codepoint_count` are different things.
-- **Strings are UTF-8 byte views, not NUL-terminated**, except at external boundaries.
+- **Units are in the name.** `byte_count` and `codepoint_count` are different
+  things.
+- **Strings are UTF-8 byte views, not NUL-terminated**, except at external
+  boundaries.
 - **Output buffers** state capacity and bytes written, and what happens when
   capacity is too small.
 - **Aliasing is declared**; otherwise use `restrict`.
@@ -264,8 +276,8 @@ Target C17, with C23 features behind portability macros. Code must build with
 Clang, GCC, MSVC, the WASI SDK and the Android NDK.
 
 - **Platform branches** are few, each beside the existing `_WIN32` one, and
-  each says why in a comment. Android (D238, D251): the NDK presets build
-  for API level 24 (`minSdk`), where bionic lacks two C17 functions.
+  each says why in a comment. Android (D238, D251): the NDK presets build for
+  API level 24 (`minSdk`), where bionic lacks two C17 functions.
   `src/allocator.c` uses `posix_memalign` for `aligned_alloc` (API 28) and
   `src/processor.c` uses `clock_gettime(CLOCK_REALTIME)` for `timespec_get`
   (API 29), both when `__ANDROID_API__` is lower. Any other C17 function the
@@ -274,13 +286,21 @@ Clang, GCC, MSVC, the WASI SDK and the Android NDK.
 
 - **Integers:** `size_t` for sizes and counts in memory, fixed-width types for
   values with a defined range, never plain `int` or `long` for data.
+
 - **Distinct index types** for distinct things (`sxml_node_index`,
   `sxml_string_index`) as single-field structs.
+
 - **`bool`** for truth values.
-- **Enums** for closed sets; `switch` on enums lists every case and has no `default`.
+
+- **Enums** for closed sets; `switch` on enums lists every case and has no
+  `default`.
+
 - **`const` everywhere it is true.**
+
 - **One declaration per line**, at first use, initialized.
+
 - **Macros only for what functions cannot do.**
+
 - **No implicit conversions** that change sign or lose precision.
 
 ## Comments and documentation
@@ -295,7 +315,8 @@ thread safety.
 
 ## Enforcement
 
-Compiler, then linter, then structural search, then review. CI runs all of them.
+Compiler, then linter, then structural search, then review. CI runs all of
+them.
 
 **Compiler flags** (Clang and GCC): `-std=c17 -Wall -Wextra -Wpedantic -Werror
 -Wconversion -Wsign-conversion -Wshadow -Wstrict-prototypes
@@ -304,7 +325,8 @@ Compiler, then linter, then structural search, then review. CI runs all of them.
 **clang-tidy:** see `.clang-tidy`.
 
 **ast-grep rules** for banned abbreviations, `malloc`/`free` outside the
-allocator module, pointer parameters without a length, and bare `bool` parameters.
+allocator module, pointer parameters without a length, and bare `bool`
+parameters.
 
 **Runtime checks:** AddressSanitizer and UndefinedBehaviorSanitizer on every
 test run; fuzzing of every parser entry point.

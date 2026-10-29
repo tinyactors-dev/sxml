@@ -1,4 +1,4 @@
-<term id="format_modifier" source="docs/GLOSSARY.md">
+<term id="format_modifier">
   <name>format_modifier</name>
   <definition>The part of a <code>fn:format-integer</code> picture after its last semicolon: <code>c</code> or <code>o</code> with an optional variant in parentheses, then <code>a</code> or <code>t</code></definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="schema_components" source="docs/GLOSSARY.md">
+<term id="schema_components">
   <name>schema_components</name>
   <definition>The store of one schema's components (<code>sxml_schema_components</code>, <code>src/schema_internal.h</code>, <ref kind="decision" to="D167"/>): one array per schema table, addressed by index with entry 0 "none", plus the name index and the blocks compile stages allocate</definition>
 </term>

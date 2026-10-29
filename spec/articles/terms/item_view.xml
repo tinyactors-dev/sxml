@@ -1,4 +1,4 @@
-<term id="item_view" source="docs/GLOSSARY.md">
+<term id="item_view">
   <name>item_view</name>
   <definition>A read-only pointer to items plus <term name="item_count"/></definition>
 </term>

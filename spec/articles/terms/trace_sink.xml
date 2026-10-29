@@ -1,4 +1,4 @@
-<term id="trace_sink" source="docs/GLOSSARY.md">
+<term id="trace_sink">
   <name>trace_sink</name>
   <definition>Host interface receiving the output of <code>fn:trace</code>, <code>fn:message</code> and <code>xsl:message</code></definition>
 </term>

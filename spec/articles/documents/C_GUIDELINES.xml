@@ -1,4 +1,4 @@
-<document id="C_GUIDELINES" source="docs/C_GUIDELINES.md">
+<document id="C_GUIDELINES" file="docs/C_GUIDELINES.md">
   <title>C Coding Guidelines</title>
   <p>C in this project should read like a well-edited specification: every name says what it is, every interface states who owns what, and the compiler and linters catch violations before a human does.</p>
   <p>These rules apply to all project-owned C, whether written by people or by AI agents. Agents are the main audience: they imitate surrounding code, so every rule here is either enforced by a tool (see Enforcement) or demonstrated in a golden file. A rule that is neither will drift.</p>
@@ -29,7 +29,7 @@
         <p><strong>Booleans</strong> are named as true statements: <code>has_namespace</code>, <code>is_empty</code>.</p>
       </item>
     </list>
-    <p><strong>Glossary.</strong> Each domain term has exactly one spelling, listed in <code>docs/GLOSSARY.md</code>. New terms are added there before they appear in code.</p>
+    <p><strong>Glossary.</strong> Each domain term has exactly one spelling, listed in <code>docs/GLOSSARY.md</code>. New terms are added (<code>tools/spec/spec add term</code>) before they appear in code.</p>
     <p><strong>Banned abbreviations</strong> (non-exhaustive, enforced by lint): <code>ctx</code>, <code>buf</code>, <code>len</code>, <code>str</code>, <code>ptr</code>, <code>tmp</code>, <code>cnt</code>, <code>idx</code>, <code>num</code>, <code>cfg</code>, <code>res</code>, <code>ret</code>, <code>val</code>, <code>msg</code>, <code>err</code> as a variable name.</p>
     <p>Allowed short forms are only those the field itself uses as words: <term name="utf8"/>, <code>uri</code>, <code>id</code>, <code>io</code>, <code>xml</code>, <code>xdm</code>, <code>qname</code> (only for the XML QName concept).</p>
   </section>

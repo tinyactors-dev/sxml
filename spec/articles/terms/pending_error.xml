@@ -1,4 +1,4 @@
-<term id="pending_error" source="docs/GLOSSARY.md">
+<term id="pending_error">
   <name>pending_error</name>
   <definition>An error of a try or catch clause that a finally clause raises again once it has run without error (<ref kind="decision" to="D109"/>)</definition>
 </term>

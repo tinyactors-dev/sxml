@@ -1,4 +1,4 @@
-<term id="qt4_environment" source="docs/GLOSSARY.md">
+<term id="qt4_environment">
   <name>qt4_environment</name>
   <definition>The static and dynamic context a QT4 test case runs in: sources, parameters, namespaces, static base URI, resources, collections</definition>
 </term>

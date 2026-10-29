@@ -1,4 +1,4 @@
-<term id="abstract_pattern" source="docs/GLOSSARY.md">
+<term id="abstract_pattern">
   <name>abstract_pattern</name>
   <definition>A sch:pattern or sch:group with abstract="true": rules with placeholders and its declared parameters, some with default values, compiled only through its pattern instances (5.4.11, 6.4; <ref kind="decision" to="D315"/>)</definition>
 </term>

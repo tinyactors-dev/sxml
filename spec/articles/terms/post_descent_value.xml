@@ -1,4 +1,4 @@
-<term id="post_descent_value" source="docs/GLOSSARY.md">
+<term id="post_descent_value">
   <name>post_descent_value</name>
   <definition>The value of an xslt accumulator just after the end event of a node (fn:accumulator-after)</definition>
 </term>

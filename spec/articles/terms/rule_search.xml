@@ -1,4 +1,4 @@
-<term id="rule_search" source="docs/GLOSSARY.md">
+<term id="rule_search">
   <name>rule_search</name>
   <definition>Which template rules of a mode an apply-templates tries: all of them, those after the current template rule (<code>xsl:next-match</code>), or those of the levels the current rule's level imports (<code>xsl:apply-imports</code>)</definition>
 </term>

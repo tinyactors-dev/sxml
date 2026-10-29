@@ -1,4 +1,4 @@
-<term id="source_code_language" source="docs/GLOSSARY.md">
+<term id="source_code_language">
   <name>source_code_language</name>
   <definition>A programming or data language that tree-sitter:parse reads (namespace <code>urn:sxml:tree-sitter</code>, <ref kind="decision" to="D307"/>): a vendored tree-sitter grammar (third_party/tree-sitter-grammars) with its highlights query, named as <code>javascript</code> or <code>python</code> (<ref kind="decision" to="D285"/>)</definition>
 </term>

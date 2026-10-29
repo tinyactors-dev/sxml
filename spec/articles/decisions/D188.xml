@@ -1,4 +1,4 @@
-<decision id="D188" status="accepted" source="docs/DECISIONS.md">
+<decision id="D188" status="accepted">
   <title>disable-output-escaping: a text node mark (packet <ref kind="packet" to="7.5"/>)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D99"/>, <ref kind="decision" to="D163"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>. The owner's prompt for 7.5 asked for a mark on text nodes as <ref kind="decision" to="D163"/> added the CDATA request, in place of <ref kind="decision" to="D183"/>'s processing-instruction pair (glossary <term name="disable_output_escaping"/> replaces <code>output_escaping_marker</code>).</p>

@@ -1,4 +1,4 @@
-<decision id="D307" status="accepted" source="docs/DECISIONS.md">
+<decision id="D307" status="accepted">
   <title>The tree-sitter functions are tree-sitter:parse and tree-sitter:languages (packet <ref kind="packet" to="7.26"/>)</title>
   <body>
     <p><recorded date="2026-10-22"/>, after <ref kind="decision" to="D99"/>, <ref kind="decision" to="D206"/>, <ref kind="decision" to="D208"/>, <ref kind="decision" to="D261"/>, <ref kind="decision" to="D285"/>, <ref kind="decision" to="D288"/>, <ref kind="decision" to="D293"/>, <ref kind="decision" to="D306"/>. The owner (2026-10-22): "expose tree-sitter as tree-sitter: not sxml:code-<em>". Amends <ref kind="decision" to="D285"/>'s *</em>API** paragraph; the shape of the documents (<ref kind="decision" to="D285"/>'s <strong>Shape</strong>) is unchanged.</p>

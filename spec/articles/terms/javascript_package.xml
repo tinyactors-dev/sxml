@@ -1,4 +1,4 @@
-<term id="javascript_package" source="docs/GLOSSARY.md">
+<term id="javascript_package">
   <name>javascript_package</name>
   <definition>The hand-written TypeScript package in <code>bindings/javascript/</code> (npm name <code>@tinyactors/sxml</code>, <ref kind="decision" to="D239"/>) that loads <code>sxml.wasm</code> in Node.js and browsers (<ref kind="decision" to="D10"/>, <ref kind="decision" to="D138"/>)</definition>
 </term>

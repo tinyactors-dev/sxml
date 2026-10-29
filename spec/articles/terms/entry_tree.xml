@@ -1,4 +1,4 @@
-<term id="entry_tree" source="docs/GLOSSARY.md">
+<term id="entry_tree">
   <name>entry_tree</name>
   <definition>The balanced tree of a persistent map's entries ordered by entry stamp, counting entries per subtree so entries are found by entry index</definition>
 </term>

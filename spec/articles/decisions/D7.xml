@@ -1,4 +1,4 @@
-<decision id="D7" status="accepted" source="docs/DECISIONS.md">
+<decision id="D7" status="accepted">
   <title>Ordered maps (XDM 4.0)</title>
   <body>
     <p>XDM 4.0 maps keep insertion order. Design after Saxon 13 (Michael Kay, "Implementing Maps for XPath 4.0", XML Prague 2026):</p>

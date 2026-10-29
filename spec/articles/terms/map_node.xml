@@ -1,4 +1,4 @@
-<term id="map_node" source="docs/GLOSSARY.md">
+<term id="map_node">
   <name>map_node</name>
   <definition>One node of an entry tree or a key tree: an entry, its key hash and entry stamp, two subtrees (<ref kind="decision" to="D61"/>)</definition>
 </term>

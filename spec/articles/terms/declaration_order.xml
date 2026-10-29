@@ -1,4 +1,4 @@
-<term id="declaration_order" source="docs/GLOSSARY.md">
+<term id="declaration_order">
   <name>declaration_order</name>
   <definition>The order of the declarations of a stylesheet level, with included modules in place of their <code>xsl:include</code></definition>
 </term>

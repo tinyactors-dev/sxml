@@ -1,4 +1,4 @@
-<term id="public_declaration" source="docs/GLOSSARY.md">
+<term id="public_declaration">
   <name>public_declaration</name>
   <definition>A function, variable or item type a library module declares without %private: what an import makes visible (XQuery 4.0, 5.16, 5.18)</definition>
 </term>

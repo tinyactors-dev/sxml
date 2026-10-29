@@ -1,4 +1,4 @@
-<term id="nominative_record_type" source="docs/GLOSSARY.md">
+<term id="nominative_record_type">
   <name>nominative_record_type</name>
   <definition>A named record type matched only by records annotated with it</definition>
 </term>

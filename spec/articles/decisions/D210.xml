@@ -1,4 +1,4 @@
-<decision id="D210" status="accepted" source="docs/DECISIONS.md">
+<decision id="D210" status="accepted">
   <title>DTD follow-ups: unparsed entities on copies, entity base URIs, sxml check with the DTD, the drivers (packet 7.14c)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D44"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D178"/>, <ref kind="decision" to="D199"/>. Resolves the three Proposed items of 7.14: the base URI of an element from an external entity, unparsed entities kept by copies, and <code>sxml check</code> with the DTD.</p>

@@ -1,4 +1,4 @@
-<term id="lowering_machine" source="docs/GLOSSARY.md">
+<term id="lowering_machine">
   <name>lowering_machine</name>
   <definition>The explicit stack of lowering frames that lowers without C recursion (<ref kind="decision" to="D71"/>)</definition>
 </term>

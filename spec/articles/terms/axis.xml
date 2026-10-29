@@ -1,4 +1,4 @@
-<term id="axis" source="docs/GLOSSARY.md">
+<term id="axis">
   <name>axis</name>
   <definition>An XPath axis (<code>SXML_AXIS_CHILD</code>, ...), walked by an <term name="axis_iterator"/></definition>
 </term>

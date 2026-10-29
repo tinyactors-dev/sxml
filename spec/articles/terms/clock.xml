@@ -1,4 +1,4 @@
-<term id="clock" source="docs/GLOSSARY.md">
+<term id="clock">
   <name>clock</name>
   <definition>Host interface that reads the current date and time and the implicit timezone</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D211" status="accepted" source="docs/DECISIONS.md">
+<decision id="D211" status="accepted">
   <title>DTD validation is an optional feature; the core size audit (packet <ref kind="packet" to="7.2b"/>)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D162"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D199"/>, <ref kind="decision" to="D207"/>, <ref kind="decision" to="D208"/>. The core <code>sxml.wasm</code> was 2,294,051 bytes stripped (801,273 gzipped) at 7fac033, over <ref kind="decision" to="D207"/>'s 2,200,000 / 770,000, so <code>javascript/size_budget</code> failed.</p>

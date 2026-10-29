@@ -1,4 +1,4 @@
-<term id="full_module" source="docs/GLOSSARY.md">
+<term id="full_module">
   <name>full_module</name>
   <definition><code>sxml-full.wasm</code>, the JavaScript package's module that links every optional feature; <code>sxml.wasm</code>, the core module, links none (<ref kind="decision" to="D189"/>)</definition>
 </term>

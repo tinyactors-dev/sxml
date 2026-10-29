@@ -1,4 +1,4 @@
-<decision id="D46" status="accepted" source="docs/DECISIONS.md">
+<decision id="D46" status="accepted">
   <title>The shared IR is internal, tree-walking and ANF-like</title>
   <body>
     <p><recorded date="2026-10-16"/> (Phase 1 planning; designed in packet <ref kind="packet" to="1.5"/>).</p>

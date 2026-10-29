@@ -1,4 +1,4 @@
-<packet id="fix-6" source="docs/tasks/phase-7.md">
+<packet id="fix-6">
   <title>The book's memory example counts allocations differently (book, tests)</title>
   <body>
     <p>After <ref kind="decision" to="D257"/> (the book shows real output). <code>docs/book/src/c.md</code> shows <code>allocations: 195, still live: 0</code> for its memory example; agents in this session saw 197 (7.28, cli-4) and 196 (perf-17) on different commits, and the same on base commits without their changes, so the count has drifted with later packets and may also depend on the setup (allocator growth, a cache's first use, the environment).</p>

@@ -1,4 +1,4 @@
-<packet id="2.11" source="docs/tasks/phase-2.md">
+<packet id="2.11">
   <title>URIs, QNames and hashes (implementation)</title>
   <body>
     <p>After <ref kind="packet" to="2.0"/>. Owns <code>src/function_library_uri.c</code>, <code>src/function_library_qname.c</code>, new <code>src/hash.c</code>, <code>src/hash_internal.h</code>, <code>src/function_library_hash.c</code>, <code>tests/function_library_uri_test.c</code>, <code>tests/hash_test.c</code>. parse-uri, build-uri, decode-from-uri, parse-QName, resolve-QName, hash (MD5, SHA-1, SHA-256, BLAKE3 if the draft keeps it, CRC-32). Done when those sets reach ≥ 95%. Spec: F&amp;O 4.0 "Parsing and building URIs", RFC 3986. <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D140"/>): <code>src/hash.c</code> and the hash part (BLAKE3 kept); uri part: decode-from-uri, parse-uri, build-uri; qname part: parse-QName, resolve-QName. All six sets at 100% of what runs.</p>

@@ -1,4 +1,4 @@
-<term id="curly_bracket" source="docs/GLOSSARY.md">
+<term id="curly_bracket">
   <name>curly_bracket</name>
   <definition><code>{</code> or <code>}</code>, the spec's name; not <code>brace</code></definition>
 </term>

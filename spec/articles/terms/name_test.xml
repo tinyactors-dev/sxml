@@ -1,4 +1,4 @@
-<term id="name_test" source="docs/GLOSSARY.md">
+<term id="name_test">
   <name>name_test</name>
   <definition>Which names a node test or path step matches: any name, one expanded name, or a wildcard</definition>
 </term>

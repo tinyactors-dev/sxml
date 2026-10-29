@@ -1,4 +1,4 @@
-<term id="component_lowering" source="docs/GLOSSARY.md">
+<term id="component_lowering">
   <name>component_lowering</name>
   <definition>The stylesheet functions and attribute sets of one stylesheet lowering, with the function table each static context gets (<ref kind="decision" to="D150"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="lowering_procedure" source="docs/GLOSSARY.md">
+<term id="lowering_procedure">
   <name>lowering_procedure</name>
   <definition>A construct lowered by frames: a step function and the size of its locals, static data (<ref kind="decision" to="D103"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D306" status="accepted" source="docs/DECISIONS.md">
+<decision id="D306" status="accepted">
   <title>sxml:parse-code compiles each language's queries once; iXML compared with tree-sitter</title>
   <body>
     <p><recorded date="2026-10-22"/>, at the owner's request for a comparison of iXML with tree-sitter in the book's "Invisible XML Performance".</p>

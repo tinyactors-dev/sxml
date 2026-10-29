@@ -1,4 +1,4 @@
-<term id="schema_scope" source="docs/GLOSSARY.md">
+<term id="schema_scope">
   <name>schema_scope</name>
   <definition>What the languages ask of a static context's in-scope schemas: lookups of types and declarations across them, substitution group members, and schema errors raised again with the language's codes (<code>src/schema_scope.c</code>, <ref kind="decision" to="D174"/>)</definition>
 </term>

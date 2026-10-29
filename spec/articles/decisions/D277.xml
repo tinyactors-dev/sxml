@@ -1,4 +1,4 @@
-<decision id="D277" status="accepted" source="docs/DECISIONS.md">
+<decision id="D277" status="accepted">
   <title>XSD conformance sweep 3: XSD 1.1 component rules, content recovery (packet <ref kind="packet" to="5.13"/>)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D178"/>, <ref kind="decision" to="D180"/>, <ref kind="decision" to="D263"/>, <ref kind="decision" to="D270"/>, <ref kind="decision" to="D271"/>, <ref kind="decision" to="D275"/>. No public header changed; internal additions only (schema_internal.h: sxml_schema_value_constraints_are_equal, sxml_schema_content_model_recover, sxml_schema_type_definition.restricts_attribute_group; schema_read_internal.h: sxml_schema_document_reference.needs_document; the validation frame's is_after_rejection).</p>

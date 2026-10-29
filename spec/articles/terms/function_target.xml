@@ -1,4 +1,4 @@
-<term id="function_target" source="docs/GLOSSARY.md">
+<term id="function_target">
   <name>function_target</name>
   <definition>What a static call or function reference calls: a native function, an IR function or a constructor</definition>
 </term>

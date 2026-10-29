@@ -1,4 +1,4 @@
-<term id="global_number" source="docs/GLOSSARY.md">
+<term id="global_number">
   <name>global_number</name>
   <definition>The number of a global variable of the unit (from 1); a static context maps each variable declaration it sees to one</definition>
 </term>

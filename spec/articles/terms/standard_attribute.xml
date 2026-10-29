@@ -1,4 +1,4 @@
-<term id="standard_attribute" source="docs/GLOSSARY.md">
+<term id="standard_attribute">
   <name>standard_attribute</name>
   <definition>One of the attributes allowed on every XSLT element (<code>version</code>, <code>expand-text</code>, <code>use-when</code>, ...; XSLT 4.0, 3.3)</definition>
 </term>

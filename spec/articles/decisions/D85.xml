@@ -1,4 +1,4 @@
-<decision id="D85" status="accepted" source="docs/DECISIONS.md">
+<decision id="D85" status="accepted">
   <title>Evaluator follow-ups: calls, paths, coercion, namespaces (packet 1.18b)</title>
   <body>
     <p><recorded date="2026-10-16"/>. Gaps reported by 1.20 and 1.21; sections are those of the XPath 4.0 editor's draft of 13 October 2026 (vendored with QT4).</p>

@@ -1,4 +1,4 @@
-<decision id="D118" status="accepted" source="docs/DECISIONS.md">
+<decision id="D118" status="accepted">
   <title>Patterns: front end, match expressions, priorities (packet <ref kind="packet" to="4.4"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>. <code>src/xslt_pattern.c</code>, <code>src/xslt_pattern_internal.h</code> (new module header), after <ref kind="decision" to="D29"/>, <ref kind="decision" to="D52"/>, <ref kind="decision" to="D103"/>, <ref kind="decision" to="D111"/>.</p>

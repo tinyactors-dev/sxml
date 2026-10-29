@@ -1,4 +1,4 @@
-<term id="event" source="docs/GLOSSARY.md">
+<term id="event">
   <name>event</name>
   <definition>One step given to a tree builder: start element, attribute, text, ...</definition>
 </term>

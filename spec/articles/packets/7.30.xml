@@ -1,4 +1,4 @@
-<packet id="7.30" source="docs/tasks/phase-7.md">
+<packet id="7.30">
   <title>A Schematron conformance suite (tests)</title>
   <body>
     <p>The owner (2026-10-28): the standard (ISO/IEC 19757-3:2025, bought by the owner) cannot be committed, so sxml writes a comprehensive conformance suite of its own from it. No public Schematron conformance suite of that scope is known; check (SchXslt's own tests, schematron.com, the Schematron community's repositories) and record what exists and its licence before writing; reuse with attribution what a licence allows.</p>

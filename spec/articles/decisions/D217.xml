@@ -1,4 +1,4 @@
-<decision id="D217" status="accepted" source="docs/DECISIONS.md">
+<decision id="D217" status="accepted">
   <title>The sxml command writes files: --output, --result-directory, --allow-put (packet <ref kind="packet" to="cli-2"/>)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D44"/>, <ref kind="decision" to="D200"/>, <ref kind="decision" to="D205"/>. Closes the CLI gaps <ref kind="decision" to="D44"/> left planned ("no files written without --output") and the queue's cli items.</p>

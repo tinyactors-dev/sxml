@@ -1,4 +1,4 @@
-<term id="text_window" source="docs/GLOSSARY.md">
+<term id="text_window">
   <name>text_window</name>
   <definition>The part of a document's decoded UTF-8 text the XML parser holds: decoded from the input a part at a time as document segments need it, the text before the segment being parsed given up (<code>sxml_xml_text_window</code>, <ref kind="decision" to="D233"/>)</definition>
 </term>

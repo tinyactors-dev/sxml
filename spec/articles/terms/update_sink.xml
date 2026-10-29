@@ -1,4 +1,4 @@
-<term id="update_sink" source="docs/GLOSSARY.md">
+<term id="update_sink">
   <name>update_sink</name>
   <definition>The host interface that receives each tree an updating query changed, as its old and new roots (<code>sxml_xquery_update_sink</code>, <ref kind="decision" to="D187"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="presentation_modifier" source="docs/GLOSSARY.md">
+<term id="presentation_modifier">
   <name>presentation_modifier</name>
   <definition>The first (a primary format token or <code>n</code>, <code>N</code>, <code>Nn</code>) or second (<code>a</code>, <code>t</code>, <code>c</code>, <code>o</code>) modifier of a variable marker</definition>
 </term>

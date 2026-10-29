@@ -1,4 +1,4 @@
-<term id="validity" source="docs/GLOSSARY.md">
+<term id="validity">
   <name>validity</name>
   <definition>The outcome XSD gives an assessed item (XSD 1.1 Part 1, the [validity] property): valid, invalid or not known</definition>
 </term>

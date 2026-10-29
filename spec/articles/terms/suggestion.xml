@@ -1,4 +1,4 @@
-<term id="suggestion" source="docs/GLOSSARY.md">
+<term id="suggestion">
   <name>suggestion</name>
   <definition>The closest valid name or value to a mistyped one ("did you mean"), found by <term name="edit_distance"/></definition>
 </term>

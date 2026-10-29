@@ -1,4 +1,4 @@
-<term id="ascii_member_set" source="docs/GLOSSARY.md">
+<term id="ascii_member_set">
   <name>ascii_member_set</name>
   <definition>The ASCII codepoints a regex character class contains, negation, subtraction and case variants included: 128 bits per class, found when the regex is compiled, so matching an ASCII character is one bit test (internal, <code>src/regex.c</code>, <ref kind="decision" to="D310"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="platform_layer" source="docs/GLOSSARY.md">
+<term id="platform_layer">
   <name>platform_layer</name>
   <definition>The only code of the program that touches stdio (<code>apps/sxml/platform_stdio.c</code>)</definition>
 </term>

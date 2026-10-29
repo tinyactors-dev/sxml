@@ -1,4 +1,4 @@
-<term id="wildcard" source="docs/GLOSSARY.md">
+<term id="wildcard">
   <name>wildcard</name>
   <definition>A name test with <code>*</code> for the namespace (<code>*:local</code>) or the local name (<code>prefix:*</code>, <code>Q{uri}*</code>)</definition>
 </term>

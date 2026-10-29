@@ -1,4 +1,4 @@
-<term id="schema_report" source="docs/GLOSSARY.md">
+<term id="schema_report">
   <name>schema_report</name>
   <definition>One schema or validation error as a report sink receives it: constraint name, description, location</definition>
 </term>

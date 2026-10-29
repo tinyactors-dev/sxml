@@ -1,4 +1,4 @@
-<term id="string" source="docs/GLOSSARY.md">
+<term id="string">
   <name>string</name>
   <definition><code>sxml_string</code>: well-formed UTF-8 bytes with codepoint count and ASCII flag</definition>
 </term>

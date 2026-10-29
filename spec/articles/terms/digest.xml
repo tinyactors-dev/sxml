@@ -1,4 +1,4 @@
-<term id="digest" source="docs/GLOSSARY.md">
+<term id="digest">
   <name>digest</name>
   <definition>The octets a hash algorithm returns for a message: 16 (MD5), 20 (SHA-1), 32 (SHA-256, BLAKE3) or 4 (CRC-32, big-endian)</definition>
 </term>

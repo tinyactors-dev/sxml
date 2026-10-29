@@ -1,4 +1,4 @@
-<decision id="D99" status="accepted" source="docs/DECISIONS.md">
+<decision id="D99" status="accepted">
   <title>Substrate frozen</title>
   <body>
     <p><recorded date="2026-10-17"/> at the Phase 1 gate (PLAN.md: "substrate frozen at the Phase 1 gate"). Frozen: <code>include/sxml/status.h</code>, <code>view.h</code>, <code>memory.h</code>, <code>string.h</code>, <code>name.h</code>, <code>types.h</code>, <code>tree.h</code>, <code>xdm.h</code> (with <code>export.h</code>), as of the commit that records this, including <ref kind="decision" to="D98"/>. Not frozen: <code>xml.h</code>, <code>processor.h</code>, <code>xpath.h</code>, <code>serialize.h</code>, <code>version.h</code> (<ref kind="decision" to="D47"/>: they change through their design packets, and after packet <ref kind="packet" to="2.2"/> only with a record, until release 0.2.0 makes them stable). Rule for a frozen header:</p>

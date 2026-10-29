@@ -1,4 +1,4 @@
-<term id="encoded_byte_count" source="docs/GLOSSARY.md">
+<term id="encoded_byte_count">
   <name>encoded_byte_count</name>
   <definition>The number of bytes in the UTF-8 encoding of one codepoint, 1 to 4</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D220" status="accepted" source="docs/DECISIONS.md">
+<decision id="D220" status="accepted">
   <title>CLDR tailorings and the CLDR root for UCA collations (packet 7.15b)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D13"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D184"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D208"/>, <ref kind="decision" to="D209"/>, <ref kind="decision" to="D213"/>. Replaces <ref kind="decision" to="D213"/>'s "lang other than the root languages and reorder are not honoured" and its root order.</p>

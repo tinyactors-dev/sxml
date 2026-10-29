@@ -1,4 +1,4 @@
-<term id="percent_decoding" source="docs/GLOSSARY.md">
+<term id="percent_decoding">
   <name>percent_decoding</name>
   <definition>Replacing <code>%HH</code> by its octet and reading the octets as UTF-8, with U+FFFD for what is not (F&amp;O 4.0, fn:decode-from-uri); <code>form_decoding</code> turns <code>+</code> into a space first</definition>
 </term>

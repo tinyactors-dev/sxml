@@ -1,4 +1,4 @@
-<term id="partially_applied_function" source="docs/GLOSSARY.md">
+<term id="partially_applied_function">
   <name>partially_applied_function</name>
   <definition>The function item <code>fn:partial-apply</code> or a placeholder call makes: the wrapped function with some arguments bound, captured with it</definition>
 </term>

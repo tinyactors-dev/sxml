@@ -1,4 +1,4 @@
-<decision id="D175" status="accepted" source="docs/DECISIONS.md">
+<decision id="D175" status="accepted">
   <title>Assertions and type alternatives (packet <ref kind="packet" to="5.9"/>)</title>
   <body>
     <p><recorded date="2026-10-18"/>. Fills ASSERTIONS and the seams of <ref kind="decision" to="D167"/> for XSD 1.1 assertions and conditional type assignment (<code>src/schema_assertion.c</code>); golden <code>src/schema_simple_type.c</code>.</p>

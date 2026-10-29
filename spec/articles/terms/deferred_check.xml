@@ -1,4 +1,4 @@
-<term id="deferred_check" source="docs/GLOSSARY.md">
+<term id="deferred_check">
   <name>deferred_check</name>
   <definition>An assertion or identity-constraint check of an element that reads its recorded subtree, queued by the schema validator and run when the outermost recorded element ends</definition>
 </term>

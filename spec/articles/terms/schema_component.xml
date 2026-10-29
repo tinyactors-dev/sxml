@@ -1,4 +1,4 @@
-<term id="schema_component" source="docs/GLOSSARY.md">
+<term id="schema_component">
   <name>schema_component</name>
   <definition>One of the building blocks of a schema (XSD 1.1 Part 1, 2.2): a type definition, element or attribute declaration, attribute use, model group, particle, wildcard, identity-constraint definition, type alternative, assertion or notation declaration</definition>
 </term>

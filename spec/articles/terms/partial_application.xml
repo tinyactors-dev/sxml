@@ -1,4 +1,4 @@
-<term id="partial_application" source="docs/GLOSSARY.md">
+<term id="partial_application">
   <name>partial_application</name>
   <definition>A function call with argument placeholders, giving a function item (XPath 4.0, section 4.5.2.5)</definition>
 </term>

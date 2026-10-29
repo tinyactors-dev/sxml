@@ -1,4 +1,4 @@
-<term id="query_binding" source="docs/GLOSSARY.md">
+<term id="query_binding">
   <name>query_binding</name>
   <definition>The language of a Schematron schema's expressions, its queryBinding attribute, compared ignoring case: sxml reads xslt, xslt4, xpath, xpath4 and a schema without one as XSLT 4.0 and XPath 4.0, and xslt2, xslt3, xpath2, xpath3 and xpath31 on the same 4.0 processor; every other binding is schematron:query-binding (<ref kind="decision" to="D313"/> as amended, <ref kind="decision" to="D315"/>)</definition>
 </term>

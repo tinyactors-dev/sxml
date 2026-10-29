@@ -1,4 +1,4 @@
-<term id="uca_fallback" source="docs/GLOSSARY.md">
+<term id="uca_fallback">
   <name>uca_fallback</name>
   <definition>sxml's stand-in for a UCA collation URI: the levels of UTS #10 over weights derived from Unicode properties, without DUCET tables (<ref kind="decision" to="D97"/>, <ref kind="decision" to="D116"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="atomic_hash" source="docs/GLOSSARY.md">
+<term id="atomic_hash">
   <name>atomic_hash</name>
   <definition>A hash consistent with <term name="atomic_equal"/></definition>
 </term>

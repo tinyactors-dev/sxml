@@ -1,4 +1,4 @@
-<document id="tasks/distribution" source="docs/tasks/distribution.md">
+<document id="tasks/distribution" file="docs/tasks/distribution.md">
   <title>Distribution</title>
   <p>Goal (<ref kind="decision" to="D255"/>, owner priority 2): the <code>sxml</code> command, built for every supported platform as archives a user unpacks and puts on <code>PATH</code>, by one <code>mise</code> task. Rules for parallel packets are those of <code>docs/tasks/phase-2.md</code> (<ref kind="decision" to="D45"/>).</p>
   <section id="distribution">

@@ -1,4 +1,4 @@
-<decision id="D236" status="accepted" source="docs/DECISIONS.md">
+<decision id="D236" status="accepted">
   <title>Streamed xsl:merge (MERGE) and capture="yes" end rules while streaming (packet 7.6g)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D166"/>, <ref kind="decision" to="D219"/>, <ref kind="decision" to="D223"/>, <ref kind="decision" to="D228"/>, <ref kind="decision" to="D231"/>, <ref kind="decision" to="D233"/>, <ref kind="decision" to="D234"/>. Makes <ref kind="decision" to="D233"/>'s two designs; replaces <ref kind="decision" to="D231"/>'s "merge sources are grounded" and "capture="yes" end rules while streaming" not done. Verified as <ref kind="decision" to="D181"/> asks: the debug preset, the stream, xslt, IR and evaluator part unit tests, clang-tidy on the files changed, <code>tools/check-call-cycles.py</code>, and the whole XT40 suite with the release driver, compared case by case.</p>

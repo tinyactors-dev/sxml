@@ -1,4 +1,4 @@
-<decision id="D305" status="accepted" source="docs/DECISIONS.md">
+<decision id="D305" status="accepted">
   <title>The book's diagrams use a layered layout with model order</title>
   <body>
     <p><recorded date="2026-10-22"/>, at the owner's request: the state machine diagrams (states, flag, changes) were busy and unreadable, and the owner asked for the layered algorithm of the KIELER group (ELK Layered) in XQuery.</p>

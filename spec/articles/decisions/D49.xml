@@ -1,4 +1,4 @@
-<decision id="D49" status="accepted" source="docs/DECISIONS.md">
+<decision id="D49" status="accepted">
   <title>libmpdec arrives in Phase 1</title>
   <body>
     <p><recorded date="2026-10-16"/>, amending <ref kind="decision" to="D42"/> ("for the decimal packet of Phase 2"). The slice divides and multiplies decimals and builds integer ranges beyond <code>int64_t</code> (<ref kind="decision" to="D36"/>), so mpdecimal is vendored and wrapped as <ref kind="decision" to="D42"/> describes in Phase 1 (packet <ref kind="packet" to="1.2"/>). Decimal formatting and the rest of the decimal function library stay in Phase 2.</p>

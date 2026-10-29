@@ -1,4 +1,4 @@
-<term id="value_template" source="docs/GLOSSARY.md">
+<term id="value_template">
   <name>value_template</name>
   <definition>An attribute value template or text value template: fixed text with enclosed XPath expressions in <code>{ }</code> (XSLT 4.0, 5.6)</definition>
 </term>

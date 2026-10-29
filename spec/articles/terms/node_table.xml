@@ -1,4 +1,4 @@
-<term id="node_table" source="docs/GLOSSARY.md">
+<term id="node_table">
   <name>node_table</name>
   <definition>The key sequences and nodes of one key or unique at an element: its own qualified node set and the node tables of its children, a key sequence children give with different nodes left out; what a keyref looks in (XSD 1.1 Part 1, 3.11.5)</definition>
 </term>

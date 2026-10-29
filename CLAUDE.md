@@ -5,13 +5,23 @@ XML parsing, the XDM 4.0 value model, XPath 4.0, XQuery 4.0, and later XSLT 4.0
 and schema validation. One C codebase builds native libraries for Linux, macOS,
 Windows, iOS and Android, and a WebAssembly module for browsers and Node.js.
 
+## The spec
+
+The plan, guidelines, glossary, decisions, tasks, log and agent prompts are
+XML articles under `spec/articles/`; `docs/*.md` (except `CONFORMANCE.md`
+and the book) are pages generated from them. Read and change them only
+through `tools/spec/spec` (`spec/README.md`, `tools/spec/spec help`); a hook
+refuses text tools on both.
+
 ## Read before any task
 
-1. `docs/PLAN.md` — phases, gates, scope and non-goals.
-2. `docs/C_GUIDELINES.md` — mandatory style and interface rules.
-3. `docs/GLOSSARY.md` — the one spelling of every domain term.
-4. `docs/DECISIONS.md` — decisions already made; do not reopen them.
-5. The task file for the current phase in `docs/tasks/`.
+1. `tools/spec/spec markdown PLAN` — phases, gates, scope and non-goals.
+2. `tools/spec/spec markdown C_GUIDELINES` — mandatory style and interface rules.
+3. The glossary — the one spelling of every domain term: `tools/spec/spec
+   show NAME`, `find WORDS`.
+4. The decisions already made; do not reopen them: `tools/spec/spec show
+   D238 --depth=1`, `refs D238`, `list decision --since=DATE`.
+5. The current phase: `tools/spec/spec status PHASE` and `brief PACKET`.
 
 ## Current phase
 
@@ -51,13 +61,14 @@ functionality.
 - No C recursion, direct or indirect (also not through function pointers):
   use loops with explicit stacks in allocator memory (D71).
 - A pointer to data always travels with its length in a view struct.
-- New domain terms go into `docs/GLOSSARY.md` before they appear in code.
+- New domain terms go into the glossary (`tools/spec/spec add term`) before
+  they appear in code.
 
 ## Headers are the contract
 
 Public headers live in `include/sxml/`. Design tasks change headers;
 implementation tasks must not. If an implementation task seems to need a header
-change, stop and write the reason in `docs/DECISIONS.md` under "Proposed".
+change, stop and write the reason as a proposal (`tools/spec/spec add proposal`).
 
 ## Definition of done for any change
 

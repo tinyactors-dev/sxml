@@ -1,4 +1,4 @@
-<term id="writer" source="docs/GLOSSARY.md">
+<term id="writer">
   <name>writer</name>
   <definition>An output stream plus the status of its first failed write</definition>
 </term>

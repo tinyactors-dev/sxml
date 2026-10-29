@@ -1,4 +1,4 @@
-<decision id="D142" status="accepted" source="docs/DECISIONS.md">
+<decision id="D142" status="accepted">
   <title>Sequence constructors and node construction (packet <ref kind="packet" to="4.6"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D102"/>, <ref kind="decision" to="D103"/>, <ref kind="decision" to="D110"/>, <ref kind="decision" to="D120"/>, <ref kind="decision" to="D124"/>, <ref kind="decision" to="D127"/>, <ref kind="decision" to="D139"/>. <code>src/xslt_lower.c</code>, <code>src/xslt_lower_construct.c</code>, <code>src/xslt_simple_content.c</code> with <code>src/xslt_lower_internal.h</code>; no IR kind, no evaluator change, no public header.</p>

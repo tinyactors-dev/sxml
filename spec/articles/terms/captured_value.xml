@@ -1,4 +1,4 @@
-<term id="captured_value" source="docs/GLOSSARY.md">
+<term id="captured_value">
   <name>captured_value</name>
   <definition>A nonlocal variable value a function item keeps (its closure)</definition>
 </term>

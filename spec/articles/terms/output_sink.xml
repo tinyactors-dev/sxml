@@ -1,4 +1,4 @@
-<term id="output_sink" source="docs/GLOSSARY.md">
+<term id="output_sink">
   <name>output_sink</name>
   <definition>What receives an <term name="output_chunk"/> in the JavaScript package (<code>OutputSink</code>): a function, or an object with <code>write</code> and optionally <code>close</code> and <code>abort</code> (<ref kind="decision" to="D294"/>)</definition>
 </term>

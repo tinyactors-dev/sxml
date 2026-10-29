@@ -1,4 +1,4 @@
-<term id="grouping_key" source="docs/GLOSSARY.md">
+<term id="grouping_key">
   <name>grouping_key</name>
   <definition>The atomized value of a grouping variable of a group by clause, empty or one atomic item; tuples with equivalent grouping keys form one group (XQuery 4.0, section 4.13.8)</definition>
 </term>

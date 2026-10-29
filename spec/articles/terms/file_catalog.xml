@@ -1,4 +1,4 @@
-<term id="file_catalog" source="docs/GLOSSARY.md">
+<term id="file_catalog">
   <name>file_catalog</name>
   <definition>The QT4 catalog the XSLT driver never loads, over the same suite files: what the QT4 resource table and assertions read files through (<ref kind="decision" to="D157"/>)</definition>
 </term>

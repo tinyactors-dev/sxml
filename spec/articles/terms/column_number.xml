@@ -1,4 +1,4 @@
-<term id="column_number" source="docs/GLOSSARY.md">
+<term id="column_number">
   <name>column_number</name>
   <definition>Column of a source position in codepoints, from 1; 0 means unknown</definition>
 </term>

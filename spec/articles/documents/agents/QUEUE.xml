@@ -1,4 +1,4 @@
-<document id="agents/QUEUE" source="docs/agents/QUEUE.md">
+<document id="agents/QUEUE" file="docs/agents/QUEUE.md">
   <title>Work queue</title>
   <p>Kept by the orchestrator. Newest state first; each change is its own commit. Numbers are release-build passes from <code>docs/CONFORMANCE.md</code>.</p>
   <section id="state-2026-10-19">

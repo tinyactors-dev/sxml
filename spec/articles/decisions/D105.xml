@@ -1,4 +1,4 @@
-<decision id="D105" status="accepted" source="docs/DECISIONS.md">
+<decision id="D105" status="accepted">
   <title>The regex engine: the whole F&amp;O 4.0 dialect (packet <ref kind="packet" to="2.3"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>. <ref kind="decision" to="D9"/> is met by growing the <ref kind="decision" to="D53"/> seed in place, behind the same <code>src/regex_internal.h</code> (compile, match at, find, find next), not by a rewrite: its parser, emitted program and backtracking machine already follow Saxon HE's design.</p>

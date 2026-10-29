@@ -1,4 +1,4 @@
-<term id="test_outcome" source="docs/GLOSSARY.md">
+<term id="test_outcome">
   <name>test_outcome</name>
   <definition>What running one QT4 test case gave: pass, wrong error (an expected error raised with another code, which passes), fail, error (sxml itself failed: a limit, a leak, a non-specification status) or not run (not applicable, or an assertion the driver cannot check)</definition>
 </term>

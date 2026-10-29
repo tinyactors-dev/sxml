@@ -1,4 +1,4 @@
-<term id="language_table" source="docs/GLOSSARY.md">
+<term id="language_table">
   <name>language_table</name>
   <definition>The names and words of one language that the formatting functions use: months, days, eras, ordinal suffixes and spell-out rules</definition>
 </term>

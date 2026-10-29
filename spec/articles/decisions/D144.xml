@@ -1,4 +1,4 @@
-<decision id="D144" status="accepted" source="docs/DECISIONS.md">
+<decision id="D144" status="accepted">
   <title>Templates and modes (packet <ref kind="packet" to="4.8"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D55"/>, <ref kind="decision" to="D101"/>, <ref kind="decision" to="D118"/>, <ref kind="decision" to="D124"/>, <ref kind="decision" to="D139"/>, <ref kind="decision" to="D142"/>. <code>src/xslt_lower_template.c</code>, <code>src/evaluator_template.c</code>, <code>tests/evaluator_template_test.c</code>; APPLY_TEMPLATES, the one reserved IR extension point of XSLT, is accepted by the verifier. No other IR kind, no public header.</p>

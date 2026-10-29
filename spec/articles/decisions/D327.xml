@@ -1,4 +1,4 @@
-<decision id="D327" status="accepted" source="docs/DECISIONS.md">
+<decision id="D327" status="accepted">
   <title>Template rules chosen from rule buckets by node kind and name (packet <ref kind="packet" to="perf-15"/>)</title>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D144"/>, <ref kind="decision" to="D149"/>, <ref kind="decision" to="D223"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D326"/> (its Proposed entry, now done and removed). No public header changed. Glossary: <term name="item_category"/>, <term name="item_requirement"/>, <term name="rule_bucket"/>.</p>

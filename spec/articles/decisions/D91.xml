@@ -1,4 +1,4 @@
-<decision id="D91" status="accepted" source="docs/DECISIONS.md">
+<decision id="D91" status="accepted">
   <title>Packet 1.23b: more library functions, lexical base URI, charged steps</title>
   <body>
     <p><recorded date="2026-10-17"/>.</p>

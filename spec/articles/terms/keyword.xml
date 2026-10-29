@@ -1,4 +1,4 @@
-<term id="keyword" source="docs/GLOSSARY.md">
+<term id="keyword">
   <name>keyword</name>
   <definition>A fixed word of a language: an XPath keyword (see <term name="keyword_name"/>), or one of the words an XSLT attribute takes from a fixed list (<code>shallow-copy</code>, <code>strict</code>)</definition>
 </term>

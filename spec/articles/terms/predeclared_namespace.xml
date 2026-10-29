@@ -1,4 +1,4 @@
-<term id="predeclared_namespace" source="docs/GLOSSARY.md">
+<term id="predeclared_namespace">
   <name>predeclared_namespace</name>
   <definition>A prefix bound in every static context (xml, xs, xsi, fn, map, array, math, err)</definition>
 </term>

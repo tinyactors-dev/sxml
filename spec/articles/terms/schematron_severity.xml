@@ -1,4 +1,4 @@
-<term id="schematron_severity" source="docs/GLOSSARY.md">
+<term id="schematron_severity">
   <name>schematron_severity</name>
   <definition>The value of an assertion's severity attribute (5.5.16), as written or evaluated; fatal, error, warning and info are reserved; it decides whether a finding is an error finding (<ref kind="decision" to="D315"/>)</definition>
 </term>

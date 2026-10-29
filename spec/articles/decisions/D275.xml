@@ -1,4 +1,4 @@
-<decision id="D275" status="accepted" source="docs/DECISIONS.md">
+<decision id="D275" status="accepted">
   <title>XPath and XQuery conformance sweep: "//" paths, place static contexts, XML 1.1 query text (packet <ref kind="packet" to="2.25"/>)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D163"/>, <ref kind="decision" to="D195"/>, <ref kind="decision" to="D237"/>, <ref kind="decision" to="D259"/>, <ref kind="decision" to="D263"/>, <ref kind="decision" to="D272"/>. One public header changed additively (processor.h, below); one IR field (sxml_ir_binary.module_number) and one IR global flag (sxml_ir_global_variable.is_external).</p>

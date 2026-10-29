@@ -1,4 +1,4 @@
-<decision id="D60" status="accepted" source="docs/DECISIONS.md">
+<decision id="D60" status="accepted">
   <title>Item heap, cells and atomic items (packet <ref kind="packet" to="1.7"/>)</title>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/xdm_internal.h</code> is the shared interface of the value model; later XDM packets add files, not edits.</p>

@@ -1,4 +1,4 @@
-<decision id="D28" status="accepted" source="docs/DECISIONS.md">
+<decision id="D28" status="accepted">
   <title>XML 1.0 grammar</title>
   <body>
     <p><recorded date="2026-10-16"/>. <code>grammars/xml</code> is written for sxml, not vendored: tree-sitter-grammars/tree-sitter-xml (MIT) was studied but is too lenient and its tag-stack scanner is unsafe for deep or non-ASCII documents (reasons in <code>grammars/xml/README.md</code>; credit in <code>grammars/xml/NOTICE</code>).</p>

@@ -1,4 +1,4 @@
-<packet id="1.15" source="docs/tasks/phase-1.md">
+<packet id="1.15">
   <title>Casting and lexical forms (implementation)</title>
   <body>
     <p>After <ref kind="packet" to="1.7"/>. Owns <code>src/cast.c</code>, <code>src/cast_lexical.c</code>, <code>src/cast_internal.h</code>, <code>tests/cast_test.c</code>. Lexical and canonical forms of every primitive type the slice uses, integer subtypes with facets, <code>xs:NMTOKENS</code>; cast and castable (FORG0001, FOCA0002, XPTY0004). Done when the cast slice lines pass as unit cases. Spec: F&amp;O 4.0 "Casting"; XSD 1.1 Part 2. <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D66"/>): all 17 cast slice lines pass as unit cases in <code>tests/cast_test.c</code> (17 cases, allocation-failure loop included).</p>

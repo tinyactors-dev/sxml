@@ -1,4 +1,4 @@
-<term id="sequence_cell" source="docs/GLOSSARY.md">
+<term id="sequence_cell">
   <name>sequence_cell</name>
   <definition>A cell that holds a sequence of two or more items: vector, integer range, concatenation, lazy or sequence slice</definition>
 </term>

@@ -1,4 +1,4 @@
-<document id="tasks/phase-1" source="docs/tasks/phase-1.md">
+<document id="tasks/phase-1" file="docs/tasks/phase-1.md">
   <title>Phase 1: Torture slice</title>
   <p>Goal (PLAN.md): a minimal XML parser and XPath 4.0 subset exercising all of the value model, native and WebAssembly, passing the 198 tests of <code>tests/qt4/torture-slice.txt</code> under sanitizers; then the substrate freezes. Packets of one agent session each run in parallel in one working tree; each names the files it <strong>owns</strong>, and concurrent packets never share one. <strong>Design</strong> packets may change headers; <strong>implementation</strong> packets must not (they write the need under "Proposed" in <code>docs/DECISIONS.md</code>). Until the gate, substrate headers change only through a decision record.</p>
   <section id="rules-for-parallel-packets-d45">

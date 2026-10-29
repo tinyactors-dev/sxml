@@ -1,4 +1,4 @@
-<term id="location_hint" source="docs/GLOSSARY.md">
+<term id="location_hint">
   <name>location_hint</name>
   <definition>A URI after <code>at</code> in a module import, resolved against the importing module's static base URI; one resolver request each</definition>
 </term>

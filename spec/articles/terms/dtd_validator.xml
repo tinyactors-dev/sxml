@@ -1,4 +1,4 @@
-<term id="dtd_validator" source="docs/GLOSSARY.md">
+<term id="dtd_validator">
   <name>dtd_validator</name>
   <definition>The validator of the XML parser's DTD validation that sxml provides (<code>sxml_dtd_validator</code>): it compiles the schema documents the parser writes from the DTD and checks the document's events with a schema validator (<ref kind="decision" to="D199"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="axis_iterator" source="docs/GLOSSARY.md">
+<term id="axis_iterator">
   <name>axis_iterator</name>
   <definition>Walks the nodes of one axis from an origin node</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D203" status="accepted" source="docs/DECISIONS.md">
+<decision id="D203" status="accepted">
   <title>fn:transform (packet <ref kind="packet" to="7.11"/>)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D154"/>, <ref kind="decision" to="D157"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>, <ref kind="decision" to="D196"/>, <ref kind="decision" to="D207"/>. Replaces <ref kind="decision" to="D162"/>'s place for fn:transform (the function was absent, XPST0017; supports-dynamic-xslt false).</p>

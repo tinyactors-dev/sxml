@@ -1,4 +1,4 @@
-<term id="evaluator" source="docs/GLOSSARY.md">
+<term id="evaluator">
   <name>evaluator</name>
   <definition>Walks the IR of a sealed unit and computes values</definition>
 </term>

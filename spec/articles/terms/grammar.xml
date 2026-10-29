@@ -1,4 +1,4 @@
-<term id="grammar" source="docs/GLOSSARY.md">
+<term id="grammar">
   <name>grammar</name>
   <definition>A tree-sitter grammar under <code>grammars/&lt;language&gt;/</code>, and the parser generated from it</definition>
 </term>

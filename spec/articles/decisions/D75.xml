@@ -1,4 +1,4 @@
-<decision id="D75" status="accepted" source="docs/DECISIONS.md">
+<decision id="D75" status="accepted">
   <title>The evaluator: an explicit-stack machine (packet <ref kind="packet" to="1.18"/>)</title>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/evaluator.c</code> (dynamic context, machine, expressions), <code>src/evaluator_function.c</code> (atomization, effective boolean value, type matching, coercion, function items and bodies), <code>src/evaluator_path.c</code> (steps over XNodes and JNodes, document order, node sets, merge sort). Internal headers changed as <ref kind="decision" to="D71"/> requires.</p>

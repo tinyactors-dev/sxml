@@ -1,4 +1,4 @@
-<term id="computed_constructor" source="docs/GLOSSARY.md">
+<term id="computed_constructor">
   <name>computed_constructor</name>
   <definition>Node constructor written with a keyword: <code>element #a { ... }</code></definition>
 </term>

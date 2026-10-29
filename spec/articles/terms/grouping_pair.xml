@@ -1,4 +1,4 @@
-<term id="grouping_pair" source="docs/GLOSSARY.md">
+<term id="grouping_pair">
   <name>grouping_pair</name>
   <definition>The array [item, value] lowering makes for each item of a population: its grouping keys, or whether it matches the pattern (<ref kind="decision" to="D152"/>)</definition>
 </term>

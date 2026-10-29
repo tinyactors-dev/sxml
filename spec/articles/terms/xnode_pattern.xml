@@ -1,4 +1,4 @@
-<term id="xnode_pattern" source="docs/GLOSSARY.md">
+<term id="xnode_pattern">
   <name>xnode_pattern</name>
   <definition>A pattern made of paths, steps, unions, intersect and except, matching XNodes (XSLT 4.0, 6.3.2)</definition>
 </term>

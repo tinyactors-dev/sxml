@@ -1,4 +1,4 @@
-<decision id="D140" status="accepted" source="docs/DECISIONS.md">
+<decision id="D140" status="accepted">
   <title>URIs, QNames and hashes (packet <ref kind="packet" to="2.11"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D88"/>, <ref kind="decision" to="D91"/>, <ref kind="decision" to="D101"/>. New part <code>src/function_library_hash.c</code> (fn:hash) over <code>src/hash.c</code> / <code>src/hash_internal.h</code>; rows added to the uri part (decode-from-uri, parse-uri, build-uri) and the qname part (parse-QName, resolve-QName).</p>

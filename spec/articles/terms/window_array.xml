@@ -1,4 +1,4 @@
-<term id="window_array" source="docs/GLOSSARY.md">
+<term id="window_array">
   <name>window_array</name>
   <definition>One window of a window clause as an array of nine members: the window, then the start and end items, their positions, previous and next items (<ref kind="decision" to="D137"/>)</definition>
 </term>

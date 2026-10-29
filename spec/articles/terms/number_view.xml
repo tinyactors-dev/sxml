@@ -1,4 +1,4 @@
-<term id="number_view" source="docs/GLOSSARY.md">
+<term id="number_view">
   <name>number_view</name>
   <definition>The second order of a filter index whose keys are all xs:untypedAtomic: the keys cast as "=" casts them against a number, by nearest double, made at the first numeric probe value (internal, <code>src/evaluator_index.c</code>, <ref kind="decision" to="D259"/>)</definition>
 </term>

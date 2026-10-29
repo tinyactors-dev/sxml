@@ -1,4 +1,4 @@
-<decision id="D160" status="accepted" source="docs/DECISIONS.md">
+<decision id="D160" status="accepted">
   <title>Packages (packet <ref kind="packet" to="4.16"/>)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D112"/>, <ref kind="decision" to="D117"/>, <ref kind="decision" to="D139"/>, <ref kind="decision" to="D148"/>, <ref kind="decision" to="D157"/>. <code>src/xslt_package.c</code> with <code>src/xslt_package_internal.h</code> (the package table, glossary); no IR kind, no evaluator change; <code>include/sxml/xslt.h</code> changes one comment (provisional, <ref kind="decision" to="D151"/>).</p>

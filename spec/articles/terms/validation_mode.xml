@@ -1,4 +1,4 @@
-<term id="validation_mode" source="docs/GLOSSARY.md">
+<term id="validation_mode">
   <name>validation_mode</name>
   <definition>How the validation root is assessed when no governing type is given: strict (a declaration must exist) or lax (XSD 1.1 Part 1, 5.2)</definition>
 </term>

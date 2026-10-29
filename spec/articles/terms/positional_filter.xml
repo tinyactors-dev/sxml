@@ -1,4 +1,4 @@
-<term id="positional_filter" source="docs/GLOSSARY.md">
+<term id="positional_filter">
   <name>positional_filter</name>
   <definition>A FILTER whose predicate compares the context position with a value fixed for the filter (<code>$s[position() &gt; 1]</code>, <code>$s[position() = $n to $m]</code>); over a stored input it is the sequence slice at those positions (<code>src/evaluator.c</code>)</definition>
 </term>

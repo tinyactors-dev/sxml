@@ -1,4 +1,4 @@
-<term id="cell" source="docs/GLOSSARY.md">
+<term id="cell">
   <name>cell</name>
   <definition>A reference-counted, immutable heap object holding the data of an item or sequence that does not fit inline</definition>
 </term>

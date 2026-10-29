@@ -1,4 +1,4 @@
-<term id="kotlin_package" source="docs/GLOSSARY.md">
+<term id="kotlin_package">
   <name>kotlin_package</name>
   <definition>The Kotlin binding in <code>bindings/kotlin/</code> (package <code>dev.tinyactors.sxml</code>, <ref kind="decision" to="D239"/>): an Android library (AAR) and a JVM library over <code>libsxml_kotlin.so</code></definition>
 </term>

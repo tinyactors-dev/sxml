@@ -1,4 +1,4 @@
-<decision id="D245" status="accepted" source="docs/DECISIONS.md">
+<decision id="D245" status="accepted">
   <title>XSLT targets the newest draft (owner)</title>
   <body>
     <p><recorded date="2026-10-20"/> on the owner's word: "We want to target the newest draft for the XSLT tests." Amends <ref kind="decision" to="D29"/>, which pinned the grammars to the drafts of 13 October 2026 and let those drafts win over the test suite.</p>

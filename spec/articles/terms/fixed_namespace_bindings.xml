@@ -1,4 +1,4 @@
-<term id="fixed_namespace_bindings" source="docs/GLOSSARY.md">
+<term id="fixed_namespace_bindings">
   <name>fixed_namespace_bindings</name>
   <definition>The namespace bindings that the <code>fixed-namespaces</code> attribute sets for every expression of a stylesheet module (XSLT 4.0, 3.6.1)</definition>
 </term>

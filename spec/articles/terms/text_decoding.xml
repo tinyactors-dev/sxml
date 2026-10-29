@@ -1,4 +1,4 @@
-<term id="text_decoding" source="docs/GLOSSARY.md">
+<term id="text_decoding">
   <name>text_decoding</name>
   <definition>Turning the octets of a text resource or a binary value into a string: the effective encoding and start offset chosen from a byte order mark and an encoding candidate, then the characters (<code>sxml_text_decode</code>; F&amp;O 4.0, 17.1.5; EXPath Binary 4.0, bin:infer-encoding)</definition>
 </term>

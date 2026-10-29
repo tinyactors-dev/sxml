@@ -1,4 +1,4 @@
-<decision id="D24" status="accepted" source="docs/DECISIONS.md">
+<decision id="D24" status="accepted">
   <title>The arena is part of the memory substrate</title>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.5). <code>sxml_arena</code> in <code>memory.h</code>: bump allocation from caller <code>initial_memory</code>, then from blocks of <code>block_byte_count</code> taken from <code>block_allocator</code>; a request too large for a block gets a block of its own and the current block keeps serving small requests. The null allocator as block allocator gives a fixed-capacity arena (<code>SXML_STATUS_CAPACITY_EXCEEDED</code>); <code>maximum_block_byte_count</code> bounds growth for untrusted input (<code>SXML_STATUS_LIMIT_EXCEEDED</code>, 0 = no bound). Memory goes back only on <code>sxml_arena_reset</code>, <code>_finalize</code> or <code>_destroy</code>; <code>sxml_arena_as_allocator</code> exposes it as an <code>sxml_allocator</code> whose release does nothing. Typed, index-addressed storage for trees and XDM values (task 0.7) builds on it rather than replacing it.</p>

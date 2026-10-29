@@ -1,4 +1,4 @@
-<term id="distinct_terminal" source="docs/GLOSSARY.md">
+<term id="distinct_terminal">
   <name>distinct_terminal</name>
   <definition>One of the different terminals of an ixml grammar: the same character set written twice, such as the <code>a</code> of two strings, is one distinct terminal (<ref kind="decision" to="D283"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="unnamed_decimal_format" source="docs/GLOSSARY.md">
+<term id="unnamed_decimal_format">
   <name>unnamed_decimal_format</name>
   <definition>The decimal format without a name, used when <code>fn:format-number</code> names none</definition>
 </term>

@@ -1,4 +1,4 @@
-<packet id="fix-7" source="docs/tasks/phase-7.md">
+<packet id="fix-7">
   <title>Schematron: predeclared prefixes, findings in other documents, real schemas read with warnings (implementation, book)</title>
   <body>
     <p>After <ref kind="decision" to="D315"/>, <ref kind="decision" to="D323"/>, <ref kind="decision" to="D326"/> and book-30. Three changes the owner asked for on 2026-10-29, in this order, in the same files.</p>

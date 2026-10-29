@@ -1,4 +1,4 @@
-<decision id="D12" status="accepted" source="docs/DECISIONS.md">
+<decision id="D12" status="accepted">
   <title>Parsing with tree-sitter</title>
   <body>
     <p><recorded date="2026-10-16"/>, at the owner's request ("use tree-sitter wherever you need parsing"), confirmed for XML as well as the query languages.</p>

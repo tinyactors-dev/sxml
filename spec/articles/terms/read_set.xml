@@ -1,4 +1,4 @@
-<term id="read_set" source="docs/GLOSSARY.md">
+<term id="read_set">
   <name>read_set</name>
   <definition>The characters some instructions of a compiled regex may read: an ASCII member set and whether a character outside ASCII may be among them; larger than needed, never smaller. The start filter's first characters and a required literal's prefix are read sets (internal, <code>src/regex.c</code>, <ref kind="decision" to="D310"/>, <ref kind="decision" to="D311"/>)</definition>
 </term>

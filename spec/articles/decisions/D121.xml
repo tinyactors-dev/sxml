@@ -1,4 +1,4 @@
-<decision id="D121" status="accepted" source="docs/DECISIONS.md">
+<decision id="D121" status="accepted">
   <title>The XQuery front end (packet <ref kind="packet" to="3.2"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, extending <ref kind="decision" to="D29"/>, <ref kind="decision" to="D59"/> and <ref kind="decision" to="D111"/>. <code>src/xquery_parse.c</code> defines <code>sxml_xquery_build_ast</code>: the XQuery parser part on the XPath walker; <code>sxml_grammar_xquery</code> joins the <code>sxml</code> link line.</p>

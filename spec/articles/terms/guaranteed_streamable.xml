@@ -1,4 +1,4 @@
-<term id="guaranteed_streamable" source="docs/GLOSSARY.md">
+<term id="guaranteed_streamable">
   <name>guaranteed_streamable</name>
   <definition>A declared-streamable construct that the rules of XSLT 4.0, chapter 19 find streamable; one that is not is XTSE3430</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="node_type" source="docs/GLOSSARY.md">
+<term id="node_type">
   <name>node_type</name>
   <definition>The name a grammar gives one kind of concrete syntax tree node (<code>additive_expression</code>), as listed in <code>src/node-types.json</code></definition>
 </term>

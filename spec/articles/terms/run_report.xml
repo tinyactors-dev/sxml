@@ -1,4 +1,4 @@
-<term id="run_report" source="docs/GLOSSARY.md">
+<term id="run_report">
   <name>run_report</name>
   <definition>The output of <code>sxml-qt4 run</code>: one entry per test case that did not pass, counts per test set and overall, as text or JSON</definition>
 </term>

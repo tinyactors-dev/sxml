@@ -1,4 +1,4 @@
-<term id="module_set" source="docs/GLOSSARY.md">
+<term id="module_set">
   <name>module_set</name>
   <definition>The main module and every library module one compilation loads, each once; imports name namespaces, so a module sees every loaded module of a namespace it imports (XQuery 4.0, 5.12.2)</definition>
 </term>

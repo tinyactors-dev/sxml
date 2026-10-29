@@ -1,4 +1,4 @@
-<decision id="D300" status="accepted" source="docs/DECISIONS.md">
+<decision id="D300" status="accepted">
   <title>Record matching, optional fields and map:keys-where follow the 2026-10-20 drafts (packet fix-1)</title>
   <body>
     <p><recorded date="2026-10-21"/>, after <ref kind="decision" to="D7"/>, <ref kind="decision" to="D226"/>. The book packets reported three bugs: <code>{ } instance of record(*)</code> and <code>{"a": 1} instance of record(a)</code> are false (treat as raises XPDY0050), <code>record(a, b?)</code> and <code>b? as xs:boolean</code> are XPST0003, and map:keys-where is XPST0017. All three are what the editor's drafts of 2026-10-20 and the pinned QT4 suite say, so the library keeps them; later packets do not reopen them.</p>

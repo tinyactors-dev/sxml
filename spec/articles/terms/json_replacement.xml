@@ -1,4 +1,4 @@
-<term id="json_replacement" source="docs/GLOSSARY.md">
+<term id="json_replacement">
   <name>json_replacement</name>
   <definition>The string value of the fallback function's result for one codepoint, inserted for each of its <term name="unpermitted_escape"/>s (<ref kind="decision" to="D143"/>)</definition>
 </term>

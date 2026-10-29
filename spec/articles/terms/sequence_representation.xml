@@ -1,4 +1,4 @@
-<term id="sequence_representation" source="docs/GLOSSARY.md">
+<term id="sequence_representation">
   <name>sequence_representation</name>
   <definition>How a sequence is stored: empty, single item, vector, integer range, concatenation, lazy, descending integer range</definition>
 </term>

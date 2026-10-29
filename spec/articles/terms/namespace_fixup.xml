@@ -1,4 +1,4 @@
-<term id="namespace_fixup" source="docs/GLOSSARY.md">
+<term id="namespace_fixup">
   <name>namespace_fixup</name>
   <definition>What a tree builder does so every element and attribute name has a binding of its prefix to its namespace URI: adds bindings, undeclares the default namespace, or picks another prefix (XSLT 4.0, section 5.7.3)</definition>
 </term>

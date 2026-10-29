@@ -1,4 +1,4 @@
-<packet id="js-1" source="docs/tasks/phase-7.md">
+<packet id="js-1">
   <title>JavaScript bindings for XQuery, XSLT and XSD validation (implementation)</title>
   <body>
     <p>After <ref kind="packet" to="7.2"/> (<ref kind="decision" to="D189"/>), <ref kind="decision" to="D207"/> and <ref kind="decision" to="D208"/>. The package covered XPath only.</p>

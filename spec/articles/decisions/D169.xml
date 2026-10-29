@@ -1,4 +1,4 @@
-<decision id="D169" status="accepted" source="docs/DECISIONS.md">
+<decision id="D169" status="accepted">
   <title>Phase 4 gate review (packet <ref kind="packet" to="4.18"/>)</title>
   <body>
     <p><recorded date="2026-10-19"/> by the review agent (<ref kind="decision" to="D11"/>), after <ref kind="decision" to="D95"/>, <ref kind="decision" to="D123"/>, <ref kind="decision" to="D151"/>, <ref kind="decision" to="D161"/>, <ref kind="decision" to="D166"/>. Checked locally (<ref kind="decision" to="D123"/>): <code>tools/check-main.sh</code> on clean HEAD (77bc5d5 before and 8d2aa06 after this review's changes) builds <term name="release"/>, <code>debug</code> (ASan, UBSan), <code>debug-gcc</code> and <code>wasm</code>, and every test passes; the full lint at 8d2aa06 is clean (no call cycle). The dashboard is regenerated at 8d2aa06.</p>

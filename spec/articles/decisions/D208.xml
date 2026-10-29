@@ -1,4 +1,4 @@
-<decision id="D208" status="accepted" source="docs/DECISIONS.md">
+<decision id="D208" status="accepted">
   <title>Budgets follow features; do not block on the owner (owner)</title>
   <body>
     <p><recorded date="2026-10-19"/> on the owner's word: "don't block on me, you can keep raising the budget -- this is for people who want a full blown sxml processor but not hundreds of megabytes to get java".</p>

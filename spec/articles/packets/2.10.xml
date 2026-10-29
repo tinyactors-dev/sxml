@@ -1,4 +1,4 @@
-<packet id="2.10" source="docs/tasks/phase-2.md">
+<packet id="2.10">
   <title>Elements to maps and back (implementation)</title>
   <body>
     <p>After <ref kind="packet" to="2.0"/>. Owns <code>src/function_library_element_map.c</code>, <code>tests/function_library_element_map_test.c</code>. element-to-map, element-to-map-plan, map-to-element (<ref kind="decision" to="D40"/> tree builder for new trees). Done when fn-element-to-map, fn-element-to-map-plan, fn-map-to-element ≥ 95%. Spec: F&amp;O 4.0 "Converting elements to maps". <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D130"/>): part <code>element_map</code>; fn-element-to-map 179/181 run (two asserts on the context value the driver leaves absent), fn-element-to-map-plan 20/20, fn-map-to-element 224/228 (two expect XQuery entity decoding, two need fn:serialize).</p>

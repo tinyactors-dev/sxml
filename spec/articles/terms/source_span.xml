@@ -1,4 +1,4 @@
-<term id="source_span" source="docs/GLOSSARY.md">
+<term id="source_span">
   <name>source_span</name>
   <definition>Where a syntax node is: byte offset and byte count, with line and column of its first byte; a <term name="source_location"/> without the source name</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="parameter_document" source="docs/GLOSSARY.md">
+<term id="parameter_document">
   <name>parameter_document</name>
   <definition>An <code>output:serialization-parameters</code> element giving serialization parameters (Serialization 4.0, section 3.1)</definition>
 </term>

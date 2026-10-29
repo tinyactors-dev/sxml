@@ -1,4 +1,4 @@
-<packet id="perf-6" source="docs/tasks/phase-7.md">
+<packet id="perf-6">
   <title>Compile each regex once (implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D53"/>, <ref kind="decision" to="D105"/> and <ref kind="decision" to="D114"/> (the regex engine and its library part) and the SchXslt measurements of perf-5. <code>compile_pattern</code> in <code>src/function_library_regex.c</code> parses and compiles the pattern and creates a matcher on every call of <code>fn:matches</code>, <code>fn:replace</code>, <code>fn:tokenize</code> and <code>fn:analyze-string</code>, also when the pattern and flags are literals. Measured (release, x86_64 Xeon 2.1 GHz): 20,000 calls of <code>replace($s, "(\W*)\$AMOUNT(\W*)", "$1x$2")</code> take 0.156 s, against 0.054 s for the literal pattern <code>"\$AMOUNT"</code>; SchXslt's expand stage of EN 16931 makes about 810,000 <code>fn:replace</code> calls with about 1,050 distinct patterns (about 9 s).</p>

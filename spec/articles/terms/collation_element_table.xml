@@ -1,4 +1,4 @@
-<term id="collation_element_table" source="docs/GLOSSARY.md">
+<term id="collation_element_table">
   <name>collation_element_table</name>
   <definition>The mapping of code points and contractions to collation elements, the DUCET or the CLDR root collation (UTS #10, section 3.6)</definition>
 </term>

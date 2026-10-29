@@ -1,4 +1,4 @@
-<decision id="D124" status="accepted" source="docs/DECISIONS.md">
+<decision id="D124" status="accepted">
   <title>IR extensions for try/catch and constructors (packet 3.6b)</title>
   <body>
     <p><recorded date="2026-10-17"/>; accepts the IR proposals of <ref kind="decision" to="D109"/> and <ref kind="decision" to="D110"/> (<code>src/ir_internal.h</code>, <code>src/ir.c</code>, <code>src/ir_verify.c</code>).</p>

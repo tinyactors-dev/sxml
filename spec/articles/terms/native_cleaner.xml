@@ -1,4 +1,4 @@
-<term id="native_cleaner" source="docs/GLOSSARY.md">
+<term id="native_cleaner">
   <name>native_cleaner</name>
   <definition>The Kotlin binding's backstop for objects never closed: a PhantomReference per object and one daemon thread that runs its release action under the processor's lock, as <code>java.lang.ref.Cleaner</code> does on the JVM (<ref kind="decision" to="D247"/>)</definition>
 </term>

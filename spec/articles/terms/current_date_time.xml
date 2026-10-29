@@ -1,4 +1,4 @@
-<term id="current_date_time" source="docs/GLOSSARY.md">
+<term id="current_date_time">
   <name>current_date_time</name>
   <definition>The instant <code>fn:current-dateTime</code> returns, read once per evaluation</definition>
 </term>

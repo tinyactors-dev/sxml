@@ -1,4 +1,4 @@
-<term id="put_document" source="docs/GLOSSARY.md">
+<term id="put_document">
   <name>put_document</name>
   <definition>A document or element node fn:put stores, handed to the host's update sink with the absolute URI it resolved to after every changed tree; the host stores it, sxml writes nothing (<code>sxml_xquery_put_document</code>; XQuery Update Facility 3.0, 6.1; <ref kind="decision" to="D205"/>)</definition>
 </term>

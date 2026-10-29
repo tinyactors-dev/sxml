@@ -1,4 +1,4 @@
-<term id="content_type_meta" source="docs/GLOSSARY.md">
+<term id="content_type_meta">
   <name>content_type_meta</name>
   <definition>The meta element the XHTML and HTML methods add as the first child of head (parameter <code>include-content-type</code>)</definition>
 </term>

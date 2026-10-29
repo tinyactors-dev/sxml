@@ -1,4 +1,4 @@
-<term id="shared_pattern_variable" source="docs/GLOSSARY.md">
+<term id="shared_pattern_variable">
   <name>shared_pattern_variable</name>
   <definition>A pattern_variable read where 3.23 does not scope it (by another pattern, a variable outside patterns, an XSLT declaration): a global of its written name refers to the first compiled pattern's let of that name, and each such reference is a compatibility_warning (<ref kind="decision" to="D331"/>)</definition>
 </term>

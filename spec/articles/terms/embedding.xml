@@ -1,4 +1,4 @@
-<term id="embedding" source="docs/GLOSSARY.md">
+<term id="embedding">
   <name>embedding</name>
   <definition>One XPath AST lowered inside a caller's scope: its variables, a focus of the caller's choice and the AST's own static context (<ref kind="decision" to="D103"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="schema_location_hint" source="docs/GLOSSARY.md">
+<term id="schema_location_hint">
   <name>schema_location_hint</name>
   <definition>A URI reference an instance gives for a schema document (XSD 1.1 Part 1, 4.3.2): the second of each pair of an xsi:schemaLocation attribute, for the namespace of the first, or a value of xsi:noNamespaceSchemaLocation, for no namespace; followed only when the host asks (<code>sxml_schema_configuration.schema_location_hint_node</code>), and then only for namespaces the schema does not have yet (<ref kind="decision" to="D278"/>)</definition>
 </term>

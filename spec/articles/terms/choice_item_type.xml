@@ -1,4 +1,4 @@
-<term id="choice_item_type" source="docs/GLOSSARY.md">
+<term id="choice_item_type">
   <name>choice_item_type</name>
   <definition>An item type matching items of any of its alternatives (<code>(A | B)</code>)</definition>
 </term>

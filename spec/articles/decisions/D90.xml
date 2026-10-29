@@ -1,4 +1,4 @@
-<decision id="D90" status="accepted" source="docs/DECISIONS.md">
+<decision id="D90" status="accepted">
   <title>map:merge merges into its largest map (fuzzing follow-up of 1.26)</title>
   <body>
     <p><recorded date="2026-10-16"/>. A fold that merges a small map into its accumulator was O(n^2): map:merge inserted every entry of every map into a new map.</p>

@@ -1,4 +1,4 @@
-<term id="byte_order_mark" source="docs/GLOSSARY.md">
+<term id="byte_order_mark">
   <name>byte_order_mark</name>
   <definition>U+FEFF at the start of a document, which identifies UTF-8 or the byte order of UTF-16 (XML 1.0, Appendix F)</definition>
 </term>

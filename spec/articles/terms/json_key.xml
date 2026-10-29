@@ -1,4 +1,4 @@
-<term id="json_key" source="docs/GLOSSARY.md">
+<term id="json_key">
   <name>json_key</name>
   <definition>The ·jkey· of a JNode: the map key or 1-based array or sequence position under its parent</definition>
 </term>

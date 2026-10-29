@@ -1,4 +1,4 @@
-<decision id="D110" status="accepted" source="docs/DECISIONS.md">
+<decision id="D110" status="accepted">
   <title>Node constructors in the evaluator (packet <ref kind="packet" to="3.5"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>. <code>src/evaluator_construct.c</code> evaluates the seven constructor kinds and SHALLOW_COPY (<ref kind="decision" to="D55"/>, <ref kind="decision" to="D101"/>).</p>

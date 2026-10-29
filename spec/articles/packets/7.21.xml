@@ -1,4 +1,4 @@
-<packet id="7.21" source="docs/tasks/phase-7.md">
+<packet id="7.21">
   <title>Fast Invisible XML (book, tests, implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D215"/> (7.18: the Earley parser, right recursion quadratic, every item a step). The owner: high performance; book first, then conformance and benchmarks, then the implementation.</p>

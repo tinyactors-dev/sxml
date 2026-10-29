@@ -1,4 +1,4 @@
-<decision id="D187" status="accepted" source="docs/DECISIONS.md">
+<decision id="D187" status="accepted">
   <title>The XQuery Update Facility 3.0 (packet 7.7a)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D99"/>, <ref kind="decision" to="D137"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>. The owner chose XQUF 3.0 first (<ref kind="decision" to="D184"/>): packet 7.7a designs it and does the 3.0 expressions and their application (the task file's 7.7a and 7.7b); 7.7b is now the 4.0 draft's additions and 7.7c fn:put and revalidation.</p>

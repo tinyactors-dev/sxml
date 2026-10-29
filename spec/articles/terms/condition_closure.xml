@@ -1,4 +1,4 @@
-<term id="condition_closure" source="docs/GLOSSARY.md">
+<term id="condition_closure">
   <name>condition_closure</name>
   <definition>The function item a window's start or end condition is lowered to: its parameters are the condition's window variables, its body the condition (<ref kind="decision" to="D137"/>)</definition>
 </term>

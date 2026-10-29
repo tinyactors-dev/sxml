@@ -1,4 +1,4 @@
-<term id="operand_usage" source="docs/GLOSSARY.md">
+<term id="operand_usage">
   <name>operand_usage</name>
   <definition>How a construct uses the nodes of an operand: absorption, inspection, transmission or navigation (XSLT 4.0, 19.3)</definition>
 </term>

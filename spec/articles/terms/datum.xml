@@ -1,4 +1,4 @@
-<term id="datum" source="docs/GLOSSARY.md">
+<term id="datum">
   <name>datum</name>
   <definition>The value of an atomic item, without its type annotation (XDM 4.0, section 5)</definition>
 </term>

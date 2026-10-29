@@ -1,4 +1,4 @@
-<term id="static_form" source="docs/GLOSSARY.md">
+<term id="static_form">
   <name>static_form</name>
   <definition>The abstract syntax a function item was made from, compared up to the renaming of bound variables; two function items with the same static form and captured context are equivalent (F&amp;O 4.0, section 1.9.5; <ref kind="decision" to="D143"/>)</definition>
 </term>

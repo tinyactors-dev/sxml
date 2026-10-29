@@ -1,4 +1,4 @@
-<decision id="D14" status="accepted" source="docs/DECISIONS.md">
+<decision id="D14" status="accepted">
   <title>Build layout and presets</title>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.1). CMake 3.24+, Ninja. Presets: <code>debug</code> (Clang, ASan + UBSan), <code>debug-gcc</code>, <term name="release"/> (default compiler), <code>msvc</code> (Visual Studio 2022, Windows only), <code>wasm</code> (<code>cmake/wasi-sdk.cmake</code>, wrapping the SDK's <code>wasi-sdk-p1.cmake</code>; SDK from <code>WASI_SDK_PREFIX</code> or <code>/opt/wasi-sdk</code>; WASI SDK 34 in CI). Build trees go to <code>build/&lt;preset&gt;</code>.</p>

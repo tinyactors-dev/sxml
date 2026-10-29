@@ -1,4 +1,4 @@
-<term id="schema_normalized_value" source="docs/GLOSSARY.md">
+<term id="schema_normalized_value">
   <name>schema_normalized_value</name>
   <definition>A simple value after the whiteSpace facet of its type (XSD 1.1 Part 2, 4.3.6): what a validated attribute's or simple element's text becomes (XDM 4.0, 7.5.7.4)</definition>
 </term>

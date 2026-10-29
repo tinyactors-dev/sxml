@@ -1,4 +1,4 @@
-<term id="operand" source="docs/GLOSSARY.md">
+<term id="operand">
   <name>operand</name>
   <definition>One input of a checked arithmetic function (<code>left_operand</code>, <code>right_operand</code>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<document id="QT4_CATALOG" source="docs/QT4_CATALOG.md">
+<document id="QT4_CATALOG" file="docs/QT4_CATALOG.md">
   <title>QT4 test catalog format</title>
   <p>A reference for writing the conformance test driver. It covers the W3C QT4 test suite (<code>qt4cg/qt4tests</code>) and gives an outline of the XSLT 4.0 suite (<code>qt4cg/xslt40-test</code>). Both are vendored by <code>tools/update-test-suites.sh</code> into <code>third_party/</code> at the commits pinned in decision <ref kind="decision" to="D13"/>. The authoritative definition is <code>third_party/qt4tests/catalog-schema.xsd</code> together with <code>guide/running.html</code>.</p>
   <section id="files">

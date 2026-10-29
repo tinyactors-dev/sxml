@@ -1,4 +1,4 @@
-<term id="input_stream" source="docs/GLOSSARY.md">
+<term id="input_stream">
   <name>input_stream</name>
   <definition>The decoded characters the HTML tokenizer reads, newlines normalized (13.2.3.5); UTF-8 in sxml</definition>
 </term>

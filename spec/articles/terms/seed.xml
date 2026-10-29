@@ -1,4 +1,4 @@
-<term id="seed" source="docs/GLOSSARY.md">
+<term id="seed">
   <name>seed</name>
   <definition>An input a fuzz target starts from, taken from a vendored test suite by <code>tools/fuzz-seeds.py</code>; the seeds of one target are its seed corpus</definition>
 </term>

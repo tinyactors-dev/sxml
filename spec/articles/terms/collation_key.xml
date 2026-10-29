@@ -1,4 +1,4 @@
-<term id="collation_key" source="docs/GLOSSARY.md">
+<term id="collation_key">
   <name>collation_key</name>
   <definition>Bytes whose octet order is the order of strings under a collation (F&amp;O 4.0, <code>fn:collation-key</code>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="decimal_format" source="docs/GLOSSARY.md">
+<term id="decimal_format">
   <name>decimal_format</name>
   <definition>A named or unnamed set of properties that <code>fn:format-number</code> formats with (XPath 4.0, section 2.2.1, "statically known decimal formats")</definition>
 </term>

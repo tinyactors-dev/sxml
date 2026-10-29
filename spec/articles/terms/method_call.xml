@@ -1,4 +1,4 @@
-<term id="method_call" source="docs/GLOSSARY.md">
+<term id="method_call">
   <name>method_call</name>
   <definition><code>M =?&gt; N(...)</code>: the function in entry N of each map of M, called with that map first (XPath 4.0, section 4.15.5)</definition>
 </term>

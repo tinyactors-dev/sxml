@@ -1,4 +1,4 @@
-<term id="call_each" source="docs/GLOSSARY.md">
+<term id="call_each">
   <name>call_each</name>
   <definition>The evaluator's own resumable body that calls a sequence of function items in turn and concatenates the results (a dynamic call on several functions, XPath 4.0, section 4.6.3.1)</definition>
 </term>

@@ -1,4 +1,4 @@
-<packet id="7.24" source="docs/tasks/phase-7.md">
+<packet id="7.24">
   <title>Invisible XML for large inputs (book, tests, implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D283"/> (7.21: about 3 to 6 MB/s and linear, but 80 to 200 bytes of memory for each input character). The owner: usable on tens to hundreds of MB; the book, the tests, then the implementation; one parser (<ref kind="decision" to="D215"/>).</p>

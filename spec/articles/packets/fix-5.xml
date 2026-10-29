@@ -1,4 +1,4 @@
-<packet id="fix-5" source="docs/tasks/phase-7.md">
+<packet id="fix-5">
   <title>Default priorities of union patterns (implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D144"/>, <ref kind="decision" to="D149"/> and <ref kind="decision" to="D327"/> (perf-15 found it; the base does the same). <code>&lt;xsl:template match="a[@n] | b"&gt;</code> gets one default priority (0) instead of being treated as one rule per alternative. With a second rule <code>match="a"</code>, an <code>a</code> with <code>@n</code> gets the second rule (the tie at 0 goes to the later rule); XSLT 3.0, 6.5 makes the union's <code>a[@n]</code> branch a rule of priority 0.5, which wins. Reproduction: a stylesheet with those two rules applied to <code>&lt;r&gt;&lt;a n="1"/&gt;&lt;a/&gt;&lt;/r&gt;</code> prints "plain plain"; XSLT 3.0 gives "union plain".</p>

@@ -1,4 +1,4 @@
-<document id="tasks/phase-6" source="docs/tasks/phase-6.md">
+<document id="tasks/phase-6" file="docs/tasks/phase-6.md">
   <title>Phase 6: Platform bindings</title>
   <p>Goal (PLAN.md): Kotlin and Swift bindings, Android and iOS builds, and binding tests on device in CI. Design: <ref kind="decision" to="D238"/>. The bindings mirror the JavaScript package (<ref kind="decision" to="D138"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D216"/>): the same concepts, the same defaults, the same errors, in each language's own idiom. Rules for parallel packets are those of <code>docs/tasks/phase-2.md</code> (<ref kind="decision" to="D45"/>, <ref kind="decision" to="D96"/>, <ref kind="decision" to="D132"/>: a packet starts when every packet in its "After" list is committed). Phase 6 changes no public header and must not regress any count of Phases 2 to 7.</p>
   <section id="the-design-in-one-page-d238">

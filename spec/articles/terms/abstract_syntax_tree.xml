@@ -1,4 +1,4 @@
-<term id="abstract_syntax_tree" source="docs/GLOSSARY.md">
+<term id="abstract_syntax_tree">
   <name>abstract_syntax_tree</name>
   <definition>What a front end builds from a concrete syntax tree: one node per visible grammar production, children by grammar field, names as written, literals decoded; <code>ast</code> allowed as a module name only (<code>sxml_ast_node</code>)</definition>
 </term>

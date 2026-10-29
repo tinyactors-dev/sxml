@@ -1,4 +1,4 @@
-<packet id="perf-2" source="docs/tasks/phase-7.md">
+<packet id="perf-2">
   <title>Evaluator performance, second round (implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D224"/> (perf-1: its benchmarks, and what it left: describe_node 15 % and the machine loop 12 % of XMark-All, atomization, reference counts and small sequences, numeric index keys, hoisting of path MAPs, quantified expressions and sorts, the <code>$V[. instance of gnode()]</code> check per <code>match="$var"</code> test).</p>

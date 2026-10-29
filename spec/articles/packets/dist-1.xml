@@ -1,4 +1,4 @@
-<packet id="dist-1" source="docs/tasks/distribution.md">
+<packet id="dist-1">
   <title>A mise task that builds the sxml command for every platform (build)</title>
   <body>
     <p>After <ref kind="decision" to="D255"/>.</p>

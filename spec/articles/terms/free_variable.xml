@@ -1,4 +1,4 @@
-<term id="free_variable" source="docs/GLOSSARY.md">
+<term id="free_variable">
   <name>free_variable</name>
   <definition>A variable an inline function body reads but does not bind; the function captures it</definition>
 </term>

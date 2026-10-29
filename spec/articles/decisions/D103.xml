@@ -1,4 +1,4 @@
-<decision id="D103" status="accepted" source="docs/DECISIONS.md">
+<decision id="D103" status="accepted">
   <title>Lowering parts and the embedding entry (packet <ref kind="packet" to="2.1"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D63"/> and <ref kind="decision" to="D71"/> for Phases 3 and 4. <code>src/xpath_lower_internal.h</code> (module <code>xpath_lower</code>) opens the lowering machine to other files.</p>

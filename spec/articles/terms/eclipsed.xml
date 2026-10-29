@@ -1,4 +1,4 @@
-<term id="eclipsed" source="docs/GLOSSARY.md">
+<term id="eclipsed">
   <name>eclipsed</name>
   <definition>Said of an <code>xsl:function</code> overridden by one of the same name, higher import precedence and an arity range holding all of its own (XSLT 4.0, 10.3.4.1)</definition>
 </term>

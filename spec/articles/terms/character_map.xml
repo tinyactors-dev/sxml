@@ -1,4 +1,4 @@
-<term id="character_map" source="docs/GLOSSARY.md">
+<term id="character_map">
   <name>character_map</name>
   <definition>The pairs of the <code>use-character-maps</code> parameter: characters and the text written in their place (Serialization 4.0, section 12)</definition>
 </term>

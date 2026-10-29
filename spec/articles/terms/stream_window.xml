@@ -1,4 +1,4 @@
-<term id="stream_window" source="docs/GLOSSARY.md">
+<term id="stream_window">
   <name>stream_window</name>
   <definition>The small tree a node of a streamed document lives in: the document node, the node's ancestors with their attributes and namespaces, the node, and its subtree (a full window) or not (a shallow window) (<ref kind="decision" to="D219"/>)</definition>
 </term>

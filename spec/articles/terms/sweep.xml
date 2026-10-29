@@ -1,4 +1,4 @@
-<term id="sweep" source="docs/GLOSSARY.md">
+<term id="sweep">
   <name>sweep</name>
   <definition>How much of a streamed input a construct reads: motionless, consuming or free-ranging (XSLT 4.0, 19.1)</definition>
 </term>

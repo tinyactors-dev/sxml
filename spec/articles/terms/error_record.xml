@@ -1,4 +1,4 @@
-<term id="error_record" source="docs/GLOSSARY.md">
+<term id="error_record">
   <name>error_record</name>
   <definition>A specification error code (such as <code>FOAR0001</code>) with details</definition>
 </term>

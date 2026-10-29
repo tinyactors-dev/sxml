@@ -1,4 +1,4 @@
-<term id="global_table" source="docs/GLOSSARY.md">
+<term id="global_table">
   <name>global_table</name>
   <definition>The global variables of one unit in one evaluation, a slot per global number; the evaluation's own unit has the first, a unit evaluated on the same machine (fn:load-xquery-module) one more, kept until the evaluation ends</definition>
 </term>

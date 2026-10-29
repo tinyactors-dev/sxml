@@ -1,4 +1,4 @@
-<term id="clause_segment" source="docs/GLOSSARY.md">
+<term id="clause_segment">
   <name>clause_segment</name>
   <definition>The FLWOR clauses between two tuple stream clauses, lowered as nested MAP, LET and CONDITIONAL without the tuple stream as a value</definition>
 </term>

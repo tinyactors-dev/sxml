@@ -1,4 +1,4 @@
-<decision id="D270" status="accepted" source="docs/DECISIONS.md">
+<decision id="D270" status="accepted">
   <title>The book's XQuery and XSD parts (packet book-2)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D257"/>. The owner asked the book to cover XQuery and XSD as deeply as XPath and XSLT, so that a reader who knows neither can learn them and work with sxml from the book alone.</p>

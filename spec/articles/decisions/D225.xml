@@ -1,4 +1,4 @@
-<decision id="D225" status="accepted" source="docs/DECISIONS.md">
+<decision id="D225" status="accepted">
   <title>The built-in schemas are an optional feature; the core size guard (packet health-3)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D162"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D208"/>, <ref kind="decision" to="D211"/>. The core <code>sxml.wasm</code> was 2,352,234 bytes stripped (823,283 gzipped) at 6130546, over <ref kind="decision" to="D207"/>'s 2,200,000 / 770,000, so <code>javascript/size_budget</code> failed again.</p>

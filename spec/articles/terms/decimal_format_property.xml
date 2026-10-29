@@ -1,4 +1,4 @@
-<term id="decimal_format_property" source="docs/GLOSSARY.md">
+<term id="decimal_format_property">
   <name>decimal_format_property</name>
   <definition>One property of a decimal format (decimal-separator, percent, NaN, ...), given as text</definition>
 </term>

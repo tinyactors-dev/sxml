@@ -1,4 +1,4 @@
-<term id="stylesheet_module" source="docs/GLOSSARY.md">
+<term id="stylesheet_module">
   <name>stylesheet_module</name>
   <definition>One XML document of a stylesheet as reached by one <code>xsl:include</code> or <code>xsl:import</code>, or the principal module; <code>module</code> in <code>sxml_xslt_ast_module</code></definition>
 </term>

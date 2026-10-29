@@ -1,4 +1,4 @@
-<term id="test_case" source="docs/GLOSSARY.md">
+<term id="test_case">
   <name>test_case</name>
   <definition>One named test function within a test suite</definition>
 </term>

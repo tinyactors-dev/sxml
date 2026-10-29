@@ -1,4 +1,4 @@
-<decision id="D291" status="accepted" source="docs/DECISIONS.md">
+<decision id="D291" status="accepted">
   <title>XSLT per-package items, an absent global focus through call-template, namespace undeclarations (packet 4.31)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D69"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D163"/>, <ref kind="decision" to="D245"/>, <ref kind="decision" to="D287"/>, <ref kind="decision" to="D289"/>. Verified as <ref kind="decision" to="D181"/> asks: the debug preset (xslt<em>, cli, function_library</em>, processor, xquery<em>, xpath</em>, evaluator<em>, ir</em> tests), clang-tidy on the changed files, the call-cycle check, the QT4 sets the loader and fn:function-lookup touch (XQ40/XP40 fn-function-lookup, fn-doc, fn-doc-available, fn-collection, prod-ModuleImport: equal to docs/CONFORMANCE.md), and the whole XT40 suite with the release driver after each change, case by case. <strong>XT40 12,268 to 12,273 passed (99 to 98 wrong error), 250 to 245 failed, 0 errors, no case lost</strong>, from a whole run at fdff1ee. No public header changed. Commits 4df51df, bb89091.</p>

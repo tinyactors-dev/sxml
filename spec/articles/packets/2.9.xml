@@ -1,4 +1,4 @@
-<packet id="2.9" source="docs/tasks/phase-2.md">
+<packet id="2.9">
   <title>Number formatting (implementation)</title>
   <body>
     <p>After <ref kind="packet" to="2.0"/>, <ref kind="packet" to="2.2"/>. Owns new <code>src/format.c</code>, <code>src/format_internal.h</code>, <code>src/function_library_format.c</code>, <code>tests/format_test.c</code>. One picture engine for numbers that XSLT's xsl:number and xsl:decimal-format reuse (4.10): format-integer (all primary tokens, ordinals in English, grouping, <code>^radix</code>), format-number with decimal formats from the static context (2.2), exponent separator, <code>%:pc</code> forms. Pictures are scanned by hand (<ref kind="decision" to="D97"/>). Done when fn-format-integer and fn-format-number ≥ 95%. Spec: F&amp;O 4.0 "Formatting integers", "Formatting numbers". <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D119"/>): <code>src/format.c</code> engine, part <code>format</code>; fn-format-integer 87/87 run, fn-format-number 252/286 run (88%): 33 of the 34 failures need the static context's decimal formats in the evaluator (Proposed), the other expects Java's digits of 4.9e-324.</p>

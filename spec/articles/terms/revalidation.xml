@@ -1,4 +1,4 @@
-<term id="revalidation" source="docs/GLOSSARY.md">
+<term id="revalidation">
   <name>revalidation</name>
   <definition>Schema validation of a tree an update rebuilt, in the revalidation mode the prolog declares (lax or strict; skip does none), whose validated copy becomes the updated tree (XQuery Update Facility 3.0, 3.2.4 upd:revalidate; <ref kind="decision" to="D205"/>)</definition>
 </term>

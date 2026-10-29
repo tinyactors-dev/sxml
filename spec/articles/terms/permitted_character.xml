@@ -1,4 +1,4 @@
-<term id="permitted_character" source="docs/GLOSSARY.md">
+<term id="permitted_character">
   <name>permitted_character</name>
   <definition>A codepoint an xs:string can hold: U+0001 to U+D7FF, U+E000 to U+FFFD, U+10000 to U+10FFFF (F&amp;O 4.0, section 17.4.3)</definition>
 </term>

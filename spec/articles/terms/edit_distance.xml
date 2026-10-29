@@ -1,4 +1,4 @@
-<term id="edit_distance" source="docs/GLOSSARY.md">
+<term id="edit_distance">
   <name>edit_distance</name>
   <definition>Optimal string alignment distance between two names, ASCII case ignored</definition>
 </term>

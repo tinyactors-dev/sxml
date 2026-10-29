@@ -1,4 +1,4 @@
-<term id="document_preparation" source="docs/GLOSSARY.md">
+<term id="document_preparation">
   <name>document_preparation</name>
   <definition>A step the document loader applies to each document it gets from the resolver before keeping it: XSLT's whitespace stripping (<ref kind="decision" to="D150"/>)</definition>
 </term>

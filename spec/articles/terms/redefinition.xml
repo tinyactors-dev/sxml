@@ -1,4 +1,4 @@
-<term id="redefinition" source="docs/GLOSSARY.md">
+<term id="redefinition">
   <name>redefinition</name>
   <definition>A component that an xs:redefine or xs:override child gives in place of the component of its name in the document it refers to (XSD 1.1 Part 1, 4.2.4 and 4.2.5)</definition>
 </term>

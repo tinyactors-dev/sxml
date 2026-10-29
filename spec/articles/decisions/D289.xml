@@ -1,4 +1,4 @@
-<decision id="D289" status="accepted" source="docs/DECISIONS.md">
+<decision id="D289" status="accepted">
   <title>XSLT real gaps: split-when, deterministic functions, atomic-equal keys, adaptive character maps, schema roles, override signatures (packet 4.30)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D245"/>, <ref kind="decision" to="D252"/>, <ref kind="decision" to="D262"/>, <ref kind="decision" to="D272"/> to <ref kind="decision" to="D281"/>, <ref kind="decision" to="D286"/>. Verified as <ref kind="decision" to="D181"/> asks: the debug preset (xslt<em>, serialize</em>, cli, function_library* tests), clang-tidy on the changed files, the call-cycle check, the book examples (no output the book shows changed), the QT4 serializer sets of the changed serializer (XQ40/XP40 method-adaptive, fn-serialize, method-xml/-text/-json/-html, OptionDecl.serialization: no new failure), and the whole XT40 suite with the release driver after each change, case by case. <strong>XT40 12,261 to 12,268 passed (99 wrong error), 257 to 250 failed, 0 errors</strong>, from a whole run at 384040b. Commits 89aa625, 46ba9b9, dad90fb.</p>

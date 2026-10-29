@@ -1,4 +1,4 @@
-<term id="type_identifier" source="docs/GLOSSARY.md">
+<term id="type_identifier">
   <name>type_identifier</name>
   <definition>Index of a type in the type registry</definition>
 </term>

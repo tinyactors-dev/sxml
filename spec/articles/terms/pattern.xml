@@ -1,4 +1,4 @@
-<term id="pattern" source="docs/GLOSSARY.md">
+<term id="pattern">
   <name>pattern</name>
   <definition>An XSLT 4.0 match pattern (XSLT 4.0, section 6.3)</definition>
 </term>

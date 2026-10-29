@@ -1,4 +1,4 @@
-<term id="binary_value" source="docs/GLOSSARY.md">
+<term id="binary_value">
   <name>binary_value</name>
   <definition>An <code>xs:hexBinary</code> or <code>xs:base64Binary</code> item, a sequence of octets; the EXPath Binary functions accept both and return <code>xs:base64Binary</code> (EXPath Binary 4.0, 1.2)</definition>
 </term>

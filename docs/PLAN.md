@@ -1,3 +1,5 @@
+<!-- Generated from spec/articles by tools/spec/spec generate. Do not edit: change it with tools/spec/spec (spec/README.md). -->
+
 # sxml Project Plan
 
 ## Goal
@@ -11,9 +13,9 @@ WebAssembly from one codebase.
 Success is measured, not judged: each phase ends when a named subset of the W3C
 QT4 test suite passes, and the public pass count is the project's progress bar.
 
-The central design bet is a single XDM 4.0 value model shared by every language.
-XQuery and XSLT both lower into one intermediate representation, so there is one
-optimizer and one evaluator, not three engines.
+The central design bet is a single XDM 4.0 value model shared by every
+language. XQuery and XSLT both lower into one intermediate representation, so
+there is one optimizer and one evaluator, not three engines.
 
 ## Architecture
 
@@ -73,7 +75,8 @@ end of Phase 1.
 ## How work is done
 
 1. Headers are designed first and frozen.
-2. Work comes in packets: one module or one specification chapter plus its test subset.
+2. Work comes in packets: one module or one specification chapter plus its test
+   subset.
 3. Golden files set the style.
 4. Every change is gated by lints, sanitizers and tests.
 5. A separate reviewer checks each change against the guidelines.
@@ -81,7 +84,8 @@ end of Phase 1.
 
 ## Tracking progress
 
-- Conformance dashboard: pass counts per test set, published by CI on every merge.
+- Conformance dashboard: pass counts per test set, published by CI on every
+  merge.
 - Weekly log in `docs/LOG.md`: what passed, what's next, what is blocked.
 - Decision records in `docs/DECISIONS.md`.
 - Phase review at each gate.

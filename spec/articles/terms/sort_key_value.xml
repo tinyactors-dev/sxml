@@ -1,4 +1,4 @@
-<term id="sort_key_value" source="docs/GLOSSARY.md">
+<term id="sort_key_value">
   <name>sort_key_value</name>
   <definition>The atomized key of one item in <code>fn:sort</code>: a sequence of atomic items compared item by item</definition>
 </term>

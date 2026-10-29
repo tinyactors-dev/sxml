@@ -1,4 +1,4 @@
-<term id="language_module" source="docs/GLOSSARY.md">
+<term id="language_module">
   <name>language_module</name>
   <definition>A tree-sitter grammar compiled to WebAssembly as a <term name="side_module"/> (<code>tree-sitter-NAME.wasm</code>, as <code>tree-sitter build --wasm</code> writes it) that exports <code>tree_sitter_NAME()</code>, which the JavaScript package's <term name="module_linker"/> links into <code>sxml.wasm</code> (<ref kind="decision" to="D293"/>)</definition>
 </term>

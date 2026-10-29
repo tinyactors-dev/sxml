@@ -1,4 +1,4 @@
-<term id="regular_token" source="docs/GLOSSARY.md">
+<term id="regular_token">
   <name>regular_token</name>
   <definition>A nonterminal of an ixml grammar whose language is regular (characters, character sets, repetitions and such nonterminals, no recursion but a repetition's) and whose XML is its text or nothing: its uses inside are hidden, it has no insertions, and its terminals are all kept or all hidden. Compiled once with the grammar into a token automaton; the Earley parser reads it in one step and completes it at each end the lookahead allows (<ref kind="decision" to="D290"/>)</definition>
 </term>

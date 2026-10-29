@@ -1,4 +1,4 @@
-<term id="default_global" source="docs/GLOSSARY.md">
+<term id="default_global">
   <name>default_global</name>
   <definition>The hidden global, named Q{urn:sxml:default}dN, whose initializer computes a declared function's default value that reads no focus, once per evaluation; calls of the default function read it instead (<ref kind="decision" to="D287"/>)</definition>
 </term>

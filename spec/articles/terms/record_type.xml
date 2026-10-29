@@ -1,4 +1,4 @@
-<term id="record_type" source="docs/GLOSSARY.md">
+<term id="record_type">
   <name>record_type</name>
   <definition>An item type whose instances are records; a list of fields</definition>
 </term>

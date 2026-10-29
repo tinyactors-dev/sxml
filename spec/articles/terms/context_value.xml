@@ -1,4 +1,4 @@
-<term id="context_value" source="docs/GLOSSARY.md">
+<term id="context_value">
   <name>context_value</name>
   <definition>The XPath 4.0 context value: the sequence the focus is on; when it is one item, the context item</definition>
 </term>

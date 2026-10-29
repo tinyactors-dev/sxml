@@ -1,4 +1,4 @@
-<term id="parameter_entity" source="docs/GLOSSARY.md">
+<term id="parameter_entity">
   <name>parameter_entity</name>
   <definition>An entity referenced as <code>%name;</code> inside the DTD (XML 1.0, section 4)</definition>
 </term>

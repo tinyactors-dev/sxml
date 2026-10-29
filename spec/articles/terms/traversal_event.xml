@@ -1,4 +1,4 @@
-<term id="traversal_event" source="docs/GLOSSARY.md">
+<term id="traversal_event">
   <name>traversal_event</name>
   <definition>A start or an end visit of a node in the traversal of a tree for an xslt accumulator, the start before the node's descendants and the end after them (XSLT 4.0, 19.4)</definition>
 </term>

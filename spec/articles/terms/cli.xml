@@ -1,4 +1,4 @@
-<term id="cli" source="docs/GLOSSARY.md">
+<term id="cli">
   <name>cli</name>
   <definition>The command-line interface (<code>apps/</code>, docs/CLI.md); allowed short form, as the <code>sxml_cli_</code> prefix of application code only</definition>
 </term>

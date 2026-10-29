@@ -1,4 +1,4 @@
-<decision id="D251" status="accepted" source="docs/DECISIONS.md">
+<decision id="D251" status="accepted">
   <title>The Android build: two API 24 fallbacks, NDK presets, build and fetch scripts (packet <ref kind="packet" to="6.3"/>, paused)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D208"/>, <ref kind="decision" to="D238"/>, <ref kind="decision" to="D247"/>, <ref kind="decision" to="D250"/>. The work stopped at <ref kind="decision" to="D255"/>, after the code was committed (fb76abe). <code>bindings/kotlin/DESIGN.md</code> has the resume plan.</p>

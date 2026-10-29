@@ -1,4 +1,4 @@
-<term id="multiplicity" source="docs/GLOSSARY.md">
+<term id="multiplicity">
   <name>multiplicity</name>
   <definition>How often an option or positional may appear: at most once, repeatable, exactly one, optional, one or more, zero or more</definition>
 </term>

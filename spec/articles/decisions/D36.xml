@@ -1,4 +1,4 @@
-<decision id="D36" status="accepted" source="docs/DECISIONS.md">
+<decision id="D36" status="accepted">
   <title>Numbers, dates and durations</title>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.7). <code>xs:integer</code> is unbounded: values that fit <code>int64_t</code> are inline; arithmetic that overflows moves to a cell holding a libmpdec value with exponent 0 (<ref kind="decision" to="D8"/>), so there is one arbitrary-precision library, not two. <code>xs:decimal</code> is always a libmpdec cell. Date/time values keep the seven XDM components (local values, optional timezone in minutes) with <code>int64_t</code> year and nanosecond seconds; durations are months plus seconds plus nanoseconds (XDM 4.0, section 5.7 note). Nine fractional digits exceed the required three; more digits are truncated by casting. The public <code>sxml_atomic_datum</code> reads and writes every datum; decimals are exchanged as canonical text, cached in the cell on first read.</p>

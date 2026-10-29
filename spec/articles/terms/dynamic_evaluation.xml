@@ -1,4 +1,4 @@
-<term id="dynamic_evaluation" source="docs/GLOSSARY.md">
+<term id="dynamic_evaluation">
   <name>dynamic_evaluation</name>
   <definition>Compiling and evaluating an XPath expression whose text is computed at run time: xsl:evaluate (XSLT 4.0, 10.5), run as a unit evaluation</definition>
 </term>

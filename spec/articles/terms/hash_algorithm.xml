@@ -1,4 +1,4 @@
-<term id="hash_algorithm" source="docs/GLOSSARY.md">
+<term id="hash_algorithm">
   <name>hash_algorithm</name>
   <definition>One of the algorithms <code>fn:hash</code> names: MD5, SHA-1, SHA-256, BLAKE3, CRC-32 (F&amp;O 4.0, fn:hash)</definition>
 </term>

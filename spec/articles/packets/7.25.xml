@@ -1,4 +1,4 @@
-<packet id="7.25" source="docs/tasks/phase-7.md">
+<packet id="7.25">
   <title>tree-sitter WebAssembly language files in the JavaScript package (book, tests, implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D288"/>'s delayed (a). The owner (2026-10-20): an easy fix; the book, the tests, then the implementation.</p>

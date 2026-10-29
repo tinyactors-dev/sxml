@@ -1,4 +1,4 @@
-<decision id="D18" status="accepted" source="docs/DECISIONS.md">
+<decision id="D18" status="accepted">
   <title>Continuous integration</title>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.4). <code>.github/workflows/ci.yml</code>: Linux Clang (<code>debug</code>, plus lints) and GCC (<code>debug-gcc</code>), macOS Clang (<code>debug</code>), Windows MSVC (<code>msvc</code>, build only), WASI (<code>wasm</code>, tests under Node.js 22). Lints run on Linux Clang only.</p>

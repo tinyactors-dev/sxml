@@ -1,4 +1,4 @@
-<term id="range_variable" source="docs/GLOSSARY.md">
+<term id="range_variable">
   <name>range_variable</name>
   <definition>A variable a for, let or quantifier binding binds to an item, member, key, value or part; the position variable is not one</definition>
 </term>

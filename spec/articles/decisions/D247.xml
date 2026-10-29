@@ -1,4 +1,4 @@
-<decision id="D247" status="accepted" source="docs/DECISIONS.md">
+<decision id="D247" status="accepted">
   <title>The Kotlin core: the JNI glue, the cleaner and the JVM test (packet <ref kind="packet" to="6.4"/>)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D23"/>, <ref kind="decision" to="D35"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D138"/>, <ref kind="decision" to="D213"/>, <ref kind="decision" to="D238"/>, <ref kind="decision" to="D239"/>, <ref kind="decision" to="D240"/>. Packet <ref kind="packet" to="6.4"/> added <code>bindings/kotlin/</code> (package <code>dev.tinyactors.sxml</code>; the API of <code>docs/tasks/phase-6.md</code>, XPath half) and <code>tools/run-kotlin-tests.sh</code>. (<ref kind="decision" to="D242"/> to <ref kind="decision" to="D244"/> were left free: other running packets may have claimed them.)</p>

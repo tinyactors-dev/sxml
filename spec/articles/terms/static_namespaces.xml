@@ -1,4 +1,4 @@
-<term id="static_namespaces" source="docs/GLOSSARY.md">
+<term id="static_namespaces">
   <name>static_namespaces</name>
   <definition>The statically known namespaces of a compiled unit beyond the predeclared prefixes, kept for what resolves prefixes at run time (casts to xs:QName)</definition>
 </term>

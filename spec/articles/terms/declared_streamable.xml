@@ -1,4 +1,4 @@
-<term id="declared_streamable" source="docs/GLOSSARY.md">
+<term id="declared_streamable">
   <name>declared_streamable</name>
   <definition>A construct the stylesheet declares streamable: a template rule of a streamable mode, xsl:source-document, xsl:attribute-set, xsl:accumulator or xsl:merge-source with streamable="yes", a stylesheet function with a streamability category (XSLT 4.0, 19.10)</definition>
 </term>

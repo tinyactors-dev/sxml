@@ -1,4 +1,4 @@
-<term id="implicit_timezone" source="docs/GLOSSARY.md">
+<term id="implicit_timezone">
   <name>implicit_timezone</name>
   <definition>The timezone of the dynamic context, used for date/time values without one</definition>
 </term>

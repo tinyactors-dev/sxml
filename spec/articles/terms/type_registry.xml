@@ -1,4 +1,4 @@
-<term id="type_registry" source="docs/GLOSSARY.md">
+<term id="type_registry">
   <name>type_registry</name>
   <definition>The table of built-in and schema-derived types</definition>
 </term>

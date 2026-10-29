@@ -1,4 +1,4 @@
-<term id="stream_point" source="docs/GLOSSARY.md">
+<term id="stream_point">
   <name>stream_point</name>
   <definition>An instruction of a streamed body that selects streamed nodes as their events pass: an xsl:for-each whose select is a downward path, lowered to a chain of STREAM expressions (<ref kind="decision" to="D219"/>), or an instruction with a streamed path (<ref kind="decision" to="D223"/>)</definition>
 </term>

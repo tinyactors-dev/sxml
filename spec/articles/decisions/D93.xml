@@ -1,4 +1,4 @@
-<decision id="D93" status="accepted" source="docs/DECISIONS.md">
+<decision id="D93" status="accepted">
   <title>WebAssembly slice: preopens and the first size budget (packet <ref kind="packet" to="1.28"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>. Node 22.22, WASI SDK 34, <code>wasm</code> preset (MinSizeRel).</p>

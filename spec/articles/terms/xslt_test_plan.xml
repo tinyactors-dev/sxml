@@ -1,4 +1,4 @@
-<term id="xslt_test_plan" source="docs/GLOSSARY.md">
+<term id="xslt_test_plan">
   <name>xslt_test_plan</name>
   <definition>What the transformation of one XSLT 4.0 test case needs, read from the catalog alone: principal module, secondary modules, static and stylesheet parameters, global context item, invocation kind, result delivery</definition>
 </term>

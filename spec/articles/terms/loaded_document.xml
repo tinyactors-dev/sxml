@@ -1,4 +1,4 @@
-<term id="loaded_document" source="docs/GLOSSARY.md">
+<term id="loaded_document">
   <name>loaded_document</name>
   <definition>A document fn:doc loaded during one evaluation, kept so the same URI gives the same node</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="schema_element_role" source="docs/GLOSSARY.md">
+<term id="schema_element_role">
   <name>schema_element_role</name>
   <definition>The part an element of a schema document plays where it appears (a global or a local element declaration, a group reference, a facet, ...): it decides the element's attributes, its children and the component it is read into (<code>src/schema_read.c</code>, <ref kind="decision" to="D170"/>)</definition>
 </term>

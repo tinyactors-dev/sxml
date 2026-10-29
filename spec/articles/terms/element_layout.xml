@@ -1,4 +1,4 @@
-<term id="element_layout" source="docs/GLOSSARY.md">
+<term id="element_layout">
   <name>element_layout</name>
   <definition>How <code>fn:element-to-map</code> represents one element (F&amp;O 4.0, 14.6.1): <code>empty</code>, <code>empty-plus</code>, <code>simple</code>, <code>simple-plus</code>, <code>list</code>, <code>list-plus</code>, <term name="record"/>, <term name="sequence"/>, <code>mixed</code>, <code>xml</code>, plus the plan-only <code>deep-skip</code> and <code>error</code></definition>
 </term>

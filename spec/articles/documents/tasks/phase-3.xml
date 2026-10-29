@@ -1,4 +1,4 @@
-<document id="tasks/phase-3" source="docs/tasks/phase-3.md">
+<document id="tasks/phase-3" file="docs/tasks/phase-3.md">
   <title>Phase 3: XQuery 4.0 and serialization</title>
   <p>Goal (PLAN.md): XQuery 4.0 (FLWOR, constructors, prolog, modules) and serialization, lowered into the shared IR (<ref kind="decision" to="D46"/>) and run by the one evaluator; <code>sxml xquery</code> and <code>sxml serialize</code> (docs/CLI.md). Gate: <strong>85% of the applicable XQ40 test cases pass, 75% of the XQ-only ones</strong> (<ref kind="decision" to="D95"/>). Rules for parallel packets are those of <code>docs/tasks/phase-2.md</code> (<ref kind="decision" to="D45"/>, <ref kind="decision" to="D96"/>).</p>
   <section id="overlap-with-phase-2-d96">

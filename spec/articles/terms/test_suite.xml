@@ -1,4 +1,4 @@
-<term id="test_suite" source="docs/GLOSSARY.md">
+<term id="test_suite">
   <name>test_suite</name>
   <definition>The unit tests of one module: one test executable</definition>
 </term>

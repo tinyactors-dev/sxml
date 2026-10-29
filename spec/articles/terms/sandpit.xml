@@ -1,4 +1,4 @@
-<term id="sandpit" source="docs/GLOSSARY.md">
+<term id="sandpit">
   <name>sandpit</name>
   <definition>The directory of files a QT4 test environment names for EXPath File cases, which the QT4 driver copies to a fresh temporary directory for each case and serves as the current directory (<ref kind="decision" to="D200"/>)</definition>
 </term>

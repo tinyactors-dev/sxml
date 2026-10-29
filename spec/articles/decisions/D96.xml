@@ -1,4 +1,4 @@
-<decision id="D96" status="accepted" source="docs/DECISIONS.md">
+<decision id="D96" status="accepted">
   <title>Phases 2 to 4 overlap</title>
   <body>
     <p><recorded date="2026-10-17"/>. To reach working XQuery and XSLT sooner (<ref kind="decision" to="D11"/>), packets marked <strong>Early</strong> in <code>docs/tasks/phase-3.md</code> and <code>phase-4.md</code> may start once the Phase 1 gate has closed (the substrate freeze) and the packets in their "After" lists are committed, while earlier phases still run. All other packets of a phase wait for the previous phase's gate.</p>

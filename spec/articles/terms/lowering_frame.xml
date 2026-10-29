@@ -1,4 +1,4 @@
-<term id="lowering_frame" source="docs/GLOSSARY.md">
+<term id="lowering_frame">
   <name>lowering_frame</name>
   <definition>One running lowering procedure on the lowering machine's stack, in allocator memory, with its step, locals and destination (<ref kind="decision" to="D71"/>, <ref kind="decision" to="D103"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<packet id="6.11" source="docs/tasks/phase-6.md">
+<packet id="6.11">
   <title>Documentation and release steps (here; publishing: owner)</title>
   <body>
     <p>After <ref kind="packet" to="6.6"/> and <ref kind="packet" to="6.8"/>. Owns:</p>

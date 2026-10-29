@@ -1,4 +1,4 @@
-<term id="node_kind" source="docs/GLOSSARY.md">
+<term id="node_kind">
   <name>node_kind</name>
   <definition>One of the seven XNode kinds: document, element, attribute, text, comment, processing instruction, namespace</definition>
   <definition>The grammar's name for the type of a syntax node (tree-sitter's "type"), such as <code>function_declaration</code>; the local name of its element</definition>

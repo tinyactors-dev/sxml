@@ -1,4 +1,4 @@
-<decision id="D258" status="accepted" source="docs/DECISIONS.md">
+<decision id="D258" status="accepted">
   <title>XPath and XQuery conformance sweep (packet <ref kind="packet" to="2.23"/>)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D113"/>, <ref kind="decision" to="D143"/>, <ref kind="decision" to="D174"/>, <ref kind="decision" to="D190"/>, <ref kind="decision" to="D226"/>. Takes the "XPath and XQuery" leftovers of <code>docs/agents/QUEUE.md</code> and the largest clusters of fresh whole runs. No public header changed; no IR expression kind added.</p>

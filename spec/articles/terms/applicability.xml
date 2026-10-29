@@ -1,4 +1,4 @@
-<term id="applicability" source="docs/GLOSSARY.md">
+<term id="applicability">
   <name>applicability</name>
   <definition>Whether a QT4 test case can run for a target: its spec, its other dependencies and its environment are supported; otherwise the reason it is skipped</definition>
 </term>

@@ -1,4 +1,4 @@
-<log-entry id="open-questions-at-the-phase-5-gate-packet-5-14" source="docs/LOG.md">
+<log-entry id="open-questions-at-the-phase-5-gate-packet-5-14">
   <title>Open questions at the Phase 5 gate (packet <ref kind="packet" to="5.14"/>)</title>
   <body>
     <p>For the owner. Four gate boxes wait for the full runs and fuzzing on the owner's machine (<ref kind="decision" to="D181"/>); the review's runs met every number, and schema validation works.</p>

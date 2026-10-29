@@ -1,4 +1,4 @@
-<decision id="D83" status="accepted" source="docs/DECISIONS.md">
+<decision id="D83" status="accepted">
   <title>The QT4 driver: catalog and environments (packet <ref kind="packet" to="1.24"/>)</title>
   <body>
     <p><recorded date="2026-10-16"/>. <code>tests/qt4/driver/</code>, the developer tool <code>sxml-qt4</code> on the CLI framework (<ref kind="decision" to="D44"/>), public API only.</p>

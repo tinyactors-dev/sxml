@@ -1,4 +1,4 @@
-<term id="codepoint" source="docs/GLOSSARY.md">
+<term id="codepoint">
   <name>codepoint</name>
   <definition>A Unicode scalar value, held in <code>uint32_t</code></definition>
 </term>

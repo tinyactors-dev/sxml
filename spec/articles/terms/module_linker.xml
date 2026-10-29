@@ -1,4 +1,4 @@
-<term id="module_linker" source="docs/GLOSSARY.md">
+<term id="module_linker">
   <name>module_linker</name>
   <definition>The JavaScript package's small dynamic linker (<code>bindings/javascript/src/linker.ts</code>): reads a side module's <code>dylink.0</code>, reserves its memory with <code>sxml.wasm</code>'s <code>malloc</code> and its slots in the exported function table, instantiates it with sxml's memory, table, stack pointer and C library functions, and runs its relocations (<ref kind="decision" to="D293"/>)</definition>
 </term>

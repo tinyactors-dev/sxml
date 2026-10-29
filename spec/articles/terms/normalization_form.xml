@@ -1,4 +1,4 @@
-<term id="normalization_form" source="docs/GLOSSARY.md">
+<term id="normalization_form">
   <name>normalization_form</name>
   <definition>One of NFC, NFD, NFKC, NFKD (UAX #15) or FULLY-NORMALIZED (F&amp;O 4.0, <code>fn:normalize-unicode</code>)</definition>
 </term>

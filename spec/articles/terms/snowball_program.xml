@@ -1,4 +1,4 @@
-<term id="snowball_program" source="docs/GLOSSARY.md">
+<term id="snowball_program">
   <name>snowball_program</name>
   <definition>A Snowball stemming algorithm compiled for sxml's stemming machine: instructions with jumps over the word's code points, its strings, groupings and among tables (snowballstem.org; Full Text 3.0, 3.4.4; <ref kind="decision" to="D214"/>)</definition>
 </term>

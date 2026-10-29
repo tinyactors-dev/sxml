@@ -1,4 +1,4 @@
-<term id="output_chunk" source="docs/GLOSSARY.md">
+<term id="output_chunk">
   <name>output_chunk</name>
   <definition>The bytes one output event carries: at most the chunk size (64 KiB by default), gathered in a buffer the shim allocates for the call and reuses; the JavaScript package copies each out of the module (<ref kind="decision" to="D294"/>)</definition>
 </term>

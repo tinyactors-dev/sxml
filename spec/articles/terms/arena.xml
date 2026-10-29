@@ -1,4 +1,4 @@
-<term id="arena" source="docs/GLOSSARY.md">
+<term id="arena">
   <name>arena</name>
   <definition>Bump allocator whose allocations are released together</definition>
 </term>

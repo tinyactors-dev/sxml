@@ -1,4 +1,4 @@
-<term id="spell_out_rule_set" source="docs/GLOSSARY.md">
+<term id="spell_out_rule_set">
   <name>spell_out_rule_set</name>
   <definition>A named list of CLDR's rule-based number formatting rules that writes numbers in words or ordinals, such as <code>spellout-ordinal</code> (UTS #35, Part 3, section 6)</definition>
 </term>

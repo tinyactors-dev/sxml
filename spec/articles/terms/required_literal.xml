@@ -1,4 +1,4 @@
-<term id="required_literal" source="docs/GLOSSARY.md">
+<term id="required_literal">
   <name>required_literal</name>
   <definition>A run of characters every match of a compiled regex contains, found from its instructions (a CODEPOINT run that every way to the match passes through, outside assertions), with the read set of what a match reads before it; a search looks for its next occurrence first, attempts only the start positions from which the characters up to it are in that read set, and none when it does not occur (internal, <code>src/regex.c</code>, <ref kind="decision" to="D311"/>)</definition>
 </term>

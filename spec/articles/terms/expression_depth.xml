@@ -1,4 +1,4 @@
-<term id="expression_depth" source="docs/GLOSSARY.md">
+<term id="expression_depth">
   <name>expression_depth</name>
   <definition>How deeply the syntax of an expression nests; bounded for untrusted expressions</definition>
 </term>

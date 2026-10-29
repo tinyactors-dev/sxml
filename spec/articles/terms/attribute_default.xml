@@ -1,4 +1,4 @@
-<term id="attribute_default" source="docs/GLOSSARY.md">
+<term id="attribute_default">
   <name>attribute_default</name>
   <definition>The value an attribute definition supplies when an element does not specify the attribute (XML 1.0, section 3.3.2)</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D218" status="accepted" source="docs/DECISIONS.md">
+<decision id="D218" status="accepted">
   <title>HTML follow-ups: encoding sniffing, every legacy decoder, the html5lib tests, XHTML (packet 7.10b)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D13"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D201"/>, <ref kind="decision" to="D208"/>. Closes <ref kind="decision" to="D201"/>'s list for 7.10b.</p>

@@ -1,4 +1,4 @@
-<term id="attribute_set" source="docs/GLOSSARY.md">
+<term id="attribute_set">
   <name>attribute_set</name>
   <definition>All <code>xsl:attribute-set</code> declarations of one name: one IR function of the focus that returns their attributes (XSLT 4.0, 10.2; <ref kind="decision" to="D150"/>)</definition>
 </term>

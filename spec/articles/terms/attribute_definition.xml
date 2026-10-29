@@ -1,4 +1,4 @@
-<term id="attribute_definition" source="docs/GLOSSARY.md">
+<term id="attribute_definition">
   <name>attribute_definition</name>
   <definition>One attribute of an attribute-list declaration: its name, type and default (XML 1.0, section 3.3)</definition>
 </term>

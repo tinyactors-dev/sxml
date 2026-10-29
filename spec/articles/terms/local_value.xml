@@ -1,4 +1,4 @@
-<term id="local_value" source="docs/GLOSSARY.md">
+<term id="local_value">
   <name>local_value</name>
   <definition>A date/time value as written, without adjusting it by its timezone (F&amp;O 4.0, section 9.6)</definition>
 </term>

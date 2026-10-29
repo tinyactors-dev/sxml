@@ -1,4 +1,4 @@
-<term id="configuration" source="docs/GLOSSARY.md">
+<term id="configuration">
   <name>configuration</name>
   <definition>Struct describing how an object is set up</definition>
 </term>

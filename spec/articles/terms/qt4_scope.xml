@@ -1,4 +1,4 @@
-<term id="qt4_scope" source="docs/GLOSSARY.md">
+<term id="qt4_scope">
   <name>qt4_scope</name>
   <definition>Whether a QT4 test case counts in the denominator of the pass-rate targets (<ref kind="decision" to="D95"/>): its spec matches and it needs no non-goal; said <code>in_scope</code> in reports</definition>
 </term>

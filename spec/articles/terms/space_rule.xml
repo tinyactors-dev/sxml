@@ -1,4 +1,4 @@
-<term id="space_rule" source="docs/GLOSSARY.md">
+<term id="space_rule">
   <name>space_rule</name>
   <definition>One name test of an <code>xsl:strip-space</code> or <code>xsl:preserve-space</code>, with its import precedence, default priority and declaration order</definition>
 </term>

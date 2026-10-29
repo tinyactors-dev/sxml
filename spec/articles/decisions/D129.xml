@@ -1,4 +1,4 @@
-<decision id="D129" status="accepted" source="docs/DECISIONS.md">
+<decision id="D129" status="accepted">
   <title>Date formatting: the picture engine over format-integer (packet <ref kind="packet" to="2.14"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D97"/>, <ref kind="decision" to="D119"/> and <ref kind="decision" to="D122"/>. <code>src/format_date.c</code> with the module header <code>src/format_date_internal.h</code>, part <code>src/function_library_format_date.c</code> (part <code>format_date</code>), test <code>format_date</code>.</p>

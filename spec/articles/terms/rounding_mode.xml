@@ -1,4 +1,4 @@
-<term id="rounding_mode" source="docs/GLOSSARY.md">
+<term id="rounding_mode">
   <name>rounding_mode</name>
   <definition>How a value is rounded to a precision: the <code>$rounding-mode</code> of <code>fn:round</code> (F&amp;O 4.0)</definition>
 </term>

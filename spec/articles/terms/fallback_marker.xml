@@ -1,4 +1,4 @@
-<term id="fallback_marker" source="docs/GLOSSARY.md">
+<term id="fallback_marker">
   <name>fallback_marker</name>
   <definition>Text such as <code>[Calendar: AD]</code> or <code>[Language: en]</code> put before a formatted date when sxml uses another calendar or language than the one asked for</definition>
 </term>

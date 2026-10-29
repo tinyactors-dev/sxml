@@ -1,4 +1,4 @@
-<term id="named_character_map" source="docs/GLOSSARY.md">
+<term id="named_character_map">
   <name>named_character_map</name>
   <definition>The character map an <code>xsl:character-map</code> declares: its <code>xsl:output-character</code> mappings after those of the maps it uses, expanded, a later mapping of a character replacing an earlier one (XSLT 4.0, 26.1.6)</definition>
 </term>

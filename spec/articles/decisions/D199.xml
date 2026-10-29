@@ -1,4 +1,4 @@
-<decision id="D199" status="accepted" source="docs/DECISIONS.md">
+<decision id="D199" status="accepted">
   <title>DTD processing: external subset, external entities, validation (packets 7.14a, 7.14b)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D28"/>, <ref kind="decision" to="D44"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D81"/>, <ref kind="decision" to="D165"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>, <ref kind="decision" to="D195"/>. Replaces <ref kind="decision" to="D81"/>'s "the external subset is not read" and "external parsed entities are skipped in content".</p>

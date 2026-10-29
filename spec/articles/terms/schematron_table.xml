@@ -1,4 +1,4 @@
-<term id="schematron_table" source="docs/GLOSSARY.md">
+<term id="schematron_table">
   <name>schematron_table</name>
   <definition>The static part of a compiled schematron that reports and SVRL read (<ref kind="decision" to="D323"/>): for each schematron assertion and rule its texts, attributes and place, for each schematron pattern its id, name, role and documents, the phases and their patterns, the schema's title, schemaVersion, schematronEdition and query binding</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="variable_declaration" source="docs/GLOSSARY.md">
+<term id="variable_declaration">
   <name>variable_declaration</name>
   <definition>A variable name with its declared type, in the static context (an external variable)</definition>
 </term>

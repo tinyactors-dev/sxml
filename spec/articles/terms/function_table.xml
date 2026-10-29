@@ -1,4 +1,4 @@
-<term id="function_table" source="docs/GLOSSARY.md">
+<term id="function_table">
   <name>function_table</name>
   <definition>Interface through which static analysis finds a function by name and arity</definition>
 </term>

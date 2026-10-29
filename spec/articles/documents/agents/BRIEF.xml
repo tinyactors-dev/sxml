@@ -1,4 +1,4 @@
-<document id="agents/BRIEF" source="docs/agents/BRIEF.md">
+<document id="agents/BRIEF" file="docs/agents/BRIEF.md">
   <title>Common brief for every sxml agent</title>
   <section id="where-and-how">
     <title>Where and how</title>
@@ -16,7 +16,7 @@
   </section>
   <section id="read-first">
     <title>Read first</title>
-    <p><code>CLAUDE.md</code>, <code>docs/PLAN.md</code>, <code>docs/C_GUIDELINES.md</code>, <code>docs/GLOSSARY.md</code>, <code>docs/DECISIONS.md</code> (the records your packet cites, and the latest ones), <code>docs/LOG.md</code>, the task file of your phase in <code>docs/tasks/</code>, and the headers you implement or use.</p>
+    <p><code>CLAUDE.md</code>; then, with <code>tools/spec/spec</code>: <code>brief N.M</code> for your packet (its text, one line on each decision and packet it cites, the terms it uses), <code>show NAME --depth=2</code> for any of those, <code>list decision --since=DATE</code> for the latest records, and <code>markdown PLAN</code> and <code>markdown C_GUIDELINES</code> once. Then the headers you implement or use.</p>
   </section>
   <section id="rules">
     <title>Rules</title>
@@ -54,10 +54,10 @@
     <title>Records</title>
     <list>
       <item>
-        <p>Decisions another agent needs go into <code>docs/DECISIONS.md</code> as a new numbered record (check the highest number first). Items for the owner go under "## Proposed".</p>
+        <p>Decisions another agent needs are new decisions: <code>tools/spec/spec add decision --title=... --summary=... --after='D12 D99' --body=-</code> (the number is taken for you). Give each a one-sentence summary: it is what other agents read first. Items for the owner are proposals: <code>tools/spec/spec add proposal</code>.</p>
       </item>
       <item>
-        <p>Add a short entry to <code>docs/LOG.md</code>, newest first.</p>
+        <p>Add a short entry to the log: <code>tools/spec/spec log TEXT</code> (this week's entry, newest first).</p>
       </item>
       <item>
         <p>Commit messages are the record of the work: say what changed, why, the golden file imitated, the specification sections, and before/after counts. Every message ends, after a blank line, with the attribution lines the session gives you. Never write a model name anywhere else.</p>
@@ -77,10 +77,10 @@
         <p>Never move the shared branch back (<code>git reset</code>, <code>git commit --amend</code>, <code>git rebase -i</code> of pushed commits): another agent's commit may be on top. A commit that took something by mistake stays; report it.</p>
       </item>
       <item>
-        <p><strong>Never commit a shared ledger (DECISIONS, GLOSSARY, LOG, QUEUE, task files) by pathspec</strong>: that takes everyone's uncommitted text with it, which has happened several times.</p>
+        <p>The spec is one file per article, and every write of <code>tools/spec/spec</code> is whole and checked. Commit the articles you wrote with the pages they change: <code>git commit -m "..." -- spec/articles/decisions/D332.xml docs/</code>. A shared article (this week's log entry, a document) or a page may hold another agent's finished write; committing it with yours is harmless.</p>
       </item>
       <item>
-        <p>For part of a shared ledger (DECISIONS, GLOSSARY, LOG), stage only your hunk (<code>git apply --cached</code> of your patch, or <code>git update-index</code> of HEAD's file plus your insertion) and then commit the index with <strong>no pathspec</strong> (<code>git commit -m "..."</code>) in the same command: a commit with a pathspec takes the named files from the working tree and ignores what you staged. Check <code>git show --stat HEAD</code> before pushing. Read a ledger before writing it, and never write it back from an older copy.</p>
+        <p>For part of a shared file outside the spec (a driver's tables, <code>src/system_property.c</code>), stage only your hunk (<code>git apply --cached</code> of your patch) and then commit the index with <strong>no pathspec</strong> (<code>git commit -m "..."</code>) in the same command: a commit with a pathspec takes the named files from the working tree, others' unfinished edits too. Check <code>git show --stat HEAD</code> before pushing.</p>
       </item>
       <item>
         <p>Commit and push at every working milestone, not only at the end: sessions get interrupted. Push with <code>git push origin main</code>; if it is rejected, <code>git pull --rebase --autostash origin main</code> and push again. Finish a rebase you start in the same command sequence: a rebase left half-done in the shared tree blocks every agent and hides others' uncommitted files in its autostash. If you find one, tell the orchestrator instead of continuing or aborting it.</p>

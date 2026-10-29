@@ -1,4 +1,4 @@
-<packet id="2.15" source="docs/tasks/phase-2.md">
+<packet id="2.15">
   <title>CSV (implementation)</title>
   <body>
     <p>After <ref kind="packet" to="2.12"/>. Owns new <code>src/csv.c</code>, <code>src/csv_internal.h</code>, <code>src/function_library_csv.c</code>, <code>tests/csv_test.c</code>. parse-csv, csv-to-xml, csv-doc with every option (delimiters, quotes, header, trim, select columns); scanned by hand because delimiters are run-time options (<ref kind="decision" to="D97"/>). Done when fn-parse-csv, fn-csv-to-xml, fn-csv-doc ≥ 95%. Spec: F&amp;O 4.0 "Functions on CSV data"; RFC 4180. <strong>Done</strong> 2026-10-17 (<ref kind="decision" to="D141"/>): <code>src/csv.c</code>, the csv part; fn:csv-to-arrays dropped by F&amp;O 4.0. fn-csv-to-xml and fn-csv-doc at 100% of what runs; fn-parse-csv 107/124, 124/124 once the driver binds the result as the assertions' context value (Proposed).</p>

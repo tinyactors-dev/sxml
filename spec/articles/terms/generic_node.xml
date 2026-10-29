@@ -1,4 +1,4 @@
-<term id="generic_node" source="docs/GLOSSARY.md">
+<term id="generic_node">
   <name>generic_node</name>
   <definition>A GNode: a node (XNode) or a JNode (XDM 4.0, section 6)</definition>
 </term>

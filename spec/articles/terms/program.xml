@@ -1,4 +1,4 @@
-<term id="program" source="docs/GLOSSARY.md">
+<term id="program">
   <name>program</name>
   <definition>A command-line program as a static table: name, summary, commands (<code>sxml_cli_program</code>)</definition>
 </term>

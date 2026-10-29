@@ -1,4 +1,4 @@
-<term id="parser_part_extension" source="docs/GLOSSARY.md">
+<term id="parser_part_extension">
   <name>parser_part_extension</name>
   <definition>A parser part that another names as its extension: the walker looks up node types and fields, and offers tokens, to it after the naming part, so two grammars share one language extension's tables (Full Text's, <code>sxml_ast_parser_part.extension</code>, <ref kind="decision" to="D235"/>)</definition>
 </term>

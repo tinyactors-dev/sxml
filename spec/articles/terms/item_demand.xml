@@ -1,4 +1,4 @@
-<term id="item_demand" source="docs/GLOSSARY.md">
+<term id="item_demand">
   <name>item_demand</name>
   <definition>How many leading items of an expression's value its consumer reads (fn:exists one, the effective boolean value two, <code>[k]</code> k), 0 for all; set on the IR by the demand pass, so a MAP, FILTER, axis step or traversal stops once it has made them (internal, <code>src/ir_internal.h</code>, <ref kind="decision" to="D259"/>)</definition>
 </term>

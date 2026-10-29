@@ -1,4 +1,4 @@
-<decision id="D320" status="accepted" source="docs/DECISIONS.md">
+<decision id="D320" status="accepted">
   <title>A compile report sink for XSLT (packet <ref kind="packet" to="7.28"/>)</title>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D315"/> ("Compile errors", the owner's 7b), <ref kind="decision" to="D99"/> and <ref kind="decision" to="D139"/>. The header change <ref kind="decision" to="D315"/> announced for 7.28.</p>

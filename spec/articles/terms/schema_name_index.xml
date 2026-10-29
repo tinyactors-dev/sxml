@@ -1,4 +1,4 @@
-<term id="schema_name_index" source="docs/GLOSSARY.md">
+<term id="schema_name_index">
   <name>schema_name_index</name>
   <definition>The hash table from symbol space and expanded name to the global component of that name</definition>
 </term>

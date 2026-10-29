@@ -1,4 +1,4 @@
-<decision id="D322" status="accepted" source="docs/DECISIONS.md">
+<decision id="D322" status="accepted">
   <title>Node atomization describes once; the costs left are the atomic cell's (packet <ref kind="packet" to="perf-11"/>)</title>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D39"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D316"/>, <ref kind="decision" to="D319"/>. No public header changed.</p>

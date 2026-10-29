@@ -1,4 +1,4 @@
-<term id="merge_stream" source="docs/GLOSSARY.md">
+<term id="merge_stream">
   <name>merge_stream</name>
   <definition>A streamed xsl:merge-source of MERGE: the URIs of its anchor documents and the STREAM chain of its select, whose last body makes the tuple of a selected node (<ref kind="decision" to="D236"/>)</definition>
 </term>

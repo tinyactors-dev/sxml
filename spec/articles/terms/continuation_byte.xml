@@ -1,4 +1,4 @@
-<term id="continuation_byte" source="docs/GLOSSARY.md">
+<term id="continuation_byte">
   <name>continuation_byte</name>
   <definition>A later byte of the UTF-8 encoding of one codepoint, 0x80 to 0xBF</definition>
 </term>

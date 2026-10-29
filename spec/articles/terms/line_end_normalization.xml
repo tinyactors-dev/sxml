@@ -1,4 +1,4 @@
-<term id="line_end_normalization" source="docs/GLOSSARY.md">
+<term id="line_end_normalization">
   <name>line_end_normalization</name>
   <definition>Turning CR LF and lone CR into LF in all text of a document (XML 1.0, section 2.11); in XML 1.1 also NEL, CR NEL and LINE SEPARATOR (XML 1.1, section 2.11)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="tuple_layout" source="docs/GLOSSARY.md">
+<term id="tuple_layout">
   <name>tuple_layout</name>
   <definition>Which variable each member of the tuple arrays holds, and the variables (constants, globals) that are not packed</definition>
 </term>

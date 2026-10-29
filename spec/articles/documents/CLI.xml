@@ -1,4 +1,4 @@
-<document id="CLI" source="docs/CLI.md">
+<document id="CLI" file="docs/CLI.md">
   <title>The sxml command: design</title>
   <p>This page is for developers of the <code>sxml</code> program. The user reference, with every command, its options and examples, is <link href="../apps/sxml/README.md">apps/sxml/README.md</link> (<ref kind="decision" to="D181"/>).</p>
   <section id="design-rules">

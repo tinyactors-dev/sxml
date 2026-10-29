@@ -1,4 +1,4 @@
-<term id="content_model_position" source="docs/GLOSSARY.md">
+<term id="content_model_position">
   <name>content_model_position</name>
   <definition>One occurrence of an element or wildcard particle in the particle tree as a content model compiles it (small repetitions expanded into copies): a state of the Glushkov automaton before determinization</definition>
 </term>

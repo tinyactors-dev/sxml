@@ -1,4 +1,4 @@
-<packet id="3.15" source="docs/tasks/phase-3.md">
+<packet id="3.15">
   <title>Phase 3 review (review)</title>
   <body>
     <p>After everything. Owns the gate boxes. A separate agent (<ref kind="decision" to="D11"/>) runs the rubric and re-checks each "done when"; open items go under "Proposed". <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D161"/>): numbers at 50a3651, fuzzing with a new XQuery target, the lowering machine's guard (<ref kind="decision" to="D71"/>), one heapsort and one parameter document reader, fn:load-xquery-module in the run-time function table, <code>xquery.h</code> stable, the <ref kind="decision" to="D162"/> check of delayed features.</p>

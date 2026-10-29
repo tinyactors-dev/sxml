@@ -1,4 +1,4 @@
-<term id="sequence_builder" source="docs/GLOSSARY.md">
+<term id="sequence_builder">
   <name>sequence_builder</name>
   <definition>Collects items one by one into a new sequence</definition>
 </term>

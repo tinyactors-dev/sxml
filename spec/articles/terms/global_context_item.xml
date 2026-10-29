@@ -1,4 +1,4 @@
-<term id="global_context_item" source="docs/GLOSSARY.md">
+<term id="global_context_item">
   <name>global_context_item</name>
   <definition>The context item of global variables and parameters, one item or absent (XSLT 4.0, 2.4.2)</definition>
 </term>

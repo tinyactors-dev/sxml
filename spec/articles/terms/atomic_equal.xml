@@ -1,4 +1,4 @@
-<term id="atomic_equal" source="docs/GLOSSARY.md">
+<term id="atomic_equal">
   <name>atomic_equal</name>
   <definition>The context-free equality of map keys (F&amp;O 4.0, section 2.2.1 <code>fn:atomic-equal</code>)</definition>
 </term>

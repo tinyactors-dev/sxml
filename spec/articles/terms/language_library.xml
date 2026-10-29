@@ -1,4 +1,4 @@
-<term id="language_library" source="docs/GLOSSARY.md">
+<term id="language_library">
   <name>language_library</name>
   <definition>A tree-sitter grammar compiled to a shared library (<code>libtree-sitter-NAME.so</code>, <code>.dylib</code>, <code>.dll</code>) that exports <code>tree_sitter_NAME()</code>, which the sxml command loads with <code>--code-language</code> (<ref kind="decision" to="D288"/>)</definition>
 </term>

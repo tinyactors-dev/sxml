@@ -1,4 +1,4 @@
-<term id="collation_element" source="docs/GLOSSARY.md">
+<term id="collation_element">
   <name>collation_element</name>
   <definition>The weights one codepoint gives a collation: primary, secondary, tertiary and quaternary, zero where it is ignorable (UTS #10, section 3.2)</definition>
 </term>

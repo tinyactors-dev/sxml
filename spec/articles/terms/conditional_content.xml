@@ -1,4 +1,4 @@
-<term id="conditional_content" source="docs/GLOSSARY.md">
+<term id="conditional_content">
   <name>conditional_content</name>
   <definition>A sequence constructor with <code>xsl:on-empty</code> or <code>xsl:on-non-empty</code> children, whose value depends on whether the other children's value is vacuous (XSLT 4.0, 8.5)</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D176" status="accepted" source="docs/DECISIONS.md">
+<decision id="D176" status="accepted">
   <title>sxml validate (packet <ref kind="packet" to="5.10"/>)</title>
   <body>
     <p><recorded date="2026-10-18"/>. The command of the 5.10 design (<code>docs/tasks/phase-5.md</code>), in <code>apps/sxml/command_validate.c</code>; golden <code>apps/sxml/command_check.c</code>. Public API only (<code>schema.h</code>, <code>xml.h</code>).</p>

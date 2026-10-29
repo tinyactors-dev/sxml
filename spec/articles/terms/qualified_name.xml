@@ -1,4 +1,4 @@
-<term id="qualified_name" source="docs/GLOSSARY.md">
+<term id="qualified_name">
   <name>qualified_name</name>
   <definition>Prefix plus local name, as written (the QName); <code>qname</code> allowed</definition>
 </term>

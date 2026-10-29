@@ -1,4 +1,4 @@
-<term id="module_import" source="docs/GLOSSARY.md">
+<term id="module_import">
   <name>module_import</name>
   <definition>An <code>import module</code> declaration: a target namespace and its location hints (XQuery 4.0, 5.12)</definition>
 </term>

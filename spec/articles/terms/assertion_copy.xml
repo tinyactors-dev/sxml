@@ -1,4 +1,4 @@
-<term id="assertion_copy" source="docs/GLOSSARY.md">
+<term id="assertion_copy">
   <name>assertion_copy</name>
   <definition>The copy of an element's recorded subtree that the assertions of its complex type evaluate on: nothing outside the element, the element itself annotated xs:anyType (XSD 1.1 Part 1, 3.13.4.1)</definition>
 </term>

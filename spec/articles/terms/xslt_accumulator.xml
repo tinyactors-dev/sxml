@@ -1,4 +1,4 @@
-<term id="xslt_accumulator" source="docs/GLOSSARY.md">
+<term id="xslt_accumulator">
   <name>xslt_accumulator</name>
   <definition>An <code>xsl:accumulator</code>: a value carried through a traversal of a tree, giving every node but attributes and namespaces a pre-descent and a post-descent value (XSLT 4.0, 19). In code always <term name="xslt_accumulator"/>; a bare <term name="accumulator"/> is a fold's (<ref kind="decision" to="D155"/>)</definition>
 </term>

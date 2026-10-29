@@ -1,4 +1,4 @@
-<decision id="D126" status="accepted" source="docs/DECISIONS.md">
+<decision id="D126" status="accepted">
   <title>Lowering XQuery expressions: FLWOR, typeswitch, switch, try/catch (packet <ref kind="packet" to="3.7"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D55"/> for these kinds. <code>src/xquery_lower.c</code> is lowering part <code>xquery</code> (SXML_LANGUAGE_XQUERY only, <ref kind="decision" to="D103"/>); no IR kind added. Contract in <code>src/xquery_lower_internal.h</code>.</p>

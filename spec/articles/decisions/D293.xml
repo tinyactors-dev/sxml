@@ -1,4 +1,4 @@
-<decision id="D293" status="accepted" source="docs/DECISIONS.md">
+<decision id="D293" status="accepted">
   <title>tree-sitter's WebAssembly language files in the JavaScript package (packet <ref kind="packet" to="7.25"/>)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D138"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D225"/>, <ref kind="decision" to="D272"/>, <ref kind="decision" to="D285"/>, <ref kind="decision" to="D288"/>. Carries out what <ref kind="decision" to="D288"/> delayed as (a); the owner's order: the book (a24417c), the tests (ef6af16), the implementation (913f60b). <ref kind="decision" to="D288"/>'s "Delayed (a)" is done by this record; (b), the native wasm store, stays rejected and (c), Kotlin and Swift, waits for 6.12 (the host shim now passes languages, below).</p>

@@ -1,4 +1,4 @@
-<decision id="D310" status="accepted" source="docs/DECISIONS.md">
+<decision id="D310" status="accepted">
   <title>Faster regex matching: ASCII member sets, a start filter, idle matchers, character repetitions (packet <ref kind="packet" to="perf-7"/>)</title>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D53"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D105"/>, <ref kind="decision" to="D147"/>, <ref kind="decision" to="D308"/>. No public header changed.</p>

@@ -1,4 +1,4 @@
-<term id="identity_constraint" source="docs/GLOSSARY.md">
+<term id="identity_constraint">
   <name>identity_constraint</name>
   <definition>A unique, key or keyref definition: a name, a selector and fields as XPath records, and the referenced key of a keyref (XSD 1.1 Part 1, 3.11)</definition>
 </term>

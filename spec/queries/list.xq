@@ -15,11 +15,11 @@ let $spec := spec:load()
 let $articles := spec:of-kind($spec, $kind[.])
   [$status = "" or tokenize(spec:status(.))[1] = $status or spec:status(.) = $status]
   [$since = "" or spec:date(.) ge $since]
-  [$missing-summary = "" or (empty(summary) and not(self::term))]
+  [$missing-summary = "" or (empty(summary) and not(self::term or @status = "unused"))]
 return string-join(
   for $article in $articles
   order by local-name($article),
-           if ($article/self::decision) then xs:integer(substring($article/@id, 2)) else 0,
+           spec:number($article),
            string($article/@id)
   return spec:line($article),
   "&#10;")

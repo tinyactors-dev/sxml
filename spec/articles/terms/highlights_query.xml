@@ -1,4 +1,4 @@
-<term id="highlights_query" source="docs/GLOSSARY.md">
+<term id="highlights_query">
   <name>highlights_query</name>
   <definition>A tree-sitter query (the grammar's <code>queries/highlights.scm</code>) whose captures name what each node is for highlighting, such as <term name="keyword"/> or <code>function.method</code></definition>
 </term>

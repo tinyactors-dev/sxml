@@ -1,4 +1,4 @@
-<decision id="D205" status="accepted" source="docs/DECISIONS.md">
+<decision id="D205" status="accepted">
   <title>fn:put, revalidation, untyped copies and the 4.0 return clause (packets 7.7b, 7.7c)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D99"/>, <ref kind="decision" to="D165"/>, <ref kind="decision" to="D173"/>, <ref kind="decision" to="D184"/>, <ref kind="decision" to="D187"/>. The rest of the XQuery Update Facility after 7.7a: fn:put and revalidation (7.7c), the 4.0 draft's updating return clause (7.7b), and copies that drop schema identity.</p>

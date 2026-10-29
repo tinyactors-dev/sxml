@@ -1,4 +1,4 @@
-<decision id="D113" status="accepted" source="docs/DECISIONS.md">
+<decision id="D113" status="accepted">
   <title>Lowering completions (packet <ref kind="packet" to="2.5"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D63"/>'s "Not lowered in Phase 1" (only the computed node constructors are left, for Phase 3). <code>src/xpath_lower.c</code>, <code>src/xpath_static.c</code>; IR kinds, the evaluator and public headers are unchanged: each construct lowers to existing IR plus library calls, found by name like fn:root (<code>find_builtin_function</code>, now with a namespace); a missing one is UNSUPPORTED_FEATURE naming the gap.</p>

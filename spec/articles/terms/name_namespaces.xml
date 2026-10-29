@@ -1,4 +1,4 @@
-<term id="name_namespaces" source="docs/GLOSSARY.md">
+<term id="name_namespaces">
   <name>name_namespaces</name>
   <definition>The namespace bindings an IR constructor resolves a name given as a string with: the statically known namespaces extended by enclosing direct constructors' declarations (<ref kind="decision" to="D110"/>)</definition>
 </term>

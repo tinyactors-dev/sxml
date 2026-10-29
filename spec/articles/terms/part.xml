@@ -1,4 +1,4 @@
-<term id="part" source="docs/GLOSSARY.md">
+<term id="part">
   <name>part</name>
   <definition>One sequence of a concatenation, kept by reference; a concatenation's parts are never empty and never concatenations (<code>part_index</code>)</definition>
 </term>

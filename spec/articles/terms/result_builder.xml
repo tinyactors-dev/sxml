@@ -1,4 +1,4 @@
-<term id="result_builder" source="docs/GLOSSARY.md">
+<term id="result_builder">
   <name>result_builder</name>
   <definition>The tree builder a schema validator sends its annotated events to; the null builder discards them, for validity checks that build nothing</definition>
 </term>

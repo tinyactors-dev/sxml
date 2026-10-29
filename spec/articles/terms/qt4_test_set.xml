@@ -1,4 +1,4 @@
-<term id="qt4_test_set" source="docs/GLOSSARY.md">
+<term id="qt4_test_set">
   <name>qt4_test_set</name>
   <definition>One test-set file of the QT4 suite (<code>fn/abs.xml</code>): local environments, set dependencies and test cases</definition>
 </term>

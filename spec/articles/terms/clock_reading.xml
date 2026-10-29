@@ -1,4 +1,4 @@
-<term id="clock_reading" source="docs/GLOSSARY.md">
+<term id="clock_reading">
   <name>clock_reading</name>
   <definition>What one reading of a clock gives: the current dateTime and the implicit timezone</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D189" status="accepted" source="docs/DECISIONS.md">
+<decision id="D189" status="accepted">
   <title>Optional features and the size budgets (packet <ref kind="packet" to="7.2"/>)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D138"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>. Carries out the owner's size choice (<ref kind="decision" to="D184"/>): link-time optional features through one additive <code>processor.h</code> view, one build, no <code>#if</code>, large data from the host through the resolver.</p>

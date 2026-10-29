@@ -1,4 +1,4 @@
-<term id="assembly" source="docs/GLOSSARY.md">
+<term id="assembly">
   <name>assembly</name>
   <definition>How <code>map:build</code> and <code>map:merge</code> add entries one by one to a map, combining duplicate keys by the <code>duplicates</code> option</definition>
 </term>

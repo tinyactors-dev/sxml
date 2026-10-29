@@ -1,4 +1,4 @@
-<term id="parentless_namespace" source="docs/GLOSSARY.md">
+<term id="parentless_namespace">
   <name>parentless_namespace</name>
   <definition>A namespace node without a parent element (XQuery computed namespace constructor, xsl:namespace outside an element); stored as the root of a tree of its own (<ref kind="decision" to="D98"/>)</definition>
 </term>

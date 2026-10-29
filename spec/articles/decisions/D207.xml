@@ -1,4 +1,4 @@
-<decision id="D207" status="accepted" source="docs/DECISIONS.md">
+<decision id="D207" status="accepted">
   <title>JavaScript module budgets raised: core 2,200,000, full 4,000,000 (owner)</title>
   <body>
     <p><recorded date="2026-10-19"/> on the owner's choices. Amends <ref kind="decision" to="D184"/> and <ref kind="decision" to="D189"/>.</p>

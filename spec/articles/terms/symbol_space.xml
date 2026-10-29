@@ -1,4 +1,4 @@
-<term id="symbol_space" source="docs/GLOSSARY.md">
+<term id="symbol_space">
   <name>symbol_space</name>
   <definition>One of XSD's seven partitions of global component names: type definitions, element declarations, attribute declarations, model group definitions, attribute group definitions, identity-constraint definitions, notation declarations (XSD 1.1 Part 1, 2.6)</definition>
 </term>

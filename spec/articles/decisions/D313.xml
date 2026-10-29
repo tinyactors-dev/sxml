@@ -1,4 +1,4 @@
-<decision id="D313" status="accepted" source="docs/DECISIONS.md">
+<decision id="D313" status="accepted">
   <title>The owner's decisions of 2026-10-28: Schematron, source locations, the CLI's step limit</title>
   <body>
     <p><recorded date="2026-10-28"/> by the orchestrator, from the owner's answers to the open points of packet <ref kind="packet" to="7.27"/> and of the "Source locations for parsed input documents" item that was under "## Proposed" (moved here).</p>

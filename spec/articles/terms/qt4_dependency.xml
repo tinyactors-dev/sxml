@@ -1,4 +1,4 @@
-<term id="qt4_dependency" source="docs/GLOSSARY.md">
+<term id="qt4_dependency">
   <name>qt4_dependency</name>
   <definition>A <code>&lt;dependency type value satisfied&gt;</code> of a QT4 test set or test case</definition>
 </term>

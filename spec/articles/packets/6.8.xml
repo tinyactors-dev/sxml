@@ -1,4 +1,4 @@
-<packet id="6.8" source="docs/tasks/phase-6.md">
+<packet id="6.8">
   <title>Swift: XQuery, XSLT, XSD and resource data (implementation, here)</title>
   <body>
     <p><status value="paused" date="2026-10-20"/> (<ref kind="decision" to="D255"/>): done as below; resume from <code>bindings/swift/DESIGN.md</code>. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D248"/>): <code>compileQuery</code>, <code>compileStylesheet</code>, <code>compileSchema</code>, the DUCET as a SwiftPM resource; <code>swift/linux</code> passes 55 tests (the whole parity list) with 0 leaks. After <ref kind="packet" to="6.7"/>. As 6.5 for Swift. The DUCET is a SwiftPM resource. Done when <code>swift/linux</code> passes the whole parity list with 0 leaks.</p>

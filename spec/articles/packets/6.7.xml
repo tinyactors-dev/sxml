@@ -1,4 +1,4 @@
-<packet id="6.7" source="docs/tasks/phase-6.md">
+<packet id="6.7">
   <title>Swift core (implementation, here)</title>
   <body>
     <p><status value="paused" date="2026-10-20"/> (<ref kind="decision" to="D255"/>): done as below; the Swift line (6.7 to 6.9) resumes from <code>bindings/swift/DESIGN.md</code>. <strong>Done</strong> 2026-10-20 (<ref kind="decision" to="D241"/>): <code>Package.swift</code>, <code>bindings/swift/</code> (module map, <code>Sources/Sxml</code>, 27 tests), ctest <code>swift/linux</code> over a merged <code>libsxml_host.a</code>; Swift 6.2 on Linux, 0 leaks. After <ref kind="packet" to="6.2"/> and <ref kind="packet" to="6.3"/>. Owns:</p>

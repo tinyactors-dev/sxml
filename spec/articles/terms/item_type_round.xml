@@ -1,4 +1,4 @@
-<term id="item_type_round" source="docs/GLOSSARY.md">
+<term id="item_type_round">
   <name>item_type_round</name>
   <definition>With an import cycle, reading every module's namespaces and named item types only, repeatedly, each time with the public types its imports gave the last time, until no more are found; a module's own reading then sees the found types of its imports not read yet (<ref kind="decision" to="D287"/>)</definition>
 </term>

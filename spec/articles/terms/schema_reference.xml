@@ -1,4 +1,4 @@
-<term id="schema_reference" source="docs/GLOSSARY.md">
+<term id="schema_reference">
   <name>schema_reference</name>
   <definition>A QName attribute of a schema document (<code>type</code>, <code>base</code>, <code>ref</code>, <code>substitutionGroup</code>, <code>refer</code>, ...) as read: a symbol space and a name, which the resolve stage turns into a component index</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="ordering" source="docs/GLOSSARY.md">
+<term id="ordering">
   <name>ordering</name>
   <definition>Result of a three-way comparison: less, equal or greater</definition>
 </term>

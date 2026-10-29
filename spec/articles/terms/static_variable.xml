@@ -1,4 +1,4 @@
-<term id="static_variable" source="docs/GLOSSARY.md">
+<term id="static_variable">
   <name>static_variable</name>
   <definition>A global <code>xsl:variable</code> or <code>xsl:param</code> with <code>static="yes"</code>, whose value is known while the stylesheet is read (XSLT 4.0, 9.6)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="slot" source="docs/GLOSSARY.md">
+<term id="slot">
   <name>slot</name>
   <definition>A numbered place, from 1, in the frame of an IR function, holding one variable's value</definition>
 </term>

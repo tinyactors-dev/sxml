@@ -1,4 +1,4 @@
-<term id="namespace_prefix_identifier" source="docs/GLOSSARY.md">
+<term id="namespace_prefix_identifier">
   <name>namespace_prefix_identifier</name>
   <definition>Identifier of an interned prefix; 0 is "no prefix"</definition>
 </term>

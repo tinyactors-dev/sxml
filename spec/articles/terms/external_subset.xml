@@ -1,4 +1,4 @@
-<term id="external_subset" source="docs/GLOSSARY.md">
+<term id="external_subset">
   <name>external_subset</name>
   <definition>The declarations a document type declaration names by its external identifier, read after the internal subset (XML 1.0, sections 2.8, [30])</definition>
 </term>

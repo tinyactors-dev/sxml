@@ -1,4 +1,4 @@
-<term id="swift_package" source="docs/GLOSSARY.md">
+<term id="swift_package">
   <name>swift_package</name>
   <definition>The Swift binding in <code>bindings/swift/</code> (module <code>Sxml</code>, manifest <code>Package.swift</code> at the repository root), importing the host shim through the module map <code>CSxmlHost</code></definition>
 </term>

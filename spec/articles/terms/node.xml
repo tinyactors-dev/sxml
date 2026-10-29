@@ -1,4 +1,4 @@
-<term id="node" source="docs/GLOSSARY.md">
+<term id="node">
   <name>node</name>
   <definition>An XML tree node (an XNode in XPath 4.0 terms)</definition>
 </term>

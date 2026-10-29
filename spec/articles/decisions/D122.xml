@@ -1,4 +1,4 @@
-<decision id="D122" status="accepted" source="docs/DECISIONS.md">
+<decision id="D122" status="accepted">
   <title>Date and time functions (packet <ref kind="packet" to="2.8"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>. New part <code>src/function_library_temporal.c</code> (test <code>function_library_temporal</code>): adjust-dateTime/date/time-to- timezone, civil-timezone, days-in-month, parts-of-dateTime, build-dateTime, seconds, duration-to-seconds, unix-dateTime and parse-ietf-date. <code>src/operator_temporal.c</code> is unchanged.</p>

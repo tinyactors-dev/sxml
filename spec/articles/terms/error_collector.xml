@@ -1,4 +1,4 @@
-<term id="error_collector" source="docs/GLOSSARY.md">
+<term id="error_collector">
   <name>error_collector</name>
   <definition>What a stylesheet compilation with a compile report sink writes each error into and asks whether to go on: the reader at the next attribute or element, lowering at the next template rule, stylesheet function or global variable (internal, <code>sxml_xslt_error_collector</code>, <ref kind="decision" to="D320"/>)</definition>
 </term>

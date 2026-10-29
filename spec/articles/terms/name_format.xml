@@ -1,4 +1,4 @@
-<term id="name_format" source="docs/GLOSSARY.md">
+<term id="name_format">
   <name>name_format</name>
   <definition>The <code>name-format</code> option of <code>fn:element-to-map</code>: <code>default</code>, <code>eqname</code>, <code>local</code> or <code>lexical</code></definition>
 </term>

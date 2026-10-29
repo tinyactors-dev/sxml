@@ -1,4 +1,4 @@
-<decision id="D237" status="accepted" source="docs/DECISIONS.md">
+<decision id="D237" status="accepted">
   <title>Phase 7 gate review (packet <ref kind="packet" to="7.19"/>)</title>
   <body>
     <p><recorded date="2026-10-20"/> by the review agent (<ref kind="decision" to="D11"/>), after <ref kind="decision" to="D161"/>, <ref kind="decision" to="D169"/>, <ref kind="decision" to="D181"/>, <ref kind="decision" to="D182"/> and the Phase 7 records <ref kind="decision" to="D183"/> to <ref kind="decision" to="D236"/>. The four suites were run whole in release (tools/run-qt4.sh XP40 and XQ40, run-xslt.sh, run-xsd.sh; every test set finished, 0 error outcomes) at 6f79d8d and again at 9c5b1ba after the review's code changes, with the same numbers; <code>docs/CONFORMANCE.md</code> is regenerated from the second run. The gate boxes and a table of every Phase 7 packet against its gate are in <code>docs/tasks/phase-7.md</code>. Fuzzing beyond two minutes a target and the full lint of every preset are left to the owner's machine (<ref kind="decision" to="D181"/>).</p>

@@ -1,4 +1,4 @@
-<term id="placement" source="docs/GLOSSARY.md">
+<term id="placement">
   <name>placement</name>
   <definition>The memory an object is placed in by <code>initialize</code></definition>
 </term>

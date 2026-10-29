@@ -1,4 +1,4 @@
-<packet id="5.11" source="docs/tasks/phase-5.md">
+<packet id="5.11">
   <title>Schema-aware XPath and XQuery (design and implementation)</title>
   <body>
     <p>After <ref kind="packet" to="5.7"/>. Owns <code>include/sxml/xpath.h</code> (one field, with a record), <code>src/xpath_static.c</code>, <code>src/xquery_static.c</code>, <code>src/xquery_lower.c</code>, <code>src/function_library_json.c</code> (the xsd-validation option), <code>src/function_library_type.c</code>, new <code>src/function_library_schema.c</code>, <code>tests/qt4/driver/</code> (schema environments), <code>tests/xquery_schema_test.c</code>. Each delayed feature replaces its one rejection point (<ref kind="decision" to="D162"/>):</p>

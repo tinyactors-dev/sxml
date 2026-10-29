@@ -1,4 +1,4 @@
-<term id="package_version" source="docs/GLOSSARY.md">
+<term id="package_version">
   <name>package_version</name>
   <definition>The versions of an XSLT package that <code>xsl:use-package</code> accepts (XSLT 4.0, "Versions of a Package")</definition>
 </term>

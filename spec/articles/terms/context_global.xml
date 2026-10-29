@@ -1,4 +1,4 @@
-<term id="context_global" source="docs/GLOSSARY.md">
+<term id="context_global">
   <name>context_global</name>
   <definition>The global variable of a unit with name 0 that holds the initial context value</definition>
 </term>

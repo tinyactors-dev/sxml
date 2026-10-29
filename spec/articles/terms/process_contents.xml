@@ -1,4 +1,4 @@
-<term id="process_contents" source="docs/GLOSSARY.md">
+<term id="process_contents">
   <name>process_contents</name>
   <definition>How an item a schema wildcard matched is assessed: strict, lax or skip</definition>
 </term>

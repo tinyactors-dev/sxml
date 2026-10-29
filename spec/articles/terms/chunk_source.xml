@@ -1,4 +1,4 @@
-<term id="chunk_source" source="docs/GLOSSARY.md">
+<term id="chunk_source">
   <name>chunk_source</name>
   <definition>An iterable of byte or text chunks a JavaScript resolver answers an XML document with (<code>ChunkSource</code>), read through the host shim's byte reader as the document is parsed (<ref kind="decision" to="D294"/>)</definition>
 </term>

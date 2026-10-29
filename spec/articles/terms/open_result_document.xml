@@ -1,4 +1,4 @@
-<term id="open_result_document" source="docs/GLOSSARY.md">
+<term id="open_result_document">
   <name>open_result_document</name>
   <definition>A result document between the handler's open and close: its URI, effective output definition and target</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="instruction" source="docs/GLOSSARY.md">
+<term id="instruction">
   <name>instruction</name>
   <definition>An XSLT element that may appear in a sequence constructor (<code>xsl:if</code>, <code>xsl:copy</code>, ...)</definition>
 </term>

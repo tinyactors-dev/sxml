@@ -1,4 +1,4 @@
-<term id="constant" source="docs/GLOSSARY.md">
+<term id="constant">
   <name>constant</name>
   <definition>A value made at compile time and kept by a unit</definition>
 </term>

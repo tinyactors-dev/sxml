@@ -1,4 +1,4 @@
-<term id="prefix_binding" source="docs/GLOSSARY.md">
+<term id="prefix_binding">
   <name>prefix_binding</name>
   <definition>A namespace prefix and URI by which the DTD's qualified names are resolved when its schema documents are written</definition>
 </term>

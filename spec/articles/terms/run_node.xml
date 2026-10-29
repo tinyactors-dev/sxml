@@ -1,4 +1,4 @@
-<term id="run_node" source="docs/GLOSSARY.md">
+<term id="run_node">
   <name>run_node</name>
   <definition>An array leaf that names a contiguous part of a flat node's members, so splitting a leaf copies nothing</definition>
 </term>

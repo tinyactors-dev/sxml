@@ -1,4 +1,4 @@
-<term id="ir_module" source="docs/GLOSSARY.md">
+<term id="ir_module">
   <name>ir_module</name>
   <definition>A static context a unit keeps for code that reads it when it runs: an XQuery library module whose functions the unit holds (its source name and static base URI, <ref kind="decision" to="D148"/>), or an XSLT element's (base URI, namespaces, default collation, its package's decimal formats, <ref kind="decision" to="D163"/>), named by a function's module_number or by a STATIC_CALL or node constructor (<code>sxml_ir_module</code>)</definition>
 </term>

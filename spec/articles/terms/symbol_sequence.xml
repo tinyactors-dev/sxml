@@ -1,4 +1,4 @@
-<term id="symbol_sequence" source="docs/GLOSSARY.md">
+<term id="symbol_sequence">
   <name>symbol_sequence</name>
   <definition>A numbering sequence with one Unicode symbol per number over a fixed range, named by its symbol for 1 (CIRCLED DIGIT ONE <code>①</code>, 0 to 50); numbers outside the range are written in decimal</definition>
 </term>

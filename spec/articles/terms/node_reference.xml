@@ -1,4 +1,4 @@
-<term id="node_reference" source="docs/GLOSSARY.md">
+<term id="node_reference">
   <name>node_reference</name>
   <definition>A tree plus a node index (plus a namespace number for namespace nodes); identifies a node</definition>
 </term>

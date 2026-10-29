@@ -1,4 +1,4 @@
-<decision id="D288" status="accepted" source="docs/DECISIONS.md">
+<decision id="D288" status="accepted">
   <title>More source code languages, a registration API and run-time languages (packet <ref kind="packet" to="7.23"/>)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D44"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>, <ref kind="decision" to="D208"/>, <ref kind="decision" to="D272"/>, <ref kind="decision" to="D285"/>. The owner's answer to <ref kind="decision" to="D285"/>'s proposal (2026-10-20): TypeScript, TSX and Markdown built in, not Rust or Bash; a public registration API, with tree-sitter's ABI part of the contract; languages supplied at run time from tree-sitter language files, loaded by the host, never by src/. The owner's order: the book (commit 0cad9a1), the tests (a40851e), the implementation (c1a88af), the budgets (10487b2).</p>

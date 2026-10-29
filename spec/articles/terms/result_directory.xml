@@ -1,4 +1,4 @@
-<term id="result_directory" source="docs/GLOSSARY.md">
+<term id="result_directory">
   <name>result_directory</name>
   <definition>The directory <code>sxml transform --result-directory</code> names: its URI is the base output URI, and only result documents below it are written (<ref kind="decision" to="D217"/>)</definition>
 </term>

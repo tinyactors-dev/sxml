@@ -1,4 +1,4 @@
-<term id="token_automaton" source="docs/GLOSSARY.md">
+<term id="token_automaton">
   <name>token_automaton</name>
   <definition>The deterministic automaton of a regular token: a state is a set of states of the token's nondeterministic automaton, each with the number of ways it is reached, one or more; an end reached more than one way is an ambiguous completion (<ref kind="decision" to="D290"/>)</definition>
 </term>

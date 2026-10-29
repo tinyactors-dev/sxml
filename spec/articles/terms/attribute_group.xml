@@ -1,4 +1,4 @@
-<term id="attribute_group" source="docs/GLOSSARY.md">
+<term id="attribute_group">
   <name>attribute_group</name>
   <definition>A named set of attribute uses and an attribute wildcard (XSD 1.1 Part 1, 3.6, "attribute group definition")</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="pending_cell" source="docs/GLOSSARY.md">
+<term id="pending_cell">
   <name>pending_cell</name>
   <definition>A cell whose last reference is gone, waiting on the item heap's list to be freed without recursion</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="feature_data" source="docs/GLOSSARY.md">
+<term id="feature_data">
   <name>feature_data</name>
   <definition>Large data an optional feature reads through the processor's resource resolver, in the data's standard format (DUCET <code>allkeys.txt</code>, CLDR rule text, TZif files), at first use, and keeps as its state in the processor (<code>sxml_optional_feature_read_data</code>; <ref kind="decision" to="D184"/>, <ref kind="decision" to="D189"/>)</definition>
 </term>

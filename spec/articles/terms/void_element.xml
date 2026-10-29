@@ -1,4 +1,4 @@
-<term id="void_element" source="docs/GLOSSARY.md">
+<term id="void_element">
   <name>void_element</name>
   <definition>An HTML element with an empty content model, written as a start tag alone (<code>&lt;br&gt;</code>; Serialization 4.0, 7.1)</definition>
 </term>

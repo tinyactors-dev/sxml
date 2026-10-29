@@ -1,4 +1,4 @@
-<term id="positional" source="docs/GLOSSARY.md">
+<term id="positional">
   <name>positional</name>
   <definition>A command-line argument identified by its place, not a name (POSIX "operand"; <term name="operand"/> is taken)</definition>
 </term>

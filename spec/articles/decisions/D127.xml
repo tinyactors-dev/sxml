@@ -1,4 +1,4 @@
-<decision id="D127" status="accepted" source="docs/DECISIONS.md">
+<decision id="D127" status="accepted">
   <title>Lowering node constructors (packet <ref kind="packet" to="3.9"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D110"/> and <ref kind="decision" to="D124"/> for XQuery. <code>src/xquery_lower_construct.c</code> is lowering part <code>construct</code> (SXML_LANGUAGE_XQUERY, <ref kind="decision" to="D103"/>) for the DIRECT_* and COMPUTED_* kinds; no IR kind or header change.</p>
@@ -19,7 +19,7 @@
         <p><strong>Prolog setters</strong> (boundary-space, construction, copy-namespaces) are read from the module's PROLOG node and become construction_flags of element and document constructors; they take effect once 3.10 lets prologs through <code>sxml_xquery_lower</code> (<ref kind="decision" to="D126"/> rejects them now).</p>
       </item>
       <item>
-        <p>Results (scratch harness: xpath.c compiling with sxml_xquery_compile, as 3.7's): the 13 constructor test sets 0 to 932 of 1,165 passed, 59 not run (dependencies); of the 174 failures and errors, 167 are queries with a prolog (3.10). The 7 others are not lowering's: URI whitespace of "Q{ _   _ }x" in the evaluator (2), <code>local:</code> not predeclared (3.10, 3.12), <code>text {''}</code> (the <ref kind="decision" to="D110"/> deviation) and a missing function (3).</p>
+        <p>Results (scratch harness: xpath.c compiling with sxml_xquery_compile, as 3.7's): the 13 constructor test sets 0 to 932 of 1,165 passed, 59 not run (dependencies); of the 174 failures and errors, 167 are queries with a prolog (3.10). The 7 others are not lowering's: URI whitespace of "Q{ _ _ }x" in the evaluator (2), <code>local:</code> not predeclared (3.10, 3.12), <code>text {''}</code> (the <ref kind="decision" to="D110"/> deviation) and a missing function (3).</p>
       </item>
     </list>
   </body>

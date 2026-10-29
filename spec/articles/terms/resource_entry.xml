@@ -1,4 +1,4 @@
-<term id="resource_entry" source="docs/GLOSSARY.md">
+<term id="resource_entry">
   <name>resource_entry</name>
   <definition>One URI and its bytes in a list served by the table resolver</definition>
 </term>

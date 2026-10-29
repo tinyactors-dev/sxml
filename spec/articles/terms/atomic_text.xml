@@ -1,4 +1,4 @@
-<term id="atomic_text" source="docs/GLOSSARY.md">
+<term id="atomic_text">
   <name>atomic_text</name>
   <definition>The lexical form of an atomic item (its cast to xs:string) as the serializer writes it, inline or in heap memory</definition>
 </term>

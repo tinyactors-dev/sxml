@@ -1,4 +1,4 @@
-<document id="agents/README" source="docs/agents/README.md">
+<document id="agents/README" file="docs/agents/README.md">
   <title>Working with agents</title>
   <p>sxml is built by an orchestrator session that delegates packets to subagents. This directory holds the prompts those agents get, so the work can be picked up by any later session and is never stuck in one.</p>
   <list>
@@ -16,18 +16,18 @@
     <title>How a session continues the work</title>
     <list ordered="true">
       <item>
-        <p>Read <code>CLAUDE.md</code>, then <code>QUEUE.md</code>.</p>
+        <p>Read <code>CLAUDE.md</code>, then the queue (<code>tools/spec/spec markdown agents/QUEUE</code>) and the state of the packets (<code>tools/spec/spec status</code>).</p>
       </item>
       <item>
-        <p>Pick the next packets from <code>QUEUE.md</code> and the task files. Packets that own disjoint files may run at the same time.</p>
+        <p>Pick the next packets from the queue and <code>tools/spec/spec status PHASE</code>. Packets that own disjoint files may run at the same time.</p>
       </item>
       <item>
-        <p>Give each agent a prompt that says: read <code>docs/agents/BRIEF.md</code> and <code>docs/agents/PACKET.md</code>, the packet's number and task file, the decisions to read first, the goal and its done-when, and which other packets run at the same time and the files they own.</p>
+        <p>Give each agent a prompt that says: read the brief and the packet guide (<code>tools/spec/spec markdown agents/BRIEF</code>, <code>tools/spec/spec markdown agents/PACKET</code>), the packet's number (<code>tools/spec/spec brief N.M</code>), the decisions to read first, the goal and its done-when, and which other packets run at the same time and the files they own.</p>
       </item>
       <item>
-        <p>When an agent reports, record what it left over in <code>QUEUE.md</code>, and commit that change on its own.</p>
+        <p>When an agent reports, record what it left over in the queue (<code>tools/spec/spec text agents/QUEUE#SECTION</code>, edit, then <code>tools/spec/spec amend agents/QUEUE#SECTION --body=-</code>), and commit that change on its own.</p>
       </item>
     </list>
-    <p>The prompt of each packet is its entry in <code>docs/tasks/phase-N.md</code> plus the lines given in step 3; anything an agent decides goes into <code>docs/DECISIONS.md</code> and its commit messages, so the history explains itself.</p>
+    <p>The prompt of each packet is its article (<code>tools/spec/spec brief N.M</code>) plus the lines given in step 3; anything an agent decides goes into a decision and its commit messages, so the history explains itself.</p>
   </section>
 </document>

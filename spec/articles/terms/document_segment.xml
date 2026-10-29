@@ -1,4 +1,4 @@
-<term id="document_segment" source="docs/GLOSSARY.md">
+<term id="document_segment">
   <name>document_segment</name>
   <definition>A part of a document's text that the XML parser parses, walks and frees on its own, so that the concrete syntax tree of one segment at a time exists: the head (the prolog and the start tag of the document element) or a content segment (a run of content items cut between two of them) (<ref kind="decision" to="D222"/>)</definition>
 </term>

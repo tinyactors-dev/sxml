@@ -1,4 +1,4 @@
-<term id="function_library" source="docs/GLOSSARY.md">
+<term id="function_library">
   <name>function_library</name>
   <definition>The per-processor index over the native function parts, resolving their types</definition>
 </term>

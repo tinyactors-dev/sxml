@@ -1,4 +1,4 @@
-<decision id="D4" status="accepted" source="docs/DECISIONS.md">
+<decision id="D4" status="accepted">
   <title>License: MIT</title>
   <body>
     <p>Confirmed at the Phase 0 gate (2026-10-16). Vendored code is compatible: tree-sitter (MIT, <ref kind="decision" to="D12"/>, <ref kind="decision" to="D15"/>), the W3C test suites (test data only, <ref kind="decision" to="D13"/>), mpdecimal (BSD-2-Clause, <ref kind="decision" to="D8"/>, <ref kind="decision" to="D42"/>).</p>

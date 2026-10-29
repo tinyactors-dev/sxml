@@ -1,4 +1,4 @@
-<decision id="D297" status="accepted" source="docs/DECISIONS.md">
+<decision id="D297" status="accepted">
   <title>A streamed writer for the html and xhtml methods (packet stream-2)</title>
   <body>
     <p><recorded date="2026-10-21"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D231"/>, <ref kind="decision" to="D295"/>.</p>

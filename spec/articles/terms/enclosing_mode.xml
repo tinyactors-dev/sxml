@@ -1,4 +1,4 @@
-<term id="enclosing_mode" source="docs/GLOSSARY.md">
+<term id="enclosing_mode">
   <name>enclosing_mode</name>
   <definition>An <code>xsl:mode</code> with <code>xsl:template</code> children, the only rules of that mode (XSLT 4.0, 6.9.6)</definition>
 </term>

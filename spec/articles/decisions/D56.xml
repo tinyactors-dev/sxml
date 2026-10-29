@@ -1,4 +1,4 @@
-<decision id="D56" status="accepted" source="docs/DECISIONS.md">
+<decision id="D56" status="accepted">
   <title><code>memcpy</code> and <code>memset</code> are allowed</title>
   <body>
     <p><recorded date="2026-10-16"/> by the orchestrator. clang-tidy's <code>clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling</code> rejects <code>memcpy</code>, <code>memset</code> and <code>snprintf</code> in favour of the C11 Annex K <code>_s</code> functions, which glibc, macOS and WASI do not provide. Packets wrote byte loops instead. The check is switched off in <code>.clang-tidy</code>; <code>memcpy</code>, <code>memmove</code> and <code>memset</code> are allowed when the byte count comes from checked size arithmetic. Printing functions stay banned outside the CLI platform layer (<ref kind="decision" to="D17"/>, <ref kind="decision" to="D44"/>). Existing byte loops may stay; new code uses <code>memcpy</code>.</p>

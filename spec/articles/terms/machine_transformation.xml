@@ -1,4 +1,4 @@
-<term id="machine_transformation" source="docs/GLOSSARY.md">
+<term id="machine_transformation">
   <name>machine_transformation</name>
   <definition>An XSLT transformation primed for a unit evaluation on a running machine rather than one of its own (<code>src/xslt_transform_internal.h</code>, fn:transform, <ref kind="decision" to="D203"/>)</definition>
 </term>

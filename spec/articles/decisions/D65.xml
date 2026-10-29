@@ -1,4 +1,4 @@
-<decision id="D65" status="accepted" source="docs/DECISIONS.md">
+<decision id="D65" status="accepted">
   <title>WASI test runner disables V8 fast API calls</title>
   <body>
     <list>

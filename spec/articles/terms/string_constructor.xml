@@ -1,4 +1,4 @@
-<term id="string_constructor" source="docs/GLOSSARY.md">
+<term id="string_constructor">
   <name>string_constructor</name>
   <definition>XQuery <code>``[text `{expression}`]``</code></definition>
 </term>

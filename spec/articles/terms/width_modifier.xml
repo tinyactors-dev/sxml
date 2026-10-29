@@ -1,4 +1,4 @@
-<term id="width_modifier" source="docs/GLOSSARY.md">
+<term id="width_modifier">
   <name>width_modifier</name>
   <definition>The <code>,min-max</code> part of a variable marker: the minimum and maximum number of characters</definition>
 </term>

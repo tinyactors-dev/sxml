@@ -1,4 +1,4 @@
-<term id="in_scope_namespaces" source="docs/GLOSSARY.md">
+<term id="in_scope_namespaces">
   <name>in_scope_namespaces</name>
   <definition>The namespace bindings in effect on an element (XDM 4.0, <code>dm:namespace-nodes</code>)</definition>
 </term>

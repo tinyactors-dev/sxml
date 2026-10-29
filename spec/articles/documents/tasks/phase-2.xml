@@ -1,4 +1,4 @@
-<document id="tasks/phase-2" source="docs/tasks/phase-2.md">
+<document id="tasks/phase-2" file="docs/tasks/phase-2.md">
   <title>Phase 2: XPath 4.0 and F&amp;O 4.0</title>
   <p>Goal (PLAN.md): full XPath 4.0 syntax and the whole F&amp;O 4.0 function library; the first public release. Gate: <strong>90% of the applicable XP40 test cases pass</strong> (<ref kind="decision" to="D95"/>; Phase 1 ended at 21,443 of about 31,500, 68%). Packets are one agent session each and run in parallel in one working tree under the Phase 1 rules (<ref kind="decision" to="D45"/>, repeated below); the overlap with Phases 3 and 4 follows <ref kind="decision" to="D96"/>. Scope decisions (collations, HTML parsing, non-goals) are <ref kind="decision" to="D97"/>.</p>
   <section id="rules-for-parallel-packets-d45-d96">

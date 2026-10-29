@@ -1,4 +1,4 @@
-<term id="group_frame" source="docs/GLOSSARY.md">
+<term id="group_frame">
   <name>group_frame</name>
   <definition>The regex compiler's record of a group whose ")" has not been read (and of the whole regex), kept on an explicit stack instead of recursing (<ref kind="decision" to="D71"/>)</definition>
 </term>

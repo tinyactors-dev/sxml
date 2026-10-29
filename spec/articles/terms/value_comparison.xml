@@ -1,4 +1,4 @@
-<term id="value_comparison" source="docs/GLOSSARY.md">
+<term id="value_comparison">
   <name>value_comparison</name>
   <definition><code>eq</code>, <code>ne</code>, <code>lt</code>, <code>le</code>, <code>gt</code>, <code>ge</code> on two single atomic items, through fn:compare (XPath 4.0, section 4.11.1)</definition>
 </term>

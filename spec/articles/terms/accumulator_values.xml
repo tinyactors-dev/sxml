@@ -1,4 +1,4 @@
-<term id="accumulator_values" source="docs/GLOSSARY.md">
+<term id="accumulator_values">
   <name>accumulator_values</name>
   <definition>The map of one xslt accumulator for one tree, from each node's generate-id to its pre- and post-descent values, built once per evaluation and kept in the evaluation memo (<ref kind="decision" to="D155"/>)</definition>
 </term>

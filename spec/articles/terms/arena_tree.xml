@@ -1,4 +1,4 @@
-<term id="arena_tree" source="docs/GLOSSARY.md">
+<term id="arena_tree">
   <name>arena_tree</name>
   <definition>The built-in tree: nodes in arrays indexed by node index, built by a tree builder</definition>
 </term>

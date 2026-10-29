@@ -1,4 +1,4 @@
-<term id="target_namespace_uri" source="docs/GLOSSARY.md">
+<term id="target_namespace_uri">
   <name>target_namespace_uri</name>
   <definition>The namespace of an XQuery library module that <code>import module</code> asks for</definition>
 </term>

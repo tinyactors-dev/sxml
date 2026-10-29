@@ -1,4 +1,4 @@
-<term id="tree_owner" source="docs/GLOSSARY.md">
+<term id="tree_owner">
   <name>tree_owner</name>
   <definition>Interface told when a tree is no longer referenced, so its owner can free it</definition>
 </term>

@@ -124,9 +124,10 @@ declare function spec:cited-by($spec as map(*), $article as element()) as elemen
   return $other
 };
 
-(:~ The documents that include ARTICLE. :)
+(:~ The documents that include ARTICLE, or collect its kind. :)
 declare function spec:included-in($spec as map(*), $article as element()) as element()* {
-  spec:of-kind($spec, "document")[.//include[@kind = local-name($article) and @to = $article/@id]]
+  spec:of-kind($spec, "document")[.//include[@kind = local-name($article) and @to = $article/@id]
+                                  or .//collect[@kind = local-name($article)]]
 };
 
 (:~ The articles ARTICLE refers to, each once, in the order first cited. :)
@@ -222,14 +223,47 @@ declare function spec:summary($article as element()) as xs:string {
 
 (: ---- Markdown ---- :)
 
-(:~ NODE (an article, section or block) as Markdown, with heading LEVEL. :)
-declare function spec:markdown($spec as map(*), $node as element(), $level as xs:integer) as xs:string {
-  string-join(spec:wrap(spec:blocks($spec, $node, $level, "", true()), 79), "&#10;")
+(:~
+ : NODE (an article, section or block) as Markdown, with heading LEVEL,
+ : in one of three modes:
+ :   "page":    what people read (docs/), includes and collects expanded;
+ :   "outline": the same, each included article as one line naming it;
+ :   "source":  what a write takes back (spec:prose): references other
+ :              than decision numbers as [[kind:id]], an include as a
+ :              line [[include:kind:id]], a collect as [[collect:kind]].
+ : Paragraphs are wrapped at 79 columns.
+ :)
+declare function spec:markdown($spec as map(*), $node as element(), $level as xs:integer,
+    $mode as xs:string) as xs:string {
+  string-join(spec:wrap(spec:blocks($spec, $node, $level, "", $mode), 79), "&#10;")
 };
 
-(:~ NODE as Markdown, each included article as one line naming it. :)
-declare function spec:outline-markdown($spec as map(*), $node as element(), $level as xs:integer) as xs:string {
-  string-join(spec:wrap(spec:blocks($spec, $node, $level, "", false()), 79), "&#10;")
+declare function spec:markdown($spec as map(*), $node as element(), $level as xs:integer) as xs:string {
+  spec:markdown($spec, $node, $level, "page")
+};
+
+(:~
+ : The text of NODE in source form, as `tools/spec/spec text` shows it and
+ : `amend --body` and `replace` take it back: an article's body, or the
+ : blocks of a section or document, each subsection as [[section:id]].
+ :)
+declare function spec:source($spec as map(*), $node as element()) as xs:string {
+  let $blocks := if ($node/body) then $node/body/* else $node/*[not(self::title or self::summary)]
+  let $lines := for $block in $blocks return spec:block($spec, $block, 3, "", "source")
+  return string-join(spec:wrap($lines, 79), "&#10;") => replace("\n+$", "")
+};
+
+(:~ The articles a collect stands for, in order: decisions by number, others by identifier. :)
+declare function spec:collected($spec as map(*), $collect as element(collect)) as element()* {
+  for $article in spec:of-kind($spec, $collect/@kind)
+  order by spec:number($article), lower-case($article/@id),
+           string($article/@id)
+  return $article
+};
+
+(:~ A decision's number: 120 for D120 and D120b; 0 for other articles. :)
+declare function spec:number($article as element()) as xs:integer {
+  if ($article/self::decision) then xs:integer(replace($article/@id, "^D(\d+).*$", "$1")) else 0
 };
 
 (:~
@@ -243,13 +277,11 @@ declare function spec:wrap($lines as xs:string*, $width as xs:integer) as xs:str
   for $line at $position in $lines
   let $in-fence := count($fences[. le $position]) mod 2 = 1 or $position = $fences
   return
-    if ($in-fence or string-length($line) le $width or matches($line, "^\s*(> )*(\||#|<!--)")) then $line
+    if ($in-fence or string-length($line) le $width or matches($line, "^\s*(> )*(\||#|<!--|\[\[)")) then $line
     else
-      let $prefix := replace($line, "^((\s*(> )*)([-*+] |\d+[.)] )?(\[[ xX]\] )?).*$", "$1")
-      let $continuation := replace($prefix, "[-*+\d.)\[\]xX ]", " ") => replace("^(\s*)((> )*)", "$1$2")
-      let $continuation := string-join((
-        replace($prefix, "^(\s*(> )*).*$", "$1"),
-        (1 to string-length($prefix) - string-length(replace($prefix, "^(\s*(> )*).*$", "$1"))) ! " "))
+      let $prefix := replace($line, "^((\s*(> )*)(([-*+]|\d+[.)]) )*(\[[ xX]\] )?).*$", "$1")
+      let $quoted := replace($prefix, "^(\s*(> )*).*$", "$1")
+      let $continuation := $quoted || string-join((1 to string-length($prefix) - string-length($quoted)) ! " ")
       let $words := tokenize(substring($line, string-length($prefix) + 1), " ")[.]
       return spec:fill($words, $prefix, $continuation, $width)
 };
@@ -262,7 +294,7 @@ declare %private function spec:fill($words as xs:string*, $prefix as xs:string, 
       let $last := array:foot($lines)
       return
         if (string-length($last) + 1 + string-length($word) le $width
-            or matches($word, "^([-*+>|=]+|\d+[.)]|#+|```.*|<!--.*)$")) then
+            or matches($word, "^(\||>|```|<!--|\[\[(include|collect|section):)|^([-*+]|\d+[.)]|#{1,6}|-{3,}|\*{3,}|_{3,}|=+)$")) then
           array:put($lines, array:size($lines), $last || " " || $word)
         else array:append($lines, $continuation || $word)
   })
@@ -270,34 +302,38 @@ declare %private function spec:fill($words as xs:string*, $prefix as xs:string, 
 };
 
 declare %private function spec:blocks($spec as map(*), $node as element(), $level as xs:integer,
-    $indent as xs:string, $expand as xs:boolean) as xs:string* {
-  let $summary := $node/summary ! ("**Summary**: " || spec:inline(node()), "")
+    $indent as xs:string, $mode as xs:string) as xs:string* {
+  let $summary := $node/summary ! ("**Summary**: " || spec:inline(node(), false(), $mode), "")
   let $superseded := $node/@superseded-by ! ("*Superseded by " || . || ".*", "")
+  let $title := spec:inline($node/title/node(), false(), $mode)
   return typeswitch ($node)
     case element(document) return (
-      "# " || spec:inline($node/title/node()), "", $summary,
-      for $child in $node/*[not(self::title or self::summary)] return spec:block($spec, $child, 2, $indent, $expand))
+      "# " || $title, "", $summary,
+      for $child in $node/*[not(self::title or self::summary)] return spec:block($spec, $child, 2, $indent, $mode))
     case element(decision) return (
-      spec:hashes($level) || " " || $node/@id || ". " || spec:inline($node/title/node()), "", $superseded, $summary,
-      for $child in $node/body/* return spec:block($spec, $child, $level + 1, $indent, $expand))
+      spec:hashes($level) || " " || $node/@id || ". " || $title, "", $superseded, $summary,
+      for $child in $node/body/* return spec:block($spec, $child, $level + 1, $indent, $mode))
     case element(packet) return (
-      spec:hashes($level) || " " || $node/@id || " " || spec:inline($node/title/node()), $summary,
-      for $child in $node/body/* return spec:block($spec, $child, $level + 1, $indent, $expand))
+      spec:hashes($level) || " " || $node/@id || " " || $title, $summary,
+      for $child in $node/body/* return spec:block($spec, $child, $level + 1, $indent, $mode))
     case element(log-entry) return (
-      spec:hashes($level) || " " || spec:inline($node/title/node()), "",
-      for $child in $node/body/* return spec:block($spec, $child, $level + 1, $indent, $expand))
+      spec:hashes($level) || " " || $title, "",
+      for $child in $node/body/* return spec:block($spec, $child, $level + 1, $indent, $mode))
     case element(term) return
       for $definition in $node/definition
-      return "| " || string-join($node/name ! ("`" || . || "`"), " / ") || " | " || spec:inline($definition/node(), true()) || " |"
-    case element(proposal) return spec:block($spec, spec:proposal-item($node), $level, $indent, $expand)
-    default return spec:block($spec, $node, $level, $indent, $expand)
+      return "| " || string-join($node/name ! ("`" || . || "`"), " / ") || " | " ||
+             spec:inline($definition/node(), true(), $mode) || " |"
+    case element(proposal) return spec:block($spec, spec:proposal-item($node), $level, $indent, $mode)
+    default return spec:block($spec, $node, $level, $indent, $mode)
 };
 
 declare %private function spec:proposal-item($proposal as element(proposal)) as element(item) {
   <item>{
     let $first := $proposal/body/*[1]
     return (
-      if ($first/self::p) then <p><strong>{$proposal/title/node()}</strong>{$first/node()}</p>
+      if ($first/self::p) then
+        <p><strong>{$proposal/title/node()}</strong>{
+          if (matches(string($first), "^[:;,.]")) then () else " ", $first/node() }</p>
       else (<p><strong>{$proposal/title/node()}</strong></p>, $first),
       $proposal/body/*[position() > 1])
   }</item>
@@ -308,25 +344,31 @@ declare %private function spec:hashes($level as xs:integer) as xs:string {
 };
 
 declare %private function spec:block($spec as map(*), $node as element(), $level as xs:integer,
-    $indent as xs:string, $expand as xs:boolean) as xs:string* {
+    $indent as xs:string, $mode as xs:string) as xs:string* {
   typeswitch ($node)
-    case element(section) return (
-      let $at := if ($node/@level) then xs:integer($node/@level) else $level
-      return (
-        $indent || spec:hashes($at) || " " || spec:inline($node/title/node()), "",
-        for $child in $node/*[not(self::title)] return spec:block($spec, $child, $at + 1, $indent, $expand)))
+    case element(section) return
+      if ($mode = "source") then ($indent || "[[section:" || $node/@id || "]]", "")
+      else
+        let $at := if ($node/@level) then xs:integer($node/@level) else $level
+        return (
+          $indent || spec:hashes($at) || " " || spec:inline($node/title/node(), false(), $mode), "",
+          for $child in $node/*[not(self::title)] return spec:block($spec, $child, $at + 1, $indent, $mode))
     case element(include) return
       let $target := spec:target($spec, $node)
       return
-        if (empty($target)) then $indent || "<!-- missing " || spec:reference-key($node) || " -->"
-        else if (not($expand)) then ($indent || "→ " || spec:line($target), "")[not($target/self::term and $node/@definition)]
-        else if ($target/self::term) then
-          let $number := xs:integer(($node/@definition, 1)[1])
-          let $term := $target transform with { delete node definition[position() != $number] }
-          return spec:blocks($spec, $term, $level, $indent, $expand)
-        else spec:blocks($spec, $target, $level, $indent, $expand)
-    case element(p) return ($indent || spec:inline($node/node()), "")
-    case element(heading) return ($indent || spec:hashes(xs:integer($node/@level)) || " " || spec:inline($node/node()), "")
+        if ($mode = "source") then ($indent || "[[include:" || $node/@kind || ":" || $node/@to || "]]", "")
+        else if (empty($target)) then $indent || "<!-- missing " || spec:reference-key($node) || " -->"
+        else if ($mode = "outline") then ($indent || "→ " || spec:line($target), "")
+        else spec:blocks($spec, $target, $level, $indent, $mode)
+    case element(collect) return
+      let $articles := spec:collected($spec, $node)
+      return
+        if ($mode = "source") then ($indent || "[[collect:" || $node/@kind || "]]", "")
+        else if ($mode = "outline") then ($indent || "→ every " || $node/@kind || " (" || count($articles) || ")", "")
+        else for $article in $articles[not(@status = "unused")] return spec:blocks($spec, $article, $level, $indent, $mode)
+    case element(p) return ($indent || spec:inline($node/node(), false(), $mode), "")
+    case element(heading) return
+      ($indent || spec:hashes(xs:integer($node/@level)) || " " || spec:inline($node/node(), false(), $mode), "")
     case element(rule) return ($indent || "---", "")
     case element(comment) return ($indent || "<!-- " || $node || " -->", "")
     case element(pre) return (
@@ -334,12 +376,13 @@ declare %private function spec:block($spec as map(*), $node as element(), $level
       tokenize(string($node), "&#10;") ! ($indent || .),
       $indent || "```", "")
     case element(quote) return (
-      for $line in $node/* ! spec:block($spec, ., $level, "", $expand) return $indent || "> " || $line, "")
+      for $line in $node/* ! spec:block($spec, ., $level, "", $mode) return $indent || ">" || ($line[.] ! (" " || .)), "")
     case element(table) return (
       for $row at $position in $node/*
       return (
-        if ($row/self::include) then spec:block($spec, $row, $level, $indent, $expand)
-        else $indent || "| " || string-join($row/cell ! spec:inline(node(), true()), " | ") || " |",
+        if ($row/self::row) then $indent || "| " || string-join($row/cell ! spec:inline(node(), true(), $mode), " | ") || " |"
+        else if ($mode = "source") then $indent || "| " || spec:block($spec, $row, $level, "", $mode)[1] || " |"
+        else spec:block($spec, $row, $level, $indent, $mode)[.],
         if ($position = 1 and $row/@header) then
           $indent || "| " || string-join(
             for $cell at $column in $row/cell
@@ -349,102 +392,351 @@ declare %private function spec:block($spec as map(*), $node as element(), $level
         else ()),
       "")
     case element(list) return (
-      for $child at $position in $node/*
-      let $item := if ($child/self::include and $expand) then spec:proposal-item(spec:target($spec, $child)) else $child
+      let $items :=
+        if ($mode = "source") then $node/*
+        else for $child in $node/* return
+          typeswitch ($child)
+            case element(include) return spec:target($spec, $child) ! spec:proposal-item(.)
+            case element(collect) return spec:collected($spec, $child) ! spec:proposal-item(.)
+            default return $child
+      for $item at $position in $items
       let $marker := if ($node/@ordered = "true") then (xs:integer(($node/@start, 1)[1]) + $position - 1) || ". " else "- "
       let $box := if ($item/@checked = "true") then "[x] " else if ($item/@checked = "false") then "[ ] " else ""
-      let $lines := if ($item/self::include) then substring-after(spec:block($spec, $item, $level, "", false())[1], "→ ")
-                    else for $block in $item/* return spec:block($spec, $block, $level, "", $expand)
+      let $lines := if ($item/self::item) then for $block in $item/* return spec:block($spec, $block, $level, "", $mode)
+                    else spec:block($spec, $item, $level, "", $mode)
       let $lines := $lines[not(position() = last() and . = "")]
       let $pad := string-join((1 to string-length($marker)) ! " ")
       return (
+        if ($position > 1 and ($node/@loose = "true" or $node/(include | collect))) then "" else (),
         $indent || $marker || $box || $lines[1],
         for $line in $lines[position() > 1] return if ($line = "") then "" else $indent || $pad || $line),
       "")
-    case element(item) return spec:block($spec, <list>{$node}</list>, $level, $indent, $expand)
-    default return $indent || spec:inline($node/node())
+    case element(item) return spec:block($spec, <list>{$node}</list>, $level, $indent, $mode)
+    default return $indent || spec:inline($node/node(), false(), $mode)
 };
 
-(:~ Inline content as Markdown; IN-TABLE escapes the cell separator. :)
+(:~ Inline content as Markdown for people (mode "page"). :)
 declare function spec:inline($nodes as node()*) as xs:string {
-  spec:inline($nodes, false())
+  spec:inline($nodes, false(), "page")
 };
 
-declare function spec:inline($nodes as node()*, $in-table as xs:boolean) as xs:string {
+(:~ Inline content as Markdown in MODE; IN-TABLE escapes the cell separator. :)
+declare function spec:inline($nodes as node()*, $in-table as xs:boolean, $mode as xs:string) as xs:string {
   string-join(
     for $node in $nodes return
       typeswitch ($node)
         case text() return
-          let $text := replace(string($node), "([\\`*])", "\\$1")
+          let $text := replace(string($node), if ($mode = "source") then "([\\`*\[])" else "([\\`*])", "\\$1")
           return if ($in-table) then replace($text, "\|", "\\|") else $text
         case element(code) return spec:code(string($node), $in-table)
         case element(term) return spec:code(string($node/@name), $in-table)
-        case element(ref) return string($node/@to)
-        case element(strong) return "**" || spec:inline($node/node(), $in-table) || "**"
-        case element(em) return "*" || spec:inline($node/node(), $in-table) || "*"
-        case element(link) return "[" || spec:inline($node/node(), $in-table) || "](" || $node/@href || ")"
+        case element(ref) return
+          if ($mode = "source" and $node/@kind != "decision") then "[[" || $node/@kind || ":" || $node/@to || "]]"
+          else string($node/@to)
+        case element(strong) return "**" || spec:inline($node/node(), $in-table, $mode) || "**"
+        case element(em) return "*" || spec:inline($node/node(), $in-table, $mode) || "*"
+        case element(link) return "[" || spec:inline($node/node(), $in-table, $mode) || "](" || $node/@href || ")"
         case element(recorded) return "Recorded " || $node/@date
         case element(status) return "**" || spec:capitalize($node/@value) || "**" || $node/@date ! (" " || .)
-        default return spec:inline($node/node(), $in-table))
+        default return spec:inline($node/node(), $in-table, $mode))
 };
 
 declare %private function spec:code($text as xs:string, $in-table as xs:boolean) as xs:string {
   let $text := if ($in-table) then replace($text, "\|", "\\|") else $text
   let $longest := max((0, analyze-string($text, "`+")/fn:match ! string-length()))
   let $fence := string-join((0 to $longest) ! "`")
-  let $pad := if (contains($text, "`")) then " " else ""
+  let $pad := if (contains($text, "`") or starts-with($text, " ") and ends-with($text, " ") and normalize-space($text))
+              then " " else ""
   return $fence || $pad || $text || $pad || $fence
 };
 
-(: ---- Prose: what a write is given ---- :)
+(: ---- Prose: the source form a write is given ---- :)
 
 (:~
- : Blocks from TEXT, the Markdown a write is given: paragraphs, "- " lists
- : and ``` fences, separated by blank lines; inline as spec:prose-inline.
+ : Blocks from TEXT in source form (spec:source): paragraphs, headings,
+ : bullet, ordered and task lists (nested by indentation), ``` fences,
+ : pipe tables, > quotes, ---, <!-- comments -->, and the lines
+ : [[include:kind:id]], [[collect:kind]] and [[section:id]]; inline
+ : content as spec:prose-inline. Markdown spec:source writes reads back
+ : to the same nodes.
  :)
 declare function spec:prose($spec as map(*), $text as xs:string) as element()* {
-  for $block in tokenize(replace($text, "\r", ""), "\n[ \t]*\n")[normalize-space()]
-  let $lines := tokenize($block, "\n")
+  spec:parse-blocks($spec, tokenize(replace($text, "\r", ""), "\n"))
+};
+
+(:~ Blocks of an article's body: as spec:prose, and "Recorded DATE" or
+ : "**Done** DATE" at its start become the elements they stand for. :)
+declare function spec:prose-body($spec as map(*), $text as xs:string) as element()* {
+  let $blocks := spec:prose($spec, $text)
+  let $first := $blocks[1]
+  let $opening := $first/node()[1]
   return
-    if (starts-with($lines[1], "```")) then
-      <pre>{ substring-after($lines[1], "```")[.] ! attribute language { . } }{
-        string-join(subsequence($lines, 2, count($lines) - 1 - (if (starts-with($lines[last()], "```")) then 1 else 0)), "&#10;")
-      }</pre>
-    else if (matches($lines[1], "^- ")) then
-      <list>{
-        for tumbling window $item in $lines start $first when starts-with($first, "- ")
-        return <item><p>{ spec:prose-inline($spec, normalize-space(substring(string-join($item, " "), 3))) }</p></item>
-      }</list>
-    else <p>{ spec:prose-inline($spec, normalize-space(string-join($lines, " "))) }</p>
+    if ($first/self::p and $opening/self::text() and matches($opening, "^Recorded \d{4}-\d{2}-\d{2}")) then (
+      <p>{ <recorded date="{ substring($opening, 10, 10) }"/>, text { substring($opening, 20) }[string()],
+           $first/node()[position() > 1] }</p>,
+      tail($blocks))
+    else if ($first/self::p and $opening/self::strong and not($opening/*)
+             and $opening = ("Done", "Paused", "Design", "Designed", "Revised")) then
+      let $after := $first/node()[2]
+      let $date := if ($after/self::text() and matches($after, "^ \d{4}-\d{2}-\d{2}")) then substring($after, 2, 10) else ()
+      return (
+        <p>{ <status value="{ lower-case($opening) }">{ $date ! attribute date { . } }</status>,
+             if (exists($date)) then text { substring($after, 12) }[string()] else $after,
+             $first/node()[position() > 2] }</p>,
+        tail($blocks))
+    else $blocks
+};
+
+declare %private function spec:first-line($lines as xs:string*, $pattern as xs:string, $after as xs:integer) as xs:integer? {
+  (for $line at $position in $lines where $position > $after and matches($line, $pattern) return $position)[1]
+};
+
+declare %private function spec:dedent($lines as xs:string*, $width as xs:integer) as xs:string* {
+  $lines ! (if (substring(., 1, $width) = string-join((1 to $width) ! " ")) then substring(., $width + 1) else replace(., "^\s+", ""))
+};
+
+declare %private function spec:parse-blocks($spec as map(*), $lines as xs:string*) as element()* {
+  if (empty($lines)) then ()
+  else if (not(normalize-space($lines[1]))) then spec:parse-blocks($spec, tail($lines))
+  else
+    let $first := $lines[1]
+    return
+      if (starts-with($first, "```")) then
+        let $end := (spec:first-line($lines, "^```\s*$", 1), count($lines) + 1)[1]
+        return (
+          <pre>{ substring($first, 4)[normalize-space()] ! attribute language { normalize-space(.) },
+                 string-join(subsequence($lines, 2, $end - 2), "&#10;") }</pre>,
+          spec:parse-blocks($spec, subsequence($lines, $end + 1)))
+      else if (starts-with($first, "<!--")) then
+        let $end := (spec:first-line($lines, "-->", 0), count($lines))[1]
+        let $text := string-join(subsequence($lines, 1, $end), "&#10;")
+        return (
+          <comment>{ normalize-space(replace(replace($text, "^<!--", ""), "-->\s*$", "")) }</comment>,
+          spec:parse-blocks($spec, subsequence($lines, $end + 1)))
+      else if (matches($first, "^\[\[(include|collect|section):[^\]]+\]\]\s*$")) then
+        let $key := tokenize(replace($first, "^\[\[|\]\]\s*$", ""), ":")
+        return (
+          switch ($key[1])
+            case "include" return <include kind="{ $key[2] }" to="{ string-join(subsequence($key, 3), ':') }"/>
+            case "collect" return <collect kind="{ $key[2] }"/>
+            default return <section id="{ string-join(tail($key), ':') }"/>,
+          spec:parse-blocks($spec, tail($lines)))
+      else if (matches($first, "^#{1,6} ")) then (
+        <heading level="{ string-length(substring-before($first, ' ')) }">{
+          spec:prose-inline($spec, substring-after($first, " ")) }</heading>,
+        spec:parse-blocks($spec, tail($lines)))
+      else if (matches($first, "^(---+|\*\*\*+|___+)\s*$")) then (<rule/>, spec:parse-blocks($spec, tail($lines)))
+      else if (starts-with($first, "|")) then
+        let $end := (spec:first-line($lines, "^[^|]|^$", 1), count($lines) + 1)[1] - 1
+        return (spec:parse-table($spec, subsequence($lines, 1, $end)), spec:parse-blocks($spec, subsequence($lines, $end + 1)))
+      else if (starts-with($first, ">")) then
+        let $end := (spec:first-line($lines, "^[^>]|^$", 1), count($lines) + 1)[1] - 1
+        return (
+          <quote>{ spec:parse-blocks($spec, subsequence($lines, 1, $end) ! replace(., "^> ?", "")) }</quote>,
+          spec:parse-blocks($spec, subsequence($lines, $end + 1)))
+      else if (matches($first, "^([-*+]|\d+[.)]) ")) then spec:parse-list($spec, $lines)
+      else
+        let $end := (spec:first-line($lines, "^\s*$|^(```|<!--|#{1,6} |\||>|[-*+] |\d+[.)] |\[\[(include|collect|section):)", 1),
+                     count($lines) + 1)[1] - 1
+        return (
+          <p>{ spec:prose-inline($spec, string-join(subsequence($lines, 1, $end) ! normalize-space(), " ")) }</p>,
+          spec:parse-blocks($spec, subsequence($lines, $end + 1)))
+};
+
+declare %private function spec:parse-list($spec as map(*), $lines as xs:string*) as element()* {
+  let $ordered := matches($lines[1], "^\d")
+  let $marker := if ($ordered) then "^\d+[.)] " else "^[-*+] "
+  (: Lines that start an item: a marker in column 1, until the list ends. :)
+  let $starts := spec:item-starts($lines, $marker, 1, ())
+  let $end := spec:list-end($lines, $marker, $starts)
+  let $start := if ($ordered) then xs:integer(replace($lines[1], "^(\d+).*$", "$1")) else ()
+  return (
+    <list>{
+      if ($ordered) then attribute ordered { "true" } else (),
+      if ($ordered and $start != 1) then attribute start { $start } else (),
+      if ((some $position in tail($starts) satisfies not(normalize-space($lines[$position - 1])))
+          and not(every $first in $starts satisfies matches($lines[$first], "^\S+ \[\[(include|collect):")))
+      then attribute loose { "true" } else (),
+      for $item-start at $number in $starts
+      let $item-end := (($starts[$number + 1], $end + 1)[1]) - 1
+      let $text := replace($lines[$item-start], $marker, "")
+      let $width := string-length($lines[$item-start]) - string-length($text)
+      let $box := if (matches($text, "^\[[ xX]\] ")) then substring($text, 2, 1) else ()
+      let $text := if (exists($box)) then substring($text, 5) else $text
+      let $body := ($text, spec:dedent(subsequence($lines, $item-start + 1, $item-end - $item-start), $width))
+      let $blocks := spec:parse-blocks($spec, $body)
+      return
+        if (count($blocks) = 1 and $blocks/(self::include | self::collect) and empty($box)) then $blocks
+        else <item>{
+          if (exists($box)) then attribute checked { $box != " " } else (),
+          $blocks
+        }</item>
+    }</list>,
+    spec:parse-blocks($spec, subsequence($lines, $end + 1))
+  )
+};
+
+(: The positions of the lines that start items of the list at the start of LINES. :)
+declare %private function spec:item-starts($lines as xs:string*, $marker as xs:string, $position as xs:integer,
+    $found as xs:integer*) as xs:integer* {
+  if ($position > count($lines)) then $found
+  else
+    let $line := $lines[$position]
+    return
+      if (matches($line, $marker)) then spec:item-starts($lines, $marker, $position + 1, ($found, $position))
+      else if (matches($line, "^\s+\S") or not(normalize-space($line))) then
+        (: An indented line continues the item; a blank line does if an indented line or a marker follows. :)
+        if (normalize-space($line)) then spec:item-starts($lines, $marker, $position + 1, $found)
+        else
+          let $next := spec:first-line($lines, "\S", $position)
+          return if (exists($next) and (matches($lines[$next], "^\s+\S") or matches($lines[$next], $marker)))
+                 then spec:item-starts($lines, $marker, $position + 1, $found) else $found
+      else $found
+};
+
+(: The last line of the list whose items start at STARTS: before the first
+   line after the last start that is neither blank nor indented, blank lines
+   not counted. :)
+declare %private function spec:list-end($lines as xs:string*, $marker as xs:string, $starts as xs:integer*) as xs:integer {
+  let $stop := (spec:first-line($lines, "^\S", $starts[last()]), count($lines) + 1)[1]
+  return (for $position in reverse($starts[last()] to $stop - 1)
+          where normalize-space($lines[$position]) return $position)[1]
+};
+
+declare %private function spec:parse-table($spec as map(*), $lines as xs:string*) as element(table) {
+  let $rows := $lines ! spec:split-row(.)
+  let $delimiter := count($lines) > 1 and matches($lines[2], "^\|?(\s*:?-+:?\s*\|)+\s*:?-*:?\s*$")
+  let $alignments := if ($delimiter) then
+      for $cell in spec:split-row($lines[2])
+      return if (starts-with($cell, ":") and ends-with($cell, ":")) then "center"
+             else if (ends-with($cell, ":")) then "right" else if (starts-with($cell, ":")) then "left" else "default"
+    else ()
+  return <table>{
+    if ($alignments != "default") then attribute align { string-join($alignments, " ") } else (),
+    for $line at $position in $lines
+    let $cells := spec:split-row($line)
+    where not($delimiter and $position = 2)
+    return
+      if (count($cells) = 1 and matches($cells, "^\[\[(include|collect):[^\]]+\]\]$")) then spec:parse-blocks($spec, $cells)
+      else <row>{
+        if ($delimiter and $position = 1) then attribute header { "true" } else (),
+        $cells ! <cell>{ spec:prose-inline($spec, .) }</cell>
+      }</row>
+  }</table>
+};
+
+(: The cells of a table row: "|" separates, except escaped or in code; "\|" becomes "|". :)
+declare %private function spec:split-row($line as xs:string) as xs:string* {
+  let $text := replace(replace(normalize-space($line), "^\|", ""), "([^\\])\|$|^\|$", "$1")
+  let $state := fold-left(analyze-string($text, "\\\||`+|\||[^\\`|]+|\\")/*, { "cells": (), "current": "", "code": 0 },
+    fn($state, $part) {
+      let $value := string($part)
+      return
+        if ($state?code > 0) then
+          map:put(map:put($state, "current", $state?current || (if ($value = "\|") then "|" else $value)),
+                  "code", if (matches($value, "^`+$") and string-length($value) = $state?code) then 0 else $state?code)
+        else if ($value = "|") then map:put(map:put($state, "cells", ($state?cells, $state?current)), "current", "")
+        else if ($value = "\|") then map:put($state, "current", $state?current || "|")
+        else if (matches($value, "^`+$")) then
+          map:put(map:put($state, "current", $state?current || $value), "code", string-length($value))
+        else map:put($state, "current", $state?current || $value)
+    })
+  return ($state?cells, $state?current) ! normalize-space()
 };
 
 (:~
- : Inline content from TEXT: `code` (a term when it is one), **strong**,
- : *em*, [text](link), [[kind:identifier]] for any reference, and decision
- : numbers (D238), which are always references.
+ : Inline content from TEXT in source form: `code` (a term when it names
+ : one), **strong**, *em*, [text](link), [[kind:identifier]] for any
+ : reference, backslash escapes, and decision numbers (D238), which are
+ : always references.
  :)
 declare function spec:prose-inline($spec as map(*), $text as xs:string) as node()* {
-  for $part in analyze-string($text, "\[\[[a-z-]+:[^\]]+\]\]|``[^`]+``|`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*|\[[^\]]+\]\([^)]+\)")/*
-  let $value := string($part)
-  return
-    if ($part/self::fn:non-match) then spec:prose-references($value)
-    else if (starts-with($value, "[[")) then
-      let $key := substring($value, 3, string-length($value) - 4)
-      return <ref kind="{ substring-before($key, ':') }" to="{ substring-after($key, ':') }"/>
-    else if (starts-with($value, "`")) then
-      let $code := replace($value, "^`+ ?| ?`+$", "")
-      return if (exists($spec?index("term-name:" || $code))) then <term name="{ $code }"/> else <code>{ $code }</code>
-    else if (starts-with($value, "**")) then <strong>{ spec:prose-inline($spec, substring($value, 3, string-length($value) - 4)) }</strong>
-    else if (starts-with($value, "*")) then <em>{ spec:prose-inline($spec, substring($value, 2, string-length($value) - 2)) }</em>
-    else
-      let $label := substring-before(substring($value, 2), "](")
-      return <link href="{ substring-before(substring-after($value, "]("), ")") }">{ spec:prose-inline($spec, $label) }</link>
+  if ($text = "") then ()
+  else
+    let $plain := replace($text, "^([^\\`*\[]*).*$", "$1", "s")
+    let $rest := substring($text, string-length($plain) + 1)
+    return (spec:prose-references($spec, $plain), if ($rest = "") then () else spec:prose-special($spec, $rest))
 };
 
-declare %private function spec:prose-references($text as xs:string) as node()* {
+declare %private function spec:prose-special($spec as map(*), $text as xs:string) as node()* {
+  if (starts-with($text, "\") and string-length($text) > 1) then
+    (text { substring($text, 2, 1) }, spec:prose-inline($spec, substring($text, 3)))
+  else if (starts-with($text, "`")) then
+    let $run := replace($text, "^(`+).*$", "$1", "s")
+    let $after := substring($text, string-length($run) + 1)
+    let $close := spec:closing-run($after, string-length($run))
+    return
+      if (empty($close)) then (text { $run }, spec:prose-inline($spec, $after))
+      else
+        let $content := substring($after, 1, $close - 1)
+        let $content := if (string-length($content) > 2 and starts-with($content, " ") and ends-with($content, " ")
+                            and normalize-space($content)) then substring($content, 2, string-length($content) - 2)
+                        else $content
+        return (
+          if (exists($spec?index("term-name:" || $content))) then <term name="{ $content }"/> else <code>{ $content }</code>,
+          spec:prose-inline($spec, substring($after, $close + string-length($run))))
+  else if (matches($text, "^\[\[[a-z-]+:[^\]]+\]\]", "s")) then
+    let $key := replace($text, "^\[\[([^\]]+)\]\].*$", "$1", "s")
+    return (<ref kind="{ substring-before($key, ':') }" to="{ substring-after($key, ':') }"/>,
+            spec:prose-inline($spec, substring($text, string-length($key) + 5)))
+  else if (matches($text, "^\[([^\]]*)\]\(([^)\s]*)\)", "s")) then
+    let $label := replace($text, "^\[([^\]]*)\]\(.*$", "$1", "s")
+    let $href := replace($text, "^\[[^\]]*\]\(([^)\s]*)\).*$", "$1", "s")
+    return (<link href="{ $href }">{ spec:prose-inline($spec, $label) }</link>,
+            spec:prose-inline($spec, substring($text, string-length($label) + string-length($href) + 5)))
+  else if (starts-with($text, "**")) then
+    let $close := spec:find-outside-code(substring($text, 3), "**")
+    return
+      if (empty($close)) then (text { "**" }, spec:prose-inline($spec, substring($text, 3)))
+      else (<strong>{ spec:prose-inline($spec, substring($text, 3, $close - 1)) }</strong>,
+            spec:prose-inline($spec, substring($text, $close + 4)))
+  else if (starts-with($text, "*")) then
+    let $close := spec:find-outside-code(substring($text, 2), "*")
+    return
+      if (empty($close)) then (text { "*" }, spec:prose-inline($spec, substring($text, 2)))
+      else (<em>{ spec:prose-inline($spec, substring($text, 2, $close - 1)) }</em>,
+            spec:prose-inline($spec, substring($text, $close + 2)))
+  else (text { substring($text, 1, 1) }, spec:prose-inline($spec, substring($text, 2)))
+};
+
+(: Where in TEXT a run of exactly LENGTH backticks starts. :)
+declare %private function spec:closing-run($text as xs:string, $length as xs:integer) as xs:integer? {
+  let $parts := analyze-string($text, "`+")/*
+  return (
+    for $part at $number in $parts
+    where $part/self::fn:match and string-length($part) = $length
+    return 1 + sum(subsequence($parts, 1, $number - 1) ! string-length())
+  )[1]
+};
+
+(: Where in TEXT the delimiter NEEDLE ("**" or "*") is, outside code spans and escapes. :)
+declare %private function spec:find-outside-code($text as xs:string, $needle as xs:string) as xs:integer? {
+  let $parts := analyze-string($text, "\\.|`+|\*\*|\*")/*
+  let $state := fold-left($parts, { "position": 1, "code": 0, "found": () }, fn($state, $part) {
+    if (exists($state?found)) then $state
+    else
+      let $value := string($part)
+      let $next := map:put($state, "position", $state?position + string-length($value))
+      return
+        if ($part/self::fn:non-match) then $next
+        else if ($state?code > 0) then
+          if (matches($value, "^`+$") and string-length($value) = $state?code) then map:put($next, "code", 0) else $next
+        else if (matches($value, "^`+$")) then
+          if (exists(spec:closing-run(substring($text, $state?position + string-length($value)), string-length($value))))
+          then map:put($next, "code", string-length($value)) else $next
+        else if ($value = $needle) then map:put($state, "found", $state?position)
+        else $next
+  })
+  return $state?found
+};
+
+(: Decision numbers in TEXT as references: D238, and D120b when that decision exists. :)
+declare %private function spec:prose-references($spec as map(*), $text as xs:string) as node()* {
   for $part in analyze-string($text, "[A-Za-z0-9_]+")/*
   return
-    if ($part/self::fn:match and matches($part, "^D[1-9][0-9]*$")) then <ref kind="decision" to="{ $part }"/>
+    if ($part/self::fn:match and (matches($part, "^D[1-9][0-9]*$")
+        or matches($part, "^D[1-9][0-9]*[a-z]$") and exists($spec?index("decision:" || $part))))
+    then <ref kind="decision" to="{ $part }"/>
     else text { $part }
 };
 
@@ -460,6 +752,7 @@ declare function spec:check($spec as map(*)) as xs:string* {
   let $included := map:merge(
     for $include in $all/self::document//include return map:entry(spec:reference-key($include), true()),
     { "duplicates": "use-first" })
+  let $collected := distinct-values($all/self::document//collect/@kind)
   return (
     for $article in $all
     group by $key := spec:key($article)
@@ -479,7 +772,7 @@ declare function spec:check($spec as map(*)) as xs:string* {
     where empty($spec?index("decision:" || $decision/@superseded-by))
     return "error: " || spec:key($decision) || " is superseded by " || $decision/@superseded-by || ", which does not exist",
     for $article in $all[not(self::document)]
-    where not($included(spec:key($article)))
+    where not($included(spec:key($article)) or local-name($article) = $collected)
     return "error: " || spec:key($article) || " is in no document",
     for $term in $all/self::term[count(definition) > 1]
     return "warning: term:" || $term/@id || " has " || count($term/definition) || " definitions"
@@ -526,6 +819,12 @@ declare function spec:refusals($spec as map(*), $changed as element()*) as xs:st
       return if ($valid instance of document-node()) then () else "error: " || spec:key($article) || " is not valid"
     } catch * { "error: " || spec:key($article) || " is not valid: " || $err:description },
     spec:check($after)[starts-with(., "error:")][not(. = $before)])
+};
+
+(:~ What removing ARTICLE would break: the errors spec:check would find that it does not now. :)
+declare function spec:removal-refusals($spec as map(*), $article as element()) as xs:string* {
+  let $after := spec:load($spec?articles[not(* is $article)])
+  return spec:check($after)[starts-with(., "error:")][not(. = spec:check($spec))]
 };
 
 (:~

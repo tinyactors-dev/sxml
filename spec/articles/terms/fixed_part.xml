@@ -1,4 +1,4 @@
-<term id="fixed_part" source="docs/GLOSSARY.md">
+<term id="fixed_part">
   <name>fixed_part</name>
   <definition>Text of a value template outside its variable parts, with <code>{{</code> and <code>}}</code> for single curly brackets (XSLT 4.0, 5.6); a string template's are <code>string_template_fixed_part</code></definition>
 </term>

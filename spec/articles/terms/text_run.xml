@@ -1,4 +1,4 @@
-<term id="text_run" source="docs/GLOSSARY.md">
+<term id="text_run">
   <name>text_run</name>
   <definition>A terminal node of an ixml parse tree for consecutive characters of the input that the XML keeps: one node for the text of a regular token, and for neighbouring kept terminals (<ref kind="decision" to="D290"/>)</definition>
 </term>

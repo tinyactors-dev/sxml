@@ -1,4 +1,4 @@
-<term id="basic_member" source="docs/GLOSSARY.md">
+<term id="basic_member">
   <name>basic_member</name>
   <definition>A member type of a union with every union member replaced by its own members, in order: an atomic or list type; the active basic member is the first the value is valid for (XSD 1.1 Part 2, 2.4.1.3)</definition>
 </term>

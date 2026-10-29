@@ -1,4 +1,4 @@
-<term id="streamed_document" source="docs/GLOSSARY.md">
+<term id="streamed_document">
   <name>streamed_document</name>
   <definition>A document read by streamed evaluation: its parser's events are consumed as they arrive, and it is never built as one tree (XSLT 4.0, 18.1; <ref kind="decision" to="D219"/>)</definition>
 </term>

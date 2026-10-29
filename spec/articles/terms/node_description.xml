@@ -1,4 +1,4 @@
-<term id="node_description" source="docs/GLOSSARY.md">
+<term id="node_description">
   <name>node_description</name>
   <definition>What a tree reports about one node: kind, name, parent, siblings, children, type annotation, flags</definition>
 </term>

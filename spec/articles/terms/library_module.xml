@@ -1,4 +1,4 @@
-<term id="library_module" source="docs/GLOSSARY.md">
+<term id="library_module">
   <name>library_module</name>
   <definition>An XQuery module that starts with a module declaration and is reached by <code>import module</code></definition>
 </term>

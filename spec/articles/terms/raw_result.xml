@@ -1,4 +1,4 @@
-<term id="raw_result" source="docs/GLOSSARY.md">
+<term id="raw_result">
   <name>raw_result</name>
   <definition>The value an invoked template or function returns, coerced to its declared type, before any tree is built or serialization (XSLT 4.0, 2.4)</definition>
 </term>

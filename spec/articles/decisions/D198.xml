@@ -1,4 +1,4 @@
-<decision id="D198" status="accepted" source="docs/DECISIONS.md">
+<decision id="D198" status="accepted">
   <title>EXPath Binary (packet <ref kind="packet" to="7.8"/>)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D51"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D163"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D191"/>. The EXPath Binary Module 4.0 is the optional feature <code>sxml_expath_binary_feature()</code> ("expath-binary").</p>

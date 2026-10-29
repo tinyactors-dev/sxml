@@ -1,4 +1,4 @@
-<term id="default_binding" source="docs/GLOSSARY.md">
+<term id="default_binding">
   <name>default_binding</name>
   <definition>What an element or attribute is bound to when it is valid: a declaration, an attribute use, or strict, lax or skip; restriction compares them (XSD 1.1 Part 1, 3.4.6.4)</definition>
 </term>

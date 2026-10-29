@@ -1,4 +1,4 @@
-<decision id="D227" status="accepted" source="docs/DECISIONS.md">
+<decision id="D227" status="accepted">
   <title>Per-language part lists (packet size-2)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D101"/>, <ref kind="decision" to="D103"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D211"/>, <ref kind="decision" to="D225"/>. <ref kind="decision" to="D189"/> and <ref kind="decision" to="D225"/> found XQuery's lowering parts (about 75 KB) and evaluator_stream (14.5 KB) in the core <code>sxml.wasm</code> only because each part registry was one table: the lowerer's default was the whole lowering registry, <code>sxml_function_library_parts_for_language</code> was one switch over every language's list, and the evaluator looked up kinds in every evaluator part. A module could not leave out the parts of a language it does not offer.</p>

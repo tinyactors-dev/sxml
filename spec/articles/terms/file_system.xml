@@ -1,4 +1,4 @@
-<term id="file_system" source="docs/GLOSSARY.md">
+<term id="file_system">
   <name>file_system</name>
   <definition>Host interface through which the EXPath File functions reach files and directories: describe, read, write, list, create, delete, move and temporary names, on absolute normalized paths, with the host's separators, current directory and temporary directory (<code>sxml_file_system</code>; EXPath File 4.0; <ref kind="decision" to="D184"/>, <ref kind="decision" to="D200"/>)</definition>
 </term>

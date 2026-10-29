@@ -1,4 +1,4 @@
-<term id="javascript_shim" source="docs/GLOSSARY.md">
+<term id="javascript_shim">
   <name>javascript_shim</name>
   <definition>The export files of the JavaScript package (<code>bindings/javascript/sxml_javascript_exports.c</code>, <code>sxml_javascript_full_exports.c</code> and the resolver over the import <code>sxml_host.resolve</code> in <code>sxml_javascript_host.c</code>): the names under which <code>sxml.wasm</code> and <code>sxml-full.wasm</code> export the <term name="host_shim"/> (<ref kind="decision" to="D138"/>, <ref kind="decision" to="D240"/>)</definition>
 </term>

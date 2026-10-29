@@ -1,4 +1,4 @@
-<term id="disjoint_matching_segments" source="docs/GLOSSARY.md">
+<term id="disjoint_matching_segments">
   <name>disjoint_matching_segments</name>
   <definition>The matching segments left after removing those that overlap an earlier one; what <code>fn:tokenize</code> and <code>fn:replace</code> work on (F&amp;O 4.0, section 6.1.1)</definition>
 </term>

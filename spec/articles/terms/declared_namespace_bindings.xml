@@ -1,4 +1,4 @@
-<term id="declared_namespace_bindings" source="docs/GLOSSARY.md">
+<term id="declared_namespace_bindings">
   <name>declared_namespace_bindings</name>
   <definition>The namespace bindings an element has itself, sent or added by namespace fixup, as opposed to those it inherits from its parent</definition>
 </term>

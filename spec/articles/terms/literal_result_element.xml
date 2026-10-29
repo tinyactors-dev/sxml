@@ -1,4 +1,4 @@
-<term id="literal_result_element" source="docs/GLOSSARY.md">
+<term id="literal_result_element">
   <name>literal_result_element</name>
   <definition>An element of a sequence constructor outside the XSLT namespace, copied to the result (XSLT 4.0, 11.1)</definition>
 </term>

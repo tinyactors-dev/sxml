@@ -1,4 +1,4 @@
-<term id="suite_deviation" source="docs/GLOSSARY.md">
+<term id="suite_deviation">
   <name>suite_deviation</name>
   <definition>A case of a conformance suite whose expected result sxml deliberately does not give, named in the driver's deviation list with the decision record that chose it; counted apart from failures, never reclassified (<ref kind="decision" to="D178"/>, <ref kind="decision" to="D323"/>)</definition>
 </term>

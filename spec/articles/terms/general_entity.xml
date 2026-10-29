@@ -1,4 +1,4 @@
-<term id="general_entity" source="docs/GLOSSARY.md">
+<term id="general_entity">
   <name>general_entity</name>
   <definition>An entity referenced as <code>&amp;name;</code> (XML 1.0, section 4): internal (with replacement text), external parsed, or unparsed</definition>
 </term>

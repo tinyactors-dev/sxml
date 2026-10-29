@@ -1,4 +1,4 @@
-<term id="stored_namespace" source="docs/GLOSSARY.md">
+<term id="stored_namespace">
   <name>stored_namespace</name>
   <definition>A namespace node held as a stored node of a tree: only a parentless one, at node index 0 (<ref kind="decision" to="D98"/>)</definition>
 </term>

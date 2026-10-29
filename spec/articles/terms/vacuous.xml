@@ -1,4 +1,4 @@
-<term id="vacuous" source="docs/GLOSSARY.md">
+<term id="vacuous">
   <name>vacuous</name>
   <definition>Of an item: a zero-length text node, a document node without children, a zero-length atomic item, or an array whose flattened members all are (XSLT 4.0, 8.5.2)</definition>
 </term>

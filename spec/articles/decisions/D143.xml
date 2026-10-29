@@ -1,4 +1,4 @@
-<decision id="D143" status="accepted" source="docs/DECISIONS.md">
+<decision id="D143" status="accepted">
   <title>Conformance sweep 1: computed constructors in XPath, the JSON fallback, descending ranges, function equivalence (packet <ref kind="packet" to="2.19"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D95"/>, <ref kind="decision" to="D110"/>, <ref kind="decision" to="D127"/>, <ref kind="decision" to="D133"/>, <ref kind="decision" to="D136"/>, <ref kind="decision" to="D141"/>. Accepts the Proposed items "QT4 assertions see the result as the context value", "Decimal zero against doubles", "A descending integer range" and "Equivalence of function items" (orchestrator, packet <ref kind="packet" to="2.19"/>).</p>

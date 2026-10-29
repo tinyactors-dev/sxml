@@ -1,4 +1,4 @@
-<decision id="D131" status="accepted" source="docs/DECISIONS.md">
+<decision id="D131" status="accepted">
   <title>Resources, the evaluation environment, lexical decimal formats and collations (packet <ref kind="packet" to="2.12"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>. Implements <ref kind="decision" to="D104"/> in <code>src/processor.c</code>, <code>src/processor_internal.h</code>, <code>src/xpath.c</code>, new part <code>src/function_library_resource.c</code>; accepts three Proposed items (2.6's range fast path, 2.9's decimal formats, 2.13's default collation).</p>

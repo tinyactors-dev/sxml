@@ -1,4 +1,4 @@
-<decision id="D86" status="accepted" source="docs/DECISIONS.md">
+<decision id="D86" status="accepted">
   <title>Fuzz targets (packet <ref kind="packet" to="1.26"/>)</title>
   <body>
     <list>

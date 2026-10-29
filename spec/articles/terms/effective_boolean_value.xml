@@ -1,4 +1,4 @@
-<term id="effective_boolean_value" source="docs/GLOSSARY.md">
+<term id="effective_boolean_value">
   <name>effective_boolean_value</name>
   <definition>The boolean value of a sequence (XPath 4.0, section 2.5.4)</definition>
 </term>

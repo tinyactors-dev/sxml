@@ -1,4 +1,4 @@
-<term id="content_specification" source="docs/GLOSSARY.md">
+<term id="content_specification">
   <name>content_specification</name>
   <definition>What an element type declaration allows as content: EMPTY, ANY, mixed content or a content model of element types (XML 1.0, [46] contentspec)</definition>
 </term>

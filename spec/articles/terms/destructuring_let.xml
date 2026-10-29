@@ -1,4 +1,4 @@
-<term id="destructuring_let" source="docs/GLOSSARY.md">
+<term id="destructuring_let">
   <name>destructuring_let</name>
   <definition>A let binding of several variables to the parts of one value: <code>$( ... )</code> items of a sequence, <code>$[ ... ]</code> members of an array, <code>${ ... }</code> entries of a map by name (XPath 4.0, section 4.13.2)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="xsd_test_case" source="docs/GLOSSARY.md">
+<term id="xsd_test_case">
   <name>xsd_test_case</name>
   <definition>A schema test or an instance test of an XSD test set, named <code>GROUP/TEST</code> in test lists and reports</definition>
 </term>

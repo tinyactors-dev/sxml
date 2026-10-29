@@ -1,4 +1,4 @@
-<term id="expression_rule_context" source="docs/GLOSSARY.md">
+<term id="expression_rule_context">
   <name>expression_rule_context</name>
   <definition>A rule's context that is no XSLT pattern but a valid XPath expression (<code>(//item)[1]</code>, <code>../x</code>): it matches the nodes the expression selects from the start nodes (the instance root, a phase's from nodes, a subordinate document's root), compiled as the predicate pattern <code>.[. intersect $s:context-K]</code> over a global holding the expression's value (<ref kind="decision" to="D315"/>)</definition>
 </term>

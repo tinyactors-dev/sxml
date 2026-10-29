@@ -1,4 +1,4 @@
-<term id="join" source="docs/GLOSSARY.md">
+<term id="join">
   <name>join</name>
   <name>split</name>
   <definition>Concatenate two array trees, keeping balance / cut an array tree before a member index into two</definition>

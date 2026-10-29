@@ -1,4 +1,4 @@
-<term id="name_table" source="docs/GLOSSARY.md">
+<term id="name_table">
   <name>name_table</name>
   <definition>The regex compiler's list of the group names read so far, for duplicates and <code>\k&lt;name&gt;</code> (<ref kind="decision" to="D105"/>)</definition>
 </term>

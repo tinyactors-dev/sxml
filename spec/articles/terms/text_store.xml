@@ -1,4 +1,4 @@
-<term id="text_store" source="docs/GLOSSARY.md">
+<term id="text_store">
   <name>text_store</name>
   <definition>The blocks of an arena tree that hold node content (text, attribute values, comments, ...) back to back</definition>
 </term>

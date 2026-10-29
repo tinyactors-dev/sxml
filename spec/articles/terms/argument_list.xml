@@ -1,4 +1,4 @@
-<term id="argument_list" source="docs/GLOSSARY.md">
+<term id="argument_list">
   <name>argument_list</name>
   <definition>The command-line arguments after the program or command name, as byte views</definition>
 </term>

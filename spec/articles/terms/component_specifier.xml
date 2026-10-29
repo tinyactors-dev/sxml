@@ -1,4 +1,4 @@
-<term id="component_specifier" source="docs/GLOSSARY.md">
+<term id="component_specifier">
   <name>component_specifier</name>
   <definition>The letter that starts a variable marker and names the component: <code>Y</code>, <code>M</code>, <code>D</code>, <code>d</code>, <code>F</code>, <code>W</code>, <code>w</code>, <code>H</code>, <code>h</code>, <code>P</code>, <code>m</code>, <code>s</code>, <code>f</code>, <code>Z</code>, <code>z</code>, <code>C</code>, <code>E</code></definition>
 </term>

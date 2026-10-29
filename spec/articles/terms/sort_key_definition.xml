@@ -1,4 +1,4 @@
-<term id="sort_key_definition" source="docs/GLOSSARY.md">
+<term id="sort_key_definition">
   <name>sort_key_definition</name>
   <definition>One key of <code>fn:sort-by</code>: a key function (or <code>fn:data#1</code>), a collation and an order direction (F&amp;O 4.0, <code>fn:sort-key-record</code>)</definition>
 </term>

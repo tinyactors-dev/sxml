@@ -1,4 +1,4 @@
-<term id="special_type" source="docs/GLOSSARY.md">
+<term id="special_type">
   <name>special_type</name>
   <definition>xs:anyType, xs:anySimpleType and xs:anyAtomicType: no list item type, union member or restriction base of a schema's simple type (XSD 1.1 Part 1, 3.16.6.2)</definition>
 </term>

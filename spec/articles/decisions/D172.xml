@@ -1,4 +1,4 @@
-<decision id="D172" status="accepted" source="docs/DECISIONS.md">
+<decision id="D172" status="accepted">
   <title>Complex types and content models (packet <ref kind="packet" to="5.6"/>)</title>
   <body>
     <p><recorded date="2026-10-18"/>. Fills COMPLEX_TYPES and the content model plan of <ref kind="decision" to="D167"/> (<code>src/schema_complex_type.c</code>, <code>src/schema_content_model.c</code>).</p>

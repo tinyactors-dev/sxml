@@ -1,4 +1,4 @@
-<term id="serialization_parameter_names" source="docs/GLOSSARY.md">
+<term id="serialization_parameter_names">
   <name>serialization_parameter_names</name>
   <definition>Fields of <code>sxml_serialization_parameters</code> spell the Serialization 4.0 parameter names with <code>_</code> for <code>-</code> (<code>omit_xml_declaration</code>, <code>use_character_maps</code>); <term name="serialization_method"/> is <code>method</code>, <term name="character_encoding"/> is <code>encoding</code>; a <code>has_</code> field marks a parameter that may be absent</definition>
 </term>

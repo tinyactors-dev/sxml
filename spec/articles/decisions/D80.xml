@@ -1,4 +1,4 @@
-<decision id="D80" status="accepted" source="docs/DECISIONS.md">
+<decision id="D80" status="accepted">
   <title>Higher-order, map and array functions (packet <ref kind="packet" to="1.21"/>)</title>
   <body>
     <p><recorded date="2026-10-16"/>, completing <ref kind="decision" to="D79"/>.</p>

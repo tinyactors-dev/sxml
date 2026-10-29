@@ -1,4 +1,4 @@
-<term id="merge_cursor" source="docs/GLOSSARY.md">
+<term id="merge_cursor">
   <name>merge_cursor</name>
   <definition>The reader of one input of MERGE: an anchor document of a merge stream, pulled one selected node at a time, or the grounded sources' tuples; its current tuple is its head (<ref kind="decision" to="D236"/>)</definition>
 </term>

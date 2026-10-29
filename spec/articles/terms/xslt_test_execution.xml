@@ -1,4 +1,4 @@
-<term id="xslt_test_execution" source="docs/GLOSSARY.md">
+<term id="xslt_test_execution">
   <name>xslt_test_execution</name>
   <definition>Running one planned XSLT 4.0 test case through <code>include/sxml/xslt.h</code> in a processor of its own and checking its assertions (<code>tests/xslt/driver/xslt_execution.h</code>, <ref kind="decision" to="D157"/>)</definition>
 </term>

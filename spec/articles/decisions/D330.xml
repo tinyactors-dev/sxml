@@ -1,4 +1,4 @@
-<decision id="D330" status="accepted" source="docs/DECISIONS.md">
+<decision id="D330" status="accepted">
   <title>IR passes walk each body once, with a cheaper child walk (packet <ref kind="packet" to="perf-16"/>)</title>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D224"/>, <ref kind="decision" to="D259"/>, <ref kind="decision" to="D324"/>, <ref kind="decision" to="D325"/>, <ref kind="decision" to="D327"/>. No header changed; the IR after the passes is the same, item demands included.</p>

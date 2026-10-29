@@ -1,4 +1,4 @@
-<decision id="D98" status="accepted" source="docs/DECISIONS.md">
+<decision id="D98" status="accepted">
   <title>Substrate review at the Phase 1 gate (packet <ref kind="packet" to="1.29"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/> by the Phase 1 review agent (<ref kind="decision" to="D11"/>). Before the freeze (<ref kind="decision" to="D99"/>) every record that touched the substrate headers (<ref kind="decision" to="D19"/>-<ref kind="decision" to="D43"/>, <ref kind="decision" to="D68"/>, <ref kind="decision" to="D69"/>, <ref kind="decision" to="D73"/>, <ref kind="decision" to="D77"/>, <ref kind="decision" to="D89"/>) was checked against the Phase 2-4 task files; "Proposed" was empty. All earlier records stand. Found and changed:</p>

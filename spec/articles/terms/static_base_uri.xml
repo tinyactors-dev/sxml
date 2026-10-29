@@ -1,4 +1,4 @@
-<term id="static_base_uri" source="docs/GLOSSARY.md">
+<term id="static_base_uri">
   <name>static_base_uri</name>
   <definition>The base URI of the static context (XPath 4.0, section 2.2.1), against which fn:doc and fn:resolve-uri resolve relative URIs</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="current_mode" source="docs/GLOSSARY.md">
+<term id="current_mode">
   <name>current_mode</name>
   <definition>The mode the running template was chosen in; <code>mode="#current"</code> (XSLT 4.0, 6.9.2)</definition>
 </term>

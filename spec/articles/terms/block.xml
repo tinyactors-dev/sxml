@@ -1,4 +1,4 @@
-<term id="block" source="docs/GLOSSARY.md">
+<term id="block">
   <name>block</name>
   <definition>One piece of memory an arena takes from its block allocator</definition>
 </term>

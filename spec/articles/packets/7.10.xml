@@ -1,4 +1,4 @@
-<packet id="7.10" source="docs/tasks/phase-7.md">
+<packet id="7.10">
   <title>HTML5 parsing: fn:parse-html and fn:html-doc (implementation, two packets)</title>
   <body>
     <list>

@@ -1,4 +1,4 @@
-<term id="step_grant" source="docs/GLOSSARY.md">
+<term id="step_grant">
   <name>step_grant</name>
   <definition>The evaluation steps each element a streamed document reads gives back to the evaluation, so the step bound of a streamed evaluation grows with its input (<ref kind="decision" to="D295"/>)</definition>
 </term>

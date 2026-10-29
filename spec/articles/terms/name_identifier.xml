@@ -1,4 +1,4 @@
-<term id="name_identifier" source="docs/GLOSSARY.md">
+<term id="name_identifier">
   <name>name_identifier</name>
   <definition>Identifier of an interned expanded name (namespace URI plus local name) in a name pool</definition>
 </term>

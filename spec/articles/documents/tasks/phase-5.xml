@@ -1,4 +1,4 @@
-<document id="tasks/phase-5" source="docs/tasks/phase-5.md">
+<document id="tasks/phase-5" file="docs/tasks/phase-5.md">
   <title>Phase 5: XSD 1.1 validation and schema-aware typing</title>
   <p>Goal (PLAN.md): XSD 1.1 schemas compiled from schema documents, trees validated against them into typed trees, and schema awareness in XPath, XQuery and XSLT (import schema, validate, xsl:import-schema, validation and type attributes, schema-element() tests); <code>sxml validate</code> (below). It starts alongside the end of Phase 4 (<ref kind="decision" to="D164"/>) and must not regress the Phase 4 counts. Design: <ref kind="decision" to="D165"/>. Rules for parallel packets are those of <code>docs/tasks/phase-2.md</code> (<ref kind="decision" to="D45"/>, <ref kind="decision" to="D96"/>, <ref kind="decision" to="D132"/>: a packet starts when every packet in its "After" list is committed).</p>
   <section id="the-design-in-one-page-d165">

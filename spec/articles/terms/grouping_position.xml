@@ -1,4 +1,4 @@
-<term id="grouping_position" source="docs/GLOSSARY.md">
+<term id="grouping_position">
   <name>grouping_position</name>
   <definition>The number of digit signs between a grouping separator and the end of the integer part (or the decimal separator)</definition>
 </term>

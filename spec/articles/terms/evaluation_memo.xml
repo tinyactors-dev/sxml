@@ -1,4 +1,4 @@
-<term id="evaluation_memo" source="docs/GLOSSARY.md">
+<term id="evaluation_memo">
   <name>evaluation_memo</name>
   <definition>Values a native body computes once per evaluation and subject node (an xsl:key's index for one tree), kept in the dynamic context until the evaluation ends (<ref kind="decision" to="D149"/>)</definition>
 </term>

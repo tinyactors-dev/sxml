@@ -1,4 +1,4 @@
-<term id="conditional_section" source="docs/GLOSSARY.md">
+<term id="conditional_section">
   <name>conditional_section</name>
   <definition>An <code>&lt;![INCLUDE[ ... ]]&gt;</code> or <code>&lt;![IGNORE[ ... ]]&gt;</code> section of external DTD text; its keyword may be a parameter-entity reference (XML 1.0, section 3.4)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="default_function" source="docs/GLOSSARY.md">
+<term id="default_function">
   <name>default_function</name>
   <definition>The IR function that computes the default expression of one optional parameter of a declared XQuery function; its parameters are the caller's context value, position and size, of which it reads those its IR function's focus names (<code>SXML_PARAMETER_DEFAULT_EXPRESSION</code>, XQuery 4.0, 5.18.3)</definition>
 </term>

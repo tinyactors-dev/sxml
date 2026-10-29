@@ -1,4 +1,4 @@
-<decision id="D250" status="accepted" source="docs/DECISIONS.md">
+<decision id="D250" status="accepted">
   <title>The Kotlin full surface: XQuery, XSLT, XSD, the DUCET resource, U+0000 (packet <ref kind="packet" to="6.5"/>)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D23"/>, <ref kind="decision" to="D213"/>, <ref kind="decision" to="D216"/>, <ref kind="decision" to="D238"/>, <ref kind="decision" to="D240"/>, <ref kind="decision" to="D247"/>, <ref kind="decision" to="D248"/>. Packet <ref kind="packet" to="6.5"/> added the rest of the task file's Kotlin API to <code>dev.tinyactors.sxml</code>, over the host shim's full-module entry points.</p>

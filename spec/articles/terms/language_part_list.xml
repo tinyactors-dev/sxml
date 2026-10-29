@@ -1,4 +1,4 @@
-<term id="language_part_list" source="docs/GLOSSARY.md">
+<term id="language_part_list">
   <name>language_part_list</name>
   <definition>The parts of one part registry that serve one language, generated in a translation unit of its own; the language's entry point names it, so a module links only the parts of the languages it offers (<ref kind="decision" to="D227"/>)</definition>
 </term>

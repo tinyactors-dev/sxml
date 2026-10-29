@@ -1,4 +1,4 @@
-<term id="navigational" source="docs/GLOSSARY.md">
+<term id="navigational">
   <name>navigational</name>
   <definition>Of a step E2 in E1/E2 (XPath 4.0, section 4.7.3): ".", an axis step, a path, or a union, sequence, filter, conditional or let made only of navigational expressions</definition>
 </term>

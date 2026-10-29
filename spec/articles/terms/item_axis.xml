@@ -1,4 +1,4 @@
-<term id="item_axis" source="docs/GLOSSARY.md">
+<term id="item_axis">
   <name>item_axis</name>
   <definition>The axis <code>item::</code>, defined for JNodes: the items of the origin's ·jvalue· as JNodes (XPath 4.0, section 4.7.4)</definition>
 </term>

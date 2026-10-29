@@ -1,4 +1,4 @@
-<term id="verifier" source="docs/GLOSSARY.md">
+<term id="verifier">
   <name>verifier</name>
   <definition>The pass that checks the invariants of a unit and changes nothing</definition>
 </term>

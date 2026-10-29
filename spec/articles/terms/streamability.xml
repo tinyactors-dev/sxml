@@ -1,4 +1,4 @@
-<term id="streamability" source="docs/GLOSSARY.md">
+<term id="streamability">
   <name>streamability</name>
   <definition>Whether a construct is guaranteed-streamable by the rules of XSLT 4.0, chapter 19, computed from postures and sweeps</definition>
 </term>

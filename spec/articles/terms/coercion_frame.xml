@@ -1,4 +1,4 @@
-<term id="coercion_frame" source="docs/GLOSSARY.md">
+<term id="coercion_frame">
   <name>coercion_frame</name>
   <definition>An entry on the explicit stack of applying the coercion rules (XPath 4.0, section 3.4) to a value: a sequence, an item, a choice being tried, or the parts of an array, map or record</definition>
 </term>

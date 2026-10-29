@@ -1,4 +1,4 @@
-<term id="is_ascii" source="docs/GLOSSARY.md">
+<term id="is_ascii">
   <name>is_ascii</name>
   <definition>The flag of a string whose bytes are all below 0x80 (<ref kind="decision" to="D6"/>)</definition>
 </term>

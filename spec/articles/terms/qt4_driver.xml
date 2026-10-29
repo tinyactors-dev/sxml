@@ -1,4 +1,4 @@
-<term id="qt4_driver" source="docs/GLOSSARY.md">
+<term id="qt4_driver">
   <name>qt4_driver</name>
   <definition>The QT4 test-suite driver: the developer tool under <code>tests/qt4/driver/</code> that reads the QT4 catalog and runs its test cases (<ref kind="decision" to="D44"/>)</definition>
 </term>

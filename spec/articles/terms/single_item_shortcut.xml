@@ -1,4 +1,4 @@
-<term id="single_item_shortcut" source="docs/GLOSSARY.md">
+<term id="single_item_shortcut">
   <name>single_item_shortcut</name>
   <definition>Matching or coercing no item or one item without the frames of the type matcher or the coercion engine: the count against the occurrence, one item by the item rules alone, one item (or a node's one-item typed value) to an atomic type by the atomic coercion rules, one item to a choice by the first alternative it matches when that one keeps it; whatever they do not decide at once goes to the frames (internal, <code>src/evaluator_function.c</code>, <ref kind="decision" to="D316"/>, <ref kind="decision" to="D319"/>)</definition>
 </term>

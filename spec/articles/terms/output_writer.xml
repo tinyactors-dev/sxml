@@ -1,4 +1,4 @@
-<term id="output_writer" source="docs/GLOSSARY.md">
+<term id="output_writer">
   <name>output_writer</name>
   <definition>The host shim's receiver of a processor's serializations a chunk at a time (<code>sxml_host_output_writer</code>, <code>sxml_host_set_output</code>): output events of bytes, and of the bounds of each serialized result document (<ref kind="decision" to="D294"/>)</definition>
 </term>

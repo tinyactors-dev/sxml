@@ -1,4 +1,4 @@
-<decision id="D112" status="accepted" source="docs/DECISIONS.md">
+<decision id="D112" status="accepted">
   <title>The XSLT API (packet <ref kind="packet" to="4.0"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>. <code>include/sxml/xslt.h</code> is new, header only, after <code>xquery.h</code> (<ref kind="decision" to="D106"/>); 4.15 implements it in <code>src/xslt.c</code>.</p>

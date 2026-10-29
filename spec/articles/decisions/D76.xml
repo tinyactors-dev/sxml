@@ -1,4 +1,4 @@
-<decision id="D76" status="accepted" source="docs/DECISIONS.md">
+<decision id="D76" status="accepted">
   <title>XPTY0019 for the path operator (P5)</title>
   <body>
     <p><recorded date="2026-10-16"/> by packet <ref kind="packet" to="1.18"/>, on the orchestrator's acceptance of P5. <code>SXML_IR_MAP_REQUIRES_NODES</code> in <code>sxml_ir_map_flag</code>: lowering sets it on the MAP of <code>E1/E2</code> and of <code>//</code>; the evaluator raises XPTY0019 (XPath 4.0, section 4.6.3) for an input item that is not a generic node. The text form does not print the flag, so the golden dumps of <ref kind="decision" to="D63"/> are unchanged; the verifier accepts it.</p>

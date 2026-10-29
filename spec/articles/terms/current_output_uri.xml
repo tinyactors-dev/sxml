@@ -1,4 +1,4 @@
-<term id="current_output_uri" source="docs/GLOSSARY.md">
+<term id="current_output_uri">
   <name>current_output_uri</name>
   <definition>The URI of the result being written: the base output URI, or the absolute <code>href</code> of the <code>xsl:result-document</code> being evaluated (XSLT 4.0, 26.3)</definition>
 </term>

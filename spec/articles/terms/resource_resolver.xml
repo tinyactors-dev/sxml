@@ -1,4 +1,4 @@
-<term id="resource_resolver" source="docs/GLOSSARY.md">
+<term id="resource_resolver">
   <name>resource_resolver</name>
   <definition>Host interface that retrieves resources by URI: documents, text, binary resources, collections, XQuery modules, XSLT modules and packages</definition>
 </term>

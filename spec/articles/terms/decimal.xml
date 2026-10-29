@@ -1,4 +1,4 @@
-<term id="decimal" source="docs/GLOSSARY.md">
+<term id="decimal">
   <name>decimal</name>
   <definition>An <code>xs:decimal</code> value, or an <code>xs:integer</code> beyond <code>int64_t</code>, as a libmpdec number (<code>sxml_decimal</code>, <code>src/decimal_internal.h</code>; <ref kind="decision" to="D36"/>, <ref kind="decision" to="D42"/>)</definition>
 </term>

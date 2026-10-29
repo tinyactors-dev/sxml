@@ -1,4 +1,4 @@
-<term id="content_recovery" source="docs/GLOSSARY.md">
+<term id="content_recovery">
   <name>content_recovery</name>
   <definition>What the validator does after a child element its parent's content model rejects (cvc-complex-type.2.4): it moves to the nearest state the child is accepted from, as if the elements before it were missing, or else skips the child, so that the rest of the content is still assessed and its errors reported (<ref kind="decision" to="D277"/>)</definition>
 </term>

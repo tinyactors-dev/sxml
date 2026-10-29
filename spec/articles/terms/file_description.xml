@@ -1,4 +1,4 @@
-<term id="file_description" source="docs/GLOSSARY.md">
+<term id="file_description">
   <name>file_description</name>
   <definition>What a file system tells about one path: whether it is a file, a directory or absent, its size and its last modification time (<code>sxml_file_description</code>; EXPath File 4.0, 3)</definition>
 </term>

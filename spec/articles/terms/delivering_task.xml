@@ -1,4 +1,4 @@
-<term id="delivering_task" source="docs/GLOSSARY.md">
+<term id="delivering_task">
   <name>delivering_task</name>
   <definition>An evaluator task in content position: when it finishes, its value is added to the construction of the receiving task below instead of being handed to the task below, and a loop's body or a call's body in it delivers each value at once (<ref kind="decision" to="D166"/>)</definition>
 </term>

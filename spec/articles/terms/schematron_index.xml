@@ -1,4 +1,4 @@
-<term id="schematron_index" source="docs/GLOSSARY.md">
+<term id="schematron_index">
   <name>schematron_index</name>
   <definition>What reading a Schematron schema records once (<ref kind="decision" to="D323"/>): the schema element, its title, namespaces, schema parameters and variables, phases, schematron patterns, abstract rules and patterns, diagnostics, properties and foreign declarations, each by place, for the build to look up</definition>
 </term>

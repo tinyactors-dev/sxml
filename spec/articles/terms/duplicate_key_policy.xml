@@ -1,4 +1,4 @@
-<term id="duplicate_key_policy" source="docs/GLOSSARY.md">
+<term id="duplicate_key_policy">
   <name>duplicate_key_policy</name>
   <definition>What building a map does with keys that are atomic-equal: reject, keep first, keep last</definition>
 </term>

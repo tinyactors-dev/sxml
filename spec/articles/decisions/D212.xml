@@ -1,4 +1,4 @@
-<decision id="D212" status="accepted" source="docs/DECISIONS.md">
+<decision id="D212" status="accepted">
   <title>XSLT streamability analysis (packet 7.6a)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D97"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D166"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>. Replaces <ref kind="decision" to="D97"/>'s "streamable="yes" runs unstreamed" by the analysis of XSLT 4.0, chapter 19 (whose rules are XSLT 3.0's chapter 19); evaluation stays unstreamed until 7.6b.</p>

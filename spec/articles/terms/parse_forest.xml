@@ -1,4 +1,4 @@
-<term id="parse_forest" source="docs/GLOSSARY.md">
+<term id="parse_forest">
   <name>parse_forest</name>
   <definition>The Earley parser's shared record of every parse of an input under an ixml grammar; the first tree is serialized, and more than one marks the result ambiguous</definition>
 </term>

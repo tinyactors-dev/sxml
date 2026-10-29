@@ -1,4 +1,4 @@
-<term id="collation_unit" source="docs/GLOSSARY.md">
+<term id="collation_unit">
   <name>collation_unit</name>
   <definition>A collation element that is not ignorable on every compared level; substring matching under a collation compares these (F&amp;O 4.0, section 5.4)</definition>
 </term>

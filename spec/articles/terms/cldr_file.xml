@@ -1,4 +1,4 @@
-<term id="cldr_file" source="docs/GLOSSARY.md">
+<term id="cldr_file">
   <name>cldr_file</name>
   <definition>A CLDR XML file read into a table of its leaf elements by distinguished path, with its aliases (src/cldr_internal.h; <ref kind="decision" to="D221"/>)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="duration" source="docs/GLOSSARY.md">
+<term id="duration">
   <name>duration</name>
   <definition>A duration datum: months plus seconds and nanoseconds (XDM 4.0, section 5.5)</definition>
 </term>

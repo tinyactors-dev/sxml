@@ -1,4 +1,4 @@
-<decision id="D219" status="accepted" source="docs/DECISIONS.md">
+<decision id="D219" status="accepted">
   <title>Streamed evaluation in XSLT (packet 7.6b)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D166"/>, <ref kind="decision" to="D208"/>, <ref kind="decision" to="D212"/>. Replaces the rest of <ref kind="decision" to="D97"/>'s "streamable="yes" runs unstreamed": xsl:source-document streams the bodies it can, and the stylesheet option of 19.10 is in <code>xslt.h</code>. Accepts 7.6a's Proposed item (the option), not its streamed principal source (below).</p>

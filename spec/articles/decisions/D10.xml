@@ -1,4 +1,4 @@
-<decision id="D10" status="accepted" source="docs/DECISIONS.md">
+<decision id="D10" status="accepted">
   <title>WebAssembly toolchain</title>
   <body>
     <p>WASI SDK producing a standalone module, wrapped by a small hand-written TypeScript package. The core does no I/O of its own, so Emscripten's JavaScript system emulation is not needed. Confirmed at the Phase 0 gate: the <code>wasm</code> preset builds with WASI SDK 34 and runs the tests under Node.js (<ref kind="decision" to="D14"/>, <ref kind="decision" to="D18"/>). The TypeScript package arrives with the first public API (Phase 1 onwards).</p>

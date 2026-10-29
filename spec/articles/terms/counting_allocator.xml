@@ -1,4 +1,4 @@
-<term id="counting_allocator" source="docs/GLOSSARY.md">
+<term id="counting_allocator">
   <name>counting_allocator</name>
   <definition>The allocator test double: counts allocations and fails a chosen one</definition>
 </term>

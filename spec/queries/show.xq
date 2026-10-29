@@ -40,5 +40,5 @@ return string-join((
       let $cited := spec:cited-by($spec, $article)
       return ("  cited by (" || count($cited) || "):", $cited ! ("    " || spec:line(.)))))
   else (),
-  if ($depth ge 2) then ("", spec:outline-markdown($spec, $article, 2)) else ()
+  if ($depth ge 2) then ("", spec:markdown($spec, $article, 2, "outline")) else ()
 ), "&#10;")

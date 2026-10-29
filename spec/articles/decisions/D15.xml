@@ -1,4 +1,4 @@
-<decision id="D15" status="accepted" source="docs/DECISIONS.md">
+<decision id="D15" status="accepted">
   <title>tree-sitter pin</title>
   <body>
     <p><recorded date="2026-10-16"/>. Runtime <code>v0.27.1</code> (commit <code>10eb5ac1</code>), copied unmodified to <code>third_party/tree-sitter/</code> (<code>LICENSE</code>, <code>lib/include</code>, <code>lib/src</code>; details in <code>third_party/tree-sitter/VERSION</code>). Built as <code>sxml_tree_sitter</code> from the single unit <code>lib/src/lib.c</code> with <code>TREE_SITTER_FEATURE_WASM</code> undefined. <code>tree-sitter-cli</code> <code>0.27.1</code> is pinned in <code>tools/package.json</code> (<code>npm ci --prefix tools</code>); <code>tools/generate-grammars.sh</code> regenerates <code>grammars/&lt;language&gt;/src/</code> and <code>sxml_add_grammar(&lt;language&gt;)</code> (<code>cmake/SxmlGrammar.cmake</code>) builds it as <code>sxml_grammar_&lt;language&gt;</code>. Runtime and CLI versions move together.</p>

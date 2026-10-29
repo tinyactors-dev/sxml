@@ -1,4 +1,4 @@
-<term id="instance_test" source="docs/GLOSSARY.md">
+<term id="instance_test">
   <name>instance_test</name>
   <definition>An XSD test that validates an instance document against its test group's schema: valid means the validation root is valid</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="item_kind" source="docs/GLOSSARY.md">
+<term id="item_kind">
   <name>item_kind</name>
   <definition>Atomic item, node (XNode), JNode, function item, map or array</definition>
 </term>

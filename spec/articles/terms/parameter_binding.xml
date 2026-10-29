@@ -1,4 +1,4 @@
-<term id="parameter_binding" source="docs/GLOSSARY.md">
+<term id="parameter_binding">
   <name>parameter_binding</name>
   <definition>A parameter name with the value passed for it (<code>xsl:with-param</code>)</definition>
 </term>

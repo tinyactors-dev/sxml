@@ -1,14 +1,14 @@
-# The spec as articles
+# The spec
 
-`spec/articles/` holds the project's specification (the Markdown under
-`docs/`: decisions, glossary, tasks, log, plan, guidelines, queue) as one
-XML file per **article**. Agents ask questions with queries, not by
-reading kilobytes of Markdown, and change articles with node updates,
-not with text tools. Each fact is in one article, and the pages people
-read are assembled from the articles.
+The project's specification (plan, guidelines, glossary, decisions,
+tasks, log, agent prompts, the queue) is one XML file per **article**
+under `spec/articles/`. Agents ask questions with queries, not by reading
+kilobytes of Markdown, and change articles with node updates, not with
+text tools. Each fact is in one article. The pages under `docs/` are
+generated from the articles: each document writes one page.
 
-This is a **shadow copy** for now: `docs/` is still the source (see
-"The shadow period").
+`docs/CONFORMANCE.md` (written by `tools/conformance-report.py`) and the
+book (`docs/book/`) are not part of the spec.
 
 ## Layout
 
@@ -16,52 +16,64 @@ This is a **shadow copy** for now: `docs/` is still the source (see
 | --- | --- |
 | `spec/articles/` | The articles, one directory per kind (below) |
 | `spec/schema/spec.xsd` | The vocabulary, in XSD 1.1: the contract queries and updates rely on |
-| `spec/lib/spec.xqm` | The XQuery library: loading, lookup, references, Markdown, prose, checks, `spec:store` |
+| `spec/lib/spec.xqm` | The XQuery library: loading, lookup, references, Markdown, the source form, checks, `spec:store` |
 | `spec/queries/*.xq` | One main module per command of `tools/spec/spec` |
 | `tools/spec/spec` | The command: every read and write |
-| `tools/spec/import.py`, `tools/spec/markdown.py` | The import from `docs/` (the shadow period only) |
 | `tools/spec/test.sh` | The tests |
-| `.claude/hooks/spec-nodes-only.py` | Refuses text tools on `spec/articles/` |
+| `.claude/hooks/spec-nodes-only.py` | Refuses text tools on the articles and the pages |
+| `docs/*.md`, `docs/tasks/`, `docs/agents/` | The generated pages |
 
 ## Words
 
 - **Article**: one file. Its **kind** is its root element, its
   **identifier** its `@id`, its **key** `kind:identifier`.
 
-  | Kind | Directory | Identifier | Was |
-  | --- | --- | --- | --- |
-  | `decision` | `decisions/` | `D238` | a `### Dn.` of `docs/DECISIONS.md` |
-  | `proposal` | `proposals/` | a slug of its title | an item of its "Proposed" list |
-  | `term` | `terms/` | its first name, kept when it is renamed | a row of `docs/GLOSSARY.md` |
-  | `packet` | `packets/` | `6.2`, `perf-15` | a `### <packet>` of `docs/tasks/` |
-  | `log-entry` | `log/` | a slug of its heading | a `##` section of `docs/LOG.md` |
-  | `document` | `documents/` | `PLAN`, `tasks/phase-6` | a Markdown file: its own text, and an **include** where each article taken out of it was |
+  | Kind | Directory | Identifier |
+  | --- | --- | --- |
+  | `decision` | `decisions/` | `D238`, `D120b` |
+  | `proposal` | `proposals/` | a slug of its title |
+  | `term` | `terms/` | its first name, kept when it is renamed |
+  | `packet` | `packets/` | `6.2`, `perf-15` |
+  | `log-entry` | `log/` | `week-of-2026-10-26`, or a slug of its title |
+  | `document` | `documents/` | `PLAN`, `tasks/phase-6`; `@file` is its page |
 
-- **Section**: a heading of a document, named `document#slug`
+- **Section**: a heading of a document, named `document#id`
   (`tasks/phase-6#packets`).
+- **Include** and **collect**: where articles appear in a document. An
+  include places one article (`<include kind="packet" to="6.2"/>`); a
+  collect places every article of a kind, decisions by number and the
+  others by identifier (`DECISIONS` collects decisions and proposals,
+  `GLOSSARY` terms), so a new decision or term changes no document.
 - **Reference**: `<ref kind="decision" to="D238"/>` in text, or
-  `<term name="host_shim"/>` for a term written as code. An include is
-  where an article appears in a document, not a citation.
+  `<term name="host_shim"/>` for a term written as code. An include or a
+  collect is a place, not a citation.
 - **Summary**: one sentence an agent reads before deciding to read more.
-  None is written yet: until one is, the start of the text stands in,
-  shown after a `~`.
-- **State**: a decision's `@status` (`accepted`, `superseded` with
-  `@superseded-by`); a packet's `<status value="done" date="..."/>` at the
-  start of its body (it renders as `**Done** 2026-10-20`).
-- **Canonical form**: a file as `spec:put` writes it: indented, except inside the elements that hold text, with
-  a final newline. `spec:store` writes nothing else, so one changed field
-  is one changed line in `git diff`.
+  Until one is written, the start of the text stands in, shown after `~`.
+- **State**: a decision's `@status`: `accepted`, `superseded` (with
+  `@superseded-by`), or `unused` for a number no decision has; a
+  packet's `<status value="done" date="..."/>` at the start of its body
+  (on the page: `**Done** 2026-10-20`).
+- **Source form**: an article's text as Markdown that reads back to the
+  same nodes (`tools/spec/spec text`). `` `code` `` that names a term is
+  that term, `D238` a decision, `[[kind:id]]` any other reference, and a
+  line `[[include:kind:id]]`, `[[collect:kind]]` or `[[section:id]]`
+  stands for an include, a collect or a subsection.
+- **Canonical form**: a file as `spec:put` writes it: indented, except
+  inside the elements that hold text, with a final newline. One changed
+  field is one changed line in `git diff`.
+- **Page**: the Markdown file a document's `@file` names, written by
+  `tools/spec/spec generate`. Never edited.
 
 ## Reading
 
 `tools/spec/spec help` lists everything. NAME is an identifier
 (`D238`, `6.2`, `host_shim`, `PLAN`), a key (`packet:6.2`) or a section.
-Each read takes about 0.2 seconds for all 1,603 articles.
+Each read takes about 0.2 seconds for all the articles.
 
 ```console
 $ tools/spec/spec show D238                  # what, state, summary: three lines
 $ tools/spec/spec show D238 --depth=1        # and what it cites, what cites it
-$ tools/spec/spec show D238 --depth=2        # and its text as Markdown
+$ tools/spec/spec show D238 --depth=2        # and its text
 $ tools/spec/spec show tasks/phase-6 --depth=1   # a document's outline
 $ tools/spec/spec refs D71                   # every citation of D71, in context
 $ tools/spec/spec brief 6.3                  # all of a packet, one line on each thing it cites
@@ -70,12 +82,13 @@ $ tools/spec/spec status phase-6
 $ tools/spec/spec list decision --since=2026-10-28
 $ tools/spec/spec list --missing-summary decision
 $ tools/spec/spec find tree-sitter pin       # Full Text: all words, stemmed
-$ tools/spec/spec markdown DECISIONS --output=/tmp/DECISIONS.md
+$ tools/spec/spec text 'agents/QUEUE#running'    # the source form, to edit
+$ tools/spec/spec markdown C_GUIDELINES      # a page, as people read it
 ```
 
-Any question the commands do not answer is an XPath or XQuery over the
-documented vocabulary. `$spec` is the loaded spec (`spec:load()`),
-`$articles` its documents, and `spec.xqm` is imported:
+Any other question is an XPath or XQuery over the documented
+vocabulary. `$spec` is the loaded spec (`spec:load()`), `$articles` its
+documents, and `spec.xqm` is imported:
 
 ```console
 $ tools/spec/spec query '$articles/decision[.//ref[@to = "D71"]]/@id ! string()'
@@ -85,19 +98,26 @@ $ build/release/apps/sxml xpath --collection='spec/articles?recurse=yes' 'count(
 
 ## Writing
 
-Prose arguments are a small Markdown: paragraphs and `- ` lists split by
-blank lines, ```` ``` ```` fences, `` `code` `` (a term reference when it
-names a term), `**strong**`, `*em*`, `[text](url)`, `[[kind:id]]` for any
-reference, and decision numbers (`D238`), which always become references.
-`-` reads the value from standard input.
+Text arguments are in source form; `-` reads the value from standard
+input. To change a body or a section, take its source form, edit it,
+and give it back:
 
 ```console
+$ tools/spec/spec text 'agents/QUEUE#running' > running.md    # edit running.md
+$ tools/spec/spec amend 'agents/QUEUE#running' --body=- < running.md
+```
+
+```console
+$ tools/spec/spec add decision --title='...' --summary='...' --after='D11 D181' --body=- < body.md
+$ tools/spec/spec add proposal --title='...' --body='...'
+$ tools/spec/spec add term rule_bucket --definition='...'
+$ tools/spec/spec add packet 7.31 --document=tasks/phase-7 --title='...' --body=- < packet.md
 $ tools/spec/spec amend D238 --summary='Kotlin, Swift and JavaScript share one C layer, the `host_shim` (D138).'
-$ tools/spec/spec add decision --title='...' --after='D11 D181' --body=- < body.md
-$ tools/spec/spec add term rule_bucket --definition='...' --after=item_requirement
+$ tools/spec/spec log 'perf-18 done (D333): ...'
+$ tools/spec/spec set-status 6.10 done
 $ tools/spec/spec supersede D99 --by=D332
 $ tools/spec/spec rename host_shim binding_shim     # and every use, in one write
-$ tools/spec/spec set-status 6.10 done
+$ tools/spec/spec remove some_term                  # refused while anything refers to it
 $ tools/spec/spec update 6.11 'insert node <summary>...</summary> after title'
 $ tools/spec/spec apply 'for $p in $articles/packet[...] return $p transform with { ... }'
 ```
@@ -113,77 +133,49 @@ $ tools/spec/spec amend D238 --summary='See D9999.'
 spec: refused: error: decision:D238 refers to decision:D9999, which does not exist
 ```
 
-A new article goes into its document (a decision at the end of
-`DECISIONS#accepted`, a term into the glossary table), because an
-article no document includes is an error.
+After a write, `tools/spec/spec` generates the pages again, so `docs/`
+always shows the articles.
 
 ## Nodes, never text
 
-Files under `spec/articles/` are read and written as nodes only. The
-hook `.claude/hooks/spec-nodes-only.py` refuses `Read`, `Edit`, `Write`
-and `Grep` on them, and the shell commands that would treat them as text
-(`cat`, `sed`, `grep`, `awk`, `python`, `cp`, redirection, `find -exec`,
-`xargs`), and names the command that does the same with nodes. It lets
-through `tools/spec/spec`, the `sxml` command, `git`, and the commands
-that only list names (`ls`, `wc`, `du`, `find`). An edit that still gets
-past it is found by `check`: a file not in canonical form, an invalid
-article or a broken reference is an error.
+The articles and the pages are read and written through `tools/spec/spec`
+only. The hook `.claude/hooks/spec-nodes-only.py` refuses `Read`, `Edit`,
+`Write` and `Grep` on them (and on the page directories), and the shell
+commands that would treat them as text (`cat`, `sed`, `grep`, `awk`,
+`python`, `cp`, redirection, `find -exec`, `xargs`), and names the
+command that does the same with nodes. It lets through `tools/spec/spec`,
+the `sxml` command, `git`, the commands that only list names (`ls`, `wc`,
+`du`, `find`), and searches of the whole repository. A change that still
+gets past it is found by `check`: a file not in canonical form, an
+invalid article, a broken reference or a stale page is an error.
+
+## Committing
+
+Commit the articles a change writes with the pages: `git commit -m "..."
+-- spec/articles/decisions/D332.xml docs/`. Every write is whole and
+checked, so a shared article (this week's log entry, a document) or a
+page that holds another agent's finished write can be committed with
+yours.
 
 ## Checks and tests
 
 - `tools/spec/spec check` validates every file against the schema, then
   reports files not in canonical form, duplicate keys and term names,
-  references to nothing, and articles no document includes (all errors),
-  and terms defined twice (warnings). It exits with status 1 on an error.
-- `tools/spec/spec roundtrip` assembles each document and compares it,
-  word by word, with its `docs/` source. It ignores whitespace, wrapping,
-  backslash escapes, table rules and the numbers of ordered items. Today
-  all 23 documents are the same, 320,000 words.
-- `tools/spec/test.sh` runs the import, the round trip, every read and
-  write and their refusals in a temporary copy, then the hook's cases.
+  references to nothing, articles no document places, and stale pages
+  (errors), and terms defined twice (warnings). It exits with status 1
+  on an error.
+- `tools/spec/spec selftest` renders every article, section, title,
+  summary and definition in source form, reads it back, and compares
+  the nodes: an edit of the source form loses nothing.
+- `tools/spec/test.sh` runs the check, the self-test, every read and
+  write and their refusals in a temporary copy, and the hook's cases.
 
-## The shadow period
+## History
 
-Until the switch, `docs/` is the source, and other work edits it on
-`main` every day:
-
-1. `tools/spec/import.py` makes `spec/articles/` again from `docs/`,
-   replacing everything in it (about 3 seconds). Run it, then
-   `tools/spec/spec roundtrip`, after `docs/` changes, and commit the
-   articles with the change. `tools/spec/test.sh` fails while the
-   committed articles are not the import of `docs/`.
-2. Writes through `tools/spec/spec` work on the shadow copy, but the next
-   import replaces them. Use them to try the tools, not to change the
-   spec.
-
-To make the articles the source:
-
-1. Stop edits to the imported files under `docs/` for one commit; import
-   and round-trip one last time.
-2. Remove the `source` attributes (one `apply`), `tools/spec/import.py`
-   and `tools/spec/markdown.py`, and the round trip.
-3. Generate the Markdown with `tools/spec/spec markdown` (for GitHub and
-   the book), with a check that what is committed is what is generated,
-   or remove it.
-4. Point `CLAUDE.md`, `docs/agents/` and the packet briefs at
-   `tools/spec/spec`, in place of the file names.
-
-## What the import found
-
-- **Decision numbers cited that do not exist**: D186, D192, D194 and
-  D204 (D237 calls them unused, left by renumbering, and the week of
-  2026-10-19 cites D192), D242 and D244 (cited by D247). `check` reports
-  these 7 references. `tools/spec/test.sh` allows exactly these until
-  they are resolved.
-- **Terms defined twice**: 13 glossary names have two rows, among them
-  `arity_range`, `invocation`, `node_kind`, `tee` and `variable_binding`.
-- **A broken glossary row**: `injection_regex` writes `^(js|javascript)$`
-  in a table without escaping the `|`, so GitHub splits the row and drops
-  "javascript)$` (D288)". The import reads it as written, and the
-  assembled table escapes the `|`.
-- **Packet state is mostly not recorded where the packet is**: 172 of
-  180 packets have no `**Done**` or `**Paused**` line. Their state is in
-  the prose of `docs/agents/QUEUE.md` and `docs/LOG.md`.
-- **No summaries**: 494 decisions, proposals and packets have none. A
-  summary is the first thing an agent reads, so writing them is the
-  first useful work after the switch (`list --missing-summary`).
+The articles were imported from the Markdown under `docs/` (a script,
+since removed: `git log -- tools/spec/import.py`) and checked word by
+word against it before the switch. The import found: cited decision
+numbers no decision had (now `unused` decisions), 13 terms defined
+twice (still warnings), a glossary row that GitHub split at an unescaped
+`|`, and 172 of 180 packets whose state is only in the prose of the
+queue and the log.

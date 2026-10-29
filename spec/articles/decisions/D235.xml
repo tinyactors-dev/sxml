@@ -1,4 +1,4 @@
-<decision id="D235" status="accepted" source="docs/DECISIONS.md">
+<decision id="D235" status="accepted">
   <title>XPath Full Text: a grammar of the feature; parser part extensions; the package's EXPath prefixes (packet 7.12d)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D111"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D189"/>, <ref kind="decision" to="D208"/>, <ref kind="decision" to="D214"/>, <ref kind="decision" to="D227"/>. Amends <ref kind="decision" to="D214"/> ("XPath's Full Text is not implemented"). Verified as <ref kind="decision" to="D181"/> asks: the debug preset, the unit, CLI and QT4 driver tests touched, clang-tidy on the files changed, <code>tools/check-call-cycles.py</code>, the wasm preset's JavaScript tests, and the whole QT4 XP40 and XQ40 suites with the release driver, compared case by case.</p>

@@ -1,4 +1,4 @@
-<term id="assessment" source="docs/GLOSSARY.md">
+<term id="assessment">
   <name>assessment</name>
   <definition>How the schema validator assesses one element or attribute: strictly, against a governing type; laxly, where nothing governs it (global declarations are used where they exist, validity not known); or skipped with its subtree (processContents skip) (XSD 1.1 Part 1, 5.2 and 3.10.1)</definition>
 </term>

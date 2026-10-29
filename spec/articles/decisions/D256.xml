@@ -1,4 +1,4 @@
-<decision id="D256" status="accepted" source="docs/DECISIONS.md">
+<decision id="D256" status="accepted">
   <title>Distribution archives: mise, zig cc, seven targets (packet <ref kind="packet" to="dist-1"/>)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D10"/>, <ref kind="decision" to="D44"/>, <ref kind="decision" to="D209"/>, <ref kind="decision" to="D255"/>. <code>mise run dist</code> builds the <code>sxml</code> command for every supported platform as installable archives (<code>docs/tasks/distribution.md</code>; README.md, "Install").</p>

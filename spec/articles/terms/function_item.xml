@@ -1,4 +1,4 @@
-<term id="function_item" source="docs/GLOSSARY.md">
+<term id="function_item">
   <name>function_item</name>
   <definition>A callable item, including maps, arrays and closures</definition>
 </term>

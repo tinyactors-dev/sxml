@@ -1,4 +1,4 @@
-<term id="resource" source="docs/GLOSSARY.md">
+<term id="resource">
   <name>resource</name>
   <definition>What a resource resolver delivers for a URI: bytes, a document node, or nothing</definition>
 </term>

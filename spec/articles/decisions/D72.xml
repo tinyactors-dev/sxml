@@ -1,4 +1,4 @@
-<decision id="D72" status="accepted" source="docs/DECISIONS.md">
+<decision id="D72" status="accepted">
   <title>Arithmetic and comparison operators (packet <ref kind="packet" to="1.19"/>)</title>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/operator_internal.h</code>; <code>src/operator.c</code> (operands, promotion, numbers, unary), <code>src/operator_temporal.c</code> (durations, dates, times), <code>src/operator_compare.c</code> (value, general and GNode comparisons).</p>

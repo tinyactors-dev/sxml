@@ -1,4 +1,4 @@
-<decision id="D154" status="accepted" source="docs/DECISIONS.md">
+<decision id="D154" status="accepted">
   <title>XQuery conformance sweep 1 (packet <ref kind="packet" to="3.14"/>)</title>
   <body>
     <p><recorded date="2026-10-18"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D75"/>, <ref kind="decision" to="D95"/>, <ref kind="decision" to="D135"/>, <ref kind="decision" to="D148"/>. No public header changed; no IR kind added.</p>

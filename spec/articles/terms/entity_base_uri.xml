@@ -1,4 +1,4 @@
-<term id="entity_base_uri" source="docs/GLOSSARY.md">
+<term id="entity_base_uri">
   <name>entity_base_uri</name>
   <definition>The base URI an element has because it stands at the top of an external parsed entity: the entity's URI, in place of the tree's base URI for it and its descendants before xml:base applies (XML 1.0, section 4.2.2; <ref kind="decision" to="D210"/>)</definition>
 </term>

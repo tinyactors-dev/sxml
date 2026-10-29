@@ -1,4 +1,4 @@
-<term id="codepoint_count" source="docs/GLOSSARY.md">
+<term id="codepoint_count">
   <name>codepoint_count</name>
   <definition>A length measured in Unicode codepoints</definition>
 </term>

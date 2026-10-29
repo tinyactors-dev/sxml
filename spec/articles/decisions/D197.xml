@@ -1,4 +1,4 @@
-<decision id="D197" status="accepted" source="docs/DECISIONS.md">
+<decision id="D197" status="accepted">
   <title>XSLT backwards compatible behaviour and XPath 1.0 compatibility mode (packet <ref kind="packet" to="7.4"/>)</title>
   <body>
     <p><recorded date="2026-10-19"/>, after <ref kind="decision" to="D97"/>, <ref kind="decision" to="D162"/>, <ref kind="decision" to="D183"/>, <ref kind="decision" to="D184"/>. Replaces <ref kind="decision" to="D162"/>'s place for XSLT 1.0 behaviour (<code>asks_xslt_1_behaviour</code> and its XTDE0160 in <code>src/xslt_lower.c</code>).</p>

@@ -1,4 +1,4 @@
-<decision id="D138" status="accepted" source="docs/DECISIONS.md">
+<decision id="D138" status="accepted">
   <title>The JavaScript package and release 0.2.0 (packet <ref kind="packet" to="2.18"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D10"/> and <ref kind="decision" to="D47"/>. Node 22.22, WASI SDK 34.</p>

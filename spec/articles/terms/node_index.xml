@@ -1,4 +1,4 @@
-<term id="node_index" source="docs/GLOSSARY.md">
+<term id="node_index">
   <name>node_index</name>
   <definition>Index of a node within its tree's arena</definition>
 </term>

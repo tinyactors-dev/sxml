@@ -1,4 +1,4 @@
-<packet id="7.28" source="docs/tasks/phase-7.md">
+<packet id="7.28">
   <title>Schematron as a front end to the XSLT AST (implementation)</title>
   <body>
     <p>After the owner's review of 7.27 (<ref kind="decision" to="D315"/>, <ref kind="decision" to="D313"/>), after <ref kind="packet" to="7.29"/> (the locations a validation keeps; both touch <code>apps/sxml/</code>), after <ref kind="packet" to="7.30"/>'s suite exists (<code>tests/schematron/</code>, gate 6) and cli-4 (which holds <code>apps/sxml/</code> and <code>docs/CLI.md</code>). Implements <code>include/sxml/schematron.h</code> as <ref kind="decision" to="D315"/> (revised) designs it, against ISO/IEC 19757-3:2025 (the owner's copy; cite clauses, copy no text); a change to the header needs a record first.</p>

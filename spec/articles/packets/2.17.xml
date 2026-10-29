@@ -1,4 +1,4 @@
-<packet id="2.17" source="docs/tasks/phase-2.md">
+<packet id="2.17">
   <title>Node, sequence and string functions (implementation)</title>
   <body>
     <p>After <ref kind="packet" to="2.13"/>. Owns <code>src/function_library_node.c</code>, <code>src/function_library_string.c</code>, <code>src/function_library_sequence.c</code>, <code>src/function_library_json.c</code>, <code>tests/function_library_test.c</code>. path, innermost, outermost, lang, id, idref, element-with-id (xml:id; DTD IDs when the parser marks them), nilled, siblings, type-of, schema-type, atomic-type-annotation, node-type-annotation (jkey, jvalue: 2.6, <ref kind="decision" to="D115"/>), parse-xml-fragment, starts-/ends-/contains-subsequence, index-of-substring, pad-string, system-properties, location. Done when 1.23b's list of missing functions holds only <ref kind="decision" to="D97"/>'s non-goals, fn:serialize (3.4) and fn:load-xquery-module (3.11).</p>

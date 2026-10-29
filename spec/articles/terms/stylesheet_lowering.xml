@@ -1,4 +1,4 @@
-<term id="stylesheet_lowering" source="docs/GLOSSARY.md">
+<term id="stylesheet_lowering">
   <name>stylesheet_lowering</name>
   <definition>One lowering of a sealed stylesheet AST into an IR unit (<code>sxml_xslt_lowering</code>): the XPath static context of each AST static context, the namespace aliases and the instruction rules, around one <term name="lowerer"/></definition>
 </term>

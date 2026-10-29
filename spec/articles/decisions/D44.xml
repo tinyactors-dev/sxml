@@ -1,4 +1,4 @@
-<decision id="D44" status="accepted" source="docs/DECISIONS.md">
+<decision id="D44" status="accepted">
   <title>The sxml command-line program and its CLI framework</title>
   <body>
     <p><recorded date="2026-10-16"/>. Rules and planned commands in <code>docs/CLI.md</code>.</p>

@@ -1,4 +1,4 @@
-<term id="front_end" source="docs/GLOSSARY.md">
+<term id="front_end">
   <name>front_end</name>
   <definition>The code that turns the text of one language (XPath, XQuery, an XSLT pattern) into an abstract syntax tree</definition>
 </term>

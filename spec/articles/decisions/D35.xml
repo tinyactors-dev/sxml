@@ -1,4 +1,4 @@
-<decision id="D35" status="accepted" source="docs/DECISIONS.md">
+<decision id="D35" status="accepted">
   <title>Thread confinement</title>
   <body>
     <p><recorded date="2026-10-16"/> (task 0.7). Reference counts are not atomic and the name pool, registry and lazy indexes mutate on read. Rule: an item heap and everything tied to it (its name pool, type registry, trees and values) are used by one thread at a time; separate heaps are fully independent. Static const data and functions on inline values are safe from any thread. Sharing one parsed document between threads is not supported in year one; if needed later it becomes a new decision (an immortal, frozen tree with a read-only name pool is the likely shape).</p>

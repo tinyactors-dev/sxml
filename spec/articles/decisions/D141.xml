@@ -1,4 +1,4 @@
-<decision id="D141" status="accepted" source="docs/DECISIONS.md">
+<decision id="D141" status="accepted">
   <title>CSV parsing: fn:parse-csv, fn:csv-to-xml, fn:csv-doc (packet <ref kind="packet" to="2.15"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D97"/>, <ref kind="decision" to="D128"/>, <ref kind="decision" to="D131"/>, <ref kind="decision" to="D133"/>. New module <code>src/csv.c</code> / <code>src/csv_internal.h</code> and part <code>src/function_library_csv.c</code>.</p>

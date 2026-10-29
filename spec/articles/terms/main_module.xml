@@ -1,4 +1,4 @@
-<term id="main_module" source="docs/GLOSSARY.md">
+<term id="main_module">
   <name>main_module</name>
   <definition>An XQuery module with a query body, the one a host compiles (XQuery 4.0, section 5)</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="subject_node" source="docs/GLOSSARY.md">
+<term id="subject_node">
   <name>subject_node</name>
   <definition>The node a finding is about: what the assertion's subject attribute, else its rule's, selects for the rule's context node; else the context item when it is a node, else the rule's context node (5.5.19, <ref kind="decision" to="D315"/>)</definition>
 </term>

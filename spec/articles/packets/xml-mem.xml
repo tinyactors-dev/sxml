@@ -1,4 +1,4 @@
-<packet id="xml-mem" source="docs/tasks/phase-7.md">
+<packet id="xml-mem">
   <title>Bounded memory for XML parsing (design and implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D12"/> (tree-sitter parses XML, the owner's choice), <ref kind="decision" to="D199"/> (DTD and entities) and <ref kind="decision" to="D219"/> (parsing 106 MB took 3.98 GB resident, nearly all tree-sitter's syntax tree of the whole input).</p>

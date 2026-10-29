@@ -1,4 +1,4 @@
-<packet id="perf-16" source="docs/tasks/phase-7.md">
+<packet id="perf-16">
   <title>IR passes after <ref kind="packet" to="perf-12"/>: item demands and child walks (implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D259"/> (item demands), <ref kind="decision" to="D324"/> and <ref kind="decision" to="D327"/>. Validating one EN 16931 invoice with <code>sxml validate --schematron</code> costs 1.61 x 10^9 instructions, 87 % of it compiling the <code>.sch</code>; the IR passes are 31 %, led by <code>sxml_ir_set_item_demands</code> (12.4 % inclusive, 4.2 % self) and <code>push_every_child</code> (6.5 % self), with <code>children_of</code> and <code>make_owners</code> behind them (<code>src/ir.c</code>, <code>src/ir_loop_passes.c</code>).</p>

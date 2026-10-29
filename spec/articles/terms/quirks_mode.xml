@@ -1,4 +1,4 @@
-<term id="quirks_mode" source="docs/GLOSSARY.md">
+<term id="quirks_mode">
   <name>quirks_mode</name>
   <definition>The document mode the DOCTYPE sets: no-quirks, limited-quirks or quirks (13.2.6.4.1); in the parser it only decides whether a table closes an open p</definition>
 </term>

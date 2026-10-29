@@ -1,4 +1,4 @@
-<term id="name_parts" source="docs/GLOSSARY.md">
+<term id="name_parts">
   <name>name_parts</name>
   <definition>The namespace URI identifier and local name of a name identifier, as returned by the name pool</definition>
 </term>

@@ -1,4 +1,4 @@
-<term id="schematron_pattern" source="docs/GLOSSARY.md">
+<term id="schematron_pattern">
   <name>schematron_pattern</name>
   <definition>A sch:pattern or sch:group of a Schematron schema: its rules in order, compiled into one mode of its own; not the XSLT <term name="pattern"/>, which a rule's context is (<ref kind="decision" to="D315"/>)</definition>
 </term>

@@ -1,17 +1,17 @@
-<document id="agents/PACKET" source="docs/agents/PACKET.md">
+<document id="agents/PACKET" file="docs/agents/PACKET.md">
   <title>How to work a packet</title>
   <list ordered="true">
     <item>
-      <p>Follow <code>BRIEF.md</code>.</p>
+      <p>Follow <code>BRIEF.md</code> (<code>tools/spec/spec markdown agents/BRIEF</code>).</p>
     </item>
     <item>
-      <p>Read your packet in <code>docs/tasks/phase-N.md</code>, the rules for parallel packets there (<ref kind="decision" to="D45"/>), and every decision the packet cites.</p>
+      <p>Read your packet with <code>tools/spec/spec brief N.M</code>: its text, one line on each decision and packet it cites, and the terms it uses. Open what you need with <code>tools/spec/spec show NAME --depth=2</code>. The rules for parallel packets are in its phase's document (<ref kind="decision" to="D45"/>, <code>tools/spec/spec show tasks/phase-N</code>).</p>
     </item>
     <item>
-      <p>Own only the files the packet lists, plus single insertions in the shared ledgers. If you need a file another packet owns and has not committed, wait for its commit (<code>git status</code>, <code>git log</code>); never edit it. Write the need under "## Proposed" in <code>docs/DECISIONS.md</code> if it blocks you.</p>
+      <p>Own only the files the packet lists, plus the articles you write. If you need a file another packet owns and has not committed, wait for its commit (<code>git status</code>, <code>git log</code>); never edit it. Put the need to the owner with <code>tools/spec/spec add proposal</code> if it blocks you.</p>
     </item>
     <item>
-      <p>Implementation packets do not change public headers (<code>include/sxml/</code>). If one must change, write the reason under "## Proposed" and stop that part. Design packets may change the headers they own. The substrate headers (status, view, memory, string, name, types, tree, xdm, export) are frozen (<ref kind="decision" to="D99"/>): additive changes only, each with a decision record.</p>
+      <p>Implementation packets do not change public headers (<code>include/sxml/</code>). If one must change, write the reason as a proposal (<code>tools/spec/spec add proposal</code>) and stop that part. Design packets may change the headers they own. The substrate headers (status, view, memory, string, name, types, tree, xdm, export) are frozen (<ref kind="decision" to="D99"/>): additive changes only, each with a decision record.</p>
     </item>
     <item>
       <p>Name the golden file you imitate in your commit message, and cite the specification sections in comments.</p>
@@ -40,7 +40,7 @@
       </list>
     </item>
     <item>
-      <p>Tick the packet in the task file, commit and push.</p>
+      <p>Mark the packet done (<code>tools/spec/spec set-status N.M done</code>), commit and push.</p>
     </item>
     <item>
       <p>Keep at most one debug and one release snapshot at a time (a debug snapshot is a few GB, a release one about 1.5 GB, almost all of it the test programs); the disk has filled up more than once. Delete your snapshots and scratch directories, then send the final report.</p>

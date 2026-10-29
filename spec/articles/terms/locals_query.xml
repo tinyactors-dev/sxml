@@ -1,4 +1,4 @@
-<term id="locals_query" source="docs/GLOSSARY.md">
+<term id="locals_query">
   <name>locals_query</name>
   <definition>A tree-sitter query (the grammar's <code>queries/locals.scm</code>) whose captures <code>local.scope</code>, <code>local.definition</code> and <code>local.reference</code> mark scopes, the names they define and the names that refer to them; a reference gets its definition's highlight (<ref kind="decision" to="D288"/>)</definition>
 </term>

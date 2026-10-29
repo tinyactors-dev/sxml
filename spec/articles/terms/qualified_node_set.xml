@@ -1,4 +1,4 @@
-<term id="qualified_node_set" source="docs/GLOSSARY.md">
+<term id="qualified_node_set">
   <name>qualified_node_set</name>
   <definition>The nodes an identity constraint's selector selects (skipped ones left out) whose fields each give one value: the members whose key sequences unique, key and keyref compare (XSD 1.1 Part 1, 3.11.4)</definition>
 </term>

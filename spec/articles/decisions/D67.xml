@@ -1,4 +1,4 @@
-<decision id="D67" status="accepted" source="docs/DECISIONS.md">
+<decision id="D67" status="accepted">
   <title>Tree, axes and arena tree (packet <ref kind="packet" to="1.11"/>)</title>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/tree_internal.h</code> holds <code>struct sxml_tree</code> (the arena tree embeds it) and node-reference helpers.</p>

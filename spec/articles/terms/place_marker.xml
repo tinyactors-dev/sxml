@@ -1,4 +1,4 @@
-<term id="place_marker" source="docs/GLOSSARY.md">
+<term id="place_marker">
   <name>place_marker</name>
   <definition>The sequence of integers xsl:number formats: its value attribute's, or computed from the selected node's position by level, count and from (XSLT 4.0, 12)</definition>
 </term>

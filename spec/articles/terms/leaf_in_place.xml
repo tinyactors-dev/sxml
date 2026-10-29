@@ -1,4 +1,4 @@
-<term id="leaf_in_place" source="docs/GLOSSARY.md">
+<term id="leaf_in_place">
   <name>leaf_in_place</name>
   <definition>An operand task (a MAP's body, a predicate, a LET's bound expression, a quantified condition, a sort key) whose expression is a leaf in the pushing task's own frame, computed when it would be pushed instead of in a task of its own, charged the step its task would have taken (internal, <code>src/evaluator.c</code>, <ref kind="decision" to="D229"/>)</definition>
 </term>

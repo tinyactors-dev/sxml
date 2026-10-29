@@ -1,4 +1,4 @@
-<term id="handle" source="docs/GLOSSARY.md">
+<term id="handle">
   <name>handle</name>
   <definition>The address of a C object in WebAssembly memory that a JavaScript object owns; released by <code>dispose()</code> or, failing that, by a <code>FinalizationRegistry</code></definition>
 </term>

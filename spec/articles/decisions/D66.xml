@@ -1,4 +1,4 @@
-<decision id="D66" status="accepted" source="docs/DECISIONS.md">
+<decision id="D66" status="accepted">
   <title>Casting and lexical forms (packet <ref kind="packet" to="1.15"/>)</title>
   <body>
     <p><recorded date="2026-10-16"/>. <code>src/cast_internal.h</code>; <code>src/cast.c</code> (casting table, targets), <code>src/cast_lexical.c</code> (lexical forms, canonical text).</p>

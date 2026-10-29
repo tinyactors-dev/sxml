@@ -1,4 +1,4 @@
-<term id="relabelled_cast" source="docs/GLOSSARY.md">
+<term id="relabelled_cast">
   <name>relabelled_cast</name>
   <definition>A cast whose result has the source's own text (a string, untyped or URI item to xs:string or xs:untypedAtomic, an item to a type it is derived from): the source's string cell under the target's annotation, not a new parse (internal, <code>src/cast.c</code>, <ref kind="decision" to="D319"/>)</definition>
 </term>

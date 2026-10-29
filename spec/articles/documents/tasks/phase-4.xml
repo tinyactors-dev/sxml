@@ -1,4 +1,4 @@
-<document id="tasks/phase-4" source="docs/tasks/phase-4.md">
+<document id="tasks/phase-4" file="docs/tasks/phase-4.md">
   <title>Phase 4: XSLT 4.0</title>
   <p>Goal (PLAN.md): XSLT 4.0 templates, modes and minimal packages, lowered into the shared IR (<ref kind="decision" to="D46"/>, <ref kind="decision" to="D55"/>) and run by the one evaluator; <code>sxml transform</code> (docs/CLI.md). Gate: <strong>70% of the in-scope XSLT 4.0 test cases pass</strong> (<ref kind="decision" to="D95"/>; in scope: spec XSLT40, not the <code>strm</code> and <code>sandp</code> groups, no schema_aware, streaming, dtd, XML_1.1, XSD_1.1, backwards_compatibility, HTML4 or ICU_spellout feature; about 8,700 cases). Rules for parallel packets are those of <code>docs/tasks/phase-2.md</code> (<ref kind="decision" to="D45"/>, <ref kind="decision" to="D96"/>).</p>
   <section id="overlap-with-phases-2-and-3-d96">

@@ -1,4 +1,4 @@
-<term id="task_stack" source="docs/GLOSSARY.md">
+<term id="task_stack">
   <name>task_stack</name>
   <definition>The evaluator's explicit stack of evaluator tasks, in allocator memory, which replaces recursion on the C stack</definition>
 </term>

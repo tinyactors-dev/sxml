@@ -1,4 +1,4 @@
-<term id="reading_order" source="docs/GLOSSARY.md">
+<term id="reading_order">
   <name>reading_order</name>
   <definition>The order the module set's static contexts are read in: imported modules before importers, a cycle broken where the walk meets it</definition>
 </term>

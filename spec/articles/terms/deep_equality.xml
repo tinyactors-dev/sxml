@@ -1,4 +1,4 @@
-<term id="deep_equality" source="docs/GLOSSARY.md">
+<term id="deep_equality">
   <name>deep_equality</name>
   <definition><code>fn:deep-equal</code> of two sequences: items compared pairwise, into nodes, maps and arrays (F&amp;O 4.0, section 14.2.4)</definition>
 </term>

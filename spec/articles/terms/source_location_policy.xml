@@ -1,4 +1,4 @@
-<term id="source_location_policy" source="docs/GLOSSARY.md">
+<term id="source_location_policy">
   <name>source_location_policy</name>
   <definition>Which documents sxml parses keep the <term name="source_location"/> of each node: AUTOMATIC (the zero value: the programs decide), ALWAYS or NEVER; <code>sxml_processor_configuration.source_location_policy</code> and the CLI's <code>--locations</code> (<ref kind="decision" to="D313"/>, <ref kind="decision" to="D318"/>)</definition>
 </term>

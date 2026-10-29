@@ -1,4 +1,4 @@
-<decision id="D295" status="accepted" source="docs/DECISIONS.md">
+<decision id="D295" status="accepted">
   <title>Long streams: the text method streams, long text runs grow linearly, streamed elements grant steps (packet stream-1)</title>
   <body>
     <p><recorded date="2026-10-20"/>, after <ref kind="decision" to="D71"/>, <ref kind="decision" to="D89"/>, <ref kind="decision" to="D99"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D231"/>, <ref kind="decision" to="D233"/>, <ref kind="decision" to="D259"/>, <ref kind="decision" to="D294"/>. The two problems js-2 found (<ref kind="decision" to="D294"/>, "Found").</p>

@@ -1,4 +1,4 @@
-<packet id="perf-9" source="docs/tasks/phase-7.md">
+<packet id="perf-9">
   <title>Required literals in regex search (implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D310"/> (perf-7). The same profile puts 12.9 % in <code>sxml_regex_matcher_scan</code> under <code>fn:replace</code>. SchXslt's patterns have the shape <code>(\W*)\$name(\W*)</code>: they can match the empty string before a <code>$</code>, so perf-7's start filter skips nothing and every position is attempted, though no match exists unless the literal <code>$name</code> occurs.</p>

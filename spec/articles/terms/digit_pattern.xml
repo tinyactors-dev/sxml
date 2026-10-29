@@ -1,4 +1,4 @@
-<term id="digit_pattern" source="docs/GLOSSARY.md">
+<term id="digit_pattern">
   <name>digit_pattern</name>
   <definition>A primary format token of mandatory digit signs, optional digit signs (<code>#</code>) and grouping separators</definition>
 </term>

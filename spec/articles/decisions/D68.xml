@@ -1,4 +1,4 @@
-<decision id="D68" status="accepted" source="docs/DECISIONS.md">
+<decision id="D68" status="accepted">
   <title>Name pool in comparisons; record entries may fail (P2, P3)</title>
   <body>
     <p><recorded date="2026-10-16"/> by packet <ref kind="packet" to="1.19"/>, on the orchestrator's acceptance of P2 and P3 (design edits to <code>include/sxml/xdm.h</code>).</p>

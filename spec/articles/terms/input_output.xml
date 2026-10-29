@@ -1,4 +1,4 @@
-<term id="input_output" source="docs/GLOSSARY.md">
+<term id="input_output">
   <name>input_output</name>
   <definition>Reading or writing bytes through the platform; spelled <term name="input_output"/>, never <code>io</code> (<code>SXML_STATUS_INPUT_OUTPUT_FAILED</code>)</definition>
 </term>

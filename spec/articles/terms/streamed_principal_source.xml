@@ -1,4 +1,4 @@
-<term id="streamed_principal_source" source="docs/GLOSSARY.md">
+<term id="streamed_principal_source">
   <name>streamed_principal_source</name>
   <definition>The principal source of a transformation given as a URI and read as a streamed document, its document node the initial match selection, when the initial mode is streamed (<code>streamed_source_uri</code>, XSLT 4.0, 2.4.3; <ref kind="decision" to="D228"/>)</definition>
 </term>

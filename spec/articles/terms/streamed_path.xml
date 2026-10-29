@@ -1,4 +1,4 @@
-<term id="streamed_path" source="docs/GLOSSARY.md">
+<term id="streamed_path">
   <name>streamed_path</name>
   <definition>A downward path in the select expression of an instruction of a streamed body, the rest of the expression motionless around it, lowered in place to a chain of STREAM expressions whose body grounds each selected node: its full window, its atomized value, or only a count (<ref kind="decision" to="D223"/>)</definition>
 </term>

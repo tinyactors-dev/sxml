@@ -1,4 +1,4 @@
-<term id="scanning_expression" source="docs/GLOSSARY.md">
+<term id="scanning_expression">
   <name>scanning_expression</name>
   <definition>A relative path that has the form of a motionless pattern, assessed as crawling instead of roaming (XSLT 4.0, 19.8.8.8)</definition>
 </term>

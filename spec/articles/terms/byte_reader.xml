@@ -1,4 +1,4 @@
-<term id="byte_reader" source="docs/GLOSSARY.md">
+<term id="byte_reader">
   <name>byte_reader</name>
   <definition>A source of a resource's bytes that sxml reads a part at a time into a buffer it lends, until the reader says the input ends (<code>sxml_byte_reader</code>, SXML_RESOURCE_FORM_BYTE_READER; <ref kind="decision" to="D233"/>)</definition>
 </term>

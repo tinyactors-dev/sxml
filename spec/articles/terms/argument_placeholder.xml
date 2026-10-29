@@ -1,4 +1,4 @@
-<term id="argument_placeholder" source="docs/GLOSSARY.md">
+<term id="argument_placeholder">
   <name>argument_placeholder</name>
   <definition>A <code>?</code> in an argument list, making the call a partial application</definition>
 </term>

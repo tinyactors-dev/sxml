@@ -1,4 +1,4 @@
-<term id="decimal_scope" source="docs/GLOSSARY.md">
+<term id="decimal_scope">
   <name>decimal_scope</name>
   <definition>The thread-local allocator pointer libmpdec allocates through during one decimal operation (<ref kind="decision" to="D42"/>)</definition>
 </term>

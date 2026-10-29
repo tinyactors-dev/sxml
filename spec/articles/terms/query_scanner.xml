@@ -1,4 +1,4 @@
-<term id="query_scanner" source="docs/GLOSSARY.md">
+<term id="query_scanner">
   <name>query_scanner</name>
   <definition>The external tree-sitter scanner shared by the XPath, XQuery and XSLT pattern grammars</definition>
 </term>

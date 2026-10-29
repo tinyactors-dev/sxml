@@ -1,4 +1,4 @@
-<term id="date_time" source="docs/GLOSSARY.md">
+<term id="date_time">
   <name>date_time</name>
   <definition>The seven components of a date/time datum (XDM 4.0, section 5.4)</definition>
 </term>

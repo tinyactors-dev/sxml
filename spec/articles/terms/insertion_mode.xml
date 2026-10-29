@@ -1,4 +1,4 @@
-<term id="insertion_mode" source="docs/GLOSSARY.md">
+<term id="insertion_mode">
   <name>insertion_mode</name>
   <definition>The state of HTML tree construction that decides how a token is handled (HTML Living Standard, 13.2.4.1)</definition>
 </term>

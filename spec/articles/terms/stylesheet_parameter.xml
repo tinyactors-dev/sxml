@@ -1,4 +1,4 @@
-<term id="stylesheet_parameter" source="docs/GLOSSARY.md">
+<term id="stylesheet_parameter">
   <name>stylesheet_parameter</name>
   <definition>A global <code>xsl:param</code> that is not static, given its value when a transformation is primed (XSLT 4.0, 9.5)</definition>
 </term>

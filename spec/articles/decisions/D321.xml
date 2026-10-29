@@ -1,4 +1,4 @@
-<decision id="D321" status="accepted" source="docs/DECISIONS.md">
+<decision id="D321" status="accepted">
   <title>Choices try every alternative; a caught error leaves the error record (packet <ref kind="packet" to="fix-4"/>)</title>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D85"/>, <ref kind="decision" to="D310"/>, <ref kind="decision" to="D314"/>, <ref kind="decision" to="D316"/>, <ref kind="decision" to="D319"/>. No public header changed. Commit 5a47d8a68.</p>

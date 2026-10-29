@@ -1,4 +1,4 @@
-<term id="decimal_format_settings" source="docs/GLOSSARY.md">
+<term id="decimal_format_settings">
   <name>decimal_format_settings</name>
   <definition>A decimal format with every property decoded: markers as codepoints, renditions as UTF-8, the zero digit and the three plain renditions</definition>
 </term>

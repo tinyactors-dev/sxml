@@ -1,4 +1,4 @@
-<term id="plural_rule" source="docs/GLOSSARY.md">
+<term id="plural_rule">
   <name>plural_rule</name>
   <definition>A condition on a number that gives its plural category (<code>one</code>, <code>two</code>, <code>few</code>, <code>other</code>) in a language, here the ordinal ones (UTS #35, Part 3, section 5)</definition>
 </term>

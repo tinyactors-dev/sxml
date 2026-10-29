@@ -1,4 +1,4 @@
-<term id="occurrence" source="docs/GLOSSARY.md">
+<term id="occurrence">
   <name>occurrence</name>
   <definition>How many items a sequence type allows: zero, one, zero or one, zero or more, one or more</definition>
 </term>

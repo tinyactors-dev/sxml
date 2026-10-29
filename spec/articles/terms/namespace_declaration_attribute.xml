@@ -1,4 +1,4 @@
-<term id="namespace_declaration_attribute" source="docs/GLOSSARY.md">
+<term id="namespace_declaration_attribute">
   <name>namespace_declaration_attribute</name>
   <definition>An <code>xmlns</code> or <code>xmlns:p</code> attribute of a direct element constructor; it makes a namespace binding, not an attribute (XQuery 4.0, 4.12.1.2)</definition>
 </term>

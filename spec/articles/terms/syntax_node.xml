@@ -1,4 +1,4 @@
-<term id="syntax_node" source="docs/GLOSSARY.md">
+<term id="syntax_node">
   <name>syntax_node</name>
   <definition>A node of a tree-sitter syntax tree: named (a rule of the grammar, which becomes an element named by its kind) or anonymous (a token such as <code>return</code> or <code>;</code>, which becomes text)</definition>
 </term>

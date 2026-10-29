@@ -1,4 +1,4 @@
-<decision id="D147" status="accepted" source="docs/DECISIONS.md">
+<decision id="D147" status="accepted">
   <title>Counted repetition with counters (packet 2.19b)</title>
   <body>
     <p><recorded date="2026-10-17"/>, after <ref kind="decision" to="D53"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D105"/>. Closes <ref kind="decision" to="D105"/>'s "Not done". (Completed by the Phase 3 review, <ref kind="decision" to="D161"/>, from the text 2.19b left uncommitted.)</p>

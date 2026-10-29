@@ -1,4 +1,4 @@
-<packet id="5.14" source="docs/tasks/phase-5.md">
+<packet id="5.14">
   <title>Phase 5 review (review)</title>
   <body>
     <p>After everything. Owns the gate boxes. A separate agent (<ref kind="decision" to="D11"/>) runs the rubric and re-checks each "done when"; open items go under "Proposed". <strong>Done</strong> 2026-10-19 (<ref kind="decision" to="D182"/>), except the confirming full runs and fuzzing, deferred to the owner's machine: numbers at 02303a7 and 3b0812a, a new schema fuzz target, both step budgets judged fair, no driver reclassifies (the XSD driver's "not run" for an unsupported feature fixed), <ref kind="decision" to="D71"/> through component graphs and function pointers, NCName, whitespace and token helpers merged (fifteen files), an allocation-failure loop for schema.h, <code>schema.h</code> stable, five accepted designs out of Proposed.</p>

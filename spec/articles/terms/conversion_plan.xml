@@ -1,4 +1,4 @@
-<term id="conversion_plan" source="docs/GLOSSARY.md">
+<term id="conversion_plan">
   <name>conversion_plan</name>
   <definition>The map that chooses element layouts and content types by element and attribute name (F&amp;O 4.0, 14.6.5); one <code>plan_entry</code> per name, <code>*</code> the <code>fallback_layout</code></definition>
 </term>

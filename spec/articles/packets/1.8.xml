@@ -1,4 +1,4 @@
-<packet id="1.8" source="docs/tasks/phase-1.md">
+<packet id="1.8">
   <title>Range, concatenation and lazy sequences (implementation)</title>
   <body>
     <p>After <ref kind="packet" to="1.7"/>. Owns <code>src/xdm_sequence.c</code>, <code>tests/xdm_sequence_test.c</code>. Ranges with <code>int64_t</code> bounds and <code>uint64_t</code> counts (<ref kind="decision" to="D34"/>), flattened concatenation, memoized lazy sequences that raise their error on every read, <code>test_emptiness</code> (<ref kind="decision" to="D43"/>). Done when a 10¹¹-based range counts right on <code>wasm</code>. <strong>Done</strong> 2026-10-16 (<ref kind="decision" to="D62"/>): all of <code>sxml_sequence_make_integer_range</code>, <code>_concatenate</code>, <code>_make_lazy</code>, <code>_test_emptiness</code>; XPDY0130 only for counts past 2^64 - 1; lazy errors kept and raised again per read.</p>

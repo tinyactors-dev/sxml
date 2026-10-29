@@ -1,4 +1,4 @@
-<term id="json_node_test" source="docs/GLOSSARY.md">
+<term id="json_node_test">
   <name>json_node_test</name>
   <definition>An item type over JNodes: <code>jnode(key, value type)</code></definition>
 </term>

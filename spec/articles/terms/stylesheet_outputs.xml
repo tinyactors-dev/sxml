@@ -1,4 +1,4 @@
-<term id="stylesheet_outputs" source="docs/GLOSSARY.md">
+<term id="stylesheet_outputs">
   <name>stylesheet_outputs</name>
   <definition>The compiled output part of a stylesheet: its output definitions by name, its named character maps, and what each <code>xsl:result-document</code> instruction reads when it runs (packet <ref kind="packet" to="4.13"/>)</definition>
 </term>

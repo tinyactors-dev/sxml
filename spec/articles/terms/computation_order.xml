@@ -1,4 +1,4 @@
-<term id="computation_order" source="docs/GLOSSARY.md">
+<term id="computation_order">
   <name>computation_order</name>
   <definition>Before <ref kind="decision" to="D234"/>, the order in which the global part computed declared variables (by initializer index); globals are now computed on first read (<term name="global_read"/>)</definition>
 </term>

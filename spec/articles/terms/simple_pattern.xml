@@ -1,4 +1,4 @@
-<term id="simple_pattern" source="docs/GLOSSARY.md">
+<term id="simple_pattern">
   <name>simple_pattern</name>
   <definition>A pattern of an item pattern (<code>.</code>, <code>atomic(...)</code>, a map, record, array or JNode pattern) and predicates, matching any item (XSLT 4.0, 6.3.3)</definition>
 </term>

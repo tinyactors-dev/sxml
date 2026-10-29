@@ -1,4 +1,4 @@
-<term id="adoption_agency" source="docs/GLOSSARY.md">
+<term id="adoption_agency">
   <name>adoption_agency</name>
   <definition>The algorithm that closes misnested formatting elements by moving nodes already built (13.2.6.4.7, "the adoption agency algorithm")</definition>
 </term>

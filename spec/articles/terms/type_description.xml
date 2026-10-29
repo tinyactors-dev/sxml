@@ -1,4 +1,4 @@
-<term id="type_description" source="docs/GLOSSARY.md">
+<term id="type_description">
   <name>type_description</name>
   <definition>What the type registry reports about one type: variety, name, base type and variety-specific parts</definition>
 </term>

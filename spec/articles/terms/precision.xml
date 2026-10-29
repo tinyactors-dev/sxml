@@ -1,4 +1,4 @@
-<term id="precision" source="docs/GLOSSARY.md">
+<term id="precision">
   <name>precision</name>
   <definition>In rounding, the number of digits kept after the decimal point; negative rounds to a power of ten (<code>fn:round</code>)</definition>
 </term>

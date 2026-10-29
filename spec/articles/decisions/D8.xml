@@ -1,4 +1,4 @@
-<decision id="D8" status="accepted" source="docs/DECISIONS.md">
+<decision id="D8" status="accepted">
   <title>Decimal arithmetic</title>
   <body>
     <p>libmpdec (mpdecimal, BSD-2-Clause). Check whether its allocator hooks are process-global; if so, wrap it so the no-global-state rule holds. Checked at the Phase 0 gate: they are process-global, so the wrapping is decided in <ref kind="decision" to="D42"/>. <ref kind="decision" to="D36"/> uses libmpdec for integers beyond <code>int64_t</code> too.</p>

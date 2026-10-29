@@ -1,4 +1,4 @@
-<decision id="D109" status="accepted" source="docs/DECISIONS.md">
+<decision id="D109" status="accepted">
   <title>try/catch in the evaluator (packet <ref kind="packet" to="3.6"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>, completing <ref kind="decision" to="D101"/> for TRY_CATCH (<code>src/evaluator_try.c</code>; XQuery 4.0, section 4.20).</p>

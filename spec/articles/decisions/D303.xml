@@ -1,4 +1,4 @@
-<decision id="D303" status="accepted" source="docs/DECISIONS.md">
+<decision id="D303" status="accepted">
   <title>Vane is one service with modules and two SDKs (packet book-22)</title>
   <body>
     <p><recorded date="2026-10-21"/>, after <ref kind="decision" to="D299"/> and <ref kind="decision" to="D301"/>. The owner found Vane as a set of services nonsensical: "make it a monolithic service that's fully featured, and we want to offer client libraries/SDKs for frontend and backend, so it's a believable example." The projects, counts, planted flaws and diff shapes of <ref kind="decision" to="D301"/> stay; docs/tasks/book.md section 9 has the change table and the packets.</p>

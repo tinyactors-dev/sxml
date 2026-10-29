@@ -1,4 +1,4 @@
-<term id="result_document_handler" source="docs/GLOSSARY.md">
+<term id="result_document_handler">
   <name>result_document_handler</name>
   <definition>Host interface that receives result documents: it is opened with a document's URI and output definition and closed with its value</definition>
 </term>

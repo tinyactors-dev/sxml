@@ -1,4 +1,4 @@
-<term id="key_tree" source="docs/GLOSSARY.md">
+<term id="key_tree">
   <name>key_tree</name>
   <definition>The balanced tree of a persistent map's keys ordered by key hash, then entry stamp, for lookup by key</definition>
 </term>

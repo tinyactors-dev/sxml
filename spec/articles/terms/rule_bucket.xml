@@ -1,4 +1,4 @@
-<term id="rule_bucket" source="docs/GLOSSARY.md">
+<term id="rule_bucket">
   <name>rule_bucket</name>
   <definition>The template rules of a mode that may match items of one item category, of one name or of any name, in the mode's order; apply-templates tries only the rules of an item's two buckets (perf-15)</definition>
 </term>

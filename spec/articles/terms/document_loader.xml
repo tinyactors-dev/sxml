@@ -1,4 +1,4 @@
-<term id="document_loader" source="docs/GLOSSARY.md">
+<term id="document_loader">
   <name>document_loader</name>
   <definition>Internal interface through which fn:doc and fn:parse-xml obtain document nodes; the processor implements it</definition>
 </term>

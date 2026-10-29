@@ -1,4 +1,4 @@
-<term id="relabel" source="docs/GLOSSARY.md">
+<term id="relabel">
   <name>relabel</name>
   <definition>Coercion that changes an atomic item's type annotation to a derived type whose value space holds the datum, keeping the datum (XPath 4.0, section 3.4.3)</definition>
 </term>

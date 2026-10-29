@@ -1,4 +1,4 @@
-<term id="available_document" source="docs/GLOSSARY.md">
+<term id="available_document">
   <name>available_document</name>
   <definition>A URI and the document node <code>fn:doc</code> returns for it (XPath 4.0, "available documents")</definition>
 </term>

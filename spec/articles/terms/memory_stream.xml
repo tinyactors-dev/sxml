@@ -1,4 +1,4 @@
-<term id="memory_stream" source="docs/GLOSSARY.md">
+<term id="memory_stream">
   <name>memory_stream</name>
   <definition>The output stream test double: keeps what is written, up to a capacity</definition>
 </term>

@@ -1,4 +1,4 @@
-<decision id="D119" status="accepted" source="docs/DECISIONS.md">
+<decision id="D119" status="accepted">
   <title>Number formatting: one picture engine, decimal formats as settings (packet <ref kind="packet" to="2.9"/>)</title>
   <body>
     <p><recorded date="2026-10-17"/>. <code>src/format.c</code>, <code>src/format_internal.h</code>, <code>src/function_library_format.c</code> (part <code>format</code>).</p>

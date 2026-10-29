@@ -1,4 +1,4 @@
-<packet id="perf-17" source="docs/tasks/phase-7.md">
+<packet id="perf-17">
   <title>Parsing XPath: each text once, and a cheaper parse (implementation)</title>
   <body>
     <p>After <ref kind="decision" to="D12"/> (tree-sitter), <ref kind="decision" to="D232"/> (perf-3 for XML), <ref kind="decision" to="D324"/> and <ref kind="decision" to="D325"/>. XPath parsing is 30 % of compiling the EN 16931 Schematron (tree-sitter's <code>ts_parser_parse</code> 23 %). The official compiled stylesheet repeats its expressions: 3,228 test, select and match attributes, 1,049 distinct; the expanded Schematron less so (1,086 test and context attributes, 1,007 distinct).</p>

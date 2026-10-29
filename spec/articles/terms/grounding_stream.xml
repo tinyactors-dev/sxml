@@ -1,4 +1,4 @@
-<term id="grounding_stream" source="docs/GLOSSARY.md">
+<term id="grounding_stream">
   <name>grounding_stream</name>
   <definition>A STREAM with axis self: its body runs once on the full stream window of its origin when the origin is the open node, else on the origin; it guards a template rule that is not a streamed template rule (<ref kind="decision" to="D228"/>)</definition>
 </term>
