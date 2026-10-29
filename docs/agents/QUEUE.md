@@ -116,7 +116,16 @@ every supported platform, 3. the user-facing book. Phase 6 is paused
   made in four passes, verify, the global-read pass (D330); sxml.wasm
   not built in this session (no WASI SDK), its size budget unchecked
   after perf-17's tables (+about 206 KB).
-- fix-6 (the book's memory example count) runs now.
+- fix-6 done (the count drifted with later packets, stable per build;
+  the book shows 194). book-30 done: the Schematron part (seven
+  chapters on the Vane story), published to sxml.tinyactors.dev from
+  efd5d4ddc on 2026-10-29.
+- Found by book-30, without a packet: findings in a subordinate document
+  () are printed with the validated FILE's name and the
+  other document's lines, and the JSON report does not say which
+  document they are in; no namespace prefix (not even , , )
+  works in Schematron expressions without an  element, which may
+  disagree with D315's wording.
 - Conformance baselines differ by setup: 7.29 (D318) measured XP40
   32,815, XQ40 46,158, XT40 12,283 before and after; perf-8, perf-10 and
   fix-4 measured 32,785, 46,114, 12,185 before and after on the same
