@@ -10,7 +10,7 @@
         <p><strong>Owns</strong>: <code>bindings/javascript/</code>, <code>bindings/host/</code> (fixes), the size baseline, the JavaScript pages of the book.</p>
       </item>
       <item>
-        <p><strong>Done when</strong>: the wasm build, every JavaScript test, the size budget and the book's JavaScript examples pass; the setup (wasi-sdk-34 at /opt/wasi-sdk, node version) recorded in the LOG.</p>
+        <p><strong>Done when</strong>: the wasm build, every JavaScript test, the size budget and the book's JavaScript examples pass; the setup (wasi-sdk-34 at /opt/wasi-sdk, node version) recorded in the LOG. <strong>Done</strong> 2026-10-29: sxml.wasm 13,833,376 / 2,529,416 bytes under 14,000,000 / 2,800,000 (not raised); every JavaScript test, the size budget, the book's 7 JavaScript examples and the native release ctest pass; one test fix (7.29's locations test, e68e524).</p>
       </item>
     </list>
   </body>
