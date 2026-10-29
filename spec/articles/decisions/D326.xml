@@ -1,5 +1,6 @@
 <decision id="D326" status="accepted">
   <title>Running compiled Schematron: the pattern walk visits only what a rule may match (packet <ref kind="packet" to="perf-14"/>)</title>
+  <summary>A compiled Schematron pattern's <term name="pattern_walk"/> visits element children always and other node kinds only when a rule context of the pattern may match them.</summary>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D315"/>, <ref kind="decision" to="D323"/> and <ref kind="decision" to="D325"/> ("Left": validating the compiled schema costs twice what the pre-compiled XSLT's transform does on the same invoice). No public header changed; no shared file changed (only <code>src/schematron_build.c</code> and <code>tests/schematron_test.c</code>). Glossary: <term name="pattern_walk"/>.</p>
     <list>

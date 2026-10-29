@@ -118,7 +118,7 @@ $ tools/spec/spec set-status 6.10 done
 $ tools/spec/spec supersede D99 --by=D332
 $ tools/spec/spec rename host_shim binding_shim     # and every use, in one write
 $ tools/spec/spec remove some_term                  # refused while anything refers to it
-$ tools/spec/spec update 6.11 'insert node <summary>...</summary> after title'
+$ tools/spec/spec update 6.11 'replace node summary with <summary>...</summary>'
 $ tools/spec/spec apply 'for $p in $articles/packet[...] return $p transform with { ... }'
 ```
 

@@ -1,5 +1,6 @@
 <decision id="D325" status="accepted">
   <title>Compiling XSLT and Schematron: the component graph, value templates, the Schematron front end (packet <ref kind="packet" to="perf-13"/>)</title>
+  <summary>XSLT compiles find components through sorted indexes and node maps, value templates without braces skip the parser, and the Schematron builder parses each synthesized text once through a hash table.</summary>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D224"/>, <ref kind="decision" to="D315"/>, <ref kind="decision" to="D320"/>, <ref kind="decision" to="D323"/> and <ref kind="decision" to="D324"/> (its proposal "XSLT compile costs that grow with the square of a stylesheet"). No public header changed; the IR after the passes is the same, and compiled Schematron gives the same findings.</p>
     <list>

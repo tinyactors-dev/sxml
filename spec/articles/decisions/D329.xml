@@ -1,5 +1,6 @@
 <decision id="D329" status="accepted">
   <title>Parsing XPath: fewer reductions, each text once per compilation (packet <ref kind="packet" to="perf-17"/>)</title>
+  <summary>The XPath grammar inlines its hidden choice rules so a primary expression is reduced once, not once per precedence level, and an <term name="ast_memo"/> parses each distinct expression text once per compilation.</summary>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D12"/>, <ref kind="decision" to="D232"/>, <ref kind="decision" to="D324"/> and <ref kind="decision" to="D325"/>. No public header changed; the ASTs and the IR are the same.</p>
     <list>

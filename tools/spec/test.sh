@@ -82,9 +82,9 @@ expect_success "amend a section's text" "$spec" amend 'agents/QUEUE#running' --b
 grep -q 'A paragraph the tests add, citing D71 and 6.2.' "$work/docs/agents/QUEUE.md" || fail "the section's new text is not on its page"
 "$spec" text tasks/phase-6 | grep -v '^\[\[section:tests\]\]$' > "$work/phase-6.md"
 expect_refusal "a section's text must keep its subsections" "must keep one line" "$spec" amend tasks/phase-6 --body=- < "$work/phase-6.md"
-expect_success "update with XQuery Update" "$spec" update 6.11 'insert node <summary>Owner work.</summary> after title'
+expect_success "update with XQuery Update" "$spec" update 6.11 'replace node summary with <summary>Owner work.</summary>'
 expect_success "apply to several articles" "$spec" apply \
-  'for $packet in $articles/packet[@id = ("6.9", "6.10")] return $packet transform with { insert node <summary>Owner machine.</summary> after title }'
+  'for $packet in $articles/packet[@id = ("6.9", "6.10")] return $packet transform with { replace node summary with <summary>Owner machine.</summary> }'
 expect_refusal "a reference to nothing" "D9999, which does not exist" "$spec" amend D238 --summary='See D9999.'
 expect_refusal "an invalid article" "is not valid" "$spec" update D238 'insert node <bogus/> after title'
 expect_refusal "a self-supersession" "is not valid" "$spec" supersede D98 --by=D98

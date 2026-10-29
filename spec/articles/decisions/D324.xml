@@ -1,5 +1,6 @@
 <decision id="D324" status="accepted">
   <title>Compiling large stylesheets in linear time (packet <ref kind="packet" to="perf-12"/>)</title>
+  <summary>Large units compile in linear time: the descendant pass groups expressions by function once, the global-read pass finds each chain head once, and the XPath lowerer checks a declaration view for duplicates once.</summary>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D46"/>, <ref kind="decision" to="D71"/>, <ref kind="decision" to="D223"/>, <ref kind="decision" to="D224"/>, <ref kind="decision" to="D229"/>, <ref kind="decision" to="D259"/>, <ref kind="decision" to="D322"/>. No public header changed; the IR after the passes is the same.</p>
     <list>

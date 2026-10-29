@@ -12986,7 +12986,7 @@ expression kind added; one public header changed additively (tree.h, below).
   wrong-error), 55 failed; XQ40 46,017 (53), 191 failed. Clusters by root
   cause: D258's open list (context value types of library modules 4,
   string-length/normalize-space 2, QName casts in direct constructors 5, is-id
-  of list and union elements 6, use-xsi-schema- location 0 failing cases);
+  of list and union elements 6, use-xsi-schema-location 0 failing cases);
   in-scope namespaces of nested direct constructors 5; static checks of named
   item types, function types, EQNames and PI targets 12; casts from strings to
   unions 1; variable cycles found statically 2 (+2 wrong errors); xs:T#0 and
@@ -14120,7 +14120,7 @@ case by case.
   D273's FODC0013 is gone there too (one hunk in 4.29's file). A document
   without the XInclude namespace is returned as it is; with includes the result
   is a new tree per call, as strip-space "all" gives (the draft's doc(x,
-  {xinclude}) is doc(x, {xinclude}) does not hold). supports- xinclude is true;
+  {xinclude}) is doc(x, {xinclude}) does not hold). supports-xinclude is true;
   the QT4 driver lists xinclude-option, so
   fn-system-properties-supports-xinclude-false is not run any more. The CLI's
   fn:doc has it (xquery_xinclude tests); the book no longer says XInclude is
@@ -14190,9 +14190,9 @@ test but evaluator_stream, under ASan and UBSan), clang-tidy on the changed
 files, the call-cycle check, the book examples (472 match), and whole XP40,
 XQ40 and XT40 runs with the release drivers, case by case against HEAD.
 
-- **Syntax error places** (D282's finding): nothing is re-parsed; tree-
-  sitter's recovery wraps a wide region, often from the module's start, in one
-  ERROR and marks the token it could not take with an ERROR inside it.
+- **Syntax error places** (D282's finding): nothing is re-parsed; tree-sitter's
+  recovery wraps a wide region, often from the module's start, in one ERROR and
+  marks the token it could not take with an ERROR inside it.
   sxml_xpath_find_error now descends, while the node is an ERROR, to the first
   ERROR or MISSING node it holds, so a syntax error in a string constructor's
   `{ }` is reported at its place (4:44, was 1:1 or the clause's start). One
@@ -14214,8 +14214,8 @@ XQ40 and XT40 runs with the release drivers, case by case against HEAD.
   a named reference to a context-dependent native row lowers to a static call
   of sxml:run-time-closure with the row's function item (and the caller's
   focus, dropped at run time when absent), replacing D275's IR closure of the
-  module; fn:function-lookup wraps what it finds for a context- dependent row
-  at the place of its call. So <lib/>/fn:function-lookup#2 made in a library
+  module; fn:function-lookup wraps what it finds for a context-dependent row at
+  the place of its call. So <lib/>/fn:function-lookup#2 made in a library
   module looks up in that module, with <lib/> as the focus.
 - **Globals after the evaluation** (D154's limit; D55): a function item called
   after its evaluation ended, or from another evaluation, got no global table
@@ -17145,6 +17145,10 @@ changed.
 
 ### D323. Schematron implemented: what 7.28 built and the readings it took (packet 7.28)
 
+**Summary**: Implements `schematron.h` as D315 designs it, with `sxml validate
+--schematron`, host shim and JavaScript entry points, and records the readings
+taken, such as pattern variables scoped to their pattern.
+
 Recorded 2026-10-28, after D313, D315 (revised and accepted), D317, D318 and
 D320. Implements `include/sxml/schematron.h` as D315 designs it; no public
 header changes beyond D320's.
@@ -17219,6 +17223,10 @@ header changes beyond D320's.
   an expression rule context names no place.
 
 ### D324. Compiling large stylesheets in linear time (packet perf-12)
+
+**Summary**: Large units compile in linear time: the descendant pass groups
+expressions by function once, the global-read pass finds each chain head once,
+and the XPath lowerer checks a declaration view for duplicates once.
 
 Recorded 2026-10-28, after D46, D71, D223, D224, D229, D259, D322. No public
 header changed; the IR after the passes is the same.
@@ -17295,6 +17303,10 @@ header changed; the IR after the passes is the same.
   of which the demand pass 5.4 % and the four walks that make `owners` 3.8 %.
 
 ### D325. Compiling XSLT and Schematron: the component graph, value templates, the Schematron front end (packet perf-13)
+
+**Summary**: XSLT compiles find components through sorted indexes and node
+maps, value templates without braces skip the parser, and the Schematron
+builder parses each synthesized text once through a hash table.
 
 Recorded 2026-10-28, after D224, D315, D320, D323 and D324 (its proposal "XSLT
 compile costs that grow with the square of a stylesheet"). No public header
@@ -17401,6 +17413,10 @@ same findings.
 
 ### D326. Running compiled Schematron: the pattern walk visits only what a rule may match (packet perf-14)
 
+**Summary**: A compiled Schematron pattern's `pattern_walk` visits element
+children always and other node kinds only when a rule context of the pattern
+may match them.
+
 Recorded 2026-10-28, after D315, D323 and D325 ("Left": validating the compiled
 schema costs twice what the pre-compiled XSLT's transform does on the same
 invoice). No public header changed; no shared file changed (only
@@ -17481,6 +17497,10 @@ invoice). No public header changed; no shared file changed (only
   many rules, the official EN 16931 one as much as this.
 
 ### D327. Template rules chosen from rule buckets by node kind and name (packet perf-15)
+
+**Summary**: Each mode keeps its template rules in buckets by node kind and
+name, so an item tries only the rules whose pattern can match its kind and
+name.
 
 Recorded 2026-10-28, after D144, D149, D223, D224, D326 (its Proposed entry,
 now done and removed). No public header changed. Glossary: `item_category`,
@@ -17574,6 +17594,10 @@ now done and removed). No public header changed. Glossary: `item_category`,
 
 ### D328. Union patterns keep one default priority, the lowest of their alternatives' (packet fix-5)
 
+**Summary**: A union pattern is one template rule whose default priority is the
+lowest of its alternatives', as XSLT 4.0 says; sxml already does this, and
+nothing changes.
+
 Recorded 2026-10-28, after D118, D144, D245, D276, D327. No source change and
 no public header; one new unit test case.
 
@@ -17625,6 +17649,10 @@ no public header; one new unit test case.
   CreditNote unit tests) 1,133 of 1,133 checks.
 
 ### D329. Parsing XPath: fewer reductions, each text once per compilation (packet perf-17)
+
+**Summary**: The XPath grammar inlines its hidden choice rules so a primary
+expression is reduced once, not once per precedence level, and an `ast_memo`
+parses each distinct expression text once per compilation.
 
 Recorded 2026-10-28, after D12, D232, D324 and D325. No public header changed;
 the ASTs and the IR are the same.

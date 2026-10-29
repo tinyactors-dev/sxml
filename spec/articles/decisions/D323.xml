@@ -1,5 +1,6 @@
 <decision id="D323" status="accepted">
   <title>Schematron implemented: what 7.28 built and the readings it took (packet <ref kind="packet" to="7.28"/>)</title>
+  <summary>Implements <code>schematron.h</code> as <ref kind="decision" to="D315"/> designs it, with <code>sxml validate --schematron</code>, host shim and JavaScript entry points, and records the readings taken, such as pattern variables scoped to their pattern.</summary>
   <body>
     <p><recorded date="2026-10-28"/>, after <ref kind="decision" to="D313"/>, <ref kind="decision" to="D315"/> (revised and accepted), <ref kind="decision" to="D317"/>, <ref kind="decision" to="D318"/> and <ref kind="decision" to="D320"/>. Implements <code>include/sxml/schematron.h</code> as <ref kind="decision" to="D315"/> designs it; no public header changes beyond <ref kind="decision" to="D320"/>'s.</p>
     <list>
