@@ -1812,6 +1812,10 @@ tables (about +206 KB, D329).
 - **Done when**: the wasm build, every JavaScript test, the size budget
   and the book's JavaScript examples pass; the setup (wasi-sdk-34 at
   /opt/wasi-sdk, node version) recorded in the LOG.
+**Done** 2026-10-29: sxml.wasm 13,833,376 / 2,529,416 bytes under
+14,000,000 / 2,800,000 (not raised); every JavaScript test, the size
+budget, the book's 7 JavaScript examples and the native release ctest
+pass; one test fix (7.29's locations test, e68e524).
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every

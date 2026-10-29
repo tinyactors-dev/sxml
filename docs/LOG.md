@@ -4,6 +4,23 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- wasm-1 done: sxml.wasm built and its package run here for the first
+  time since 7.28, 7.29, fix-7 and perf-17. Setup: wasi-sdk-34 (the
+  version mise.toml pins) at /opt/wasi-sdk, the toolchain file's
+  default; Node.js v22.22.0; the book's JavaScript chapters need
+  WASI_SDK_PREFIX=/opt/wasi-sdk for the language module's clang line.
+  One failure, fixed (e68e524): 7.29's locations test compared
+  Value.toString() (adaptive, so `"2"`) with `2`. Now ctest's
+  javascript/package 26/26, languages 30/30 (Schematron with warnings
+  and documents), streams 22/22 (locations), code_languages 10/10,
+  typecheck and size_budget pass: sxml.wasm 13,833,376 stripped,
+  2,529,416 gzipped (limit 14,000,000 / 2,800,000, not raised; +406,889
+  since the baseline, most perf-17's tables: xpath_full_text +63,754,
+  value_template +49,064, xpath +49,044, xslt_pattern +48,030, and
+  schematron_build +57,028); the CLI module 15,441,066 / 2,817,989
+  (15,500,000 / 2,900,000). Book JavaScript examples 7/7; native
+  release ctest 466/466.
+
 - fix-7 done (D331): Schematron queries see `xs`, `fn`, `math`, `map`,
   `array` and `err` without `ns` (the binding annexes); every finding
   names the document it is in (`document_uri` in the C report, the
