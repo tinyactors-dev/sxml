@@ -13,7 +13,7 @@ At a glance:
 | `sxml xpath [OPTIONS] EXPRESSION` | Evaluates an XPath 4.0 expression | [Finding Things with XPath](xpath.md) |
 | `sxml xquery [OPTIONS] [QUERY-FILE]` | Runs an XQuery 4.0 query, from a file or `--expression` | [Writing Programs with XQuery](xquery.md) |
 | `sxml transform [OPTIONS] STYLESHEET [INPUT]` | Runs an XSLT 4.0 transformation | [Transforming with XSLT](xslt.md) |
-| `sxml validate [OPTIONS] FILE...` | Validates documents against an XSD 1.1 schema, Schematron rules, or both | [Validating with XSD](xsd.md), [Validating with Schematron](schematron.md) |
+| `sxml validate [OPTIONS] FILE...` | Validates documents against an XSD 1.1 schema, Schematron rules, or both | [Validating with XSD](xsd.md), [Checking Rules with Schematron](schematron.md) |
 | `sxml check [OPTIONS] FILE...` | Checks that documents are well-formed, or valid against their DTD | [The sxml Command](the-sxml-command.md) |
 | `sxml serialize [OPTIONS] FILE` | Parses a document and writes it again | [The sxml Command](the-sxml-command.md) |
 | `sxml version` | Prints the version | |

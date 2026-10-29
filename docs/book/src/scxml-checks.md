@@ -190,3 +190,10 @@ exit status 0
 ```
 
 The rest of the project uses the fixed machine.
+
+These checks are a list of problems, each a sentence about one place in
+the machine, which is what Schematron is made for. [Checking the State
+Machine](schematron-machine.md) writes them as a Schematron schema,
+which reports each problem with its line, gives warnings and errors
+their own levels, and turns them into an exit status without a shell
+test; the fix stays a query.

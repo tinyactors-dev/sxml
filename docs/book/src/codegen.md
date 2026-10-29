@@ -129,6 +129,9 @@ twice.xml:6:3: cvc-identity-constraint.4.1: element 'Q{https://example.org/api}q
 One rule is left that a schema for `api.xml` can't check: that the type
 names refer to complex types of `vane-api.xsd`, which is another
 document. The generator checks that one itself, as we'll see.
+[Rules Across Documents](schematron-documents.md) writes it as a
+Schematron rule, which reports every wrong name at its place before
+the generator runs.
 
 ## The plan
 

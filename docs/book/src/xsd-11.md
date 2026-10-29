@@ -198,7 +198,8 @@ not which target is wrong: the keyref's message pointed at the
 transition. That is the trade the subset of `scxml.xsd` avoids, and a
 reason to keep keys where they fit. [Checking What the Schema
 Cannot](scxml-checks.md) shows how a query reports each mistake on its
-own.
+own, and [Abstract Patterns, Includes and
+Libraries](schematron-reuse.md) how a Schematron rule does.
 
 Unlike XSD 1.0's `xs:redefine`, which sxml supports too, an override
 doesn't have to be a restriction or extension of what it replaces.

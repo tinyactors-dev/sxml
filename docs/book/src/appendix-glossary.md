@@ -1,5 +1,9 @@
 # Appendix C: Glossary
 
+**Abstract pattern.** In Schematron, a pattern with `abstract="true"`:
+a template whose `$name` placeholders are replaced by the text of the
+parameters each pattern with `is-a` gives it.
+
 **Abstract type.** In XSD, a type that no element may have itself, only
 a type derived from it (`abstract="true"`). An abstract element
 declaration may appear only through its substitution group.
@@ -16,7 +20,8 @@ it with `target`. Anchors are names, not numbers: the renderer numbers
 sections and requirements by their position.
 
 **Assertion.** In XSD 1.1, an XPath condition that a valid element
-(`xs:assert`) or value (the `assertion` facet) must meet.
+(`xs:assert`) or value (the `assertion` facet) must meet. In
+Schematron, an `assert` or a `report`: a test and a message.
 
 **Atomic value.** A value that is not a node, a function, a map or an
 array: a string, a number, a boolean, a date, a duration, a QName and so
@@ -115,6 +120,10 @@ false; a node is true.
 reaches, where call chains start, such as the function that starts a
 server.
 
+**Error finding.** A Schematron finding that makes its document
+invalid: its severity is `fatal` or `error`, or, without a severity,
+its role or a flag is, or it has none of the three.
+
 **Error code.** The name of an error, such as `err:XPTY0004`, defined by
 the specifications. The same code means the same problem in every
 processor.
@@ -137,6 +146,9 @@ feature on or off for some of its users without a new release. In
 Vane, the book's example product, the backend SDK evaluates the flags
 itself, and the frontend SDK asks the Vane service whether each flag is
 on for a user.
+
+**Finding.** What a Schematron validation reports: a failed `assert`
+or a successful `report` for one node, with its message.
 
 **FLWOR expression.** XQuery's expression of `for`, `let`, `where`,
 `order by`, `group by`, `count`, window clauses and `return`.
@@ -241,7 +253,13 @@ the one that replaces it, as a dark theme does.
 takes part in a request, as the caller or the callee of a call.
 
 **Pattern.** In XSLT, a condition on a node, written like a path, that
-says which nodes a template rule matches.
+says which nodes a template rule matches. In Schematron, a list of
+rules, of which the first whose context matches a node fires for it
+(in a `group`, every one that matches).
+
+**Phase.** In Schematron, a named set of patterns to run, chosen with
+`--phase`; under `#ANY`, each document takes the first phase whose
+`when` is true for it.
 
 **Pause.** In Vane, a time in which a flag refuses every rollout, after
 too many failed checks.
@@ -290,11 +308,19 @@ made with `xsl:result-document`; the sxml command writes them below
 users, in steps.
 
 **Schema.** A description of what valid documents of a kind contain. In
-this book, an XSD schema.
+this book, an XSD schema or a Schematron schema.
+
+**Schema parameter.** In Schematron, a `param` of the schema: a piece
+of expression text put in place of `$name` in every expression, which
+`--schematron-param` can replace.
 
 **Schema-aware.** A processor that can validate documents inside a
 query or stylesheet and use the types the schema gives their nodes.
 sxml is schema-aware.
+
+**Schematron.** A schema language (ISO/IEC 19757-3) for rules between
+values, across elements and across documents, written as XPath tests
+with messages for people.
 
 **SCXML.** State Chart XML, the W3C's XML vocabulary for state
 machines.
@@ -342,6 +368,9 @@ wherever their head element is allowed.
 
 **SVG.** Scalable Vector Graphics, the W3C's XML vocabulary for
 drawings, in the namespace `http://www.w3.org/2000/svg`.
+
+**SVRL.** The Schematron Validation Report Language: the XML form of a
+Schematron validation's report, with its fired rules and findings.
 
 **Syntax tree.** A program as a tree of its parts. A *concrete* syntax
 tree, as `tree-sitter:parse` returns, holds every token and space, so its

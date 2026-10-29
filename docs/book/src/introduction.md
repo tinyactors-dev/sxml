@@ -4,8 +4,8 @@ Welcome to *The sxml Book*, an introduction to sxml and to the XML
 languages it implements.
 
 sxml is an XML toolchain in portable C. It parses XML and HTML, validates
-documents against XSD 1.1 schemas and DTDs, and runs XPath 4.0, XQuery
-4.0 and XSLT 4.0. All of its languages share one data model and one
+documents against XSD 1.1 schemas, DTDs and Schematron rules, and runs
+XPath 4.0, XQuery 4.0 and XSLT 4.0. All of its languages share one data model and one
 engine. You can use it in three ways:
 
 - as the `sxml` command, from a terminal or a shell script;
@@ -116,7 +116,8 @@ The chapters build on each other. The first chapter installs sxml and
 runs a first expression. The next three teach the three languages in the
 order they build on each other: XPath, then XQuery, which contains
 XPath, then XSLT, which uses XPath inside its templates. After them come
-the SVG project, validation with XSD and the state-machine project,
+the SVG project, validation with XSD, the state-machine project,
+checking rules between values and across documents with Schematron,
 Invisible XML for text formats, JSON, CSV and HTML, source code as XML
 and the two diff projects, and then chapters on text, files, using sxml
 from C and JavaScript, and performance. The last project generates

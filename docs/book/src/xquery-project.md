@@ -154,6 +154,12 @@ exit status 1
 The renamed target counts twice, as it should: the reference is
 dangling, and the term `term-percentage` lost its only use.
 
+Rules like these, each a sentence about one place in the document, can
+also be written in Schematron, the schema language for rules between
+values, which reports each problem with its line and a level of its
+own: [Checking Rules with Schematron](schematron.md) starts from these
+checks.
+
 ## The changes
 
 Reviewers of a new version want to know what changed in the

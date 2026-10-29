@@ -357,4 +357,9 @@ $ test -e typo-program.xml || echo "no file written"
 no file written
 ```
 
+The generator stops at the first unknown type. To find them all, with
+their lines, before generating anything, check the description with a
+Schematron rule, as [Rules Across Documents](schematron-documents.md)
+does.
+
 Next, let's print the tree.

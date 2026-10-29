@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<invoice currency="EUR" total="26.50">
-  <line number="1" item="pen" quantity="3" price="1.50" amount="4.50"/>
-  <line number="2" item="paper" quantity="2" price="11.00" amount="22.00"/>
-</invoice>
