@@ -1,5 +1,4 @@
 <term id="key_index">
   <name>key_index</name>
   <definition>The map from key values to nodes of one xsl:key name for one tree, built once per evaluation (XSLT 4.0, 20.2; <ref kind="decision" to="D149"/>)</definition>
-  <definition>The hash index of the keys of the JSON objects (or map elements) open at once, to find duplicate keys in O(1)</definition>
 </term>

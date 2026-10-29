@@ -1,5 +1,4 @@
 <term id="module_uri">
   <name>module_uri</name>
-  <definition>The absolute URI a stylesheet module was read from; the source name of its expressions</definition>
-  <definition>Also the URI an XQuery library module was found at: its source name and static base URI</definition>
+  <definition>The absolute URI a module was read from: a stylesheet module, or an XQuery library module where it was found; the source name of its expressions and, for XQuery, its static base URI</definition>
 </term>

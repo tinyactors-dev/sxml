@@ -1,5 +1,4 @@
 <term id="record_field">
   <name>record_field</name>
-  <definition>An attribute of <code>xsl:record</code>: the field name is its local name, the value its expression</definition>
-  <definition>One field of a record type: a name and a sequence type</definition>
+  <definition>One field of a record type: a name and a sequence type; in <code>xsl:record</code>, an attribute whose local name is the field name and whose expression gives the value</definition>
 </term>

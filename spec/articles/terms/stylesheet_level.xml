@@ -1,5 +1,4 @@
 <term id="stylesheet_level">
   <name>stylesheet_level</name>
-  <definition>A stylesheet module with the modules it includes, directly or not: one import precedence (XSLT 4.0, 3.10.2)</definition>
-  <definition>Stylesheet modules connected by <code>xsl:include</code>; they share one import precedence (XSLT 4.0, 3.10.2)</definition>
+  <definition>A stylesheet module with the modules it includes (<code>xsl:include</code>), directly or not; they share one import precedence (XSLT 4.0, 3.10.2)</definition>
 </term>

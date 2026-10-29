@@ -1,5 +1,4 @@
 <term id="variable_binding">
   <name>variable_binding</name>
-  <definition>An <code>xsl:variable</code>, <code>xsl:param</code> or <code>xsl:with-param</code> element, whose value comes from its select, its content or neither (XSLT 4.0, 9.3); its <code>binding_role</code> says which type error its declared type raises (XTTE0570 or XTTE0590)</definition>
   <definition>A variable name with its value, in the dynamic context</definition>
 </term>

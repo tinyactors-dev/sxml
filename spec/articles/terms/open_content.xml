@@ -1,5 +1,4 @@
 <term id="open_content">
   <name>open_content</name>
-  <definition>What the declaration of an open element says of its content, kept by a validating parse for the validity constraints on content</definition>
   <definition>Elements a complex type allows besides its particle, matched by a schema wildcard, anywhere (interleave) or after the content (suffix) (XSD 1.1 Part 1, 3.4.1)</definition>
 </term>

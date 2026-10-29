@@ -32,8 +32,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `argument_placeholder` | A `?` in an argument list, making the call a partial application |
 | `arithmetic_operator` | What an arithmetic expression computes: add, subtract, multiply, divide, integer divide or modulo (XPath 4.0, section 4.9) |
 | `arity` | Number of parameters of a function item |
-| `arity_range` | The arities a function accepts: its required parameters up to all of them (XSLT 4.0, 10.3.1) |
-| `arity_range` | The arities a function definition accepts: from its required parameters up to all its parameters (XQuery 4.0, 5.18) |
+| `arity_range` | The arities a function accepts: from its required parameters up to all its parameters (XSLT 4.0, 10.3.1; XQuery 4.0, 5.18) |
 | `array` | An XDM array; members are sequences |
 | `array_member` | One member of an array |
 | `array_node` | A cell of an array's persistent balanced tree (`src/xdm_array.c`): a flat node, a run node or a branch node; an array item's cell is the root array node |
@@ -131,6 +130,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `clause_segment` | The FLWOR clauses between two tuple stream clauses, lowered as nested MAP, LET and CONDITIONAL without the tuple stream as a value |
 | `cldr_file` | A CLDR XML file read into a table of its leaf elements by distinguished path, with its aliases (src/cldr_internal.h; D221) |
 | `cli` | The command-line interface (`apps/`, docs/CLI.md); allowed short form, as the `sxml_cli_` prefix of application code only |
+| `cli_invocation` | What a command function receives: program, command, parsed arguments, writers |
 | `clock` | Host interface that reads the current date and time and the implicit timezone |
 | `clock_reading` | What one reading of a clock gives: the current dateTime and the implicit timezone |
 | `codepoint` | A Unicode scalar value, held in `uint32_t` |
@@ -454,7 +454,6 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `intermediate_representation` | The shared IR; `ir` allowed as a module name only |
 | `internal_subset` | The declarations between `[` and `]` of a document type declaration (XML 1.0, section 2.8) |
 | `invocation` | How the main function starts a transformation: a template to call, or templates applied to the global context item in an initial mode (XSLT 4.0, 2.4) |
-| `invocation` | What a command function receives: program, command, parsed arguments, writers |
 | `invocation_global` | A global of a stylesheet's IR unit through which the host supplies an invocation's run-time values (the template and tunnel parameter maps, the initial match selection, the initial function's arguments), bound by name as stylesheet parameters are (D157) |
 | `invocation_kind` | How a transformation starts: apply-templates, call-template or a function call (XSLT 4.0, 2.4.3 to 2.4.5) |
 | `invocation_value` | The value src/xslt.c binds to an invocation global for one transformation (D157) |
@@ -488,6 +487,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `join` / `split` | Concatenate two array trees, keeping balance / cut an array tree before a member index into two |
 | `json_event` | One step of walking a JSON text: the start or end of an object or array, a key, or a scalar; what a JSON sink receives |
 | `json_key` | The ·jkey· of a JNode: the map key or 1-based array or sequence position under its parent |
+| `json_key_index` | The hash index of the keys of the JSON objects (or map elements) open at once, to find duplicate keys in O(1) |
 | `json_node` | A JNode: a wrapper that lets maps and arrays be navigated with axes |
 | `json_node_test` | An item type over JNodes: `jnode(key, value type)` |
 | `json_replacement` | The string value of the fallback function's result for one codepoint, inserted for each of its `unpermitted_escape`s (D143) |
@@ -498,7 +498,6 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `kept_ast` | An XPath AST a stylesheet lowering makes (a short text, a pattern's match expression) and keeps until it ends (D152) |
 | `kept_error` | The copy of a generator's error that a lazy sequence keeps and raises again on every later read (D41) |
 | `key_index` | The map from key values to nodes of one xsl:key name for one tree, built once per evaluation (XSLT 4.0, 20.2; D149) |
-| `key_index` | The hash index of the keys of the JSON objects (or map elements) open at once, to find duplicate keys in O(1) |
 | `key_sequence` | The values an identity constraint's fields give for one node its selector selected, in field order; two are equal member for member by XSD's equality (XSD 1.1 Part 1, 3.11.4) |
 | `key_tree` | The balanced tree of a persistent map's keys ordered by key hash, then entry stamp, for lookup by key |
 | `keyword` | A fixed word of a language: an XPath keyword (see `keyword_name`), or one of the words an XSLT attribute takes from a fixed list (`shallow-copy`, `strict`) |
@@ -568,8 +567,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `module_linker` | The JavaScript package's small dynamic linker (`bindings/javascript/src/linker.ts`): reads a side module's `dylink.0`, reserves its memory with `sxml.wasm`'s `malloc` and its slots in the exported function table, instantiates it with sxml's memory, table, stack pointer and C library functions, and runs its relocations (D293) |
 | `module_record` | The result of fn:load-xquery-module: the public variables and functions of the loaded module (F&O 4.0, 18.1) |
 | `module_set` | The main module and every library module one compilation loads, each once; imports name namespaces, so a module sees every loaded module of a namespace it imports (XQuery 4.0, 5.12.2) |
-| `module_uri` | The absolute URI a stylesheet module was read from; the source name of its expressions |
-| `module_uri` | Also the URI an XQuery library module was found at: its source name and static base URI |
+| `module_uri` | The absolute URI a module was read from: a stylesheet module, or an XQuery library module where it was found; the source name of its expressions and, for XQuery, its static base URI |
 | `multiplicity` | How often an option or positional may appear: at most once, repeatable, exactly one, optional, one or more, zero or more |
 | `name_format` | The `name-format` option of `fn:element-to-map`: `default`, `eqname`, `local` or `lexical` |
 | `name_identifier` | Identifier of an interned expanded name (namespace URI plus local name) in a name pool |
@@ -604,7 +602,6 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `node_height` | Of an array node: 0 for leaves, one more than the taller subtree for a branch node (AVL balance) |
 | `node_index` | Index of a node within its tree's arena |
 | `node_kind` | One of the seven XNode kinds: document, element, attribute, text, comment, processing instruction, namespace |
-| `node_kind` | The grammar's name for the type of a syntax node (tree-sitter's "type"), such as `function_declaration`; the local name of its element |
 | `node_reference` | A tree plus a node index (plus a namespace number for namespace nodes); identifies a node |
 | `node_segment` | One of the blocks holding an arena tree's nodes; segment k holds 16·2^k nodes, so nodes never move as the tree grows |
 | `node_table` | The key sequences and nodes of one key or unique at an element: its own qualified node set and the node tables of its children, a key sequence children give with different nodes left out; what a keyref looks in (XSD 1.1 Part 1, 3.11.5) |
@@ -620,7 +617,6 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `number_view` | The second order of a filter index whose keys are all xs:untypedAtomic: the keys cast as "=" casts them against a number, by nearest double, made at the first numeric probe value (internal, `src/evaluator_index.c`, D259) |
 | `numbering_kind` | How a primary format token numbers: digits, letters, Roman numerals or words, or an unsupported token formatted as `1` |
 | `occurrence` | How many items a sequence type allows: zero, one, zero or one, zero or more, one or more |
-| `open_content` | What the declaration of an open element says of its content, kept by a validating parse for the validity constraints on content |
 | `open_content` | Elements a complex type allows besides its particle, matched by a schema wildcard, anywhere (interleave) or after the content (suffix) (XSD 1.1 Part 1, 3.4.1) |
 | `open_elements` | The HTML parser's stack of open elements, the current node last (HTML Living Standard, 13.2.4.2) |
 | `open_node` | The element (or document node) of a shallow stream window whose content has not been read yet: a STREAM whose origin it is reads that content from the events (D219) |
@@ -639,8 +635,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `output_declaration` | An XQuery option declaration in the serialization namespace (`declare option output:indent "yes"`, XQuery 4.0, section 5.22) |
 | `output_definition` | The serialization parameters and `build-tree` of one `xsl:output` declaration, named or unnamed (XSLT 4.0, 26.1) |
 | `output_sink` | What receives an `output_chunk` in the JavaScript package (`OutputSink`): a function, or an object with `write` and optionally `close` and `abort` (D294) |
-| `output_stream` | Interface that receives bytes, written in order |
-| `output_stream` | Interface receiving bytes a command-line program writes (`sxml_cli_output_stream`) |
+| `output_stream` | Interface that receives bytes, written in order; a command-line program writes through `sxml_cli_output_stream` |
 | `output_writer` | The host shim's receiver of a processor's serializations a chunk at a time (`sxml_host_output_writer`, `sxml_host_set_output`): output events of bytes, and of the bounds of each serialized result document (D294) |
 | `overriding_declaration` | A child of `xsl:override`: the using package's replacement of a component of the used package (XSLT 4.0, 3.4.5.3) |
 | `package` | An XSLT package: the principal module or the module an `xsl:use-package` read, with the modules it includes and imports; an `xsl:stylesheet` is an implicit package (XSLT 4.0, 3.4; D160) |
@@ -740,8 +735,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `reads_source_locations` | Said of a compiled program (an IR unit) that can ask for the source locations of the documents it reads: it calls or refers to fn:location, fn:function-lookup, fn:load-xquery-module, fn:transform or xsl:evaluate, or has schemas it can validate with; under AUTOMATIC its documents keep locations (D313, D318) |
 | `receiving_task` | A node constructor's part task while its content is evaluated: the values of the delivering tasks above it go into its construction as they are made (D166) |
 | `record` | A map whose keys are fixed by a record type |
-| `record_field` | An attribute of `xsl:record`: the field name is its local name, the value its expression |
-| `record_field` | One field of a record type: a name and a sequence type |
+| `record_field` | One field of a record type: a name and a sequence type; in `xsl:record`, an attribute whose local name is the field name and whose expression gives the value |
 | `record_type` | An item type whose instances are records; a list of fields |
 | `recorded_subtree` | The validated copy of an element and its descendants that the schema validator keeps while the element is open, for the XPath of assertions and identity constraints |
 | `redefinition` | A component that an xs:redefine or xs:override child gives in place of the component of its name in the document it refers to (XSD 1.1 Part 1, 4.2.4 and 4.2.5) |
@@ -907,6 +901,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `stored_namespace` | A namespace node held as a stored node of a tree: only a parentless one, at node index 0 (D98) |
 | `stream_availability` | What fn:stream-available finds by a streamed open of a document read to the end of its document element's start tag: available, unavailable, or unknown without a processor's loader (`sxml_stream_availability`, XSLT 4.0, 18.2; D273) |
 | `stream_point` | An instruction of a streamed body that selects streamed nodes as their events pass: an xsl:for-each whose select is a downward path, lowered to a chain of STREAM expressions (D219), or an instruction with a streamed path (D223) |
+| `stream_tee` | An element whose events the stream builder also sends to a full stream window of its own as they pass, for end rules with capture="yes" (XSLT 4.0, 19.9; D236) |
 | `stream_window` | The small tree a node of a streamed document lives in: the document node, the node's ancestors with their attributes and namespaces, the node, and its subtree (a full window) or not (a shallow window) (D219) |
 | `streamability` | Whether a construct is guaranteed-streamable by the rules of XSLT 4.0, chapter 19, computed from postures and sweeps |
 | `streamed_accumulator_values` | The values of the xslt accumulators a streamed document computes as its events pass, kept by depth for the nodes its stream windows hold now and read by fn:accumulator-before and fn:accumulator-after for those nodes (D231) |
@@ -926,8 +921,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `stylesheet` | An XSLT 4.0 stylesheet: a principal module with every module it includes and imports, compiled together |
 | `stylesheet_ast` | What the stylesheet reader builds (`sxml_xslt_ast`): one node per stylesheet element and text node, attributes read into typed values, each expression, pattern, value template and type its own `abstract_syntax_tree`; `xslt_ast` allowed as a module name only |
 | `stylesheet_function` | A function an `xsl:function` declares; one IR function per arity of its arity range (XSLT 4.0, 10.3; D150) |
-| `stylesheet_level` | A stylesheet module with the modules it includes, directly or not: one import precedence (XSLT 4.0, 3.10.2) |
-| `stylesheet_level` | Stylesheet modules connected by `xsl:include`; they share one import precedence (XSLT 4.0, 3.10.2) |
+| `stylesheet_level` | A stylesheet module with the modules it includes (`xsl:include`), directly or not; they share one import precedence (XSLT 4.0, 3.10.2) |
 | `stylesheet_lowering` | One lowering of a sealed stylesheet AST into an IR unit (`sxml_xslt_lowering`): the XPath static context of each AST static context, the namespace aliases and the instruction rules, around one `lowerer` |
 | `stylesheet_module` | One XML document of a stylesheet as reached by one `xsl:include` or `xsl:import`, or the principal module; `module` in `sxml_xslt_ast_module` |
 | `stylesheet_outputs` | The compiled output part of a stylesheet: its output definitions by name, its named character maps, and what each `xsl:result-document` instruction reads when it runs (packet 4.13) |
@@ -951,6 +945,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `symbol_sequence` | A numbering sequence with one Unicode symbol per number over a fixed range, named by its symbol for 1 (CIRCLED DIGIT ONE `①`, 0 to 50); numbers outside the range are written in decimal |
 | `symbol_space` | One of XSD's seven partitions of global component names: type definitions, element declarations, attribute declarations, model group definitions, attribute group definitions, identity-constraint definitions, notation declarations (XSD 1.1 Part 1, 2.6) |
 | `syntax_node` | A node of a tree-sitter syntax tree: named (a rule of the grammar, which becomes an element named by its kind) or anonymous (a token such as `return` or `;`, which becomes text) |
+| `syntax_node_kind` | The grammar's name for the type of a syntax node (tree-sitter's "type"), such as `function_declaration`; the local name of its element |
 | `synthesized` | Made by the stylesheet reader rather than read from an element (the root and template of a simplified stylesheet) |
 | `system_property` | A processor capability or fact, under its F&O 4.0 name (fn:system-properties, 17.1.9) and its XSLT 4.0 name (fn:system-property, 24.2.1); one table holds both |
 | `tail_call` | A call whose value is the value of the function making it; the evaluator reuses that function's frame |
@@ -960,7 +955,6 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `target_type` | The type a cast converts to: atomic, list, union, enumeration or choice of atomic types |
 | `task_stack` | The evaluator's explicit stack of evaluator tasks, in allocator memory, which replaces recursion on the C stack |
 | `tee` | A tree builder that passes each event to two builders in turn |
-| `tee` | An element whose events the stream builder also sends to a full stream window of its own as they pass, for end rules with capture="yes" (XSLT 4.0, 19.9; D236) |
 | `template_function` | The IR function an `xsl:template` (or a built-in template) lowers to: the focus (item, position, size) and the two parameter maps are its five parameters (D144) |
 | `template_parameter` | An `xsl:param` of a template; the host passes values to those of the initial template or of the rules of the initial mode |
 | `template_rule` | An XSLT rule: a match function, a template function, priority and import precedence |
@@ -1020,8 +1014,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `uca_fallback` | sxml's stand-in for a UCA collation URI: the levels of UTS #10 over weights derived from Unicode properties, without DUCET tables (D97, D116) |
 | `unexpanded_declaration` | A markup declaration of external DTD text with parameter-entity references outside its literals, which matches its production only after the references are replaced (XML 1.0, section 4.4.8) |
 | `unit` | Everything one compilation produces in the IR: functions, expressions, constants, global variables, modes; reference counted (`sxml_ir_unit`) |
-| `unit_evaluation` | One evaluation of a sealed IR unit with the host's dynamic context: what the XPath and XQuery APIs share (`sxml_evaluate_unit`, D146) |
-| `unit_evaluation` | A native step that asks the machine to evaluate another unit's main function, its global table first, and to hand the value to the next step (D154) |
+| `unit_evaluation` | One evaluation of a sealed IR unit with the host's dynamic context: what the XPath and XQuery APIs share (`sxml_evaluate_unit`, D146); a native step can ask the machine for one of another unit's main function, its global table first, and hand the value to the next step (D154) |
 | `unit_evaluation_extension` | What a language adds to the shared evaluation of a unit (`src/xpath_api_internal.h`): XSLT's function table, document preparation and result writer (D157); a unit evaluation a native step asks for carries one in its global table, which the unit's code reads (fn:transform, D203) |
 | `unix_time` | Milliseconds since 1970-01-01T00:00:00Z, leap seconds not counted (fn:unix-dateTime) |
 | `unnamed_child` | A named concrete syntax tree child that its grammar gives no field (XQuery's module); a parser part names its AST field |
@@ -1035,8 +1028,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `updating_expression` | An expression whose value is a pending update list: insert, delete, replace, rename, an updating function call, and the expressions that pass one on (XQuery Update Facility 3.0, 2.2); its opposite is a `simple_expression` |
 | `uri_collection` | The sequence of `xs:anyURI` items `fn:uri-collection` returns for a URI |
 | `uri_escaping` | NFC and %-escaping of non-ASCII characters in a URI attribute value of an HTML element (Serialization 4.0, section 4, rule a; appendix D) |
-| `uri_reference` | A URI or relative reference split into scheme, authority, path, query and fragment (RFC 3986, section 4.1) |
-| `uri_reference` | A URI as written, possibly relative (RFC 3986, section 4.1) |
+| `uri_reference` | A URI or relative reference as written, split into scheme, authority, path, query and fragment (RFC 3986, section 4.1) |
 | `uri_resolution` | Resolving a URI reference against a base URI (RFC 3986, section 5.2) |
 | `uri_structure` | The parts of a URI as `fn:parse-uri` finds them and `fn:build-uri` joins them: the fields of `fn:uri-structure-record` (F&O 4.0, section 7.6.1) |
 | `usage_error` | A command line that does not match the table: unknown, missing, repeated or extra arguments |
@@ -1054,8 +1046,8 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `value_constraint` | The default or fixed value of an element or attribute declaration or an attribute use, as its lexical form (XSD 1.1 Part 1, 3.3.1) |
 | `value_order` | XSD's order of two values of one primitive type: less, equal, greater or incomparable (partial for dates, times and durations, NaN incomparable; XSD 1.1 Part 2, 2.2.3) |
 | `value_template` | An attribute value template or text value template: fixed text with enclosed XPath expressions in `{ }` (XSLT 4.0, 5.6) |
-| `variable_binding` | An `xsl:variable`, `xsl:param` or `xsl:with-param` element, whose value comes from its select, its content or neither (XSLT 4.0, 9.3); its `binding_role` says which type error its declared type raises (XTTE0570 or XTTE0590) |
 | `variable_binding` | A variable name with its value, in the dynamic context |
+| `variable_binding_element` | An `xsl:variable`, `xsl:param` or `xsl:with-param` element, whose value comes from its select, its content or neither (XSLT 4.0, 9.3, "variable-binding elements"); its binding role says which type error its declared type raises (XTTE0570 or XTTE0590) |
 | `variable_declaration` | A variable name with its declared type, in the static context (an external variable) |
 | `variable_marker` | A part of a date picture string in square brackets, replaced by a date or time component (F&O 4.0, section 9.9.4.1) |
 | `variable_part` | `{ Expr? }` in a value template; empty, whitespace or comments only give a zero-length string (XSLT 4.0, 5.6) |
@@ -1076,6 +1068,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `written_bindings` | The namespace bindings already declared for the open elements, against which an element's declarations and undeclarations are computed |
 | `xinclude` | XInclude processing: copying a document with each `xi:include` element replaced by the document or text its `href` names, or by its `xi:fallback`'s children when that cannot be read; the `xinclude` option of fn:doc and fn:parse-xml (XInclude 1.0) |
 | `xml_island` | An element the HTML method writes as XML because it is not an HTML element (Serialization 4.0, 7.1) |
+| `xml_open_content` | What the declaration of an open element says of its content, kept by a validating parse for the validity constraints on content |
 | `xml_parser` | Reads XML 1.0 bytes and sends their tree builder events (`include/sxml/xml.h`) |
 | `xml_representation_of_json` | The elements `map`, `array`, `string`, `number`, `boolean` and `null` in the fn namespace, with `key`, `escaped` and `escaped-key` attributes, that stand for a JSON text (F&O 4.0, section 17.4.2) |
 | `xml_version` | The version of XML a document follows, 1.0 or 1.1, read from its XML declaration (`sxml_xml_version`; XML 1.1, section 4.3.4); it decides the characters allowed, the line ends and whether prefixes may be undeclared |

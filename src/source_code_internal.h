@@ -18,7 +18,7 @@
  *
  * The document (D285):
  * - one element per named syntax node, named by its kind (glossary
- *   `node_kind`) in no namespace; a kind that is no NCName makes an
+ *   `syntax_node_kind`) in no namespace; a kind that is no NCName makes an
  *   sxml:node element with the kind in its kind attribute;
  * - the document element is the root node's, and it holds the whole
  *   text, so the string value of the document is the source text;

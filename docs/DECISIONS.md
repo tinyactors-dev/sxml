@@ -10585,11 +10585,11 @@ the release driver, compared case by case.
   declared streamable one of whose capturing end rules matches an element; it
   is called at each element's start (a call like the initial one, before the
   start calls), and the stream builder then also sends the element's events to
-  a full window of its own (glossary `tee`; nested tees a stack, an empty
-  element's tee ended at once), whose element those accumulators' end calls get
-  as the node (others keep the shallow window, so their reads of accumulator
-  values still find the node). A stylesheet whose streamable accumulators
-  capture now streams (`sxml_xslt_accumulators_stream` removed).
+  a full window of its own (glossary `stream_tee`; nested tees a stack, an
+  empty element's tee ended at once), whose element those accumulators' end
+  calls get as the node (others keep the shallow window, so their reads of
+  accumulator values still find the node). A stylesheet whose streamable
+  accumulators capture now streams (`sxml_xslt_accumulators_stream` removed).
 - **Measured** (release): `sxml transform` merging two generated 38.3 MB
   documents of 600,000 records each by id, peak resident 1,055.6 MB before
   (grounded), 11.0 MB after, output identical (24.6 s and 30.0 s, the second
@@ -12911,7 +12911,7 @@ Recorded 2026-10-20, after D12, D13, D44, D71, D99, D162, D189, D191, D208,
 D215, D272. The owner's order: the book first (Chapter "Source Code as XML"),
 then the grammars' own tests, then the implementation.
 
-- **Shape** (glossary `syntax_node`, `node_kind`, `field_name`,
+- **Shape** (glossary `syntax_node`, `syntax_node_kind`, `field_name`,
   `token_element`): a document node; one element per named syntax node, named
   by its kind, in no namespace; anonymous nodes (tokens) and the bytes between
   nodes are text, so `string()` of the document is the source exactly, and the

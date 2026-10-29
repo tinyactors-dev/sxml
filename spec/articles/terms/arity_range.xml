@@ -1,5 +1,4 @@
 <term id="arity_range">
   <name>arity_range</name>
-  <definition>The arities a function accepts: its required parameters up to all of them (XSLT 4.0, 10.3.1)</definition>
-  <definition>The arities a function definition accepts: from its required parameters up to all its parameters (XQuery 4.0, 5.18)</definition>
+  <definition>The arities a function accepts: from its required parameters up to all its parameters (XSLT 4.0, 10.3.1; XQuery 4.0, 5.18)</definition>
 </term>
