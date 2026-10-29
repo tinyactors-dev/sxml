@@ -1777,6 +1777,19 @@ on 2026-10-29, in this order, in the same files.
   unpatched EN 16931 and XRechnung; the book's examples match and the
   book builds; a D-record with the three decisions; XT40 whole, base and
   change in the same setup, if shared XSLT files change.
+**Done** 2026-10-29 (D331): (1) the function library's prefixes in
+every query and foreign XSLT declaration, `ns` wins; suite cases
+`ns-predeclared-*`, `rules-predeclared-xs-prefix` normative. (2)
+`sxml_schematron_report.document_uri` (additive); text, JSON
+(`document`), host shim and package; the book's `api.sch` gains a
+pattern over `vane-api.xsd`. (3) `schematron:compatibility` warnings
+for a parameter twice in an instance, a pattern let read elsewhere, a
+rule let after assertions; JSON `schematron.warnings`,
+`Schematron.warnings`; three suite deviations. Suite 520: 467 pass, 6
+deviations; EN 16931 UBL 1,133/1,133, CII 9/9; differential identical
+on the unpatched EN 16931 and XRechnung (ctest with
+`SXML_SCHEMATRON_DIFFERENTIAL`). No shared XSLT file changed (no XT40
+run). sxml.wasm not built here (no WASI SDK); the package typechecks.
 
 ### 7.21 Fast Invisible XML (book, tests, implementation)
 After D215 (7.18: the Earley parser, right recursion quadratic, every

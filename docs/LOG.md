@@ -4,6 +4,18 @@ One short entry per week, newest first: what passed, what's next, what is blocke
 
 ## Week of 2026-10-26
 
+- fix-7 done (D331): Schematron queries see `xs`, `fn`, `math`, `map`,
+  `array` and `err` without `ns` (the binding annexes); every finding
+  names the document it is in (`document_uri` in the C report, the
+  command's text and JSON, the package), so a pattern with `documents`
+  reports the other file with its lines; real rule sets' three known
+  deviations read with `schematron:compatibility` warnings. Suite 520:
+  467 pass, 6 deviations (3 new, D331); EN 16931 UBL 1,133/1,133 and
+  CII 9/9 from the sources; XRechnung compiles from its sources; the
+  differential against SchXslt identical on the unpatched EN 16931 and
+  XRechnung (255, 128, 226, 128 instances). Book: rules, documents,
+  reports (Warnings), C chapters. sxml.wasm not built (no WASI SDK).
+
 - book-30 done: the book's Schematron part, "Checking Rules with
   Schematron", replaces the invoice chapter. Seven chapters on the
   Vane projects: where Schematron fits (draft.sch on the draft), the

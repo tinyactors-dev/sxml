@@ -15179,7 +15179,12 @@ the last applying every pattern.
   `ns prefix uri` (5.4.10) are the statically known namespaces of every
   Schematron expression, besides XPath's predeclared ones; the XML
   namespace declarations of the documents are not (5.4.10 says so;
-  SchXslt's generated templates agree). `sch:p` is not used.
+  SchXslt's generated templates agree). *Amended 2026-10-29 (D331):*
+  "XPath's predeclared ones" are the prefixes of the function library,
+  `xs`, `fn`, `math`, `map`, `array` and `err`, which every binding
+  makes available (Annexes H to L) and which 7.28 had left out; they
+  are bound without `sch:ns`, an `sch:ns` of one of them wins, and
+  `xml` is XPath's own. `sch:p` is not used.
 - `pattern` (5.4.12): a mode; `id` names it in reports, `title` gives
   SVRL's `name`, `role` SVRL's `role`; `documents` is evaluated at the
   instance root, its relative IRIs resolved against the instance's base
@@ -15381,8 +15386,8 @@ reads one element subtree under a given parent: the nodes are exactly
 those a stylesheet would give. Annexes place them "before the pattern
 elements"; sxml reads them wherever they stand among the schema's
 children (no result depends on it). Their static context is their own
-XML in-scope namespaces plus the `sch:ns` bindings for prefixes they
-leave unbound (in SchXslt the copied element sits under a root that
+XML in-scope namespaces plus the `sch:ns` bindings (and, D331, the
+function library's prefixes) for prefixes they leave unbound (in SchXslt the copied element sits under a root that
 declares every `sch:ns`; XRechnung's `name="xr:checkIBAN"` needs it).
 `xsl:include` and `xsl:import` read their modules as XSLT does (an
 imported module has lower precedence than the Schematron rules). Other
@@ -16958,6 +16963,86 @@ changed; the IR after the passes is the same, item demands included.
   needs the owners of the unit as it starts it; keeping them across
   passes would need every pass to give owners to what it adds), the
   hoist pass's `analyse_let` 0.020, verify 0.030, global-read 0.028.
+
+### D331. Schematron: the function library's prefixes, the document of each finding, real rule sets read with warnings (packet fix-7)
+
+Recorded 2026-10-29, after D315, D323, D326, D327 and the owner's three
+requests of 2026-10-29 (the third his choice of option a on D323's
+Proposed entry, which this record replaces). Sources: ISO/IEC
+19757-3:2025 by clause; nothing of its text copied.
+
+- **Whom it serves**: the user of `sxml validate --schematron` and the
+  embedder who run real rule sets (EN 16931, XRechnung) from their
+  sources, and the author of a pattern with `documents`. **Pays**: a
+  field of the report, one internal walk of the stylesheet AST's
+  variable references per compile that has pattern variables, one
+  warning path in the reader, a JSON member, the book's pages.
+- **1. Prefixes.** 5.4.10 says the prefixes of query expressions are
+  defined by `ns`; every binding annex adds that all namespaces,
+  prefixes, functions and operators its functions specification
+  defines shall be available (Annexes H, I, J, K, L; M and N for the
+  XQuery bindings sxml refuses; Annex C, XPath 1.0, defines none, and
+  sxml reads `xslt` and no binding as 4.0, D315 B). Read together:
+  `xs`, `fn`, `math`, `map`, `array` and `err` resolve without `ns` in
+  every query expression, and in the XSLT declarations the xslt
+  bindings read, for a prefix they leave unbound; an `sch:ns` may bind
+  any of them and then wins; `xml` is XPath's own; every other prefix
+  still needs `sch:ns`; SVRL lists the `sch:ns` bindings only. D315's
+  wording is amended. The 7.30 suite's `rules-predeclared-xs-prefix`
+  becomes normative (no findings) and five cases join `schema-structure`
+  (`ns-predeclared-*`, `ns-undeclared-other-prefix`).
+- **2. The document of a finding.** A finding of a pattern with
+  `documents` (5.4.12) was printed with the validated file's name and
+  the other document's lines, and JSON did not say which document.
+  `sxml_schematron_report` gains `document_uri` (additive, at its end):
+  the document URI of the tree the subject node is in, so a subordinate
+  document's, one `fn:doc` read, else the validated document's;
+  `node_location` is that document's. The command shows it where it
+  showed FILE, by its path from the working directory, and JSON findings
+  gain `document`; the host shim and the package give `document`. SVRL
+  already said it as Annex D asks: each `fired-rule` of such a pattern
+  carries the subordinate document's URI (Table D.1, note c), and the
+  findings follow their fired rule.
+- **3. Real rule sets read with warnings** (option a). Three deviations
+  are accepted by default, each occurrence a report with the code
+  `schematron:compatibility` through the compile report sink, naming the
+  clause: a parameter named twice in one pattern instance (the first
+  value is used, as SchXslt does; 5.4.11, Annex B); a pattern's `let`
+  read by another pattern, a variable outside patterns or an XSLT
+  declaration (3.23 scopes it to its pattern; a global of the written
+  name refers to the first compiled pattern's `let`; references are
+  found in the stylesheet AST, XSLT's scoping and the expression's own
+  bindings respected); a rule's `let` after its assertions (Annex A;
+  evaluated before them as every rule let is). A warning is not counted
+  as an error, never fills the error record, and the null sink drops it;
+  the command prints `warning:` before the code, keeps the exit status
+  and lists them in `schematron.warnings` of its JSON; the package has
+  `Schematron.warnings`. The undeclared `xs` in XRechnung's
+  `xsl:function` is no deviation after 1. Anything else stays an error
+  (a `let` after a rule in a pattern, a parameter twice in a schema,
+  ...). The suite's `abstract-param-duplicate`,
+  `let-pattern-not-visible-elsewhere` and the new `let-after-assertion`
+  are deviations with this record's reason (they are errors by the
+  standard).
+- **Not done**: no option to make the warnings errors (nothing asked
+  for one); a pattern's `let` defined only in a pattern the phase does
+  not compile is not shared (XPST0008 as before).
+- **Evidence**: suite 520 cases, pass 467, fail 0, deviations 6 (3 of
+  D315, 3 of this record), implementation-defined 42, not applicable 5;
+  EN 16931 UBL 1,133 of 1,133 and CII 9 of 9 checks from the sources
+  (ctest `schematron/en16931-ubl`, `-cii`); XRechnung UBL and CII
+  compile from the unpatched sources and run their 354 instances
+  (`schematron/xrechnung-*`); the differential against SchXslt 1.10.1
+  on the unpatched sources identical: EN 16931 UBL 255 instances (274
+  findings, 23,099 fired rules), CII 128, XRechnung UBL 226, CII 128
+  (ctest `schematron/differential-*` with `SXML_SCHEMATRON_DIFFERENTIAL`,
+  about ten minutes or more). Unit tests `reports_name_their_document`,
+  `compatibility_warnings`; CLI tests for documents and warnings, text
+  and JSON; debug-gcc and release. The book's Schematron chapters match
+  (rules: the prefixes; documents: a pattern over `vane-api.xsd`;
+  reports: Warnings with `older.sch`, written for the book) and it
+  builds. No shared XSLT file changed. The package's additions
+  typecheck; `sxml.wasm` was not built (no WASI SDK here).
 
 ## Proposed
 
