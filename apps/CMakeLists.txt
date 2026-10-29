@@ -91,4 +91,14 @@ sxml_apply_project_flags(sxml_cli)
 # they need these targets and the test runner from tests/.
 if(SXML_BUILD_TESTS)
     add_subdirectory("${PROJECT_SOURCE_DIR}/tests/cli" "${PROJECT_BINARY_DIR}/tests/cli")
+    # The spec (spec/README.md), run by this program: the articles check, the
+    # pages under docs/ are what they generate, and their source form reads
+    # back. A hand edit of either fails here, whatever made it. Native builds
+    # with a shell only: tools/spec/spec is a bash script.
+    if(NOT CMAKE_CROSSCOMPILING AND NOT WIN32)
+        foreach(spec_command IN ITEMS check selftest)
+            add_test(NAME spec/${spec_command} COMMAND "${PROJECT_SOURCE_DIR}/tools/spec/spec" ${spec_command})
+            set_tests_properties(spec/${spec_command} PROPERTIES ENVIRONMENT "SXML=$<TARGET_FILE:sxml_cli>")
+        endforeach()
+    endif()
 endif()

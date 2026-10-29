@@ -166,6 +166,9 @@ so another agent's finished writes can be committed with yours.
 - `tools/spec/spec selftest` renders every article, section, title,
   summary and definition in source form, reads it back, and compares
   the nodes: an edit of the source form loses nothing.
+- CTest runs both as `spec/check` and `spec/selftest` in every native
+  build, so a hand edit fails the tests whoever made it, with or without
+  the hook.
 - `tools/spec/test.sh` runs the check, the self-test, every read and
   write and their refusals in a temporary copy, and the hook's cases.
 

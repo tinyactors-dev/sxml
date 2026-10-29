@@ -41,6 +41,8 @@ Read (NAME is D238, 6.2, host_shim, PLAN, tasks/phase-6#packets, or KIND:ID):
                               $articles bound and spec.xqm imported
   check                       schema, canonical form, references, placement,
                               and pages up to date; exit 1 on an error
+  selftest                    the source form of everything reads back to
+                              the same nodes; exit 1 if anything does not
 
 Write (text in source form: Markdown where `code` naming a term is that
 term, D238 is a decision, [[kind:id]] any other reference; "-" reads
@@ -155,7 +157,10 @@ ${positional[0]}" ;;
     printf '%s\n' "$result" "$pages" | sed 's/^stale: /error: stale page: /'
     if grep -q '^error:' <<< "$result" || grep -q '^stale:' <<< "$pages"; then status=1; fi
     exit $status ;;
-  selftest) read_query selftest ;;
+  selftest)
+    result=$(read_query selftest)
+    printf '%s\n' "$result"
+    [[ $(grep -c ' 0 do not read back' <<< "$result") == 2 ]] ;;
   generate) generate ;;
   add)
     need 1 "a kind: decision, proposal, term or packet"

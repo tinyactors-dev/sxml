@@ -1,6 +1,6 @@
 <decision id="D204" status="unused">
   <title>Unused number</title>
   <body>
-    <p>Left unused by renumbering (D237).</p>
+    <p>Left unused by renumbering (<ref kind="decision" to="D237"/>).</p>
   </body>
 </decision>

@@ -1,6 +1,6 @@
 <decision id="D242" status="unused">
   <title>Unused number</title>
   <body>
-    <p>Left free while other packets ran (D247).</p>
+    <p>Left free while other packets ran (<ref kind="decision" to="D247"/>).</p>
   </body>
 </decision>
