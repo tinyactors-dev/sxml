@@ -1,0 +1,7 @@
+<fact id="xslt40-test/assertions/assert-result-document/test-cases">
+  <title>Test cases of xslt40-test with assert-result-document in the result</title>
+  <expression>let $sets := doc("third_party/xslt40-test/catalog.xml")/*:catalog/*:test-set
+let $cases := $sets ! doc(resolve-uri(@file, base-uri(.)))//*:test-case
+return count($cases[*:result/descendant-or-self::*:assert-result-document])</expression>
+  <source file="third_party/xslt40-test/catalog.xml"/>
+</fact>

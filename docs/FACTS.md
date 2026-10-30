@@ -84,8 +84,12 @@ says now. Add one with tools/spec/spec add fact.
 | `xslt40-test/assertions/assert-string-value` | Occurrences of assert-string-value in the results of xslt40-test's test cases | 350 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/assert-warning` | Occurrences of assert-warning in the results of xslt40-test's test cases | 6 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/assert-xml` | Occurrences of assert-xml in the results of xslt40-test's test cases | 5,215 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/assert-xml/test-cases` | Test cases of xslt40-test with assert-xml in the result | 5,178 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/assert/test-cases` | Test cases of xslt40-test with assert in the result | 5,345 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/error` | Occurrences of error in the results of xslt40-test's test cases | 2,828 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/error/test-cases` | Test cases of xslt40-test with error in the result | 2,706 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/serialization-matches` | Occurrences of serialization-matches in the results of xslt40-test's test cases | 890 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/serialization-matches/test-cases` | Test cases of xslt40-test with serialization-matches in the result | 369 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/commented-test-sets` | Test-set entries commented out in the xslt40-test catalog | 28 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/defines-stylesheet` | Test cases of xslt40-test whose source names the stylesheet | 16 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/groups/attr` | Test cases of xslt40-test in the group attr | 1,634 | `third_party/xslt40-test/catalog.xml` |

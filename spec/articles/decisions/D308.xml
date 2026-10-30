@@ -28,7 +28,7 @@
     </list>
   </body>
   <sources>
-    <source build="release">20,000 replace calls with "(W<em>)$AMOUNT(W</em>)" and with "$AMOUNT", processor seconds, fastest of five, before and after</source>
+    <source build="release">20,000 fn:replace calls of the $AMOUNT regex with and without its (\W*) groups, processor seconds, fastest of five, before and after</source>
     <source tool="tests/bench/regex-reuse.xq" build="release">tests/bench/regex-reuse.xq, processor seconds, before and after</source>
     <source tool="callgrind" build="release">bench-real.xsl (39,000 fn:replace calls, 780 regexes): seconds, and instructions at n=10 with compile_pattern's share and compile count</source>
     <source build="release">SchXslt's expand stage of EN 16931 (step bound raised in a scratch build only), before and after; its fn:replace calls and regex texts</source>

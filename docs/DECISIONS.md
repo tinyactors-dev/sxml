@@ -16645,9 +16645,7 @@ matches (release build); QT4 XP40 and XQ40 regex sets and XT40 regex groups,
 release drivers, before and after, case by case (`tools/run-qt4.sh`,
 `tools/run-xslt.sh`, release build); 14,400 random regexes over random inputs
 through fn:analyze-string, before and after; configured: the start filter walk,
-a stack of 32 and at most 256 visits (from `src/regex.c`); processor seconds,
-fastest of seven, before / +1 / +2 / +3 / +4: regex-match.xq, regex-reuse.xq,
-200,000 matches (release build).
+a stack of 32 and at most 256 visits (from `src/regex.c`).
 
 ### D311. Required literals in regex search (packet perf-9)
 
