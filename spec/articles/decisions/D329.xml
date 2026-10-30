@@ -33,4 +33,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="callgrind" build="release" at="ae61af90e">callgrind profile at ae61af90e: invoice transform and validate, sxml_xpath_parse, parses, reductions of a typical assertion; repeated attribute texts</source>
+    <source tool="tools/generate-grammars.sh">parse states and table sizes of the regenerated grammars, and the size of the sxml command</source>
+  </sources>
 </decision>

@@ -1,0 +1,7 @@
+<fact id="xslt40-test/initial-template">
+  <title>Test cases of xslt40-test with initial-template</title>
+  <expression>let $sets := doc("third_party/xslt40-test/catalog.xml")/*:catalog/*:test-set
+let $cases := $sets ! doc(resolve-uri(@file, base-uri(.)))//*:test-case
+return count($cases[*:test/*:initial-template])</expression>
+  <source file="third_party/xslt40-test/catalog.xml"/>
+</fact>

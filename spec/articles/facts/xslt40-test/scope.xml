@@ -1,0 +1,11 @@
+<fact id="xslt40-test/scope">
+  <title>Test cases of xslt40-test in the XSLT 4.0 gate scope</title>
+  <expression>let $sets := doc("third_party/xslt40-test/catalog.xml")/*:catalog/*:test-set
+let $cases := $sets ! doc(resolve-uri(@file, base-uri(.)))//*:test-case
+let $spec := fn($case) { ($case/*:dependencies/*:spec, $case/../*:dependencies/*:spec)[1] }
+let $xslt40 := $cases[let $s := $spec(.) return empty($s) or (some $token in tokenize($s/@value) satisfies $token = ("XSLT10+", "XSLT20+", "XSLT30+", "XSLT40+", "XSLT40"))]
+let $excluded := ("schema_aware", "streaming", "dtd", "XML_1.1", "XSD_1.1", "backwards_compatibility", "HTML4", "ICU_spellout")
+return count($xslt40[not(tokenize(base-uri(.), "/")[last() - 2] = ("strm", "sandp"))]
+  [not((*:dependencies/*:feature, ../*:dependencies/*:feature)[not(@satisfied = "false")][tokenize(@value) = $excluded])])</expression>
+  <source file="third_party/xslt40-test/catalog.xml"/>
+</fact>

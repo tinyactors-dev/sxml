@@ -21,4 +21,13 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="release" at="29719119c">steps between match calls and returns at base 29719119c (scratch-only hook in src/evaluator_template.c): invoice transform and validate --schematron</source>
+    <source tool="callgrind tests/bench/xslt-many-rules.xsl" build="release">instructions, base 29719119c and the change from snapshots: invoice transform and validate, steps, match calls; tests/bench/xslt-many-rules.xsl</source>
+    <source tool="tests/bench/run-bench.py tests/schematron/driver" build="release">processor seconds: invoice transform and validate (fastest of 15), run-bench.py --repeat 5, VEFA, the XT40 run</source>
+    <source build="release">the official EN 16931 XSLT's SVRL and sxml validate --format=json over the 1,148 files, identical</source>
+    <source tool="tests/schematron/driver">7.30's suite through sxml-schematron-test run, and EN 16931 UBL checks</source>
+    <source tool="tests/qt4/driver tests/xslt/driver" build="release">XT40, XP40 and XQ40 passes, base and change built alike, case by case</source>
+    <source tool="ctest" build="debug-gcc">the whole test suite (459 tests) and at the commit the 329 matching tests</source>
+  </sources>
 </decision>

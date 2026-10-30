@@ -1,0 +1,8 @@
+<fact id="xslt40-test/principal-in-environment">
+  <title>Test cases of xslt40-test with a principal module only in the environment</title>
+  <expression>let $sets := doc("third_party/xslt40-test/catalog.xml")/*:catalog/*:test-set
+let $cases := $sets ! doc(resolve-uri(@file, base-uri(.)))//*:test-case
+let $environments := fn($case) { $case/*:environment[empty(@ref)], $case/*:environment[@ref] ! (let $name := @ref return root(.)/*/*:environment[@name = $name]) }
+return count($cases[empty(*:test/(*:stylesheet, *:package)[not(@role = "secondary")])][exists($environments(.)/(*:stylesheet, *:package)[not(@role = "secondary")])])</expression>
+  <source file="third_party/xslt40-test/catalog.xml"/>
+</fact>

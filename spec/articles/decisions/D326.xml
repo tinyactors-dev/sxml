@@ -27,4 +27,12 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="callgrind" build="release" at="a7a8d50ee">callgrind profile at a7a8d50ee of the invoice ubl-tc434-example1.xml: validation against the official stylesheet transform; steps and calls of match and template functions by a scratch-only evaluator hook; nodes visited per mode</source>
+    <source tool="callgrind tests/schematron/driver" build="release">instructions, base a7a8d50ee and the change from snapshots: invoice validation, validate --schematron, compile, template and match calls; the 1,131 VEFA instances</source>
+    <source build="release">processor seconds: invoice (fastest of 15, interleaved), VEFA validation, the 1,150 files in one sxml validate run</source>
+    <source>sxml validate --format=json over EN 16931's 1,131 UBL unit test instances and 19 examples, byte-identical</source>
+    <source tool="tests/schematron/driver">7.30's suite through sxml-schematron-test, and EN 16931 UBL checks</source>
+    <source tool="ctest" build="debug-gcc">the whole test suite, 459 tests</source>
+  </sources>
 </decision>

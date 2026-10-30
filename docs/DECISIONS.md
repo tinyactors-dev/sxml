@@ -18390,7 +18390,8 @@ EN16931-UBL-validation.xslt, the growth stylesheets and the 414,470 XT40 units
 tests and 19 examples, byte-identical; 7.30's suite through
 sxml-schematron-test, and EN 16931 UBL checks from the .sch sources
 (`tests/schematron/driver`); XP40, XQ40 and XT40 passes, base and change built
-alike, case by case (`tests/qt4/driver`, `tests/xslt/driver`, release build).
+alike, case by case (`tests/qt4/driver`, `tests/xslt/driver`, release build);
+the whole test suite, 459 tests (`ctest`, debug-gcc build).
 
 ### D326. Running compiled Schematron: the pattern walk visits only what a rule may match (packet perf-14)
 
@@ -18476,6 +18477,20 @@ invoice). No public header changed; no shared file changed (only
 - **Left** (see "## Proposed"): a rule search that skips rules whose pattern
   cannot match the item's node kind or name would help every stylesheet with
   many rules, the official EN 16931 one as much as this.
+
+**Sources**: callgrind profile at a7a8d50ee of the invoice
+ubl-tc434-example1.xml: validation against the official stylesheet transform;
+steps and calls of match and template functions by a scratch-only evaluator
+hook; nodes visited per mode (`callgrind`, release build, at a7a8d50ee);
+instructions, base a7a8d50ee and the change from snapshots: invoice validation,
+validate --schematron, compile, template and match calls; the 1,131 VEFA
+instances (`callgrind`, `tests/schematron/driver`, release build); processor
+seconds: invoice (fastest of 15, interleaved), VEFA validation, the 1,150 files
+in one sxml validate run (release build); sxml validate --format=json over EN
+16931's 1,131 UBL unit test instances and 19 examples, byte-identical; 7.30's
+suite through sxml-schematron-test, and EN 16931 UBL checks
+(`tests/schematron/driver`); the whole test suite, 459 tests (`ctest`,
+debug-gcc build).
 
 ### D327. Template rules chosen from rule buckets by node kind and name (packet perf-15)
 
@@ -18573,6 +18588,21 @@ now done and removed). No public header changed. Glossary: `item_category`,
   and cli pass. clang-tidy clean on the changed files;
   `tools/check-call-cycles.py` finds no cycle (D71).
 
+**Sources**: steps between match calls and returns at base 29719119c
+(scratch-only hook in src/evaluator_template.c): invoice transform and validate
+--schematron (release build, at 29719119c); instructions, base 29719119c and
+the change from snapshots: invoice transform and validate, steps, match calls;
+tests/bench/xslt-many-rules.xsl (`callgrind`,
+`tests/bench/xslt-many-rules.xsl`, release build); processor seconds: invoice
+transform and validate (fastest of 15), run-bench.py --repeat 5, VEFA, the XT40
+run (`tests/bench/run-bench.py`, `tests/schematron/driver`, release build); the
+official EN 16931 XSLT's SVRL and sxml validate --format=json over the 1,148
+files, identical (release build); 7.30's suite through sxml-schematron-test
+run, and EN 16931 UBL checks (`tests/schematron/driver`); XT40, XP40 and XQ40
+passes, base and change built alike, case by case (`tests/qt4/driver`,
+`tests/xslt/driver`, release build); the whole test suite (459 tests) and at
+the commit the 329 matching tests (`ctest`, debug-gcc build).
+
 ### D328. Union patterns keep one default priority, the lowest of their alternatives' (packet fix-5)
 
 **Summary**: A union pattern is one template rule whose default priority is the
@@ -18628,6 +18658,12 @@ no public header; one new unit test case.
   passed, 3 failed, 43 implementation-defined, 5 not applicable, as before;
   VEFA (`run_vefa.py` with the official EN 16931 UBL XSLT over the Invoice and
   CreditNote unit tests) 1,133 of 1,133 checks.
+
+**Sources**: evaluator_template, 10 of 10, debug-gcc and release (`ctest`);
+XT40 whole, base e4d928c2e and the change built alike, case by case
+(`tests/xslt/driver`, release build); 7.30's suite (sxml-schematron-test run)
+(`tests/schematron/driver`); VEFA (run_vefa.py with the official EN 16931 UBL
+XSLT over the Invoice and CreditNote unit tests).
 
 ### D329. Parsing XPath: fewer reductions, each text once per compilation (packet perf-17)
 
@@ -18741,6 +18777,10 @@ the ASTs and the IR are the same.
   walk about 0.07 (each node's children are scanned twice, once for tokens and
   once by the cursor), and a parser made and deleted per text 0.005 (D12 keeps
   tree-sitter's memory to the parse step).
+
+**Sources**: callgrind profile at ae61af90e: invoice transform and validate,
+sxml_xpath_parse, parses, reductions of a typical assertion; repeated attribute
+texts (`callgrind`, release build, at ae61af90e).
 
 ### D330. IR passes walk each body once, with a cheaper child walk (packet perf-16)
 

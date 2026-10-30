@@ -24,4 +24,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="ctest">evaluator_template, 10 of 10, debug-gcc and release</source>
+    <source tool="tests/xslt/driver" build="release">XT40 whole, base e4d928c2e and the change built alike, case by case</source>
+    <source tool="tests/schematron/driver">7.30's suite (sxml-schematron-test run)</source>
+    <source>VEFA (run_vefa.py with the official EN 16931 UBL XSLT over the Invoice and CreditNote unit tests)</source>
+  </sources>
 </decision>
