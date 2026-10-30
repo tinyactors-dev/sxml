@@ -38,4 +38,14 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="callgrind" build="release" at="3919bc7ce">callgrind profile at 3919bc7ce: the invoice transform and validate --schematron, the Schematron compile, and the growth series of <ref kind="decision" to="D324"/> regenerated</source>
+    <source tool="callgrind" build="release">instructions, base 3919bc7ce and each step from snapshots: invoice transform and validate, compile, growth N = 8 to 256 with the named searches, assertion templates, xmark-all</source>
+    <source build="release">processor seconds: invoice transform and validate (fastest of 15), N = 128, 256 and 384 assertions (fastest of 5), the XT40 run</source>
+    <source build="release">IR text form after the passes, scratch-only hook: EN16931-UBL-validation.xslt, the growth stylesheets and the 414,470 XT40 units</source>
+    <source>sxml validate --format=json over EN 16931's 1,131 UBL unit tests and 19 examples, byte-identical</source>
+    <source tool="tests/schematron/driver">7.30's suite through sxml-schematron-test, and EN 16931 UBL checks from the .sch sources</source>
+    <source tool="tests/qt4/driver tests/xslt/driver" build="release">XP40, XQ40 and XT40 passes, base and change built alike, case by case</source>
+    <source tool="ctest" build="debug-gcc">the whole test suite, 459 tests</source>
+  </sources>
 </decision>

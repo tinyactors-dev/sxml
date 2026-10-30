@@ -77,6 +77,11 @@ says now. Add one with tools/spec/spec add fact.
 | `slice/xsd/cases` | Test cases in the XSD slice | 147 | `tests/xsd/slice.txt` |
 | `slice/xslt/cases` | Test cases in the XSLT slice | 154 | `tests/xslt/slice.txt` |
 | `xslt40-test/commented-test-sets` | Test-set entries commented out in the xslt40-test catalog | 28 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/groups/attr` | Test cases of xslt40-test in the group attr | 1,634 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/groups/insn` | Test cases of xslt40-test in the group insn | 1,996 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/groups/misc` | Test cases of xslt40-test in the group misc | 3,123 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/groups/strm` | Test cases of xslt40-test in the group strm | 2,564 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/no-spec` | Test cases of xslt40-test with no spec dependency on the case or its set | 12 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/test-cases` | Test cases in the xslt40-test catalog | 13,867 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/test-sets` | Active test-set entries in the xslt40-test catalog | 250 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/xslt40/test-cases` | Test cases of xslt40-test that apply to XSLT 4.0 | 12,639 | `third_party/xslt40-test/catalog.xml` |

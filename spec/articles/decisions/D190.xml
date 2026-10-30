@@ -33,7 +33,6 @@
   <sources>
     <source tool="tools/run-qt4.sh" build="release">XP40 and XQ40 passes and wrong errors, full runs, before at 7d70d01 and after</source>
     <source tool="tools/run-xslt.sh" build="release">XT40 at the same HEADs, by test set</source>
-    <source tool="tools/run-xslt.sh" build="release">XT40 at the same HEADs, by test set</source>
     <source tool="bindings/javascript/test/size-budget.mjs" build="wasm">growth of sxml.wasm (about 5.8 KB)</source>
   </sources>
 </decision>
