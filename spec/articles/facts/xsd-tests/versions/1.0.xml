@@ -1,0 +1,5 @@
+<fact id="xsd-tests/versions/1.0">
+  <title>Occurrences of the version token 1.0 in the XSD test suite</title>
+  <expression>count(doc("third_party/xsdtests/suite.xml")/*:testSuite/*:testSetRef ! doc(resolve-uri(@*:href, base-uri(.)))//@version ! tokenize(.)[. = "1.0"])</expression>
+  <source file="third_party/xsdtests/suite.xml"/>
+</fact>

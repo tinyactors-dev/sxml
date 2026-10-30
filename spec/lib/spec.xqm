@@ -825,6 +825,45 @@ declare function spec:with-values($spec as map(*), $nodes as node()*) as map(*) 
       return map:put(spec:load($articles), "values", $values)
 };
 
+(: ---- Pages ---- :)
+
+(:~ A document's page: the Markdown generate writes to its @file. :)
+declare function spec:page($spec as map(*), $document as element(document)) as xs:string {
+  "<!-- Generated from spec/articles by tools/spec/spec generate. Do not edit:"
+  || " change it with tools/spec/spec (spec/README.md). -->&#10;&#10;"
+  || spec:markdown($spec, $document, 1) => replace("\n+$", "") || "&#10;"
+};
+
+(:~ The articles a document's page is made from: the document, the articles
+ : it includes or collects, and the facts they show. :)
+declare function spec:page-articles($spec as map(*), $document as element(document)) as element()* {
+  let $articles := ($document, $document//include ! spec:target($spec, .), $document//collect ! spec:collected($spec, .))
+  return ($articles, spec:of-kind($spec, "fact")[@id = $articles//value/@of])
+};
+
+(:~ The files a page is made from: those articles' files and the files their facts read. :)
+declare function spec:page-inputs($articles as element()*) as xs:string* {
+  distinct-values(($articles ! document-uri(root(.)), $articles/self::fact/source/@file ! spec:uri(.))
+                  ! substring-after(., "file://"))
+};
+
+(:~ The pages of DOCUMENTS, each a map of file, path and text; their facts computed once. :)
+declare function spec:pages($spec as map(*), $documents as element(document)*) as map(*)* {
+  spec:valued-pages(spec:with-values($spec, $documents ! spec:page-articles($spec, .)), $documents)
+};
+
+(:~ The pages of DOCUMENTS from VALUED, a spec whose facts spec:with-values computed. :)
+declare function spec:valued-pages($valued as map(*), $documents as element(document)*) as map(*)* {
+  for $document in $documents
+  return { "file": string($document/@file), "path": spec:uri($document/@file) => substring-after("file://"),
+           "text": spec:page($valued, spec:one($valued, "document:" || $document/@id)) }
+};
+
+(:~ The pages among PAGES that differ from their files. :)
+declare function spec:stale-pages($pages as map(*)*) as xs:string* {
+  $pages[not(file:exists(?path)) or unparsed-text(spec:uri(?file)) ne ?text] ! ?file
+};
+
 (: ---- Checks ---- :)
 
 (:~
@@ -926,14 +965,13 @@ declare function spec:check-measurements($spec as map(*)) as xs:string* {
   )
 };
 
-(:~ The facts that fail: computed apart, because their sources are read. :)
-declare function spec:check-facts($spec as map(*)) as xs:string* {
-  let $facts := spec:of-kind($spec, "fact")
-  let $values := spec:fact-values($facts)
-  for $fact in $facts
-  let $value := $values(string($fact/@id))
+(:~ The facts that fail, among the VALUES spec:with-values computed. :)
+declare function spec:check-facts($values as map(*)?) as xs:string* {
+  for $id in map:keys(($values, {})[1])
+  let $value := $values($id)
   where starts-with($value, "error: ")
-  return "error: " || spec:key($fact) || ": " || substring-after($value, "error: ")
+  order by $id
+  return "error: fact:" || $id || ": " || substring-after($value, "error: ")
 };
 
 (: ---- Writes ---- :)

@@ -16429,9 +16429,9 @@ Recorded 2026-10-28, after D53, D71, D105, D114, D148, D259. No header changed.
   `src/regex_unicode.c`); a matcher kept per entry would save its creation too,
   but holds a grown backtrack stack, so it is not done.
 
-**Sources**: 20,000 replace calls with "(W*)$AMOUNT(W*)" and with "$AMOUNT",
-processor seconds, fastest of five, before and after (release build);
-tests/bench/regex-reuse.xq, processor seconds, before and after
+**Sources**: 20,000 fn:replace calls of the $AMOUNT regex with and without its
+(\\W\*) groups, processor seconds, fastest of five, before and after (release
+build); tests/bench/regex-reuse.xq, processor seconds, before and after
 (`tests/bench/regex-reuse.xq`, release build); bench-real.xsl (39,000
 fn:replace calls, 780 regexes): seconds, and instructions at n=10 with
 compile_pattern's share and compile count (`callgrind`, release build);
@@ -16633,12 +16633,12 @@ changed.
   ["SXML", "xquery", os.path.join(BENCH, "regex-reuse.xq")])` and likewise for
   regex-match.
 
-**Sources**: 200,000 matches of w+sw+sd+ against contains, processor seconds,
-here and the packet on another machine (release build); callgrind profile of
-20,000 such fn:matches calls (`callgrind`, release build); valgrind
-instructions of the whole process, cumulatively before / +1 / +2 / +3 / +4:
-20,000 matches, regex-match.xq and regex-reuse.xq at 1/10, 5,000 distinct
-regexes compiled (`valgrind`, `tests/bench/regex-match.xq`,
+**Sources**: 200,000 fn:matches calls of the word, space, digit regex against
+fn:contains, processor seconds, here and the packet on another machine (release
+build); callgrind profile of 20,000 such fn:matches calls (`callgrind`, release
+build); valgrind instructions of the whole process, cumulatively before / +1 /
++2 / +3 / +4: 20,000 matches, regex-match.xq and regex-reuse.xq at 1/10, 5,000
+distinct regexes compiled (`valgrind`, `tests/bench/regex-match.xq`,
 `tests/bench/regex-reuse.xq`, release build); processor seconds, fastest of
 seven, before / +1 / +2 / +3 / +4: regex-match.xq, regex-reuse.xq, 200,000
 matches (release build); QT4 XP40 and XQ40 regex sets and XT40 regex groups,
@@ -18084,10 +18084,7 @@ and change built alike from snapshots, case by case (`tests/qt4/driver`,
 `tests/xslt/driver`, release build); the whole test suite, 437 of 437 (`ctest`,
 debug-gcc build); scratch experiment in sxml_atomic_item_make: the expand stage
 with xs:string and xs:untypedAtomic resolved without the registry; UTF-8
-validation and cell allocation shares (`callgrind`, release build); callgrind
-profile of SchXslt's expand stage of EN 16931 at 47a1d9a33: atomizations,
-distinct nodes, instructions per atomization (`callgrind`, release build, at
-47a1d9a33).
+validation and cell allocation shares (`callgrind`, release build).
 
 ### D323. Schematron implemented: what 7.28 built and the readings it took (packet 7.28)
 

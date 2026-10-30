@@ -76,9 +76,16 @@ says now. Add one with tools/spec/spec add fact.
 | `slice/xquery/cases` | Test cases in the XQuery slice | 186 | `tests/qt4/xquery-slice.txt` |
 | `slice/xsd/cases` | Test cases in the XSD slice | 147 | `tests/xsd/slice.txt` |
 | `slice/xslt/cases` | Test cases in the XSLT slice | 154 | `tests/xslt/slice.txt` |
+| `xsd-tests/versions/1.0` | Occurrences of the version token 1.0 in the XSD test suite | 144 | `third_party/xsdtests/suite.xml` |
+| `xsd-tests/versions/1.1` | Occurrences of the version token 1.1 in the XSD test suite | 1,042 | `third_party/xsdtests/suite.xml` |
+| `xsd-tests/versions/full-xpath-in-cta` | Occurrences of the version token full-xpath-in-CTA in the XSD test suite | 30 | `third_party/xsdtests/suite.xml` |
+| `xsd-tests/versions/restricted-xpath-in-cta` | Occurrences of the version token restricted-xpath-in-CTA in the XSD test suite | 10 | `third_party/xsdtests/suite.xml` |
+| `xsd-tests/versions/unicode-4.0.0` | Occurrences of the version token Unicode_4.0.0 in the XSD test suite | 9 | `third_party/xsdtests/suite.xml` |
+| `xsd-tests/versions/unicode-6.0.0` | Occurrences of the version token Unicode_6.0.0 in the XSD test suite | 8 | `third_party/xsdtests/suite.xml` |
 | `xslt40-test/assertions/all-of` | Occurrences of all-of in the results of xslt40-test's test cases | 1,273 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/assert` | Occurrences of assert in the results of xslt40-test's test cases | 8,998 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/assert-message` | Occurrences of assert-message in the results of xslt40-test's test cases | 92 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/assert-message/test-cases` | Test cases of xslt40-test with assert-message in the result | 50 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/assert-result-document` | Occurrences of assert-result-document in the results of xslt40-test's test cases | 156 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/assert-result-document/test-cases` | Test cases of xslt40-test with assert-result-document in the result | 74 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/assert-serialization` | Occurrences of assert-serialization in the results of xslt40-test's test cases | 112 | `third_party/xslt40-test/catalog.xml` |

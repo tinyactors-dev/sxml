@@ -158,9 +158,8 @@ ${positional[0]}" ;;
     status=0
     find spec/articles -name '*.xml' -print0 | xargs -0 "$sxml" validate --schema=spec/schema/spec.xsd || status=1
     result=$(read_query check)
-    pages=$(generate --param=check=yes)
-    printf '%s\n' "$result" "$pages" | sed 's/^stale: /error: stale page: /'
-    if grep -q '^error:' <<< "$result" || grep -q '^stale:' <<< "$pages"; then status=1; fi
+    printf '%s\n' "$result"
+    if grep -q '^error:' <<< "$result"; then status=1; fi
     exit $status ;;
   selftest)
     result=$(read_query selftest)

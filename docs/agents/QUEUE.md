@@ -12,29 +12,21 @@ Numbers are release-build passes from `docs/CONFORMANCE.md`.
   7.11's gate (all 12 XT40 transform cases) is open: 10 pass; transform-004
   needs a suspendable compiler (D71), transform-401 waits on 4.22's
   newest-draft patterns (D249).
-- Passes (release, whole suites, `docs/CONFORMANCE.md` at
-  {{conformance/commit}} of {{conformance/date}}): XP40
-  {{conformance/XP40/passed}} ({{conformance/XP40/failed}} failed,
-  {{conformance/XP40/errors}} errors), XQ40 {{conformance/XQ40/passed}}
-  ({{conformance/XQ40/failed}}, {{conformance/XQ40/errors}}), XT40
-  {{conformance/XT40/passed}} ({{conformance/XT40/failed}},
-  {{conformance/XT40/errors}}), XSD11 {{conformance/XSD11/passed}} of
-  {{conformance/XSD11/run}} run ({{conformance/XSD11/failed}},
-  {{conformance/XSD11/errors}}). Gate rates: XP40
-  {{conformance/XP40/gate-rate}}, XQ40 {{conformance/XQ40/gate-rate}}, XT40
-  {{conformance/XT40/gate-rate}}, XSD {{conformance/XSD11/gate-rate}}.
-  `tools/conformance-report.py` has no iXML or tree-sitter sections yet: the
-  iXML suite passed 886 of 907 (21 not run) at D290, tree-sitter/suite 1,410 of
-  1,438 (8 failed, 1 corpus error) at D307.
+- Passes (release, whole suites, `docs/CONFORMANCE.md` at e74d4ad475b6 of
+  2026-10-20): XP40 32,815 (26 failed, 0 errors), XQ40 46,158 (74, 0), XT40
+  12,268 (250, 0), XSD11 41,599 of 41,610 run (11, 0). Gate rates: XP40 99.8 %,
+  XQ40 99.8 %, XT40 96.7 %, XSD 100.0 %. `tools/conformance-report.py` has no
+  iXML or tree-sitter sections yet: the iXML suite passed 886 of 907 (21 not
+  run) at D290, tree-sitter/suite 1,410 of 1,438 (8 failed, 1 corpus error) at
+  D307.
 - One build with everything (D272, size-3): every shipped build has every
   language and optional feature; the JavaScript package ships one `sxml.wasm`
-  (`./sxml-full.wasm` is an alias), budget {{budget/javascript/bytes}} /
-  {{budget/javascript/gzipped}} bytes (stripped / gzipped); the CLI module's is
-  {{budget/cli/bytes}} / {{budget/cli/gzipped}}. Their sizes when last
-  measured, at wasm-1 (week-of-2026-10-26): 13,833,376 / 2,529,416 and
-  15,441,066 / 2,817,989. The size test compares the module's linker map with a
-  baseline and prints the top growths (D225). fn:load-xquery-module serves
-  every language.
+  (`./sxml-full.wasm` is an alias), budget 14,000,000 / 2,800,000 bytes
+  (stripped / gzipped); the CLI module's is 15,500,000 / 2,900,000. Their sizes
+  when last measured, at wasm-1 (week-of-2026-10-26): 13,833,376 / 2,529,416
+  and 15,441,066 / 2,817,989. The size test compares the module's linker map
+  with a baseline and prints the top growths (D225). fn:load-xquery-module
+  serves every language.
 - EXPath Binary (D198) 646 of 646 and File (D200) 270 of 270 in XQ40; File
   needs `--allow-file-access` in the CLI and has no Windows implementation.
 
