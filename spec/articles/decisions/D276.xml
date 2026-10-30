@@ -30,4 +30,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release" at="c238bc6">XT40 passes, whole suite, case by case, after each change</source>
+    <source tool="tools/check-book-examples.sh">book examples, 397 match</source>
+    <source>XT40 cases passed by treating xs:numeric like xs:double, in a private build</source>
+  </sources>
 </decision>

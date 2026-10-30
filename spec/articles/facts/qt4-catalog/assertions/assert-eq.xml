@@ -1,0 +1,6 @@
+<fact id="qt4-catalog/assertions/assert-eq">
+  <title>Occurrences of assert-eq in the results of the QT4 catalog's test cases</title>
+  <expression>let $cases := doc("third_party/qt4tests/catalog.xml")/*:catalog/*:test-set ! doc(resolve-uri(@file, base-uri(.)))//*:test-case
+return count($cases/*:result/descendant-or-self::*:assert-eq)</expression>
+  <source file="third_party/qt4tests/catalog.xml"/>
+</fact>

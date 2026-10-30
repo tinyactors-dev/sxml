@@ -918,10 +918,10 @@ declare function spec:check-measurements($spec as map(*)) as xs:string* {
     return "error: " || spec:key($article) || " states " || $numbers[1] || " with no fact and no decision it comes from: " ||
            substring(normalize-space(spec:plain($text)), 1, 80),
     for $fact in $all/self::fact, $file in $fact/source/@file
-    where not(unparsed-text-available(spec:uri($file)))
+    where not(file:exists(spec:uri($file) => substring-after("file://")))
     return "error: " || spec:key($fact) || " reads " || $file || ", which does not exist",
     for $source in $all/self::decision/sources/source, $path in $source/(@tool, @file) ! tokenize(., "[,;\s]+")[contains(., "/")]
-    where not(unparsed-text-available(spec:uri($path)))
+    where not(file:exists(spec:uri($path) => substring-after("file://")))
     return "warning: " || spec:key($source/ancestor::decision) || " cites " || $path || ", which no longer exists"
   )
 };

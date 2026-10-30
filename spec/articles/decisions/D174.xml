@@ -42,4 +42,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh tools/conformance-report.py" build="release" at="f43f747">schema-aware XQ40 and XP40 cases, XP40 and XQ40 passes, <ref kind="decision" to="D95"/> gate rates and the slice, with the budget cases</source>
+    <source tool="tools/run-xslt.sh tools/run-xsd.sh" build="release">XT40 and XSD11 passes, unchanged</source>
+    <source file="src/function_library_core_internal.h">configured: the option limit, 12</source>
+  </sources>
 </decision>

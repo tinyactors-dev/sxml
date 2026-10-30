@@ -27,4 +27,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm">the CLI module, stripped and gzipped (4,877,565 / 1,126,567 bytes)</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the CLI ctest budget, 5,500,000 / 1,250,000</source>
+    <source tool="sxml sxml-xsd-test">validity of the instance tests of msData/particles (ms-Particles_w3c, 514), through sxml validate and through sxml-xsd-test</source>
+  </sources>
 </decision>

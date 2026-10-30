@@ -33,4 +33,11 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="ctest" file="tests/html5lib_test.c">html5lib tree construction, tokenizer and encoding tests</source>
+    <source file="third_party/html5lib-tests">size of the vendored html5lib tests</source>
+    <source tool="tools/run-qt4.sh" build="release">QT4 fn-parse-html, fn-html-doc and misc-HtmlTestSuite, XQ40 and XP40, before and after</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm">sxml.wasm, sxml-full.wasm and the CLI module, stripped and gzipped, before and after</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the full budget 7,000,000 / 2,450,000 and the CLI budget 9,000,000 / 2,000,000</source>
+  </sources>
 </decision>

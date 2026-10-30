@@ -36,4 +36,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xsd.sh tools/run-qt4.sh tools/run-xslt.sh" build="release">XSD11 whole run, QT4 XQ40 schema-aware sets and XT40 schema_aware sets, HEAD 240bb83 before and the packet files after</source>
+  </sources>
 </decision>

@@ -42,4 +42,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release" at="87686bc">XP40, XQ40 and XT40 passes at the start</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh tools/run-xsd.sh" build="release">XP40, XQ40, XT40 and XSD11 passes, whole runs, case by case, at each step</source>
+  </sources>
 </decision>

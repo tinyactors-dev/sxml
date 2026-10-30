@@ -39,5 +39,6 @@
   <sources>
     <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, case by case, after each change</source>
     <source tool="tools/run-xslt.sh" build="release" at="92a8a8c">XT40 passes with 2.25 commits</source>
+    <source tool="tools/run-qt4.sh">QT4 XP40 and XQ40 sets of the changed functions and serializer</source>
   </sources>
 </decision>

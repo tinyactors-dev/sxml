@@ -30,4 +30,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="ctest" file="tests/xslt_lower_control_test.c">xsl:iterate over 100,000 items</source>
+    <source>181 runnable cases of the control flow and variable sets, a scratch harness through sxml_xslt_lower_initial_template</source>
+  </sources>
 </decision>

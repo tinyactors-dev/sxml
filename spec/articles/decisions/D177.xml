@@ -24,4 +24,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xsd.sh tools/conformance-report.py" build="release">XSD identity constraint test sets, XSD in scope before and with 5.9, gate groups and the slice</source>
+  </sources>
 </decision>

@@ -73,4 +73,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source>verdicts and diagnostics over the 6,652 documents of xmlconf, QT4 and XT40, before and after</source>
+    <source tool="tests/fuzz/xml_parse_fuzz.c">XML parser fuzzing: xml_parse_fuzz seeds and 5 minutes, and 4 more minutes with one item per segment</source>
+  </sources>
 </decision>

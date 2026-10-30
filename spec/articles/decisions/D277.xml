@@ -47,4 +47,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xsd.sh" build="release" at="7277563">XSD11 passes in scope, failed and not run, whole run at the start</source>
+    <source tool="tools/run-xsd.sh" build="release" file="tests/xsd/slice.txt">XSD11 passes after each change, and the slice 147/147</source>
+    <source>introspection set with a local xlink.xsd, measured with sxml validate; queried set run as an experiment</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 XQ40 schema-aware sets and XT40 schema_aware sets, before and after each change</source>
+  </sources>
 </decision>

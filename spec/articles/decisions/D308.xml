@@ -30,5 +30,9 @@
   <sources>
     <source build="release">20,000 replace calls with "(W<em>)$AMOUNT(W</em>)" and with "$AMOUNT", processor seconds, fastest of five, before and after</source>
     <source tool="tests/bench/regex-reuse.xq" build="release">tests/bench/regex-reuse.xq, processor seconds, before and after</source>
+    <source tool="callgrind" build="release">bench-real.xsl (39,000 fn:replace calls, 780 regexes): seconds, and instructions at n=10 with compile_pattern's share and compile count</source>
+    <source build="release">SchXslt's expand stage of EN 16931 (step bound raised in a scratch build only), before and after; its fn:replace calls and regex texts</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh">QT4 XP40 and XQ40 regex sets and XT40 analyze-string, regex, regex-syntax, regex-syntax-xslt20, case by case</source>
+    <source file="src/function_library_regex.c">configured: at most 4,096 entries and 8 MiB in the regex cache</source>
   </sources>
 </decision>

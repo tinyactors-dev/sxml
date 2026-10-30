@@ -30,4 +30,12 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="release">100 recursive walks over 780 elements, SchXslt's bench-tail.xsl over s1.sch, the three forms, before at 86669bc and after</source>
+    <source tool="tests/bench/run-bench.py" build="release">tests/bench/recursion-tail.xq before and after, and after at 780 to 6,240 elements</source>
+    <source build="release">SchXslt's expand stage of EN 16931, unpatched (step bound raised 100 times in a scratch build only), before and after; without its per-level re-sort</source>
+    <source tool="callgrind tests/bench/run-bench.py" build="release">callgrind instructions of xmark-all and recursion, and every benchmark output</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 XP40, XQ40 and XT40 passes, whole, case by case</source>
+    <source file="src/xdm_sequence.c">configured: slices of at most 16 items or under an eighth of the base are copied</source>
+  </sources>
 </decision>

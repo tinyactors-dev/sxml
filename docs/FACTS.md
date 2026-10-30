@@ -48,7 +48,16 @@ says now. Add one with tools/spec/spec add fact.
 | `conformance/XT40/passed` | XT40 test cases passed | 12,268 | `docs/CONFORMANCE.md` (tools/conformance-report.py) |
 | `conformance/XT40/rate-of-run` | XT40 passed of run | 98.0 % | `docs/CONFORMANCE.md` (tools/conformance-report.py) |
 | `conformance/XT40/run` | XT40 test cases run | 12,518 | `docs/CONFORMANCE.md` (tools/conformance-report.py) |
+| `qt4-catalog/assertions/all-of` | Occurrences of all-of in the results of the QT4 catalog's test cases | 1,770 | `third_party/qt4tests/catalog.xml` |
+| `qt4-catalog/assertions/any-of` | Occurrences of any-of in the results of the QT4 catalog's test cases | 2,163 | `third_party/qt4tests/catalog.xml` |
+| `qt4-catalog/assertions/assert` | Occurrences of assert in the results of the QT4 catalog's test cases | 2,931 | `third_party/qt4tests/catalog.xml` |
+| `qt4-catalog/assertions/assert-deep-eq` | Occurrences of assert-deep-eq in the results of the QT4 catalog's test cases | 5,013 | `third_party/qt4tests/catalog.xml` |
+| `qt4-catalog/assertions/assert-eq` | Occurrences of assert-eq in the results of the QT4 catalog's test cases | 6,500 | `third_party/qt4tests/catalog.xml` |
+| `qt4-catalog/assertions/assert-false` | Occurrences of assert-false in the results of the QT4 catalog's test cases | 3,990 | `third_party/qt4tests/catalog.xml` |
+| `qt4-catalog/assertions/assert-string-value` | Occurrences of assert-string-value in the results of the QT4 catalog's test cases | 5,989 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/assertions/assert-true` | Occurrences of assert-true in the results of the QT4 catalog's test cases | 11,638 | `third_party/qt4tests/catalog.xml` |
+| `qt4-catalog/assertions/assert-type` | Occurrences of assert-type in the results of the QT4 catalog's test cases | 1,763 | `third_party/qt4tests/catalog.xml` |
+| `qt4-catalog/assertions/assert-xml` | Occurrences of assert-xml in the results of the QT4 catalog's test cases | 2,981 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/assertions/error` | Occurrences of error in the results of the QT4 catalog's test cases | 10,063 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/both` | Test cases of the QT4 catalog that apply to both XP40 and XQ40 | 32,822 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/neither` | Test cases of the QT4 catalog that apply to neither XP40 nor XQ40 | 763 | `third_party/qt4tests/catalog.xml` |

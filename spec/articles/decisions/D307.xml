@@ -37,5 +37,6 @@
     <source tool="ctest" build="debug">source_code, name and the 258 CLI tests, tree-sitter/run-time-language; tree-sitter/suite before and after</source>
     <source tool="ctest" build="wasm">javascript/code_languages and javascript/package</source>
     <source tool="tools/check-book-examples.sh">the book's affected chapters: 89 examples; javascript: 6</source>
+    <source file="include/sxml/name.h">configured: SXML_NAMESPACE_TREE_SITTER 17 and SXML_NAMESPACE_WELL_KNOWN_COUNT 18</source>
   </sources>
 </decision>

@@ -30,4 +30,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xsd.sh tools/conformance-report.py" build="release">XSD assertion and type alternative test sets, before and after, XSD in scope, gate groups and the slice</source>
+  </sources>
 </decision>

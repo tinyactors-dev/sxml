@@ -45,4 +45,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 collation sets, XQ40 and XP40, and XT40 collations, sort and the unchanged groups</source>
+    <source tool="ctest" file="tests/collation_uca_test.c">UCA unit test cases</source>
+    <source file="third_party/cldr">size of the vendored CLDR files</source>
+  </sources>
 </decision>

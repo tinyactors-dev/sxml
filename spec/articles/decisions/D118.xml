@@ -28,6 +28,6 @@
     </list>
   </body>
   <sources>
-    <source file="third_party/xslt40-test">pattern attributes in xslt40-test that parse, build a match expression and lower</source>
+    <source>pattern attributes in xslt40-test (third_party/xslt40-test) that parse, build a match expression and lower</source>
   </sources>
 </decision>

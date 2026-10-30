@@ -24,4 +24,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source file="tests/evaluator_stream_test.c">allocator peak of streaming a generated document of 2.4 MB, 8.3 MB and 106 MB, and the process resident memory at 106 MB</source>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, before and after; the xsl:source-document executions that stream</source>
+  </sources>
 </decision>
