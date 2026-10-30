@@ -80,6 +80,7 @@ says now. Add one with tools/spec/spec add fact.
 | `xslt40-test/assertions/assert` | Occurrences of assert in the results of xslt40-test's test cases | 8,998 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/assert-message` | Occurrences of assert-message in the results of xslt40-test's test cases | 92 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/assert-result-document` | Occurrences of assert-result-document in the results of xslt40-test's test cases | 156 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/assert-result-document/test-cases` | Test cases of xslt40-test with assert-result-document in the result | 74 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/assert-serialization` | Occurrences of assert-serialization in the results of xslt40-test's test cases | 112 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/assert-string-value` | Occurrences of assert-string-value in the results of xslt40-test's test cases | 350 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/assertions/assert-warning` | Occurrences of assert-warning in the results of xslt40-test's test cases | 6 | `third_party/xslt40-test/catalog.xml` |
