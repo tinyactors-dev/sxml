@@ -49,5 +49,7 @@
     <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 collation sets, XQ40 and XP40, and XT40 collations, sort and the unchanged groups</source>
     <source tool="ctest" file="tests/collation_uca_test.c">UCA unit test cases</source>
     <source file="third_party/cldr">size of the vendored CLDR files</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm">sxml.wasm, sxml-full.wasm and the CLI module, stripped and gzip -9, before and after at one HEAD</source>
+    <source>quoted from <ref kind="decision" to="D208"/>: the budgets</source>
   </sources>
 </decision>

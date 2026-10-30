@@ -50,4 +50,16 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/check-main.sh ctest tools/private-build.sh" at="3b0812a">every test of release, debug, debug-gcc and wasm on a clean HEAD, and the lint (call cycles in 176 files)</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh tools/run-xsd.sh tools/conformance-report.py" build="release" at="02303a7">XSD, XP40, XQ40 and XT40 passes, in scope, gate groups, schema-aware areas and core sets, all 150,228 outcomes case by case (unchanged at 3b0812a)</source>
+    <source tool="ctest">slices qt4/slice, qt4/xquery-slice, xslt/slice and the XSD slice, every preset</source>
+    <source tool="tools/fuzz.sh">fuzzing, 300 s per target, eight at once on four cores, and the timeouts alone</source>
+    <source build="release">app-Demos itunes: 287 million steps, 72 s, and sampled stacks</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm">sxml.wasm and the CLI module, stripped and gzipped</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the WebAssembly budgets of sxml.wasm and the CLI</source>
+    <source file="tests/qt4/driver/test_run.h">configured: the QT4 driver's step budget, 4 x 10^8 per evaluation</source>
+    <source file="tests/xslt/driver/xslt_execution.c">configured: the XSLT driver's step budget</source>
+    <source>quoted from <ref kind="decision" to="D165"/> and <ref kind="decision" to="D168"/>: the in-scope XSD counts</source>
+  </sources>
 </decision>

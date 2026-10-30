@@ -42,4 +42,11 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="callgrind" at="9a93061">callgrind profile of xmark-all, match="$var" and recursion</source>
+    <source tool="tests/bench/run-bench.py callgrind" build="release">benchmarks, instructions and processor seconds, first milestone, base 9a93061 and after each change</source>
+    <source tool="tests/bench/run-bench.py callgrind" build="release">benchmarks, instructions and processor seconds, second milestone, base 1487b93 and after, and by change</source>
+    <source>20 million random cases of the scaled-integer conversion against strtod</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 XQ40 and XT40 whole suites, case by case, each milestone against its base commit</source>
+  </sources>
 </decision>

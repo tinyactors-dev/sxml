@@ -30,4 +30,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release">XT40 whole suite with and without the change: xsl:source-document executions that stream, template rules applied node by node, folded aggregate nodes; 11,827 at 623bf87, 11,826 at 4589ec8</source>
+    <source file="tests/evaluator_stream_test.c">allocator peaks over a 2.4 MB generated document under a 1 MB limit</source>
+  </sources>
 </decision>

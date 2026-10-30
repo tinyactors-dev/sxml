@@ -27,4 +27,11 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source file="third_party/tree-sitter-grammars">native -O2 code and data of each vendored grammar parser and scanner</source>
+    <source tool="tests/tree-sitter/run-tree-sitter-tests.sh tests/tree-sitter/tree-sitter-driver.xq" file="third_party/tree-sitter-grammars">tree-sitter suite: corpus trees and highlight assertions</source>
+    <source tool="tools/check-book-examples.sh">book chapter examples, 18 match</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm">sxml.wasm and the CLI module, stripped and gzipped, against the <ref kind="decision" to="D272"/> baseline</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the sxml.wasm and CLI module budgets</source>
+  </sources>
 </decision>

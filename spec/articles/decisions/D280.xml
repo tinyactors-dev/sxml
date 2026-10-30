@@ -36,4 +36,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh" build="release" at="db00b4e">XP40 and XQ40 passes, failed and not run, whole runs at the start</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">XP40, XQ40 and XT40 passes, whole runs, b0fc1fe against db00b4e, XT40 against 86ad244</source>
+    <source tool="ctest" build="debug">every unit and CLI test but evaluator_stream, 387 tests, under ASan and UBSan</source>
+    <source tool="tools/check-book-examples.sh">book examples, 399 match</source>
+  </sources>
 </decision>

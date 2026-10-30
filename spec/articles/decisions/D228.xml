@@ -36,4 +36,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="release">sxml transform over a generated 100 MB document of 904,745 records, peak resident set, before and after, tree and streamed</source>
+    <source file="tests/evaluator_stream_test.c">allocator peaks over the 2.4 MB document under a 1 MB limit</source>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, case by case</source>
+  </sources>
 </decision>

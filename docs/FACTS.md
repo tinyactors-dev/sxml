@@ -52,6 +52,7 @@ says now. Add one with tools/spec/spec add fact.
 | `qt4-catalog/assertions/any-of` | Occurrences of any-of in the results of the QT4 catalog's test cases | 2,163 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/assertions/assert` | Occurrences of assert in the results of the QT4 catalog's test cases | 2,931 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/assertions/assert-deep-eq` | Occurrences of assert-deep-eq in the results of the QT4 catalog's test cases | 5,013 | `third_party/qt4tests/catalog.xml` |
+| `qt4-catalog/assertions/assert-empty` | Occurrences of assert-empty in the results of the QT4 catalog's test cases | 927 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/assertions/assert-eq` | Occurrences of assert-eq in the results of the QT4 catalog's test cases | 6,500 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/assertions/assert-false` | Occurrences of assert-false in the results of the QT4 catalog's test cases | 3,990 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/assertions/assert-string-value` | Occurrences of assert-string-value in the results of the QT4 catalog's test cases | 5,989 | `third_party/qt4tests/catalog.xml` |
@@ -59,6 +60,7 @@ says now. Add one with tools/spec/spec add fact.
 | `qt4-catalog/assertions/assert-type` | Occurrences of assert-type in the results of the QT4 catalog's test cases | 1,763 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/assertions/assert-xml` | Occurrences of assert-xml in the results of the QT4 catalog's test cases | 2,981 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/assertions/error` | Occurrences of error in the results of the QT4 catalog's test cases | 10,063 | `third_party/qt4tests/catalog.xml` |
+| `qt4-catalog/assertions/serialization-matches` | Occurrences of serialization-matches in the results of the QT4 catalog's test cases | 794 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/both` | Test cases of the QT4 catalog that apply to both XP40 and XQ40 | 32,822 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/neither` | Test cases of the QT4 catalog that apply to neither XP40 nor XQ40 | 763 | `third_party/qt4tests/catalog.xml` |
 | `qt4-catalog/no-spec` | Test cases of the QT4 catalog with no spec dependency on the case or its set | 15,593 | `third_party/qt4tests/catalog.xml` |
@@ -74,3 +76,7 @@ says now. Add one with tools/spec/spec add fact.
 | `slice/xquery/cases` | Test cases in the XQuery slice | 186 | `tests/qt4/xquery-slice.txt` |
 | `slice/xsd/cases` | Test cases in the XSD slice | 147 | `tests/xsd/slice.txt` |
 | `slice/xslt/cases` | Test cases in the XSLT slice | 154 | `tests/xslt/slice.txt` |
+| `xslt40-test/commented-test-sets` | Test-set entries commented out in the xslt40-test catalog | 28 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/test-cases` | Test cases in the xslt40-test catalog | 13,867 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/test-sets` | Active test-set entries in the xslt40-test catalog | 250 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/xslt40/test-cases` | Test cases of xslt40-test that apply to XSLT 4.0 | 12,639 | `third_party/xslt40-test/catalog.xml` |

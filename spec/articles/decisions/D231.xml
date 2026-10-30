@@ -33,4 +33,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="release">sxml transform over a 95.6 MB document of 904,745 records, peak resident set, before and after</source>
+    <source file="tests/evaluator_stream_test.c">allocator peak of the streamed identity of a 2.4 MB document</source>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, case by case, before and after</source>
+  </sources>
 </decision>

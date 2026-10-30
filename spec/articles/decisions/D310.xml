@@ -57,5 +57,11 @@
   </body>
   <sources>
     <source build="release">200,000 matches of w+sw+sd+ against contains, processor seconds, here and the packet on another machine</source>
+    <source tool="callgrind" build="release">callgrind profile of 20,000 such fn:matches calls</source>
+    <source tool="valgrind tests/bench/regex-match.xq tests/bench/regex-reuse.xq" build="release">valgrind instructions of the whole process, cumulatively before / +1 / +2 / +3 / +4: 20,000 matches, regex-match.xq and regex-reuse.xq at 1/10, 5,000 distinct regexes compiled</source>
+    <source build="release">processor seconds, fastest of seven, before / +1 / +2 / +3 / +4: regex-match.xq, regex-reuse.xq, 200,000 matches</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 XP40 and XQ40 regex sets and XT40 regex groups, release drivers, before and after, case by case</source>
+    <source>14,400 random regexes over random inputs through fn:analyze-string, before and after</source>
+    <source file="src/regex.c">configured: the start filter walk, a stack of 32 and at most 256 visits</source>
   </sources>
 </decision>

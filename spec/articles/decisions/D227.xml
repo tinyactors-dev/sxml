@@ -36,4 +36,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm" at="5385a0e">sxml.wasm, sxml-full.wasm and the CLI module, stripped and gzipped, before and after, with the per-object differences</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">XP40, XQ40 and XT40 passes and wrong errors, whole runs, 5385a0e against the change</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm" at="5664da8">the evaluator step (cd4ac60): sxml.wasm, sxml-full.wasm and the CLI, before and after</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release" at="5664da8">the evaluator step (cd4ac60): XP40, XQ40 and XT40 passes and wrong errors, whole runs, before and after</source>
+  </sources>
 </decision>

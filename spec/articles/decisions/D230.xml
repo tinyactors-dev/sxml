@@ -39,4 +39,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, case by case, after each change; the merge cases</source>
+    <source tool="tools/run-qt4.sh">QT4 fn-transform XQ40 and the XQ40 and XP40 sets touched</source>
+  </sources>
 </decision>

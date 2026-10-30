@@ -30,4 +30,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">XQ40, XP40 and XT40 passes, whole runs, case by case, before and after</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release" at="2c91eaf">fresh whole run at HEAD before this packet</source>
+  </sources>
 </decision>

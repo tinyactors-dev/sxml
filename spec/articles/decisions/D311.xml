@@ -44,4 +44,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="valgrind tests/bench/run-bench.py" build="release">valgrind instructions and processor seconds before / after: SchXslt's expand stage of EN 16931 (scratch build, step bound raised) with sxml_regex_matcher_scan's share, bench-real.xsl, regex-literal.xq, regex-reuse.xq, regex-match.xq, 5,000 distinct regexes</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 XP40 and XQ40 regex sets and XT40 regex groups, release drivers, before and after, case by case</source>
+    <source>14,400 random regexes and 3,600 in SchXslt's shape on random inputs, before and after</source>
+    <source file="src/regex.c">configured: the first 16 candidates, 32 bytes of literal, 256 instructions analysed</source>
+  </sources>
 </decision>

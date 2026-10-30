@@ -33,4 +33,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tests/bench/run-bench.py" build="release">benchmarks, processor seconds, fastest of three, before and after</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 XQ40 and XT40 whole suites, case by case, after each change</source>
+    <source>profile of XMark-All after the changes</source>
+  </sources>
 </decision>

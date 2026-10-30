@@ -32,4 +32,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="callgrind" build="release">callgrind profile of SchXslt's expand stage of EN 16931 (step bound raised in a scratch build): coercions, matches, builders, atomizations, casts</source>
+    <source tool="callgrind tests/bench/run-bench.py" build="release">callgrind instructions, before at e82b48d2e and after 44f8d546b: SchXslt expand and its coercion, coercion.xq by change, recursion.xq, xmark-all</source>
+    <source tool="tests/bench/run-bench.py" build="release">processor seconds, fastest of seven: coercion.xq, xmark-all, expand</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 XP40, XQ40 and XT40 passes, whole, case by case against the base commit built the same way</source>
+  </sources>
 </decision>

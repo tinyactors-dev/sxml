@@ -7771,6 +7771,10 @@ Recorded 2026-10-18. IDENTITY_CONSTRAINTS and the identity seam of D167
   41,518 before 5.9 landed, 41,452 (99.8 %) with it; gate groups 100 %, 99.5 %,
   98.9 %; slice 147 of 147. No shared code changed: XP40, XQ40 and XT40 hold.
 
+**Sources**: XSD identity constraint test sets, XSD in scope before and with
+5.9, gate groups and the slice (`tools/run-xsd.sh`,
+`tools/conformance-report.py`, release build).
+
 ### D178. XSD and schema-aware conformance sweep 1 (packet 5.13)
 
 **Summary**: The QT4 driver stops reclassifying schema-aware outcomes, fixing
@@ -7861,6 +7865,18 @@ documents, a simple base for a complex type).
   of 41,518 (was 41,452; gate groups 100 %, 99.7 %, 99.6 %; no test set lost a
   test; slice 147); XP40 30,931 (was 30,924), XQ40 41,273 (was 41,261), both 0
   errors, schema-aware XQ40 1,236 of 1,516; XT40 7,992 (was 7,990); QT4 slice 198.
+
+**Sources**: XSD, XP40, XQ40 (and schema-aware) and XT40 passes, every suite
+run with this code, and the slices (`tools/run-xsd.sh`, `tools/run-qt4.sh`,
+`tools/run-xslt.sh`, `tools/conformance-report.py`, release build);
+app-CatalogCheck Catalog009 memory (536 MB to 147 MB) and app-Demos itunes
+steps (367 to 287 million) and time (85 s) (`tools/run-qt4.sh`, release build);
+sxml.wasm stripped with run-time built descriptions (1,997,902 of 2,000,000
+bytes) (`bindings/javascript/test/size-budget.mjs`, wasm build); configured:
+the QT4 driver's step budget per evaluation, four times
+SXML_QT4_TEST_MAXIMUM_STEP_COUNT (from `tests/qt4/driver/test_run.h`);
+configured: the QT4 driver's step budget per evaluation, four times
+SXML_QT4_TEST_MAXIMUM_STEP_COUNT (from `tests/qt4/driver/test_run.h`).
 
 ### D179. Schema-aware XSLT (packet 5.12)
 
@@ -7965,6 +7981,11 @@ D169) with D174's mechanisms; golden `src/xquery_static.c` (import schema),
   components (for 5.13's XSD sweep: whether a schema document for the XSD
   namespace may restate them).
 
+**Sources**: schema-aware XT40 area, XT40 passes and gate rate, the XSLT slice,
+XP40 and XQ40 passes and the slice, at HEAD 8d6cad4 plus this packet
+(`tools/run-xslt.sh`, `tools/run-qt4.sh`, `tools/conformance-report.py`,
+release build).
+
 ### D180. Conformance sweep 2 (packet 5.13)
 
 **Summary**: A schema document's global type named like a built-in type is that
@@ -8034,6 +8055,12 @@ the Proposed item "xslt.h reads the host's in-scope schemas".
   schema-aware XT40 627 of 971; only the test sets as, catalog and match
   changed, none lost a test; XP40 30,931 and XQ40 41,273, 0 errors; XSD in
   scope 41,483 of 41,518; slices 198, 147 (XSLT, of 154) and 147 (XSD).
+
+**Sources**: XT40 (and schema-aware), XP40, XQ40 and XSD passes, all four
+suites, and the slices (`tools/run-xslt.sh`, `tools/run-qt4.sh`,
+`tools/run-xsd.sh`, `tools/conformance-report.py`, release build, at ae616ca);
+sxml.wasm stripped and gzipped, after 5.12 and after the validate-items row
+(`bindings/javascript/test/size-budget.mjs`, wasm build).
 
 ### D181. Verification in proportion; agent prompts in the repository (owner)
 
@@ -8198,6 +8225,24 @@ ast-grep, no call cycle in 176 files). The dashboard is regenerated at 3b0812a.
   D178 lists (XSD 1.0 rules XSD 1.1 changed, NOTATION union members, XML 1.1
   instances, Element Declarations Consistent with wildcards).
 
+**Sources**: every test of release, debug, debug-gcc and wasm on a clean HEAD,
+and the lint (call cycles in 176 files) (`tools/check-main.sh`, `ctest`,
+`tools/private-build.sh`, at 3b0812a); XSD, XP40, XQ40 and XT40 passes, in
+scope, gate groups, schema-aware areas and core sets, all 150,228 outcomes case
+by case (unchanged at 3b0812a) (`tools/run-qt4.sh`, `tools/run-xslt.sh`,
+`tools/run-xsd.sh`, `tools/conformance-report.py`, release build, at 02303a7);
+slices qt4/slice, qt4/xquery-slice, xslt/slice and the XSD slice, every preset
+(`ctest`); fuzzing, 300 s per target, eight at once on four cores, and the
+timeouts alone (`tools/fuzz.sh`); app-Demos itunes: 287 million steps, 72 s,
+and sampled stacks (release build); sxml.wasm and the CLI module, stripped and
+gzipped (`bindings/javascript/test/size-budget.mjs`, wasm build); configured:
+the WebAssembly budgets of sxml.wasm and the CLI (from
+`bindings/javascript/CMakeLists.txt`); configured: the QT4 driver's step
+budget, 4 x 10^8 per evaluation (from `tests/qt4/driver/test_run.h`);
+configured: the XSLT driver's step budget (from
+`tests/xslt/driver/xslt_execution.c`); quoted from D165 and D168: the in-scope
+XSD counts.
+
 ### D183. Phase 7 plan: one packet per deferred feature, optional features for size (packet 7.1)
 
 **Summary**: Phase 7 is planned as one packet per deferred feature, from
@@ -8282,6 +8327,10 @@ Phase 7 (D162) in `docs/tasks/phase-7.md`, as D165 planned Phase 5.
 - **PLAN.md**: the Phase 7 row names the optional features and the four
   proposed additions.
 
+**Sources**: not-run cases per optional feature in XT40, XQ40 and xmlconf, from
+the dashboard where it has the first unmet dependency, else from the catalogs
+(`tools/conformance-report.py`, at 3b0812a).
+
 ### D184. Phase 7 scope, size and access choices (owner)
 
 **Summary**: The owner adds xsl:evaluate, disable-output-escaping, XML 1.1
@@ -8303,6 +8352,10 @@ Recorded 2026-10-19 on the owner's answers to D183's questions.
 - Still open from D183: the gate numbers, adding the iXML tests and a sample of
   Unicode's CollationTest, and which languages, calendars and tailorings (7.17
   proposes en, de, fr, it, es, nl; ISO, AD, BE, JE, OS, AH).
+
+**Sources**: configured: the size budgets, 2,100,000 bytes for the core
+sxml.wasm and 3,000,000 for the full module (from
+`bindings/javascript/CMakeLists.txt`).
 
 ### D185. XSLT conformance sweep after the Phase 4 gate (packet 4.19)
 
@@ -8365,6 +8418,11 @@ minute here). **XT40 8,650 to 8,759 passed, 0 errors, no case lost.**
   function name it can call, or the match lowering must bind the index as a
   pattern variable; the rows live in `src/function_library_xslt.c`, another
   packet's file at the time.
+
+**Sources**: XT40 passes, whole suite, after each change, case by case, and the
+test sets priority, call-template, record, type-alias, snapshot and merge
+(`tools/run-xslt.sh`, release build); the unit and CLI tests touched (`ctest`,
+debug build).
 
 ### D187. The XQuery Update Facility 3.0 (packet 7.7a)
 
@@ -8571,6 +8629,12 @@ resolver.
   `--allow-file-access`. The fuzz fixtures do not name features yet: the packet
   that adds a parser names its feature there.
 
+**Sources**: sxml.wasm, sxml-full.wasm and the CLI, stripped and gzipped,
+before and after (`bindings/javascript/test/size-budget.mjs`, wasm build, at
+2459034); parts of sxml.wasm not moved, code and data from the linker map (wasm
+build); configured: core 2,100,000 / 735,000, full 3,000,000 / 1,050,000, CLI
+5,500,000 / 1,250,000 (from `bindings/javascript/CMakeLists.txt`).
+
 ### D190. XPath and XQuery conformance sweep (packet 2.21)
 
 **Summary**: The sweep adds composite casts to arrays, maps and records, the
@@ -8632,6 +8696,12 @@ kind added.
   tests are one in sxml_name_test (frozen); a declared function's "$a := ."
   found by fn:function-lookup; lax validation without any in-scope schema
   raises FODC0014 (`src/function_library_schema.c`); use-xsi-schema-location.
+
+**Sources**: XP40 and XQ40 passes and wrong errors, full runs, before at
+7d70d01 and after (`tools/run-qt4.sh`, release build); XT40 at the same HEADs,
+by test set (`tools/run-xslt.sh`, release build); XT40 at the same HEADs, by
+test set (`tools/run-xslt.sh`, release build); growth of sxml.wasm (about 5.8
+KB) (`bindings/javascript/test/size-budget.mjs`, wasm build).
 
 ### D191. Optional features add library functions (packet 7.10a)
 
@@ -8721,6 +8791,14 @@ documents are parsed by the 1.0 rules".
     template), -016 and namespace-2606, -6202 (namespace undeclaration in XSLT,
     `src/xslt*`).
   - XSD saxon-XmlVersions 48 to 51 of 51.
+
+**Sources**: xmlconf XML 1.1 cases (271) and the 1.0 selection, before at
+2459034 and after (`ctest`, release build, from
+`tests/xml_conformance_test.c`); QT4: the 15 test sets with xml-version
+dependencies, XQ40 and XP40, before at 2459034 and after (`tools/run-qt4.sh`,
+release build); XT40 xml-version, namespace, catalog and xml-to-json, before at
+2459034 and after (`tools/run-xslt.sh`, release build); XSD saxon-XmlVersions,
+before at 2459034 and after (`tools/run-xsd.sh`, release build).
 
 ### D196. xsl:evaluate (packet 7.3)
 
@@ -10589,7 +10667,11 @@ honoured" and its root order.
 
 **Sources**: QT4 collation sets, XQ40 and XP40, and XT40 collations, sort and
 the unchanged groups (`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build);
-UCA unit test cases (`ctest`, from `tests/collation_uca_test.c`).
+UCA unit test cases (`ctest`, from `tests/collation_uca_test.c`); size of the
+vendored CLDR files (from `third_party/cldr`); sxml.wasm, sxml-full.wasm and
+the CLI module, stripped and gzip -9, before and after at one HEAD
+(`bindings/javascript/test/size-budget.mjs`, wasm build); quoted from D208: the
+budgets.
 
 ### D221. Calendars and languages in the formatting functions (packet 7.17)
 
@@ -10703,6 +10785,16 @@ English" and their D162 places: the fallback markers of
   rules; date formats of CLDR (sxml formats pictures, not patterns); a
   language's digits other than ASCII in names.
 
+**Sources**: QT4 fn-format-date, fn-format-integer, fn-default-language,
+app-spec-examples and the unchanged sets, XQ40 and XP40, and XT40 number and
+the unchanged groups, against 4d78eba (`tools/run-qt4.sh`, `tools/run-xslt.sh`,
+release build); size of the vendored CLDR main, rbnf and supplemental files
+(from `third_party/cldr/common`); sxml.wasm, sxml-full.wasm and the CLI module,
+stripped and gzip -9, before and after
+(`bindings/javascript/test/size-budget.mjs`, wasm build, at 4d78eba);
+configured: the spell-out stack of 64 frames and 4,096 steps (from
+`src/spell_out.c`); quoted from D208: the full and CLI budgets.
+
 ### D222. Bounded memory for XML parsing: document segments (packet xml-mem)
 
 **Summary**: The XML parser holds the tree-sitter tree of one
@@ -10808,7 +10900,19 @@ the grammar stays the one source of the lexical rules.
   passed, XQ40 45,813, XT40 11,818.
 
 **Sources**: verdicts and diagnostics over the 6,652 documents of xmlconf, QT4
-and XT40, before and after.
+and XT40, before and after; XML parser fuzzing: xml_parse_fuzz seeds and 5
+minutes, and 4 more minutes with one item per segment
+(`tests/fuzz/xml_parse_fuzz.c`); resident memory and CPU time of check and tree
+over 10 MB and 100 MB inputs, before and after; segment sizes 4 KB to 1 MB
+(release build); sxml transform on a streamable xsl:source-document at 100 MB,
+resident memory before and after (release build);
+large_documents_parse_in_bounded_memory: 4 MB document under a 256 KB allocator
+limit and 2 MB for tree-sitter (`ctest`, from `tests/xml_test.c`); xmlconf
+standalone, external, XML 1.1 and DTD validation counts, also with one item per
+segment (`ctest`, from `tests/xml_conformance_test.c`); XP40, XQ40 and XT40
+passes, whole suites, case by case (`tools/run-qt4.sh`, `tools/run-xslt.sh`,
+release build); configured: the document segment of about 16 KB (from
+`src/xml.c`).
 
 ### D223. More streamed shapes: streamed paths and aggregates (packet 7.6c)
 
@@ -10875,6 +10979,12 @@ bodies of xsl:source-document streamable="yes"; the rest of D219 stands.
   KB, sum of attributes and max 213 KB, copy-of of a selection 232 KB,
   apply-templates over all 30,000 records 233 KB
   (`tests/evaluator_stream_test.c`).
+
+**Sources**: XT40 whole suite with and without the change: xsl:source-document
+executions that stream, template rules applied node by node, folded aggregate
+nodes; 11,827 at 623bf87, 11,826 at 4589ec8 (`tools/run-xslt.sh`, release
+build); allocator peaks over a 2.4 MB generated document under a 1 MB limit
+(from `tests/evaluator_stream_test.c`).
 
 ### D224. Evaluator performance: benchmarks, axis walks, filter indexes (packet perf-1)
 
@@ -10955,6 +11065,11 @@ completed when the packet ends.
   changed: after these changes a profile of XMark-All is axis walks (the arena
   tree's describe_node 15 %), the machine loop (12 %) and atomization.
 
+**Sources**: benchmarks, processor seconds, fastest of three, before and after
+(`tests/bench/run-bench.py`, release build); QT4 XQ40 and XT40 whole suites,
+case by case, after each change (`tools/run-qt4.sh`, `tools/run-xslt.sh`,
+release build); profile of XMark-All after the changes.
+
 ### D225. The built-in schemas are an optional feature; the core size guard (packet health-3)
 
 **Summary**: The processor's built-in schemas become the optional feature
@@ -11023,6 +11138,13 @@ Recorded 2026-10-19, after D162, D189, D208, D211. The core `sxml.wasm` was
   follow D222's segmented parse: a document that ends inside an element gets
   the parser's truncation message at the same place, and the validity errors
   before the fatal error are reported too (XML 1.0, 1.2).
+
+**Sources**: sxml.wasm stripped and gzipped, over budget
+(`bindings/javascript/test/size-budget.mjs`, at 6130546); linker maps of the
+core module per commit, code and data, from ae7ef0b; sxml.wasm and
+sxml-full.wasm stripped and gzipped, before and after
+(`bindings/javascript/test/size-budget.mjs`); configured: the sxml-full.wasm
+budget, 7,500,000 / 2,625,000 (from `bindings/javascript/CMakeLists.txt`).
 
 ### D226. XPath and XQuery conformance sweep (packet 2.22)
 
@@ -11173,6 +11295,17 @@ not leave out the parts of a language it does not offer.
   rejected hand-kept list); a run-time filter of one table by language (the
   table still links every part); CMake options per module (two builds, D189).
 
+**Sources**: sxml.wasm, sxml-full.wasm and the CLI module, stripped and
+gzipped, before and after, with the per-object differences
+(`bindings/javascript/test/size-budget.mjs`, wasm build, at 5385a0e); XP40,
+XQ40 and XT40 passes and wrong errors, whole runs, 5385a0e against the change
+(`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build); the evaluator step
+(cd4ac60): sxml.wasm, sxml-full.wasm and the CLI, before and after
+(`bindings/javascript/test/size-budget.mjs`, wasm build, at 5664da8); the
+evaluator step (cd4ac60): XP40, XQ40 and XT40 passes and wrong errors, whole
+runs, before and after (`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build,
+at 5664da8).
+
 ### D228. A streamed principal source; template rules on open nodes (packet 7.6d)
 
 **Summary**: `sxml_xslt_transformation_request.streamed_source_uri` streams the
@@ -11258,6 +11391,12 @@ source would be an additive `xslt.h` field)".
   principal result is held whole until it is serialized, so a transformation
   whose output is as large as its input (the identity) keeps memory
   proportional to the output.
+
+**Sources**: sxml transform over a generated 100 MB document of 904,745
+records, peak resident set, before and after, tree and streamed (release
+build); allocator peaks over the 2.4 MB document under a 1 MB limit (from
+`tests/evaluator_stream_test.c`); XT40 passes, whole suite, case by case
+(`tools/run-xslt.sh`, release build).
 
 ### D229. Evaluator performance, second round (packet perf-2)
 
@@ -11353,6 +11492,16 @@ run, exact), the measure each change is judged by.
   errors) and sort keys; the machine's task struct is copied whole on each
   push.
 
+**Sources**: callgrind profile of xmark-all, match="$var" and recursion
+(`callgrind`, at 9a93061); benchmarks, instructions and processor seconds,
+first milestone, base 9a93061 and after each change
+(`tests/bench/run-bench.py`, `callgrind`, release build); benchmarks,
+instructions and processor seconds, second milestone, base 1487b93 and after,
+and by change (`tests/bench/run-bench.py`, `callgrind`, release build); 20
+million random cases of the scaled-integer conversion against strtod; QT4 XQ40
+and XT40 whole suites, case by case, each milestone against its base commit
+(`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build).
+
 ### D230. XSLT conformance sweep after the leftovers (packet 4.20)
 
 **Summary**: The XSLT sweep adds xsl:merge order checks, [before 1] tailorings,
@@ -11434,6 +11583,10 @@ function's module or a QName cast touch unchanged.
   xdm.h); XTDE0430/0440 (XQDY0102 in the evaluator); system-property and
   function-available with a non-NCName (`src/function_library_xslt.c`, another
   packet's uncommitted file).
+
+**Sources**: XT40 passes, whole suite, case by case, after each change; the
+merge cases (`tools/run-xslt.sh`, release build); QT4 fn-transform XQ40 and the
+XQ40 and XP40 sets touched (`tools/run-qt4.sh`).
 
 ### D231. The last streamed shapes: accumulators, xsl:fork and the principal result while streaming (packet 7.6e)
 
@@ -11548,6 +11701,11 @@ their rule that a stylesheet reading an accumulator streams nothing.
   file through it. The parser change is in `src/xml.c`, `src/xml_segment.c` and
   `src/xml_encoding.c`, which another packet (perf-3) is changing now, so
   neither the form nor the parser change is made here; the header is unchanged.
+
+**Sources**: sxml transform over a 95.6 MB document of 904,745 records, peak
+resident set, before and after (release build); allocator peak of the streamed
+identity of a 2.4 MB document (from `tests/evaluator_stream_test.c`); XT40
+passes, case by case, before and after (`tools/run-xslt.sh`, release build).
 
 ### D232. XML parsing speed: fewer tokens and nodes (packet perf-3)
 
@@ -14239,6 +14397,11 @@ control whether they do so").
   not run; parse-xml-440 passes; XT40 schema_aware sets (52) 4,084 -> 4,087
   passed (4.29's commits), none lost. CONFORMANCE.md not regenerated.
 
+**Sources**: XSD11 whole run, QT4 XQ40 schema-aware sets and XT40 schema_aware
+sets, HEAD 240bb83 before and the packet files after (`tools/run-xsd.sh`,
+`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build); debug unit and CLI
+tests touched, 296 passed (`ctest`, debug build).
+
 ### D280. XPath and XQuery conformance sweep: JNode Q{}N tests, listed modules, run-time type constructors (packet 2.26)
 
 **Summary**: JNode name tests select string keys for an NCName and QName keys
@@ -14328,6 +14491,13 @@ the release drivers, case by case.
   attribute values); deep-equal of partial applications (4); fn:transform (3);
   the kept groups above.
 
+**Sources**: XP40 and XQ40 passes, failed and not run, whole runs at the start
+(`tools/run-qt4.sh`, release build, at db00b4e); XP40, XQ40 and XT40 passes,
+whole runs, b0fc1fe against db00b4e, XT40 against 86ad244 (`tools/run-qt4.sh`,
+`tools/run-xslt.sh`, release build); every unit and CLI test but
+evaluator_stream, 387 tests, under ASan and UBSan (`ctest`, debug build); book
+examples, 399 match (`tools/check-book-examples.sh`).
+
 ### D281. XSLT conformance sweep: XSLT coercion casts, globals in xsl:iterate, deep-copy types, fixed-namespaces documents (packet 4.29)
 
 **Summary**: A failed cast in an XSLT binding's coercion is a type error
@@ -14407,6 +14577,10 @@ at b97d939 (with 2.26's and 5.16's commits as they landed). Commits 86ad244,
   (function-lookup-004, medium); 6.11's current rule in an attribute set
   invoked inside xsl:for-each (D276, an evaluator operation, no suite case).
 - The XT40 section of `docs/CONFORMANCE.md` was not regenerated.
+
+**Sources**: XT40 passes, whole suite, case by case, after each change
+(`tools/run-xslt.sh`, release build, at b97d939); book examples, 399 match
+(`tools/check-book-examples.sh`).
 
 ### D282. The book's code-generation project (packet book-3)
 
@@ -14528,6 +14702,11 @@ implementation. Done (commits ec3fd42, 4818dd3, 7a93dc7).
   the forest; lexical DFAs for regular nonterminals would cut items per
   character further. Both are left for a later packet.
 
+**Sources**: iXML benchmarks, processor seconds and MB, 1 MB inputs, before and
+after (`tests/bench/run-ixml-bench.py`, release build); iXML suite passes and
+not run (`tests/ixml/run-ixml-tests.sh`, from `third_party/ixml-tests`); QT4
+iXML sets and native code growth.
+
 ### D285. Source code as XML: tree-sitter trees with highlights captures (packet 7.22)
 
 **Summary**: `sxml:parse-code` parses source code with vendored tree-sitter
@@ -14633,6 +14812,16 @@ then the grammars' own tests, then the implementation.
   2,288,933, budget 9,500,000 / 2,100,000 to 11,500,000 / 2,500,000; the size
   baseline refreshed.
 
+**Sources**: native -O2 code and data of each vendored grammar parser and
+scanner (from `third_party/tree-sitter-grammars`); tree-sitter suite: corpus
+trees and highlight assertions (`tests/tree-sitter/run-tree-sitter-tests.sh`,
+`tests/tree-sitter/tree-sitter-driver.xq`, from
+`third_party/tree-sitter-grammars`); book chapter examples, 18 match
+(`tools/check-book-examples.sh`); sxml.wasm and the CLI module, stripped and
+gzipped, against the D272 baseline (`bindings/javascript/test/size-budget.mjs`,
+wasm build); configured: the sxml.wasm and CLI module budgets (from
+`bindings/javascript/CMakeLists.txt`).
+
 ### D286. XPath and XQuery sweep: XInclude, ideographic numerals, place static contexts (packet 2.27)
 
 **Summary**: fn:doc, fn:doc-available and fn:parse-xml gain `xinclude`
@@ -14719,6 +14908,12 @@ case by case.
   fn:document still strips before it validates (4.30's file); the kept groups
   of D280.
 
+**Sources**: XP40 and XQ40 passes, whole runs at the start (`tools/run-qt4.sh`,
+release build, at 6236ab6); XP40 and XQ40 passes after the XInclude commits and
+5.16, and XT40 with and without the changes (`tools/run-qt4.sh`,
+`tools/run-xslt.sh`, release build, at 384040b); XP40 and XQ40 passes at the
+end (`tools/run-qt4.sh`, release build, at bc7a35e).
+
 ### D287. XPath and XQuery sweep: syntax error places, run-time closures, globals after the evaluation, fixed defaults, cyclic item types (packet 2.28)
 
 **Summary**: Syntax errors are reported at the innermost ERROR node,
@@ -14798,6 +14993,11 @@ XQ40 and XT40 runs with the release drivers, case by case against HEAD.
   D286's (78 XQ40, 26 XP40), the kept groups and singletons.
 - **Not done** (D286 stands): record-003, -005, -016 and fn-string-length-26
   (the draft decides against the tests); the kept groups of D280 and D286.
+
+**Sources**: XQ40, XP40 and XT40 passes, whole runs, case by case, before and
+after (`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build); fresh whole run
+at HEAD before this packet (`tools/run-qt4.sh`, `tools/run-xslt.sh`, release
+build, at 2c91eaf).
 
 ### D288. More source code languages, a registration API and run-time languages (packet 7.23)
 
@@ -16436,6 +16636,20 @@ changed.
   ["SXML", "xquery", os.path.join(BENCH, "regex-reuse.xq")])` and likewise for
   regex-match.
 
+**Sources**: 200,000 matches of w+sw+sd+ against contains, processor seconds,
+here and the packet on another machine (release build); callgrind profile of
+20,000 such fn:matches calls (`callgrind`, release build); valgrind
+instructions of the whole process, cumulatively before / +1 / +2 / +3 / +4:
+20,000 matches, regex-match.xq and regex-reuse.xq at 1/10, 5,000 distinct
+regexes compiled (`valgrind`, `tests/bench/regex-match.xq`,
+`tests/bench/regex-reuse.xq`, release build); processor seconds, fastest of
+seven, before / +1 / +2 / +3 / +4: regex-match.xq, regex-reuse.xq, 200,000
+matches (release build); QT4 XP40 and XQ40 regex sets and XT40 regex groups,
+release drivers, before and after, case by case (`tools/run-qt4.sh`,
+`tools/run-xslt.sh`, release build); 14,400 random regexes over random inputs
+through fn:analyze-string, before and after; configured: the start filter walk,
+a stack of 32 and at most 256 visits (from `src/regex.c`).
+
 ### D311. Required literals in regex search (packet perf-9)
 
 **Summary**: A compiled regex records a `required_literal` that every match
@@ -16509,6 +16723,17 @@ changed.
 - **Left**: a literal inside a counted loop or an assertion is not used; the
   step limit of a search can now be reached later than before, never sooner.
 
+**Sources**: valgrind instructions and processor seconds before / after:
+SchXslt's expand stage of EN 16931 (scratch build, step bound raised) with
+sxml_regex_matcher_scan's share, bench-real.xsl, regex-literal.xq,
+regex-reuse.xq, regex-match.xq, 5,000 distinct regexes (`valgrind`,
+`tests/bench/run-bench.py`, release build); QT4 XP40 and XQ40 regex sets and
+XT40 regex groups, release drivers, before and after, case by case
+(`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build); 14,400 random regexes
+and 3,600 in SchXslt's shape on random inputs, before and after; configured:
+the first 16 candidates, 32 bytes of literal, 256 instructions analysed (from
+`src/regex.c`).
+
 ### D313. The owner's decisions of 2026-10-28: Schematron, source locations, the CLI's step limit
 
 **Summary**: The owner fixes Schematron's edition, query bindings, outputs and
@@ -16569,6 +16794,10 @@ drivers keep their own bounds (D166, D178). Packet cli-4.
 
 **SchXslt upstream** (10): the sort-once fix for `schxslt:replace-params` is
 not offered upstream.
+
+**Sources**: cost of source locations: bytes a node, peak memory and time of a
+26 MB document of about 2.5 million nodes, without and with (x86_64 Xeon 2.1
+GHz) (release build).
 
 ### D314. The sxml command asks for no step bound (packet cli-4)
 
@@ -17415,6 +17644,16 @@ header changed.
   by item). Multi-item values coerced to atomic types still match every item
   before, during and after the engine.
 
+**Sources**: callgrind profile of SchXslt's expand stage of EN 16931 (step
+bound raised in a scratch build): coercions, matches, builders, atomizations,
+casts (`callgrind`, release build); callgrind instructions, before at e82b48d2e
+and after 44f8d546b: SchXslt expand and its coercion, coercion.xq by change,
+recursion.xq, xmark-all (`callgrind`, `tests/bench/run-bench.py`, release
+build); processor seconds, fastest of seven: coercion.xq, xmark-all, expand
+(`tests/bench/run-bench.py`, release build); QT4 XP40, XQ40 and XT40 passes,
+whole, case by case against the base commit built the same way
+(`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build).
+
 ### D317. A Schematron conformance suite of sxml's own (packet 7.30)
 
 **Summary**: sxml has its own Schematron conformance suite,
@@ -17657,6 +17896,18 @@ changed.
   tries the alternatives in order; the engine counts the unchanged item as the
   first attempt's success); unchanged here, as outcomes must be.
 
+**Sources**: callgrind profile of SchXslt's expand stage of EN 16931 at
+a05385eb4: coercion's share, node atomizations, casts, choices (`callgrind`,
+release build, at a05385eb4); callgrind instructions, before at a05385eb4,
+commits 53ede6754 and f58ed07f2: SchXslt expand, a cast, coercion.xq,
+xmark-all, recursion.xq (`callgrind`, `tests/bench/run-bench.py`, release
+build); processor seconds, fastest of seven: expand, coercion.xq, xmark-all
+(`tests/bench/run-bench.py`, release build); QT4 XP40, XQ40 and XT40 passes,
+whole, case by case against a05385eb4 built the same way (`tools/run-qt4.sh`,
+`tools/run-xslt.sh`, release build); the whole test suite, 426 tests (`ctest`,
+debug-gcc build); the expand stage's base matches, for the dropped memo per
+octave.
+
 ### D320. A compile report sink for XSLT (packet 7.28)
 
 **Summary**: `sxml_xslt_stylesheet_configuration` gains a `report_sink`, a
@@ -17699,6 +17950,11 @@ D139. The header change D315 announced for 7.28.
   `transform_compile_errors`, `transform_analysis_errors`. XT40, release, case
   by case against the base commit built the same way: 0 outcomes differ (12,185
   passed).
+
+**Sources**: xslt_test report_sink_receives_every_compile_error and CLI tests
+transform_compile_errors, transform_analysis_errors (`ctest`); XT40 passes,
+case by case against the base commit built the same way (`tools/run-xslt.sh`,
+release build).
 
 ### D321. Choices try every alternative; a caught error leaves the error record (packet fix-4)
 
@@ -17755,6 +18011,11 @@ changed. Commit 5a47d8a68.
   task (outside the machine's catching) was not audited; such a place would
   leave the record filled the same way, visible only through a later failure
   that writes no record.
+
+**Sources**: the whole test suite, 437 tests (`ctest`, debug-gcc build); XP40,
+XQ40 and XT40 passes, whole, case by case against 47a1d9a33 built the same way
+(`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build); SchXslt's expand
+stage: instructions before and after (`callgrind`).
 
 ### D322. Node atomization describes once; the costs left are the atomic cell's (packet perf-11)
 
@@ -17814,6 +18075,19 @@ changed.
   atomizes few nodes many times, but the heap's live-cell counts, which many
   tests check, would then count the memo; per evaluation it needs the dynamic
   context, and the public `sxml_node_value_request` cannot carry it (D99).
+
+**Sources**: callgrind profile of SchXslt's expand stage of EN 16931 at
+47a1d9a33: atomizations, distinct nodes, instructions per atomization
+(`callgrind`, release build, at 47a1d9a33); callgrind instructions, before at
+47a1d9a33 and after 365e4257b: SchXslt expand, coercion.xq, xmark-all
+(`callgrind`, `tests/bench/run-bench.py`, release build); processor seconds,
+fastest of seven, interleaved: expand, coercion.xq, xmark-all
+(`tests/bench/run-bench.py`, release build); XP40, XQ40 and XT40 passes, base
+and change built alike from snapshots, case by case (`tests/qt4/driver`,
+`tests/xslt/driver`, release build); the whole test suite, 437 of 437 (`ctest`,
+debug-gcc build); scratch experiment in sxml_atomic_item_make: the expand stage
+with xs:string and xs:untypedAtomic resolved without the registry; UTF-8
+validation and cell allocation shares (`callgrind`, release build).
 
 ### D323. Schematron implemented: what 7.28 built and the readings it took (packet 7.28)
 
@@ -17894,6 +18168,16 @@ header changes beyond D320's.
   copy have paths, not lines (the copy keeps no locations); a dynamic error in
   an expression rule context names no place.
 
+**Sources**: lines of library C of src/schematron\*; 7.30's suite: applicable
+normative cases, deviations, implementation-defined, refused bindings
+(`tests/schematron/driver`, from `tests/schematron/driver/deviations.txt`); EN
+16931 UBL checks from the .sch sources (ctest schematron/en16931-ubl)
+(`ctest`); compile of EN16931-UBL-validation.sch and the 1,131 unit tests:
+seconds before and after the compiled unit, peak memory; SchXslt 1.10.1 on sxml
+(release build); quoted from D313: SchXslt on Saxon; differential against
+SchXslt: EN 16931 UBL and CII, XRechnung UBL and CII instances
+(`tests/schematron/driver/differential.py`).
+
 ### D324. Compiling large stylesheets in linear time (packet perf-12)
 
 **Summary**: Large units compile in linear time: the descendant pass groups
@@ -17973,6 +18257,9 @@ header changed; the IR after the passes is the same.
   per expression, 1.6 %), the XML read 19 %, value templates 6.3 % (attributes
   of literal result elements without "{" are parsed too), the IR passes 13.6 %,
   of which the demand pass 5.4 % and the four walks that make `owners` 3.8 %.
+
+**Sources**: callgrind profile of one EN 16931 invoice at 5bd945281, the passes
+self (`callgrind`, release build, at 5bd945281).
 
 ### D325. Compiling XSLT and Schematron: the component graph, value templates, the Schematron front end (packet perf-13)
 

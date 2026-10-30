@@ -95,7 +95,7 @@
         <p>A test-case <code>spec</code> replaces the test-set one. Under AND semantics 13 tests could never run (e.g. set <code>XQ10+</code>, case <code>XP30+ XQ30+</code>).</p>
       </item>
       <item>
-        <p>No <code>spec</code> anywhere means every version of both languages (about 15,600 cases, mainly in <code>fn-</code>, <code>op-</code> and <code>prod-</code>).</p>
+        <p>No <code>spec</code> anywhere means every version of both languages (<value of="qt4-catalog/no-spec"/> cases, mainly in <code>fn-</code>, <code>op-</code> and <code>prod-</code>).</p>
       </item>
       <item>
         <p>A run targets exactly one language and version: <code>XP40</code> or <code>XQ40</code>.</p>
@@ -180,16 +180,16 @@
         <cell>The child assertion fails.</cell>
       </row>
     </table>
-    <p>Frequency: <code>assert-true</code> 11,638; <code>error</code> 10,063; <code>assert-eq</code> 6,500; <code>assert-string-value</code> 5,989; <code>assert-deep-eq</code> 5,013; <code>assert-false</code> 3,990; <code>assert-xml</code> 2,981; <code>assert</code> 2,931; <code>any-of</code> 2,163; <code>all-of</code> 1,770; <code>assert-type</code> 1,763; <code>assert-empty</code> 927; <code>serialization-matches</code> 794; others under 300.</p>
+    <p>Frequency: <code>assert-true</code> <value of="qt4-catalog/assertions/assert-true"/>; <code>error</code> <value of="qt4-catalog/assertions/error"/>; <code>assert-eq</code> <value of="qt4-catalog/assertions/assert-eq"/>; <code>assert-string-value</code> <value of="qt4-catalog/assertions/assert-string-value"/>; <code>assert-deep-eq</code> <value of="qt4-catalog/assertions/assert-deep-eq"/>; <code>assert-false</code> <value of="qt4-catalog/assertions/assert-false"/>; <code>assert-xml</code> <value of="qt4-catalog/assertions/assert-xml"/>; <code>assert</code> <value of="qt4-catalog/assertions/assert"/>; <code>any-of</code> <value of="qt4-catalog/assertions/any-of"/>; <code>all-of</code> <value of="qt4-catalog/assertions/all-of"/>; <code>assert-type</code> <value of="qt4-catalog/assertions/assert-type"/>; <code>assert-empty</code> <value of="qt4-catalog/assertions/assert-empty"/>; <code>serialization-matches</code> <value of="qt4-catalog/assertions/serialization-matches"/>; others under 300.</p>
   </section>
   <section id="counts-pinned-qt4tests-commit">
     <title>Counts (pinned qt4tests commit)</title>
     <list>
       <item>
-        <p>737 test sets with 47,313 test cases. XQ40: 46,444 cases in 737 sets. XP40: 32,928 cases in 540 sets.</p>
+        <p><value of="qt4-catalog/test-sets"/> test sets with <value of="qt4-catalog/test-cases"/> test cases. XQ40: <value of="qt4-catalog/xq40/test-cases"/> cases in <value of="qt4-catalog/xq40/test-sets"/> sets. XP40: <value of="qt4-catalog/xp40/test-cases"/> cases in <value of="qt4-catalog/xp40/test-sets"/> sets.</p>
       </item>
       <item>
-        <p>Both XP40 and XQ40: 32,822. XQ40 only: 13,622. XP40 only: 106. Neither (1.0, 3.0 or 3.1 only): 763.</p>
+        <p>Both XP40 and XQ40: <value of="qt4-catalog/both"/>. XQ40 only: <value of="qt4-catalog/xq40-only"/>. XP40 only: <value of="qt4-catalog/xp40-only"/>. Neither (1.0, 3.0 or 3.1 only): <value of="qt4-catalog/neither"/>.</p>
       </item>
       <item>
         <p>Every <code>prod-TryCatchExpr</code> test is XQ-only. In the suite, try/catch is XQuery-only.</p>

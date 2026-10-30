@@ -24,4 +24,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="bindings/javascript/test/size-budget.mjs" at="6130546">sxml.wasm stripped and gzipped, over budget</source>
+    <source>linker maps of the core module per commit, code and data, from ae7ef0b</source>
+    <source tool="bindings/javascript/test/size-budget.mjs">sxml.wasm and sxml-full.wasm stripped and gzipped, before and after</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the sxml-full.wasm budget, 7,500,000 / 2,625,000</source>
+  </sources>
 </decision>

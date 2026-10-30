@@ -41,4 +41,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="ctest" build="release" file="tests/xml_conformance_test.c">xmlconf XML 1.1 cases (271) and the 1.0 selection, before at 2459034 and after</source>
+    <source tool="tools/run-qt4.sh" build="release">QT4: the 15 test sets with xml-version dependencies, XQ40 and XP40, before at 2459034 and after</source>
+    <source tool="tools/run-xslt.sh" build="release">XT40 xml-version, namespace, catalog and xml-to-json, before at 2459034 and after</source>
+    <source tool="tools/run-xsd.sh" build="release">XSD saxon-XmlVersions, before at 2459034 and after</source>
+  </sources>
 </decision>

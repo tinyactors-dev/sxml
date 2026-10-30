@@ -27,4 +27,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tests/bench/run-ixml-bench.py" build="release">iXML benchmarks, processor seconds and MB, 1 MB inputs, before and after</source>
+    <source tool="tests/ixml/run-ixml-tests.sh" file="third_party/ixml-tests">iXML suite passes and not run</source>
+    <source>QT4 iXML sets and native code growth</source>
+  </sources>
 </decision>

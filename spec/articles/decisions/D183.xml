@@ -130,4 +130,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/conformance-report.py" at="3b0812a">not-run cases per optional feature in XT40, XQ40 and xmlconf, from the dashboard where it has the first unmet dependency, else from the catalogs</source>
+  </sources>
 </decision>

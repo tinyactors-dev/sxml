@@ -1,0 +1,9 @@
+<fact id="xslt40-test/xslt40/test-cases">
+  <title>Test cases of xslt40-test that apply to XSLT 4.0</title>
+  <expression>let $sets := doc("third_party/xslt40-test/catalog.xml")/*:catalog/*:test-set
+let $cases := $sets ! doc(resolve-uri(@file, base-uri(.)))//*:test-case
+let $spec := fn($case) { ($case/*:dependencies/*:spec, $case/../*:dependencies/*:spec)[1] }
+let $xslt40 := $cases[let $s := $spec(.) return empty($s) or (some $token in tokenize($s/@value) satisfies $token = ("XSLT10+", "XSLT20+", "XSLT30+", "XSLT40+", "XSLT40"))]
+return count($xslt40)</expression>
+  <source file="third_party/xslt40-test/catalog.xml"/>
+</fact>

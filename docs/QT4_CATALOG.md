@@ -72,8 +72,8 @@ or later. The test runs if any token matches.
 
 - A test-case `spec` replaces the test-set one. Under AND semantics 13 tests
   could never run (e.g. set `XQ10+`, case `XP30+ XQ30+`).
-- No `spec` anywhere means every version of both languages (about 15,600 cases,
-  mainly in `fn-`, `op-` and `prod-`).
+- No `spec` anywhere means every version of both languages
+  ({{qt4-catalog/no-spec}} cases, mainly in `fn-`, `op-` and `prod-`).
 - A run targets exactly one language and version: `XP40` or `XQ40`.
 
 Other types (each value is described in `dependency_meanings.xml`):
@@ -118,18 +118,28 @@ unless the description below says otherwise.
 | `all-of` / `any-of` | Every child or at least one child passes. These are used to allow implementation-dependent outcomes, often a value or an `error`. |
 | `not` | The child assertion fails. |
 
-Frequency: `assert-true` 11,638; `error` 10,063; `assert-eq` 6,500;
-`assert-string-value` 5,989; `assert-deep-eq` 5,013; `assert-false` 3,990;
-`assert-xml` 2,981; `assert` 2,931; `any-of` 2,163; `all-of` 1,770;
-`assert-type` 1,763; `assert-empty` 927; `serialization-matches` 794; others
-under 300.
+Frequency: `assert-true` {{qt4-catalog/assertions/assert-true}}; `error`
+{{qt4-catalog/assertions/error}}; `assert-eq`
+{{qt4-catalog/assertions/assert-eq}}; `assert-string-value`
+{{qt4-catalog/assertions/assert-string-value}}; `assert-deep-eq`
+{{qt4-catalog/assertions/assert-deep-eq}}; `assert-false`
+{{qt4-catalog/assertions/assert-false}}; `assert-xml`
+{{qt4-catalog/assertions/assert-xml}}; `assert`
+{{qt4-catalog/assertions/assert}}; `any-of` {{qt4-catalog/assertions/any-of}};
+`all-of` {{qt4-catalog/assertions/all-of}}; `assert-type`
+{{qt4-catalog/assertions/assert-type}}; `assert-empty`
+{{qt4-catalog/assertions/assert-empty}}; `serialization-matches`
+{{qt4-catalog/assertions/serialization-matches}}; others under 300.
 
 ## Counts (pinned qt4tests commit)
 
-- 737 test sets with 47,313 test cases. XQ40: 46,444 cases in 737 sets. XP40:
-  32,928 cases in 540 sets.
-- Both XP40 and XQ40: 32,822. XQ40 only: 13,622. XP40 only: 106. Neither (1.0,
-  3.0 or 3.1 only): 763.
+- {{qt4-catalog/test-sets}} test sets with {{qt4-catalog/test-cases}} test
+  cases. XQ40: {{qt4-catalog/xq40/test-cases}} cases in
+  {{qt4-catalog/xq40/test-sets}} sets. XP40: {{qt4-catalog/xp40/test-cases}}
+  cases in {{qt4-catalog/xp40/test-sets}} sets.
+- Both XP40 and XQ40: {{qt4-catalog/both}}. XQ40 only:
+  {{qt4-catalog/xq40-only}}. XP40 only: {{qt4-catalog/xp40-only}}. Neither
+  (1.0, 3.0 or 3.1 only): {{qt4-catalog/neither}}.
 - Every `prod-TryCatchExpr` test is XQ-only. In the suite, try/catch is
   XQuery-only.
 

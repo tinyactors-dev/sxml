@@ -24,4 +24,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh tools/run-qt4.sh tools/run-xsd.sh tools/conformance-report.py" build="release" at="ae616ca">XT40 (and schema-aware), XP40, XQ40 and XSD passes, all four suites, and the slices</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm">sxml.wasm stripped and gzipped, after 5.12 and after the validate-items row</source>
+  </sources>
 </decision>

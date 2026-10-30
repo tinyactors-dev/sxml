@@ -53,4 +53,7 @@
     <p><strong>The sxml command's step limit</strong> (9): the sxml command sets no evaluation step limit; a long run is stopped by the person running it. The library's default (<ref kind="decision" to="D89"/>, <ref kind="decision" to="D259"/>) stays for embedders and the JavaScript package; the conformance drivers keep their own bounds (<ref kind="decision" to="D166"/>, <ref kind="decision" to="D178"/>). Packet <ref kind="packet" to="cli-4"/>.</p>
     <p><strong>SchXslt upstream</strong> (10): the sort-once fix for <code>schxslt:replace-params</code> is not offered upstream.</p>
   </body>
+  <sources>
+    <source build="release">cost of source locations: bytes a node, peak memory and time of a 26 MB document of about 2.5 million nodes, without and with (x86_64 Xeon 2.1 GHz)</source>
+  </sources>
 </decision>

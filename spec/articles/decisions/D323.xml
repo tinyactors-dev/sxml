@@ -47,4 +47,12 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source>lines of library C of src/schematron*</source>
+    <source tool="tests/schematron/driver" file="tests/schematron/driver/deviations.txt">7.30's suite: applicable normative cases, deviations, implementation-defined, refused bindings</source>
+    <source tool="ctest">EN 16931 UBL checks from the .sch sources (ctest schematron/en16931-ubl)</source>
+    <source build="release">compile of EN16931-UBL-validation.sch and the 1,131 unit tests: seconds before and after the compiled unit, peak memory; SchXslt 1.10.1 on sxml</source>
+    <source>quoted from <ref kind="decision" to="D313"/>: SchXslt on Saxon</source>
+    <source tool="tests/schematron/driver/differential.py">differential against SchXslt: EN 16931 UBL and CII, XRechnung UBL and CII instances</source>
+  </sources>
 </decision>

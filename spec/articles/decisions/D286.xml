@@ -30,4 +30,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh" build="release" at="6236ab6">XP40 and XQ40 passes, whole runs at the start</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release" at="384040b">XP40 and XQ40 passes after the XInclude commits and 5.16, and XT40 with and without the changes</source>
+    <source tool="tools/run-qt4.sh" build="release" at="bc7a35e">XP40 and XQ40 passes at the end</source>
+  </sources>
 </decision>

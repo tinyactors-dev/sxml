@@ -88,7 +88,7 @@ run() {
 
 read_query() { run --method=text "spec/queries/$1.xq" "${@:2}"; }
 generate() { run --method=text spec/queries/generate.xq "$@"; }
-store() { run --allow-put --force "$@" && generate > /dev/null; }
+store() { run --allow-put --force "$@" && generate --param=incremental=yes > /dev/null; }
 write() { store spec/queries/write.xq "--param=verb=$1" "${@:2}"; }
 
 # --name=value options become --param=name=value; "-" reads standard input.
@@ -166,7 +166,7 @@ ${positional[0]}" ;;
     result=$(read_query selftest)
     printf '%s\n' "$result"
     [[ $(grep -c ' 0 do not read back' <<< "$result") == 2 ]] ;;
-  generate) generate ;;
+  generate) generate "${parameters[@]}" ;;
   add)
     need 1 "a kind: decision, proposal, term or packet"
     case ${positional[0]} in

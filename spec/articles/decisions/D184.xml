@@ -21,4 +21,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the size budgets, 2,100,000 bytes for the core sxml.wasm and 3,000,000 for the full module</source>
+  </sources>
 </decision>

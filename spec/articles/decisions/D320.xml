@@ -21,4 +21,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="ctest">xslt_test report_sink_receives_every_compile_error and CLI tests transform_compile_errors, transform_analysis_errors</source>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, case by case against the base commit built the same way</source>
+  </sources>
 </decision>

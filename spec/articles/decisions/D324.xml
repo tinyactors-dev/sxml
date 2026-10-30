@@ -41,4 +41,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="callgrind" build="release" at="5bd945281">callgrind profile of one EN 16931 invoice at 5bd945281, the passes self</source>
+  </sources>
 </decision>

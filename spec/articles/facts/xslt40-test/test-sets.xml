@@ -1,0 +1,6 @@
+<fact id="xslt40-test/test-sets">
+  <title>Active test-set entries in the xslt40-test catalog</title>
+  <expression>let $sets := doc("third_party/xslt40-test/catalog.xml")/*:catalog/*:test-set
+return count($sets)</expression>
+  <source file="third_party/xslt40-test/catalog.xml"/>
+</fact>

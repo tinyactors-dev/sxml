@@ -39,4 +39,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh tools/run-qt4.sh tools/conformance-report.py" build="release">schema-aware XT40 area, XT40 passes and gate rate, the XSLT slice, XP40 and XQ40 passes and the slice, at HEAD 8d6cad4 plus this packet</source>
+  </sources>
 </decision>

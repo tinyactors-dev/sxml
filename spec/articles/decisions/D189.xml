@@ -41,4 +41,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm" at="2459034">sxml.wasm, sxml-full.wasm and the CLI, stripped and gzipped, before and after</source>
+    <source build="wasm">parts of sxml.wasm not moved, code and data from the linker map</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: core 2,100,000 / 735,000, full 3,000,000 / 1,050,000, CLI 5,500,000 / 1,250,000</source>
+  </sources>
 </decision>

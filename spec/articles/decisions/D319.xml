@@ -35,4 +35,12 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="callgrind" build="release" at="a05385eb4">callgrind profile of SchXslt's expand stage of EN 16931 at a05385eb4: coercion's share, node atomizations, casts, choices</source>
+    <source tool="callgrind tests/bench/run-bench.py" build="release">callgrind instructions, before at a05385eb4, commits 53ede6754 and f58ed07f2: SchXslt expand, a cast, coercion.xq, xmark-all, recursion.xq</source>
+    <source tool="tests/bench/run-bench.py" build="release">processor seconds, fastest of seven: expand, coercion.xq, xmark-all</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 XP40, XQ40 and XT40 passes, whole, case by case against a05385eb4 built the same way</source>
+    <source tool="ctest" build="debug-gcc">the whole test suite, 426 tests</source>
+    <source>the expand stage's base matches, for the dropped memo per octave</source>
+  </sources>
 </decision>

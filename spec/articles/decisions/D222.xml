@@ -76,5 +76,11 @@
   <sources>
     <source>verdicts and diagnostics over the 6,652 documents of xmlconf, QT4 and XT40, before and after</source>
     <source tool="tests/fuzz/xml_parse_fuzz.c">XML parser fuzzing: xml_parse_fuzz seeds and 5 minutes, and 4 more minutes with one item per segment</source>
+    <source build="release">resident memory and CPU time of check and tree over 10 MB and 100 MB inputs, before and after; segment sizes 4 KB to 1 MB</source>
+    <source build="release">sxml transform on a streamable xsl:source-document at 100 MB, resident memory before and after</source>
+    <source tool="ctest" file="tests/xml_test.c">large_documents_parse_in_bounded_memory: 4 MB document under a 256 KB allocator limit and 2 MB for tree-sitter</source>
+    <source tool="ctest" file="tests/xml_conformance_test.c">xmlconf standalone, external, XML 1.1 and DTD validation counts, also with one item per segment</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">XP40, XQ40 and XT40 passes, whole suites, case by case</source>
+    <source file="src/xml.c">configured: the document segment of about 16 KB</source>
   </sources>
 </decision>

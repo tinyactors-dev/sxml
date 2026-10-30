@@ -21,4 +21,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="ctest" build="debug-gcc">the whole test suite, 437 tests</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">XP40, XQ40 and XT40 passes, whole, case by case against 47a1d9a33 built the same way</source>
+    <source tool="callgrind">SchXslt's expand stage: instructions before and after</source>
+  </sources>
 </decision>

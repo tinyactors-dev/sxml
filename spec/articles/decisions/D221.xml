@@ -36,4 +36,11 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 fn-format-date, fn-format-integer, fn-default-language, app-spec-examples and the unchanged sets, XQ40 and XP40, and XT40 number and the unchanged groups, against 4d78eba</source>
+    <source file="third_party/cldr/common">size of the vendored CLDR main, rbnf and supplemental files</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm" at="4d78eba">sxml.wasm, sxml-full.wasm and the CLI module, stripped and gzip -9, before and after</source>
+    <source file="src/spell_out.c">configured: the spell-out stack of 64 frames and 4,096 steps</source>
+    <source>quoted from <ref kind="decision" to="D208"/>: the full and CLI budgets</source>
+  </sources>
 </decision>

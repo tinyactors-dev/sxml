@@ -38,4 +38,11 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xsd.sh tools/run-qt4.sh tools/run-xslt.sh tools/conformance-report.py" build="release">XSD, XP40, XQ40 (and schema-aware) and XT40 passes, every suite run with this code, and the slices</source>
+    <source tool="tools/run-qt4.sh" build="release">app-CatalogCheck Catalog009 memory (536 MB to 147 MB) and app-Demos itunes steps (367 to 287 million) and time (85 s)</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm">sxml.wasm stripped with run-time built descriptions (1,997,902 of 2,000,000 bytes)</source>
+    <source file="tests/qt4/driver/test_run.h">configured: the QT4 driver's step budget per evaluation, four times SXML_QT4_TEST_MAXIMUM_STEP_COUNT</source>
+    <source file="tests/qt4/driver/test_run.h">configured: the QT4 driver's step budget per evaluation, four times SXML_QT4_TEST_MAXIMUM_STEP_COUNT</source>
+  </sources>
 </decision>
