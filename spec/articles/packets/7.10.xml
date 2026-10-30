@@ -16,7 +16,7 @@
         </list>
       </item>
       <item>
-        <p><strong>Unlocks</strong>: XQ40 1,401 (misc-HtmlTestSuite 1,379, from the web-platform-tests HTML suite; fn-parse-html 14; fn-html-doc 8) and XP40 22.</p>
+        <p><strong>Unlocks</strong> (<ref kind="decision" to="D183"/>): XQ40 1,401 (misc-HtmlTestSuite 1,379, from the web-platform-tests HTML suite; fn-parse-html 14; fn-html-doc 8) and XP40 22.</p>
       </item>
       <item>
         <p><strong>Replaces</strong>: the functions are absent (XPST0017). Also the drivers' non-goal test sets misc-HtmlTestSuite, fn-parse-html and fn-html-doc.</p>

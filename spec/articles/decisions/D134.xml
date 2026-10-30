@@ -30,4 +30,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh tools/conformance-report.py" build="release" at="c9a0cc6">XP40 and XQ40 passes, gate rate, XQ-only rate and outcomes by cause, one process per test set</source>
+    <source file="tests/qt4/xquery-slice.txt">the XQuery slice: 186 XQ-only cases</source>
+    <source>quoted from <ref kind="decision" to="D108"/></source>
+  </sources>
 </decision>

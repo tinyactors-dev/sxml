@@ -36,4 +36,11 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="ctest" file="tests/xml_conformance_test.c">xmlconf standalone, external and XML 1.1 cases, with a file resolver</source>
+    <source>DTD validation of xmlconf, standalone and external valid and invalid cases</source>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, before and after; the dtd cases</source>
+    <source tool="tools/run-qt4.sh" build="release">QT4 fn-doc and fn-parse-xml, XQ40 and XP40, before and after</source>
+    <source tool="tests/fuzz/dtd_fuzz.c">DTD fuzzing, 20 minutes</source>
+  </sources>
 </decision>

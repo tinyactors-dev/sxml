@@ -48,4 +48,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh" build="release" at="ee7f101">clusters of the XP40 and XQ40 failures, whole runs at ee7f101</source>
+    <source tool="tools/run-qt4.sh" build="release">XP40 and XQ40 passes, whole runs, case by case, ee7f101 against 7849df6</source>
+  </sources>
 </decision>

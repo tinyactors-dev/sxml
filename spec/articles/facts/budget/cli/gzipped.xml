@@ -1,0 +1,5 @@
+<fact id="budget/cli/gzipped">
+  <title>Size budget of the sxml command's WebAssembly module, bytes gzipped (javascript/size_budget)</title>
+  <expression>xs:integer(replace((tokenize(normalize-space(unparsed-text-lines("bindings/javascript/CMakeLists.txt")[contains(., '"$&lt;TARGET_FILE:sxml_cli&gt;" ')][1])))[3], "\)", ""))</expression>
+  <source file="bindings/javascript/CMakeLists.txt"/>
+</fact>

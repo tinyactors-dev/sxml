@@ -53,7 +53,7 @@
     </list>
   </section>
   <section id="not-run-today-by-feature">
-    <title>Not run today, by feature</title>
+    <title>Not run today, by feature (counts of the Phase 7 plan, <ref kind="decision" to="D183"/>)</title>
     <p>The counts come from <code>docs/CONFORMANCE.md</code> at 3b0812a, and from the catalogs where the dashboard shows only the 15 largest reasons. "First" means "the first dependency not met", the dashboard's count. "Any" counts every case that names the dependency. XQ40 and XP40 share most QT4 cases, so their counts are not added together.</p>
     <table align="default right right default">
       <row header="true">
@@ -314,7 +314,7 @@
       <row>
         <cell>2</cell>
         <cell>7.6 XSLT streaming (a, b), 7.7 Update Facility (a, b, c)</cell>
-        <cell>The two largest sets (2,932 and 825); XSLT and XQuery only</cell>
+        <cell>The two largest sets (2,932 and 825, <ref kind="decision" to="D183"/>); XSLT and XQuery only</cell>
       </row>
       <row>
         <cell>3</cell>

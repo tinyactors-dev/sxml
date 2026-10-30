@@ -30,4 +30,12 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source>imports of side modules built from the eleven vendored grammars with tree-sitter build --wasm</source>
+    <source file="third_party/tree-sitter/lib/src/wasm-stdlib/imports.txt">the functions tree-sitter allows side modules to import (25)</source>
+    <source tool="ctest" build="wasm">javascript/code_languages: 12 of 12</source>
+    <source tool="tools/check-book-examples.sh">the book's JavaScript chapter: 5 examples, all match</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" file="bindings/javascript/test/size-baseline/sxml.txt">sxml.wasm stripped and gzipped, and its linker map against the <ref kind="decision" to="D225"/> baseline; the CLI module</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the size budget of sxml.wasm</source>
+  </sources>
 </decision>

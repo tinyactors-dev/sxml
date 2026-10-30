@@ -33,4 +33,11 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/check-main.sh ctest tools/lint.sh" at="84f3178">every test of release, debug, debug-gcc and wasm on a clean HEAD, and the full lint (three findings)</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release" at="50a3651">XP40, XQ40 and XT40 passes, in scope, whole suites</source>
+    <source tool="ctest">slices qt4/slice and qt4/xquery-slice, all presets</source>
+    <source tool="tools/fuzz.sh">fuzzing, 300 s per target, all six at once on a loaded machine</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">XP40, XQ40 and XT40 outcomes, case by case, before and after this review's changes</source>
+  </sources>
 </decision>

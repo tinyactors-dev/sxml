@@ -36,4 +36,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="release">XP40 passes and per-set passes, before and after, and the slice</source>
+    <source>prod-AxisStep.J with fn:jkey and fn:jvalue, a private run</source>
+  </sources>
 </decision>

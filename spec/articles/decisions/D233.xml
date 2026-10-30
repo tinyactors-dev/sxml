@@ -35,4 +35,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="release">sxml transform of a generated 95.6 MB, UTF-16 and 974 MB document, peak resident set, before and after</source>
+    <source tool="ctest" file="tests/xml_test.c">parser memory of 3.9 MB and 2 MB read through a reader, unit tests</source>
+    <source tool="tools/run-xslt.sh tools/run-qt4.sh" build="release">XT40 and QT4 XQ40 passes, whole suites, case by case; xmlconf</source>
+  </sources>
 </decision>

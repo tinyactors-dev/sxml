@@ -1,0 +1,5 @@
+<fact id="conformance/commit">
+  <title>The commit the conformance report measured</title>
+  <expression>replace(unparsed-text-lines("docs/CONFORMANCE.md")[starts-with(., "- Code under test:")][1], "^.*commit `([0-9a-f]+)`.*$", "$1")</expression>
+  <source file="docs/CONFORMANCE.md" written-by="tools/conformance-report.py"/>
+</fact>

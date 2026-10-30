@@ -39,4 +39,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source>XP40 valid queries that lower and pass the verifier, with a permissive function table</source>
+    <source file="src/xpath_static_internal.h">configured: SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH, 10,000 levels</source>
+  </sources>
 </decision>

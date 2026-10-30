@@ -16,6 +16,8 @@ xquery version "4.0";
  :   rename-term    name, to
  :   set-status     name (a packet), value, date?
  :   log            text, date?                       → this week's log entry
+ :   add-fact       name, title, expression, source (files, space-separated), by?
+ :   add-source     name (a decision), text (what was measured), tool?, build?, at?, file?
  :)
 import module namespace spec = "urn:sxml:spec" at "spec/lib/spec.xqm";
 
@@ -33,6 +35,12 @@ declare variable $by as xs:string external := "";
 declare variable $to as xs:string external := "";
 declare variable $value as xs:string external := "";
 declare variable $date as xs:string external := "";
+declare variable $expression as xs:string external := "";
+declare variable $source as xs:string external := "";
+declare variable $tool as xs:string external := "";
+declare variable $build as xs:string external := "";
+declare variable $at as xs:string external := "";
+declare variable $file as xs:string external := "";
 
 declare variable $today as xs:date := current-date() => string() => substring(1, 10) => xs:date();
 
@@ -169,6 +177,28 @@ declare function local:changes($spec as map(*)) as element()* {
           let $first := (.//include[@kind = "log-entry"])[1]
           return if (exists($first)) then insert node $include before $first else insert node $include as last into .
         })
+  case "add-fact" return
+    let $fact :=
+      <fact id="{ local:required($name, "an identifier") }">{
+        local:inline($spec, "title", local:required($title, "--title")),
+        <expression>{ local:required($expression, "--expression") }</expression>,
+        for $path in tokenize(local:required($source, "--source"))
+        return <source file="{ $path }">{ $by[.] ! attribute written-by { . } }</source>
+      }</fact>
+    let $value := spec:fact-values($fact)(string($fact/@id))
+    return
+      if (starts-with($value, "error: ")) then error(xs:QName("spec:refused"), "refused: fact:" || $fact/@id || ": " || substring-after($value, "error: "))
+      else $fact
+  case "add-source" return
+    let $decision := spec:one($spec, "decision:" || replace(local:required($name, "a decision"), "^decision:", ""))
+    let $new := <source>{
+      $tool[.] ! attribute tool { . }, $build[.] ! attribute build { . }, $at[.] ! attribute at { . },
+      $file[.] ! attribute file { . },
+      spec:prose-inline($spec, normalize-space(local:required($text, "--what, what was measured")))
+    }</source>
+    return $decision transform with {
+      if (sources) then insert node $new as last into sources else insert node <sources>{ $new }</sources> after body
+    }
   default return error(xs:QName("spec:usage"), "no write is called " || $verb)
 };
 

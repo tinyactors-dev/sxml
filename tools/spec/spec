@@ -45,12 +45,17 @@ Read (NAME is D238, 6.2, host_shim, PLAN, tasks/phase-6#packets, or KIND:ID):
                               the same nodes; exit 1 if anything does not
 
 Write (text in source form: Markdown where `code` naming a term is that
-term, D238 is a decision, [[kind:id]] any other reference; "-" reads
-standard input). Each write generates docs/ again:
+term, D238 is a decision, [[kind:id]] any other reference and {{fact}} a
+fact's value; "-" reads standard input). Each write generates docs/ again:
   add decision --title=T [--summary=S] [--after='D1 D2'] [--body=TEXT]
   add proposal --title=T [--summary=S] [--body=TEXT]
   add term NAME --definition=TEXT
   add packet ID --document=tasks/phase-7 --title=T [--summary=S] [--body=TEXT]
+  add fact ID --title=T --expression=XQUERY --source='FILE...' [--by=WRITER]
+                              a value computed from FILES whenever shown; cite
+                              it in text as {{ID}}
+  add-source DECISION --what=TEXT [--tool=PROGRAM] [--build=PRESET] [--at=COMMIT]
+                              [--file=PATH]: where a measurement came from
   amend NAME --title=T | --summary=S | --body=TEXT | --definition=TEXT [--number=N]
                               NAME may be a document or a section: --body is
                               then its text, each subsection kept as the
@@ -75,14 +80,14 @@ EOF
 run() {
   local errors status=0
   errors=$(mktemp)
-  "$sxml" xquery "$@" 2> "$errors" || status=$?
+  "$sxml" xquery --allow-file-access "$@" 2> "$errors" || status=$?
   sed -E 's/^(spec\/(lib|queries)\/[a-z.]+|expression):[0-9]+:[0-9]+: (spec:[a-z-]+: )?/spec: /; s/^spec: refused: refused: /spec: refused: /; s/\\x0A/\n  /g' "$errors" >&2
   rm -f "$errors"
   return $status
 }
 
 read_query() { run --method=text "spec/queries/$1.xq" "${@:2}"; }
-generate() { run --method=text --allow-file-access spec/queries/generate.xq "$@"; }
+generate() { run --method=text spec/queries/generate.xq "$@"; }
 store() { run --allow-put --force "$@" && generate > /dev/null; }
 write() { store spec/queries/write.xq "--param=verb=$1" "${@:2}"; }
 
@@ -168,6 +173,7 @@ ${positional[0]}" ;;
       decision|proposal) write "add-${positional[0]}" "${parameters[@]}" ;;
       term) need 2 "a term name"; write add-term "--param=name=${positional[1]}" "${parameters[@]}" ;;
       packet) need 2 "a packet identifier"; write add-packet "--param=name=${positional[1]}" "${parameters[@]}" ;;
+      fact) need 2 "a fact identifier"; write add-fact "--param=name=${positional[1]}" "${parameters[@]}" ;;
       *) echo "spec: cannot add a '${positional[0]}'" >&2; exit 2 ;;
     esac ;;
   amend)
@@ -183,6 +189,10 @@ ${positional[0]}" ;;
   supersede) need 1 "a DECISION"; write supersede "--param=name=${positional[0]}" "--param=by=$(option by)" ;;
   rename) need 2 "a TERM and its NEW-NAME"; write rename-term "--param=name=${positional[0]}" "--param=to=${positional[1]}" ;;
   set-status) need 2 "a PACKET and a VALUE"; write set-status "--param=name=${positional[0]}" "--param=value=${positional[1]}" "--param=date=$(option date)" ;;
+  add-source)
+    need 1 "a DECISION"
+    write add-source "--param=name=${positional[0]}" "--param=text=$(option what)" "--param=tool=$(option tool)" \
+      "--param=build=$(option build)" "--param=at=$(option at)" "--param=file=$(option file)" ;;
   log) need 1 "the entry's TEXT"; write log "--param=text=${positional[0]}" "--param=date=$(option date)" ;;
   remove)
     need 1 "a NAME"

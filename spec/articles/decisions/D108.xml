@@ -21,4 +21,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="sxml-qt4">sxml-qt4 list --spec=XP40 and --spec=XQ40, cases in scope</source>
+    <source tool="sxml-qt4" build="release">XP40 passed and not run, before and after</source>
+    <source>quoted from <ref kind="decision" to="D95"/></source>
+  </sources>
 </decision>

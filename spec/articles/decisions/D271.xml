@@ -27,4 +27,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xsd.sh tools/run-qt4.sh tools/run-xslt.sh" build="release">XSD11, XQ40 and XT40 passes, before and after</source>
+    <source>quoted from <ref kind="decision" to="D262"/></source>
+  </sources>
 </decision>

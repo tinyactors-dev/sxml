@@ -33,4 +33,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="ctest" file="tests/evaluator_template_test.c">100,000 levels of template calls</source>
+    <source>applicable in-scope cases of the packet sets, a scratch harness (lower, evaluate, serialize), and match-242 in a debug build</source>
+  </sources>
 </decision>

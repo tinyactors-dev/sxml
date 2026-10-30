@@ -56,4 +56,15 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/check-main.sh ctest tools/lint.sh">every test of release, debug, debug-gcc and wasm on a clean HEAD, before (77bc5d5) and after (8d2aa06), and the full lint at 8d2aa06</source>
+    <source tool="tools/run-xslt.sh tools/run-qt4.sh tools/run-xsd.sh tools/conformance-report.py" build="release" at="77bc5d5">XT40, XP40, XQ40 and XSD passes, in scope, whole suites, and the core sets</source>
+    <source tool="tools/run-xslt.sh tools/run-qt4.sh" build="release">XT40, XP40 and XQ40 outcomes, case by case, after this review's changes</source>
+    <source tool="ctest">slices qt4/slice, qt4/xquery-slice and xslt/slice, every preset</source>
+    <source tool="tools/fuzz.sh">fuzzing, 300 s per target, seven at once on a loaded machine, and the timeouts run alone</source>
+    <source build="release">json-to-xml-013 time by input size (13,000 to 209,579 cities), steps per city and node, and a profile</source>
+    <source>a pattern rooted at a variable, 1,000 and 4,000 nodes matched</source>
+    <source tool="tools/check-call-cycles.py">call cycles, 163 files</source>
+    <source file="tests/xslt/driver/xslt_execution.c">configured: the XSLT driver's step budget, 4 x QT4's, 400 million</source>
+  </sources>
 </decision>

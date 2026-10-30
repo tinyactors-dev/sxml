@@ -1,0 +1,5 @@
+<fact id="conformance/XSD11/rate-of-run">
+  <title>XSD11 passed of run</title>
+  <expression>tokenize(unparsed-text-lines("docs/CONFORMANCE.md")[starts-with(., "| XSD11 |")][1], "\s*\|\s*")[10]</expression>
+  <source file="docs/CONFORMANCE.md" written-by="tools/conformance-report.py"/>
+</fact>

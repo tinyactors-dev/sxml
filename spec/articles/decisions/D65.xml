@@ -14,4 +14,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-wasi.mjs ctest" build="wasm">xpath_parse crash rate under Node, with --no-allow-allocation-in-fast-api-call (45 of 60), and 0 failures in 110 runs afterwards</source>
+  </sources>
 </decision>

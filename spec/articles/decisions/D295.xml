@@ -27,4 +27,13 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="release">peak resident set and time of method text and xml over 20,000 records, the streamed identity of 93 MB and method text over it, before and after, release CLI; also the quadratic case and other methods</source>
+    <source build="wasm">the same streams on Node.js 22 with the wasm module, a chunk source and a writeSync sink: module memory, resident set, time</source>
+    <source tool="ctest">ctest: debug (ASan, UBSan), release and wasm, 407 of 407, with the new arena_tree and evaluator_stream cases</source>
+    <source tool="tools/run-xslt.sh" build="release">XT40, 96 sets (3,465 cases), before and after, case by case</source>
+    <source tool="bindings/javascript/test/size-budget.mjs">sxml.wasm stripped and gzipped</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the size budget of sxml.wasm</source>
+    <source file="src/evaluator_internal.h">configured: the streamed element step grant (500); the default step limit is quoted from D259</source>
+  </sources>
 </decision>

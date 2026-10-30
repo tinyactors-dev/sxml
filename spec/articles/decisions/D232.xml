@@ -76,4 +76,11 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="callgrind">profile of sxml check of a 10.5 MB document of three XMark auctions</source>
+    <source at="ceacfa3">instructions and seconds of check, tree, the parse benchmark and XMark-All, without and with the change</source>
+    <source>instructions of check of 10.5 MB after each change, the tracker, and segment sizes</source>
+    <source tool="ctest" build="debug">debug unit tests 378/378, xmlconf and the grammar corpus 67/67</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 and XT40 whole suites, case by case (XP40, XQ40, XT40 passed)</source>
+  </sources>
 </decision>

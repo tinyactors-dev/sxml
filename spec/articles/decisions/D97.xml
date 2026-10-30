@@ -18,4 +18,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source file="third_party/qt4tests/catalog.xml">QT4 cases of fn:parse-html and fn:html-doc, and tests needing advanced-uca-fallback</source>
+  </sources>
 </decision>

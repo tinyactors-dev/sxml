@@ -2,16 +2,16 @@
   <title>Work queue</title>
   <p>Kept by the orchestrator. Newest state first; each change is its own commit. Numbers are release-build passes from <code>docs/CONFORMANCE.md</code>.</p>
   <section id="state-2026-10-19">
-    <title>State (2026-10-19)</title>
+    <title>State</title>
     <list>
       <item>
         <p>Phases 0–5 and 7 closed by agent review (<ref kind="decision" to="D11"/>, <ref kind="decision" to="D151"/>, <ref kind="decision" to="D161"/>, <ref kind="decision" to="D169"/>, <ref kind="decision" to="D182"/>, <ref kind="decision" to="D237"/>); fuzzing at length and the full lint wait for the owner's machine (<ref kind="decision" to="D181"/>). 7.11's gate (all 12 XT40 transform cases) is open: 10 pass; transform-004 needs a suspendable compiler (<ref kind="decision" to="D71"/>), transform-401 waits on 4.22's newest-draft patterns (<ref kind="decision" to="D249"/>).</p>
       </item>
       <item>
-        <p>Passes (release, whole suites at e74d4ad, report-1, docs/CONFORMANCE.md): XP40 32,815 (26 failed), XQ40 46,158 (74), XT40 12,268 (250), XSD11 41,599 of 41,610 run (11), iXML 886 of 907 (21 not run), tree-sitter 1,410 of 1,438 (8 failed, 1 corpus error). Zero errors in the W3C suites. Gate rates: XP40 99.8 %, XQ40 99.8 %, XT40 96.7 %, XSD 100.0 %. tools/conformance-report.py has no iXML or tree-sitter sections yet.</p>
+        <p>Passes (release, whole suites, <code>docs/CONFORMANCE.md</code> at <value of="conformance/commit"/> of <value of="conformance/date"/>): XP40 <value of="conformance/XP40/passed"/> (<value of="conformance/XP40/failed"/> failed, <value of="conformance/XP40/errors"/> errors), XQ40 <value of="conformance/XQ40/passed"/> (<value of="conformance/XQ40/failed"/>, <value of="conformance/XQ40/errors"/>), XT40 <value of="conformance/XT40/passed"/> (<value of="conformance/XT40/failed"/>, <value of="conformance/XT40/errors"/>), XSD11 <value of="conformance/XSD11/passed"/> of <value of="conformance/XSD11/run"/> run (<value of="conformance/XSD11/failed"/>, <value of="conformance/XSD11/errors"/>). Gate rates: XP40 <value of="conformance/XP40/gate-rate"/>, XQ40 <value of="conformance/XQ40/gate-rate"/>, XT40 <value of="conformance/XT40/gate-rate"/>, XSD <value of="conformance/XSD11/gate-rate"/>. <code>tools/conformance-report.py</code> has no iXML or tree-sitter sections yet: the iXML suite passed 886 of 907 (21 not run) at <ref kind="decision" to="D290"/>, tree-sitter/suite 1,410 of 1,438 (8 failed, 1 corpus error) at <ref kind="decision" to="D307"/>.</p>
       </item>
       <item>
-        <p>One build with everything (<ref kind="decision" to="D272"/>, size-3): every shipped build has every language and optional feature; the JavaScript package ships one <code>sxml.wasm</code> (7,701,002 / 1,713,241 bytes; budget 8,000,000 / 2,800,000; <code>./sxml-full.wasm</code> is an alias). CLI budget 9,500,000 / 2,100,000. The size test compares the module's linker map with a baseline and prints the top growths (<ref kind="decision" to="D225"/>). fn:load-xquery-module serves every language.</p>
+        <p>One build with everything (<ref kind="decision" to="D272"/>, size-3): every shipped build has every language and optional feature; the JavaScript package ships one <code>sxml.wasm</code> (<code>./sxml-full.wasm</code> is an alias), budget <value of="budget/javascript/bytes"/> / <value of="budget/javascript/gzipped"/> bytes (stripped / gzipped); the CLI module's is <value of="budget/cli/bytes"/> / <value of="budget/cli/gzipped"/>. Their sizes when last measured, at <ref kind="packet" to="wasm-1"/> (<ref kind="log-entry" to="week-of-2026-10-26"/>): 13,833,376 / 2,529,416 and 15,441,066 / 2,817,989. The size test compares the module's linker map with a baseline and prints the top growths (<ref kind="decision" to="D225"/>). fn:load-xquery-module serves every language.</p>
       </item>
       <item>
         <p>EXPath Binary (<ref kind="decision" to="D198"/>) 646 of 646 and File (<ref kind="decision" to="D200"/>) 270 of 270 in XQ40; File needs <code>--allow-file-access</code> in the CLI and has no Windows implementation.</p>
@@ -99,7 +99,7 @@
         <p>Leftovers without a packet: the error record is not cleared after a caught FORX0002, so a later LIMIT_EXCEEDED prints the old description (perf-7); <code>c.md</code>'s memory example prints 197 allocations where the book shows 195 (also before cli-4); an exceeded limit exits 4, the status for internal errors (cli-4; the owner chose exit 1 for unsupported Schematron constructs, <ref kind="decision" to="D315"/>'s revision).</p>
       </item>
       <item>
-        <p>Sorting was measured and is not a problem: 780 elements sort in about 1.3 ms (<code>xsl:sort</code>) or 1.8 ms (<code>fn:sort</code>). SchXslt's 7 minutes were its own 800,000 re-sorts; the fix (sort once in <code>schxslt:replace-params</code>) belongs upstream, for the owner to offer.</p>
+        <p>Sorting was measured and is not a problem: 780 elements sort in about 1.3 ms (<code>xsl:sort</code>) or 1.8 ms (<code>fn:sort</code>). SchXslt's 7 minutes were its own 800,000 re-sorts; the fix (sort once in <code>schxslt:replace-params</code>) belongs upstream, for the owner to offer (measured in <ref kind="packet" to="perf-8"/>, commit 44f8d54).</p>
       </item>
       <item>
         <p>7.26 done (<ref kind="decision" to="D307"/>): tree-sitter:parse and tree-sitter:languages in urn:sxml:tree-sitter (name.h 17, additive), errors tree-sitter:unknown-language and tree-sitter:invalid-query; sxml:token and sxml:node stay in urn:sxml. tree-sitter/suite 1,410 of 1,438 unchanged; book examples match. Left: the paused Kotlin and Swift bindings bind neither prefix.</p>

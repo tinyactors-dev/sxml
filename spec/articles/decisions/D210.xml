@@ -38,4 +38,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, and the dtd cases, before and after</source>
+    <source tool="tools/run-qt4.sh" build="release">QT4 fn-id, fn-idref, fn-system-properties, app-FunctxFunctx, fn-doc and fn-parse-xml, XQ40 and XP40, before and after</source>
+    <source tool="tools/run-qt4.sh" build="release">XQ40 whole suite passes and failures, before and after, with 7.11 driver claims (c857ce3)</source>
+  </sources>
 </decision>

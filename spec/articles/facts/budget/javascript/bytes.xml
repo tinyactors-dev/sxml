@@ -1,0 +1,5 @@
+<fact id="budget/javascript/bytes">
+  <title>Size budget of the JavaScript package's sxml.wasm, bytes stripped (javascript/size_budget)</title>
+  <expression>xs:integer((tokenize(normalize-space(unparsed-text-lines("bindings/javascript/CMakeLists.txt")[contains(., '"$&lt;TARGET_FILE:sxml_javascript_module&gt;" ')][1])))[2])</expression>
+  <source file="bindings/javascript/CMakeLists.txt"/>
+</fact>

@@ -1,0 +1,5 @@
+<fact id="qt4-catalog/test-sets">
+  <title>Test sets in the QT4 catalog</title>
+  <expression>count(doc("third_party/qt4tests/catalog.xml")/*:catalog/*:test-set)</expression>
+  <source file="third_party/qt4tests/catalog.xml"/>
+</fact>

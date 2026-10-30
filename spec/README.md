@@ -36,6 +36,7 @@ book (`docs/book/`) are not part of the spec.
   | `packet` | `packets/` | `6.2`, `perf-15` |
   | `log-entry` | `log/` | `week-of-2026-10-26`, or a slug of its title |
   | `document` | `documents/` | `PLAN`, `tasks/phase-6`; `@file` is its page |
+  | `fact` | `facts/` | `conformance/XP40/passed`, `slice/xpath/cases` |
 
 - **Section**: a heading of a document, named `document#id`
   (`tasks/phase-6#packets`).
@@ -47,6 +48,17 @@ book (`docs/book/`) are not part of the spec.
 - **Reference**: `<ref kind="decision" to="D238"/>` in text, or
   `<term name="host_shim"/>` for a term written as code. An include or a
   collect is a place, not a citation.
+- **Fact**: a value the spec states and does not store: an XQuery
+  expression over the files that hold it (`docs/CONFORMANCE.md`, a slice
+  list, `bindings/javascript/CMakeLists.txt`, a vendored catalog),
+  computed whenever a page or a command shows it. Text cites it as a
+  **value** (`<value of="conformance/XP40/passed"/>`, in source form
+  `{{conformance/XP40/passed}}`), so a page always says what the source
+  says now. `docs/FACTS.md` lists every fact with its value and source.
+- **Sources**: a decision's record of where its measurements came from,
+  one `source` per run: what was measured, and the tool, build, commit
+  (`at`) or file it came from. A decision's numbers are what was measured
+  then; its sources say how to measure them again.
 - **Summary**: one sentence an agent reads before deciding to read more.
   Until one is written, the start of the text stands in, shown after `~`.
 - **State**: a decision's `@status`: `accepted`, `superseded` (with
@@ -111,6 +123,8 @@ $ tools/spec/spec amend 'agents/QUEUE#running' --body=- < running.md
 $ tools/spec/spec add decision --title='...' --summary='...' --after='D11 D181' --body=- < body.md
 $ tools/spec/spec add proposal --title='...' --body='...'
 $ tools/spec/spec add term rule_bucket --definition='...'
+$ tools/spec/spec add fact slice/xpath/cases --title='...' --expression='count(...)' --source='tests/qt4/torture-slice.txt'
+$ tools/spec/spec add-source D333 --what='XP40 and XQ40 passes, whole suites' --tool=tools/run-qt4.sh --build=release --at=e74d4ad
 $ tools/spec/spec add packet 7.31 --document=tasks/phase-7 --title='...' --body=- < packet.md
 $ tools/spec/spec amend D238 --summary='Kotlin, Swift and JavaScript share one C layer, the `host_shim` (D138).'
 $ tools/spec/spec log 'perf-18 done (D333): ...'
@@ -163,6 +177,13 @@ so another agent's finished writes can be committed with yours.
   references to nothing, articles no document places, and stale pages
   (errors), and terms defined twice (warnings). It exits with status 1
   on an error.
+- `check` also keeps numbers honest. A measured number (32,815 or
+  99.8 %; a target such as "≥ 90 %" is not one) in a document, packet or
+  proposal must be a fact's value, or stand in a row, list item or
+  paragraph (or under a section or article title) that cites the
+  decision, packet or log entry that measured it; a decision that states
+  one must have sources. Every fact must compute one value, and the files
+  it reads must exist.
 - `tools/spec/spec selftest` renders every article, section, title,
   summary and definition in source form, reads it back, and compares
   the nodes: an edit of the source form loses nothing.

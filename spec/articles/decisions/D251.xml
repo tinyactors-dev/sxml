@@ -70,4 +70,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/build-android.sh">libsxml_kotlin.so per ABI, stripped and gzip -9, LOAD alignment, 568 targets per ABI, NDK r28c</source>
+    <source>quoted from <ref kind="decision" to="D238"/>: the proposed budget for arm64-v8a</source>
+  </sources>
 </decision>

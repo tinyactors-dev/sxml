@@ -8,7 +8,7 @@
         <p><strong>Specifications</strong>: XSLT 4.0, 18 "Streaming" (xsl:source-document streamable="yes", xsl:merge with streamable sources, xsl:fork, streamable modes and accumulators, burst-mode functions such as fn:snapshot and fn:copy-of) and 19 "Streamability" (postures, sweeps, the streamability rules of each construct, guaranteed streamability, XTSE3430); XSLT 4.0, 27 (the streaming conformance feature).</p>
       </item>
       <item>
-        <p><strong>Unlocks</strong>: XT40 streaming 2,932 (<code>tests/strm/</code> 2,564: sf-, si-, sx- sets; <code>streamable</code> 139; <code>streaming-fallback</code> 6, today run unstreamed).</p>
+        <p><strong>Unlocks</strong> (<ref kind="decision" to="D183"/>): XT40 streaming 2,932 (<code>tests/strm/</code> 2,564: sf-, si-, sx- sets; <code>streamable</code> 139; <code>streaming-fallback</code> 6, today run unstreamed).</p>
       </item>
       <item>
         <p><strong>Replaces</strong>: today streamable="yes" runs unstreamed, as a non-streaming processor may (<code>src/xslt_read.c</code>, <code>src/xslt_accumulator.c</code>, supports-streaming false, the driver's streaming-fallback).</p>

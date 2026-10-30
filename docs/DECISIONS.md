@@ -532,6 +532,10 @@ patterns `~T`), the drafts win. (This record was first committed as a second
   false rejects of 19,168 (invalid DocBook patterns). Details in
   `grammars/xquery/README.md`.
 
+**Sources**: XP40, XQ40 and XSLT 4.0 pattern false rejects and false accepts,
+every applicable query, on 2026-10-16 (`tools/qt4-parse-check.py`,
+`tools/qt4-parse-harness.c`, from `grammars/xquery/README.md`).
+
 ### D30. Substrate headers and their order
 
 **Summary**: The substrate is the headers `name.h`, `types.h`, `tree.h` and
@@ -1130,6 +1134,10 @@ the most a pass wrote, which fixes a write past the arrays when an atom
 quantified with {0} came last (`(ab){0}` at the end). 400,000 random regexes
 compile, fail and match exactly as before.
 
+**Sources**: 400,000 random regexes compiled, failed and matched before and
+after the rewrite; configured: SXML_REGEX_INLINE_GROUP_DEPTH (16) and the
+default maximum_group_depth (100) (from `src/regex_internal.h`).
+
 ### D54. Name pool internals (packet 1.1)
 
 **Summary**: The name pool keeps URIs, prefixes and names in entry arrays with
@@ -1331,6 +1339,9 @@ map to kinds and fields through sorted static tables; the AST capacity is
 - AST builder tests are in `tests/xpath_ast_test.c` (module prefix `xpath`,
   D45), front-end tests in `tests/xpath_parse_test.c`.
 
+**Sources**: 20,000 nested parentheses (wasm build); XP40 valid queries that
+build, and the two D29 false accepts.
+
 ### D60. Item heap, cells and atomic items (packet 1.7)
 
 **Summary**: `src/xdm_internal.h` defines the item heap's cell header and cell
@@ -1521,6 +1532,11 @@ function library rows, D55); `sxml_xpath_lower` (AST to an unsealed unit) and
   static analysis uses `sxml_xpath_find_function`; 1.20 may define the wrapper
   over it.
 
+**Sources**: XP40 valid queries that lower and pass the verifier, with a
+permissive function table; configured:
+SXML_XPATH_DEFAULT_MAXIMUM_EXPRESSION_DEPTH, 10,000 levels (from
+`src/xpath_static_internal.h`).
+
 ### D64. Arrays and function items (packet 1.10)
 
 **Summary**: Arrays are AVL trees of `array_node` cells updated by split and
@@ -1572,6 +1588,10 @@ longer crashes in garbage collection during fast calls.
   allocation in fast calls forbidden. The test depth and the wasm stack size
   stay as they are; the library is not involved. Revisit when the runner's Node
   version no longer uses fast calls for WASI.
+
+**Sources**: xpath_parse crash rate under Node, with
+--no-allow-allocation-in-fast-api-call (45 of 60), and 0 failures in 110 runs
+afterwards (`tools/run-wasi.mjs`, `ctest`, wasm build).
 
 ### D66. Casting and lexical forms (packet 1.15)
 
@@ -1772,6 +1792,10 @@ specification's error). Consequences:
   functions and predicates compile, also on wasm. `misc-no-recursion` is on and
   the call-cycle allowlist is empty.
 
+**Sources**: 100,000 levels of parentheses, calls, inline functions and
+predicates compile, natively and on wasm; configured:
+SXML_XPATH_MAXIMUM_TYPE_DEPTH, 64 frames (from `src/xpath_static_internal.h`).
+
 ### D72. Arithmetic and comparison operators (packet 1.19)
 
 **Summary**: Arithmetic and comparison operators have their own enums, take
@@ -1860,6 +1884,11 @@ untrusted query could do it within the default digit limit.
   (four-step on wasm), 10^6000 \* 10^6000 and two 10,000-digit operands refused
   with LIMIT_EXCEEDED, 60,000 digits (the plain six-step path on wasm), and
   every allocation failure of a long product reported and clean.
+
+**Sources**: libmpdec frame sizes after the patch, wasm32 at -Os and x86-64 GCC
+(`-fstack-usage`); stack painted under wasm: multiply, divide and integer
+divide from 5000 to 16,000,000 digits (wasm build); test operands: 10,000, 6000
+and 60,000 digits (`ctest`, from `tests/decimal_test.c`).
 
 ### D75. The evaluator: an explicit-stack machine (packet 1.18)
 
@@ -2310,6 +2339,11 @@ tree-sitter bounds parse speed at about 3.5 MB/s here). Tests:
 `xml/positions_move_back` (every pair of offsets against a fresh walk),
 `xml/large_documents_parse_in_linear_time` (10000 elements, 400 KB).
 
+**Sources**: sxml-qt4 list of the torture slice, before and after (`sxml-qt4`,
+release build, from `tests/qt4/torture-slice.txt`); 9.6 MB document with
+multi-line start tags, before and after, and the share of ts_parser_parse
+(release build); test sizes: 10000 elements, 400 KB (`ctest`).
+
 ### D88. The processor and the XPath API (packet 1.23)
 
 **Summary**: The processor holds name pool, type registry, item heap and the
@@ -2357,6 +2391,9 @@ Recorded 2026-10-16. `src/processor.c`, `src/processor_internal.h`,
   one, `--method=adaptive` the only choice; errors as `expression:LINE:COLUMN:
   err:CODE: description`. 19 golden tests.
 - `tests/fuzz/fuzz_fixture.c` names the json and uri parts too.
+
+**Sources**: configured: defaults of maximum_expression_depth (10,000, D63) and
+maximum_evaluation_depth (1,000,000, D75) (from `src/processor.c`).
 
 ### D89. A bound on evaluation steps (P9 accepted)
 
@@ -2410,6 +2447,10 @@ O(n^2): map:merge inserted every entry of every map into a new map.
   version took 6-18 s under ASan for 1,000. map:put in a fold was already O(log
   n) per step.
 
+**Sources**: map_merge_scales folds of 10,000 steps under ASan, 320,000 merges
+in release, and the quadratic version for 1,000 (`ctest`, from
+`tests/function_library_higher_order_test.c`).
+
 ### D91. Packet 1.23b: more library functions, lexical base URI, charged steps
 
 **Summary**: Packet 1.23b adds 62 library functions (math, QName and namespace,
@@ -2462,6 +2503,9 @@ Recorded 2026-10-17.
   pair for fn:deep-equal; the regex instructions each search ran (new
   `sxml_regex_matcher_get_step_count`) for fn:matches, fn:replace and
   fn:tokenize; |value| x |replace| for fn:translate.
+
+**Sources**: XP40 test cases of the 77 functions still missing (from
+`third_party/qt4tests/catalog.xml`).
 
 ### D92. The QT4 driver: running tests, assertions, reports (packet 1.25)
 
@@ -2542,6 +2586,14 @@ Recorded 2026-10-17. Node 22.22, WASI SDK 34, `wasm` preset (MinSizeRel).
   50 KB stripped logs the growth (as 1.2 did). Not yet checked by CI: that
   needs a size test in CMake or `ci.yml` (not this packet's files).
 
+**Sources**: sxml and sxml-qt4 modules raw, stripped and gzipped, the archives,
+and the native release sxml stripped (`llvm-strip`, `gzip`, wasm build); time
+of the torture slice (3 runs, 4 cores) and of xml_conformance, native release
+and wasm (`sxml-qt4`, from `tests/qt4/torture-slice.txt`); xml_conformance and
+qt4/slice results under WASI (`ctest`, `tools/run-wasi.mjs`, wasm build);
+configured: the size budget, 1.5 MB stripped and 450 KB gzipped, 50 KB growth
+logged (PLAN.md risks).
+
 ### D94. Conformance dashboard and CI jobs (packet 1.27)
 
 **Summary**: `tools/run-qt4.sh` runs one `sxml-qt4` process per test set and
@@ -2603,6 +2655,11 @@ as the QT4 guide allows.
   of it.
 - A target is changed only by a new record, before its gate review.
 
+**Sources**: denominators: XP40, XQ40 and XSLT 4.0 cases minus non-goal
+features and sets (from `third_party/qt4tests/catalog.xml`); XSLT 4.0 cases in
+scope and in all (from `third_party/xslt40-test/catalog.xml`); XP40 passes at
+the end of Phase 1 and the failures by cause (`sxml-qt4`, release build).
+
 ### D96. Phases 2 to 4 overlap
 
 **Summary**: Packets marked Early in the Phase 3 and 4 task files may start
@@ -2660,6 +2717,9 @@ Recorded 2026-10-17 (non-goals per PLAN.md, made concrete).
   are run-time options (decimal formats, CSV delimiters) that a tree-sitter
   grammar cannot take. Everything else keeps D12, including XSLT value
   templates (`grammars/value_template`).
+
+**Sources**: QT4 cases of fn:parse-html and fn:html-doc, and tests needing
+advanced-uca-fallback (from `third_party/qt4tests/catalog.xml`).
 
 ### D98. Substrate review at the Phase 1 gate (packet 1.29)
 
@@ -3036,6 +3096,10 @@ Saxon HE's design.
 - Not done: counted repetition is still expanded, so `a{2147483647}` is
   LIMIT_EXCEEDED (QT4 cbcl-matches-004, -038).
 
+**Sources**: category runs, blocks, case pairs and read-only size of the
+generated regex tables (`tools/generate-regex-tables.py`, from
+`src/regex_unicode.c`).
+
 ### D106. The XQuery and serialization API (packet 3.0)
 
 **Summary**: `include/sxml/xquery.h` adds `sxml_xquery_query`, and
@@ -3140,6 +3204,9 @@ normalization-form (3.3) and to collations (2.13).
   0x10FFFF); a name is looked up case-sensitively by binary search; the escapes
   are \\n \\r \\t \\b \\f.
 
+**Sources**: HTML names in the generated Unicode tables
+(`tools/generate-unicode-tables.py`, from `src/unicode_tables.c`).
+
 ### D108. The QT4 driver for Phase 2: environments, scope, areas (packet 2.16)
 
 **Summary**: The QT4 driver applies decimal-format, collation, resource and
@@ -3182,6 +3249,10 @@ Recorded 2026-10-17. Extends D83 and D92 in `tests/qt4/driver/`.
 - Measured (release): XP40 passed 23,146 to 24,451, no pass lost; not run
   18,448 to 16,321. The ten new "error" outcomes are UNSUPPORTED_FEATURE in
   newly run cases, not the driver.
+
+**Sources**: sxml-qt4 list --spec=XP40 and --spec=XQ40, cases in scope
+(`sxml-qt4`); XP40 passed and not run, before and after (`sxml-qt4`, release
+build); quoted from D95.
 
 ### D109. try/catch in the evaluator (packet 3.6)
 
@@ -3328,6 +3399,9 @@ Recorded 2026-10-17, extending D52 and D59. `src/xpath_ast_internal.h`.
   grammar's names, as lowering parts own their kinds); hook state pointers
   (everything a hook needs is in the AST).
 
+**Sources**: applicable XP40 queries building byte-identical ASTs without a
+part, and valid XQ40 queries and library modules with a scratch part.
+
 ### D112. The XSLT API (packet 4.0)
 
 **Summary**: `include/sxml/xslt.h` adds `sxml_xslt_stylesheet`, compiled from
@@ -3454,6 +3528,9 @@ UNSUPPORTED_FEATURE naming the gap.
   run. prod-NamedFunctionRef's 72 failures are missing library functions, not
   references.
 
+**Sources**: XP40 passes and per-set passes, before and after, and the slice
+(release build); prod-AxisStep.J with fn:jkey and fn:jvalue, a private run.
+
 ### D114. The regex library part (packet 2.3)
 
 **Summary**: `src/function_library_regex.c` holds every regex function of F&O
@@ -3542,6 +3619,8 @@ vendored with QT4 (PR 2734 for selectors).
   range with an integer (RangeExpr-408h, -410h) is ready but waits for
   `tests/xpath_test.c` (see "Proposed"). fn-function-lookup stays at 85%: its
   other 85 failures are functions other packets add.
+
+**Sources**: fn-function-lookup pass rate and failures.
 
 ### D116. Collations and comparison options (packet 2.13)
 
@@ -3669,6 +3748,10 @@ public API only.
   `tests/xslt/slice-baseline.txt` (0 until XSLT runs); `xslt/list_slice` keeps
   them resolving.
 
+**Sources**: xslt40-test cases that resolve, are applicable and are in scope
+(`sxml-xslt-test`, from `third_party/xslt40-test/catalog.xml`); the slice: 154
+in-scope applicable cases (from `tests/xslt/slice.txt`); quoted from D95.
+
 ### D118. Patterns: front end, match expressions, priorities (packet 4.4)
 
 **Summary**: An XSLT pattern parses to its own AST kinds and becomes an XPath
@@ -3724,6 +3807,9 @@ module header), after D29, D52, D103, D111.
 - Rejected: evaluating root(.)//(EE) for every pattern (quadratic per match); a
   lowering part over pattern kinds (would need the core's node test resolution,
   which is private to `xpath_lower.c`).
+
+**Sources**: pattern attributes in xslt40-test that parse, build a match
+expression and lower (from `third_party/xslt40-test`).
 
 ### D119. Number formatting: one picture engine, decimal formats as settings (packet 2.9)
 
@@ -3809,6 +3895,9 @@ Recorded 2026-10-17, after D97, D102 and D111.
   0 false rejects, 11 "either" (the 5 of error-0350a/b, error-0370a and cvt-013
   rejected); 1 uses optional record fields `d?`, dropped from the XPath 4.0
   draft. Every valid one also builds through the C entry.
+
+**Sources**: value templates in the XT40 scope, accepted, false rejects and
+"either" (`tools/qt4-parse-check.py`).
 
 ### D120b. The XML and XHTML output methods (packet 3.3)
 
@@ -3935,6 +4024,10 @@ Recorded 2026-10-17, extending D29, D59 and D111. `src/xquery_parse.c` defines
   (XQST0022 16, XQST0031 5, XQST0040 4, XQST0070 8, XQST0071 9, XQST0085 5,
   XQST0087 4, XQST0090 13, XQST0118 6); the 145 parsable library modules build;
   all 772 XPST0003 queries fail statically.
+
+**Sources**: valid XQ40 queries, parsable library modules and XPST0003 queries
+through the C entry, a scratch harness over the case loader
+(`tools/qt4-parse-check.py`).
 
 ### D122. Date and time functions (packet 2.8)
 
@@ -4071,6 +4164,9 @@ Recorded 2026-10-17. `sxml_decimal_divide_to_precision` (`src/decimal.c`), part
   record types yet (the Proposed item of D122; QT4 divide-decimals-019 to -021
   and fn-random-number-generator-35a to -37a wait for it).
 
+**Sources**: decimal places of divide-decimals(10, 3, 100_000) at the default
+maximum_digit_count.
+
 ### D126. Lowering XQuery expressions: FLWOR, typeswitch, switch, try/catch (packet 3.7)
 
 **Summary**: Lowering part `xquery` lowers FLWOR as clause segments joined by
@@ -4175,6 +4271,9 @@ kind or header change.
   (3.10). The 7 others are not lowering's: URI whitespace of "Q{ _ _ }x" in the
   evaluator (2), `local:` not predeclared (3.10, 3.12), `text {''}` (the D110
   deviation) and a missing function (3).
+
+**Sources**: the 13 constructor test sets before and after, a scratch harness
+compiling with sxml_xquery_compile.
 
 ### D128. The HTML, text, JSON and CSV methods; fn:serialize (packet 3.4)
 
@@ -4492,6 +4591,11 @@ Recorded 2026-10-17. Extends D92, D94 and D108 in `tests/qt4/driver/`.
   1,559 XPST0017 (Phase 2 functions not in that snapshot: fn:parse-csv,
   unparsed-text, json-doc, parse-uri, path, hash, collection, ...).
 
+**Sources**: XP40 and XQ40 passes, gate rate, XQ-only rate and outcomes by
+cause, one process per test set (`tools/run-qt4.sh`,
+`tools/conformance-report.py`, release build, at c9a0cc6); the XQuery slice:
+186 XQ-only cases (from `tests/qt4/xquery-slice.txt`); quoted from D108.
+
 ### D135. Prologs: the static context, declared functions and variables (packet 3.10)
 
 **Summary**: The XQuery prolog is read into one `sxml_xpath_static_context`;
@@ -4749,6 +4853,11 @@ Recorded 2026-10-17, completing D10 and D47. Node 22.22, WASI SDK 34.
   declarations (minor before 1.0.0) and never changes one without a major
   (before 1.0.0, minor) version and a record. Tagging and publishing to npm are
   the owner's.
+
+**Sources**: sxml CLI module and sxml.wasm, stripped and gzipped (zlib -9), and
+the saving of -flto -Oz (`bindings/javascript/test/size-budget.mjs`, `ctest`,
+wasm build); configured: the size budget, 2,000,000 bytes stripped and 700,000
+gzipped (from `bindings/javascript/CMakeLists.txt`); quoted from D93.
 
 ### D139. The stylesheet reader and static expressions (packet 4.5)
 
@@ -5028,6 +5137,9 @@ function items" (orchestrator, packet 2.19).
   outcomes, LIMIT_EXCEEDED), partial application of a dynamic call with the
   wrong arity (xqhof8, xqhof9).
 
+**Sources**: XP40 passes, errors, in-scope rate and area rates, before at
+62947af and after, and the slice (release build).
+
 ### D144. Templates and modes (packet 4.8)
 
 **Summary**: Each xsl:template becomes an IR function of five parameters, modes
@@ -5109,6 +5221,9 @@ public header.
   document, xsl:function: 4.10, 4.12), 11 `~T` patterns (D139). Patterns with
   predicates select the step again from its parent (D118), so many sibling
   rules cost quadratic time (match-242: 60 s in a debug build).
+
+**Sources**: 100,000 levels of template calls (`ctest`, from
+`tests/evaluator_template_test.c`).
 
 ### D145. Control flow and variables (packet 4.7)
 
@@ -5244,6 +5359,12 @@ implemented in `src/xquery.c`; no header changed.
   unchanged; `compileQuery()` in the JavaScript package is left out because it
   would link the same grammar into it.
 
+**Sources**: the CLI module (1.83 MB to 3.45 MB stripped, 767 KB gzipped) and
+sxml.wasm (1.83 MB), before and after the XQuery grammar
+(`bindings/javascript/test/size-budget.mjs`, wasm build); configured:
+javascript/size_budget for the CLI, 3,700,000 / 820,000 bytes (from
+`bindings/javascript/CMakeLists.txt`).
+
 ### D147. Counted repetition with counters (packet 2.19b)
 
 **Summary**: A regular expression quantifier whose copies would exceed 256
@@ -5350,6 +5471,9 @@ kind added.
   prod-ContextItemDecl +5. misc-HtmlTestSuite (1,379) now gets past its import
   and stops at fn:parse-html; fn-load-xquery-module (141) and misc-Subtyping
   (159) stay "not run".
+
+**Sources**: XQ40 passes, all 737 test sets, before and after, and the test
+sets that changed (`tools/run-qt4.sh`, release build).
 
 ### D149. Keys and XSLT functions (packet 4.10)
 
@@ -5585,6 +5709,15 @@ package tests and size budget included) and lints clean, with no call cycle.
   mirrors an array already allocated (a lint rule could require
   `sxml_size_multiply` for the others).
 
+**Sources**: XP40 and XQ40 passes, in scope and by area, and the slice
+(`tools/run-qt4.sh`, `tools/conformance-report.py`, release build, at ed225c2);
+fuzzing, 300 s per target, all five at once, then the two XPath targets 300 s
+more (`tools/fuzz.sh`); F&O 4.0's signatures (282 names) looked up in the
+library at arities 0 to 7; XP40 and XQ40 outcomes, case by case, before and
+after the merges (`tools/run-qt4.sh`); the 193 debug tests with a probe that
+aborts on a nested run of the lowering machine (`ctest`, debug build, at
+c7c0c35).
+
 ### D152. Sorting and grouping (packet 4.9)
 
 **Summary**: The evaluator's SORT gains per-key collations, an order atom and
@@ -5809,6 +5942,11 @@ no IR kind added.
   namespaces; ##any; function-lookup of declared functions. Each needs
   `src/xpath_lower.c`, `src/ir_internal.h` or `include/sxml/xquery.h`, which
   other packets were editing.
+
+**Sources**: XQ40 and XP40 passes, all 737 sets of each spec, before and after,
+and the slice (`tools/run-qt4.sh`, `tools/conformance-report.py`, release
+build, at 00ac981); memory of 10,000 element constructors with 64 KiB arena
+blocks (655 MB).
 
 ### D155. Accumulators (packet 4.14)
 
@@ -6055,6 +6193,11 @@ Recorded 2026-10-18, after D112, D117, D139, D144, D145, D149, D150, D156.
   strings, collation bindings of the host, an implicit package (an
   xsl:stylesheet) as RESOLVED_PACKAGE (Proposed).
 
+**Sources**: XSLT passes in scope, whole suite, with the core sets and the top
+causes (`tools/run-xslt.sh`, `tools/conformance-report.py`, release build);
+configured: the WebAssembly CLI size budget, 5,000,000 / 1,100,000 bytes (from
+`bindings/javascript/CMakeLists.txt`).
+
 ### D158. XQuery conformance sweep 2 (packet 3.14)
 
 **Summary**: XQuery parameter defaults become default functions called with the
@@ -6130,6 +6273,11 @@ Recorded 2026-10-18, after D135, D148, D154. Closes D135 (b) to (g) and D154's
   app-Demos 4 to 11; method-\* 97.5 %. XP40 30,630 to 30,646, in scope 97.0 %
   to 97.1 %, 0 errors, none lost. Slice 198/198.
 
+**Sources**: XQ40 and XP40 passes, all 737 sets of each spec, before
+(`tools/run-qt4.sh`, release build, at 01cf728); XQ40 and XP40 passes, all 737
+sets of each spec, after, and the slice (`tools/run-qt4.sh`,
+`tools/conformance-report.py`, release build, at 5611dd2).
+
 ### D159. XSLT conformance sweep 1 (packet 4.17)
 
 **Summary**: The shared picture engine gains alphabets and symbol sequences
@@ -6191,6 +6339,16 @@ Recorded 2026-10-19, after D119, D149, D153, D155, D157.
   context, not the expression's (Proposed); call-template-ext (extension
   instructions as template calls, 10.1.3) needs the reader to keep extension
   attributes as expressions; host collation bindings.
+
+**Sources**: XT40 in scope, whole suite, before (`tools/run-xslt.sh`, release
+build, at b67c93f); XT40 in scope, whole suite, with this packet alone, errors
+and the sets number, result-document, map-for-key, error (`tools/run-xslt.sh`,
+`tools/conformance-report.py`, release build); XT40 in scope, whole suite, with
+packet 4.16's packages (`tools/run-xslt.sh`, release build, at 4cb75fd); XP40
+and XQ40 passes, unchanged, and the slice (`tools/run-qt4.sh`, release build);
+20,000 accesses $s[$k], before and after the constant predicate (26 s to 0.02
+s); memory per small element tree (about 9 KB) and per JSON object (about 1.5
+KB) in json-to-xml-013 and array-022.
 
 ### D160. Packages (packet 4.16)
 
@@ -6274,6 +6432,9 @@ D151).
   lowest_version or unspecified, and one streaming); the six sets +150. Whole
   suite 7,585 -> 7,864 in scope (4.17's numbering included). No other test set
   lost a case.
+
+**Sources**: XT40 in-scope passes, before and after, of the six package sets
+and the whole suite (`tools/run-xslt.sh`, release build).
 
 ### D161. Phase 3 gate review (packet 3.15)
 
@@ -6393,6 +6554,15 @@ length in `src/xslt.c` (4.15) and a null dereference the analyzer finds in
   fifteen times (`trim_whitespace`, `trim_spaces`, ...); grouping keys compare
   in both `src/xquery_flwor.c` and `src/xslt_group.c`. Each is small; one
   shared helper each, at the Phase 4 gate at the latest.
+
+**Sources**: every test of release, debug, debug-gcc and wasm on a clean HEAD,
+and the full lint (three findings) (`tools/check-main.sh`, `ctest`,
+`tools/lint.sh`, at 84f3178); XP40, XQ40 and XT40 passes, in scope, whole
+suites (`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build, at 50a3651);
+slices qt4/slice and qt4/xquery-slice, all presets (`ctest`); fuzzing, 300 s
+per target, all six at once on a loaded machine (`tools/fuzz.sh`); XP40, XQ40
+and XT40 outcomes, case by case, before and after this review's changes
+(`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build).
 
 ### D162. D97's exclusions are delays, not non-goals (owner)
 
@@ -6524,6 +6694,15 @@ Recorded 2026-10-19, after D99, D148, D159, D160, D161, D162.
   stylesheet-wide; fn:function-lookup does not find fn:key or the accumulator
   functions (they are lowered stylesheet functions, not rows).
 
+**Sources**: XT40, XP40 and XQ40 passes, whole suites, before, and the slices
+(`tools/run-xslt.sh`, `tools/run-qt4.sh`, release build, at 9e7f5fc); XT40,
+XP40 and XQ40 passes, whole suites, after at the last commit of this packet, by
+test set, and the slices (`tools/run-xslt.sh`, `tools/run-qt4.sh`,
+`tools/conformance-report.py`, release build); size of a constructed tree of a
+few nodes, before and after sized arena trees (5 to 9 KB to about 1.3 KB), and
+array-022 within the 512 MB budget; json-to-xml-013: 209,579 documents from a
+19 MB file, a tree of 2.7 million nodes, 2 GB without a budget.
+
 ### D164. Phase 5 starts now, alongside the end of Phase 4 (owner)
 
 **Summary**: Phase 5, XSD 1.1 validation and schema-aware typing, starts before
@@ -6652,6 +6831,12 @@ of D32, D53, D58, D97 and D162.
   shape, exit codes) and enters `docs/CLI.md` with packet 5.10 (D44: only once
   it works).
 
+**Sources**: files and size of the vendored xsdtests in third_party/xsdtests;
+in-scope XSD 1.1 tests of suite.xml, schema and instance tests, by contributor,
+gate groups, and the other token choices (from
+`third_party/xsdtests/suite.xml`); schema-aware QT4 XQ40 cases (about 1,100)
+and XSLT cases (about 690); quoted from D168.
+
 ### D166. Content that streams into a constructor; XSLT sweep 3 (packet 4.17)
 
 **Summary**: Element and document constructors become receiving tasks into
@@ -6724,6 +6909,10 @@ evaluator and IR, used by XSLT and XQuery alike.
   function's synchronous atom reads cannot do today (Proposed). A RAISE read in
   place of the abstract variable alone was tried and dropped: v1-proxy still
   raises when it is computed.
+
+**Sources**: json-to-xml-013 memory; XT40, XP40 and XQ40 passes, whole suites,
+and the slices, before (at 53bd400) and after the change (`tools/run-xslt.sh`,
+`tools/run-qt4.sh`, release build).
 
 ### D167. Schema components and compile stages (packet 5.2)
 
@@ -6837,6 +7026,12 @@ links `sxml_qt4_driver_library`.
 - **Slice**: `tests/xsd/slice.txt`, 147 in-scope tests, one per test set plus
   the rest in proportion; baseline 0. A full release run takes 45 s (one
   process per test set; NIST, 23,170 tests in one file, is the longest).
+
+**Sources**: in-scope tests, schema and instance tests, by contributor and gate
+group, applying version tokens per element (`sxml-xsd-test`,
+`tools/run-xsd.sh`, from `third_party/xsdtests/suite.xml`); slice: 147 in-scope
+tests (from `tests/xsd/slice.txt`); a full release run (45 s)
+(`tools/run-xsd.sh`, release build); quoted from D165.
 
 ### D169. Phase 4 gate review (packet 4.18)
 
@@ -6957,6 +7152,21 @@ before and 8d2aa06 after this review's changes) builds `release`, `debug`
   normalization makes columns approximate in an expression that spans lines;
   XTDE3052 on reading an abstract variable (D166).
 
+**Sources**: every test of release, debug, debug-gcc and wasm on a clean HEAD,
+before (77bc5d5) and after (8d2aa06), and the full lint at 8d2aa06
+(`tools/check-main.sh`, `ctest`, `tools/lint.sh`); XT40, XP40, XQ40 and XSD
+passes, in scope, whole suites, and the core sets (`tools/run-xslt.sh`,
+`tools/run-qt4.sh`, `tools/run-xsd.sh`, `tools/conformance-report.py`, release
+build, at 77bc5d5); XT40, XP40 and XQ40 outcomes, case by case, after this
+review's changes (`tools/run-xslt.sh`, `tools/run-qt4.sh`, release build);
+slices qt4/slice, qt4/xquery-slice and xslt/slice, every preset (`ctest`);
+fuzzing, 300 s per target, seven at once on a loaded machine, and the timeouts
+run alone (`tools/fuzz.sh`); json-to-xml-013 time by input size (13,000 to
+209,579 cities), steps per city and node, and a profile (release build); a
+pattern rooted at a variable, 1,000 and 4,000 nodes matched; call cycles, 163
+files (`tools/check-call-cycles.py`); configured: the XSLT driver's step
+budget, 4 x QT4's, 400 million (from `tests/xslt/driver/xslt_execution.c`).
+
 ### D170. The schema document reader and assembly (packet 5.4)
 
 **Summary**: One table of schema element roles drives a loop reading schema
@@ -7030,6 +7240,9 @@ golden `src/xslt_read.c`, `src/xquery_module.c`.
   state limit in COMPLEX_TYPES); no reader error on a valid schema; the XSD
   slice 110 of 147.
 
+**Sources**: XSD schema tests in scope with 5.5 and 5.6, and the XSD slice
+(`tools/run-xsd.sh`, at 21c9531).
+
 ### D171. Simple types and facets (packet 5.5)
 
 **Summary**: Casting to a registered schema simple type applies its whiteSpace
@@ -7084,6 +7297,10 @@ Recorded 2026-10-18. Fills SIMPLE_TYPES (D167) and registration (D165).
   (duplicate ids, include and redefine order, stZ033's chain of redefinitions)
   and complex types'. All XSD: 15,073 passed, 335 failed of the 15,408 run.
   XP40 30,647 and XQ40 40,034 unchanged, slice 198.
+
+**Sources**: XSD schema tests by test set, run, passed and failed
+(`tools/run-xsd.sh`, release build); XP40 and XQ40 passes, unchanged, and the
+slice (`tools/run-qt4.sh`, release build).
 
 ### D172. Complex types and content models (packet 5.6)
 
@@ -7166,6 +7383,9 @@ Recorded 2026-10-18. Fills COMPLEX_TYPES and the content model plan of D167
   group with maxOccurs 0 accepted by XSD 1.1, openContent mode="none" with a
   wildcard, xs:redefine of a group) or disputed by the versions
   (particlesK006).
+
+**Sources**: XSD schema tests by test set, with 5.4's uncommitted reader
+(`tools/run-xsd.sh`).
 
 ### D173. Validation and the typed tree (packet 5.7)
 
@@ -7259,6 +7479,11 @@ Recorded 2026-10-18. The schema validator of D165 and the seams of D167
   15,222 of 15,329; gate groups: datatypes 100 %, structures 95.6 %, XSD 1.1
   83.3 %; the XSD slice 147 of 147. XP40 30,647, XQ40 40,034 and XT40 7,990
   unchanged.
+
+**Sources**: XSD in scope, instance and schema tests by contributor, gate
+groups and the slice, at the packet's last commit (`tools/run-xsd.sh`,
+`tools/conformance-report.py`, release build); XP40, XQ40 and XT40 passes,
+unchanged (`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build).
 
 ### D174. Schema-aware XPath and XQuery (packet 5.11)
 
@@ -8530,6 +8755,9 @@ raised and the xsl:fallback children are not evaluated.
   `src/function_library_resource.c` was another packet's file); html-doc and
   parse-html wait for 7.10.
 
+**Sources**: XT40 passes, whole suite, case by case, against 9856281; the
+evaluate cases (`tools/run-xslt.sh`, release build).
+
 ### D197. XSLT backwards compatible behaviour and XPath 1.0 compatibility mode (packet 7.4)
 
 **Summary**: `xpath_1_compatibility_mode` is one static context flag that makes
@@ -8602,6 +8830,10 @@ XSLT 1.0 behaviour (`asks_xslt_1_behaviour` and its XTDE0160 in
   xpath-1.0-compatibility 1 of 5 (generate-id-018; the other four are the
   xs:numeric cases above). Unit test `tests/xslt_compatibility_test.c`.
 
+**Sources**: XT40 passes, whole suite, case by case, and the
+backwards-compatibility cases (`tools/run-xslt.sh`, release build, at 3dc364a);
+QT4 xpath-1.0-compatibility cases (`tools/run-qt4.sh`, release build).
+
 ### D198. EXPath Binary (packet 7.8)
 
 **Summary**: The EXPath Binary Module 4.0 is the optional feature
@@ -8650,6 +8882,11 @@ Module 4.0 is the optional feature `sxml_expath_binary_feature()`
   282 (XQ40), the canonical-JSON cases that call bin:unpack-double;
   fn-system-properties 23 to 23 (the -false case is now not run, the true case
   passes).
+
+**Sources**: XP40 and XQ40 bin-\*, fn-serialize and fn-system-properties
+passes, before and after (`tools/run-qt4.sh`, release build); configured: the
+most octets of an unpacked integer, 4,096 (from
+`src/function_library_binary.c`).
 
 ### D199. DTD processing: external subset, external entities, validation (packets 7.14a, 7.14b)
 
@@ -8767,6 +9004,14 @@ are skipped in content".
   supports-dtd-validation true in `src/system_property.c` with the feature
   claim. Fuzzing: `tests/fuzz/dtd_fuzz.c`, 20 minutes, clean after one fix.
 
+**Sources**: xmlconf standalone, external and XML 1.1 cases, with a file
+resolver (`ctest`, from `tests/xml_conformance_test.c`); DTD validation of
+xmlconf, standalone and external valid and invalid cases; XT40 passes, whole
+suite, before and after; the dtd cases (`tools/run-xslt.sh`, release build);
+QT4 fn-doc and fn-parse-xml, XQ40 and XP40, before and after
+(`tools/run-qt4.sh`, release build); DTD fuzzing, 20 minutes
+(`tests/fuzz/dtd_fuzz.c`).
+
 ### D200. EXPath File (packet 7.9)
 
 **Summary**: The EXPath File Module 4.0 is the optional feature "expath-file"
@@ -8826,6 +9071,15 @@ File Module 4.0 is the optional feature `sxml_expath_file_feature()`
   `sxml-full.wasm` 2,214,413 to 2,214,593). The core was over its 2,100,000
   bytes before this packet; the full module's 3,553,063 at 1e91f97 is
   fn:transform's (D203).
+
+**Sources**: QT4 expath-file and fn-system-properties, XQ40 and XP40, before
+and after (`tools/run-qt4.sh`, release build); native code size of the EXPath
+File feature, x86-64 (release build); sxml.wasm and sxml-full.wasm stripped,
+before at 531c5b6 and after at 10ca66e
+(`bindings/javascript/test/size-budget.mjs`); sxml-full.wasm stripped at
+1e91f97 (`bindings/javascript/test/size-budget.mjs`, at 1e91f97); configured:
+the core module budget, 2,100,000 bytes (from
+`bindings/javascript/CMakeLists.txt`).
 
 ### D201. HTML5 parsing: a hand-written tokenizer, tree construction on a working tree (packet 7.10a)
 
@@ -8923,6 +9177,15 @@ fn:parse-html and fn:html-doc (F&O 4.0, 17.3) as the optional feature
   there); html-doc-010 and html-test-1281 stay failing unless the suite
   changes.
 
+**Sources**: QT4 fn-parse-html, fn-html-doc, misc-HtmlTestSuite and
+misc-BuiltInKeywords, before and after (`tools/run-qt4.sh`, release build);
+html5lib tree construction and tokenizer tests of web-platform-tests, in a
+scratch harness; sxml.wasm, sxml-full.wasm and the sxml CLI module, stripped
+and gzipped, before and after (`bindings/javascript/test/size-budget.mjs`);
+configured: sxml-full.wasm budget 3,000,000 and the CLI module budget 5,500,000
+bytes (from `bindings/javascript/CMakeLists.txt`); HTML parser fuzzing, 11,000
+runs seeded from the suite (`tests/fuzz/html_parse_fuzz.c`).
+
 ### D202. The CLI's WebAssembly budget is 7,000,000 / 1,500,000 bytes (owner)
 
 **Summary**: The CLI's WebAssembly budget rises to 7,000,000 bytes stripped and
@@ -8934,6 +9197,10 @@ HTML parser, D201), over D176's 5,500,000 / 1,250,000. The CLI's WebAssembly
 build runs sxml in Node, where size matters less than for `sxml.wasm`, so its
 budget rises to 7,000,000 / 1,500,000 with room for the rest of Phase 7. The
 `sxml.wasm` budgets of D184 and D189 stay.
+
+**Sources**: quoted from D201: the CLI module stripped and gzipped; configured:
+the CLI module budget, 7,000,000 stripped and 1,500,000 gzipped (from
+`bindings/javascript/CMakeLists.txt`).
 
 ### D203. fn:transform (packet 7.11)
 
@@ -9013,6 +9280,12 @@ supports-dynamic-xslt false).
   fn:function-lookup sees the caller's table; xslt-version 2.0 behaviour (82e);
   the QT4 driver gives a query file no base URI of its own (fn-transform-94);
   ~record patterns (transform-401, XSLT).
+
+**Sources**: QT4 fn-transform, XQ40 and XP40, before and after
+(`tools/run-qt4.sh`, release build); XT40 passes, whole suite, before and
+after; the transform cases (`tools/run-xslt.sh`, release build); sxml.wasm and
+sxml-full.wasm stripped, before and after
+(`bindings/javascript/test/size-budget.mjs`).
 
 ### D205. fn:put, revalidation, untyped copies and the 4.0 return clause (packets 7.7b, 7.7c)
 
@@ -9126,6 +9399,14 @@ Recorded 2026-10-19, after D197 and D99. Follows up D197's "Not done".
   `sxml.wasm` is 2,294,051 bytes stripped (801,300 gzipped), over its 2,200,000
   / 770,000 budget; these two files are about 8.4 KB of that.
 
+**Sources**: XT40 passes, whole suite, case by case, against 46cc929
+(`tools/run-xslt.sh`, release build); code and data of
+src/xpath_compatibility.c and the EXSLT part, MinSizeRel objects before linking
+(wasm build); sxml.wasm stripped and gzipped
+(`bindings/javascript/test/size-budget.mjs`, at 01a3993); configured: the
+sxml.wasm budget, 2,200,000 / 770,000 (from
+`bindings/javascript/CMakeLists.txt`).
+
 ### D207. JavaScript module budgets raised: core 2,200,000, full 4,000,000 (owner)
 
 **Summary**: The core `sxml.wasm` budget rises to 2,200,000 bytes stripped and
@@ -9142,6 +9423,11 @@ Recorded 2026-10-19 on the owner's choices. Amends D184 and D189.
   now 3,553,063 bytes. The owner chose to keep it there and raise the full
   budget to 4,000,000 stripped, 1,400,000 gzipped.
 - The gzipped limits keep D138's ratio of 0.35.
+
+**Sources**: sxml.wasm stripped, and the growth from XPath 1.0 compatibility
+mode; sxml-full.wasm stripped (`bindings/javascript/test/size-budget.mjs`);
+configured: the core budget 2,200,000 / 770,000 and the full budget 4,000,000 /
+1,400,000 (from `bindings/javascript/CMakeLists.txt`).
 
 ### D208. Budgets follow features; do not block on the owner (owner)
 
@@ -9236,6 +9522,13 @@ D97's "no tz database" and the FODT0004 place of D162 in fn:civil-timezone.
   be an additive header change); without one, no place keeps the implicit
   timezone and [ZN] the fallback format.
 
+**Sources**: QT4 fn-civil-timezone, fn-format-dateTime, fn-format-time,
+app-spec-examples and the unchanged sets, XQ40 and XP40, and XT40 format-date,
+against 97aedba (`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build);
+sxml-full.wasm, sxml.wasm and the CLI module, before and after
+(`bindings/javascript/test/size-budget.mjs`, wasm build); vendored tzdata 2026e
+zoneinfo: file count and size (from `third_party/tzdata/zoneinfo`).
+
 ### D210. DTD follow-ups: unparsed entities on copies, entity base URIs, sxml check with the DTD, the drivers (packet 7.14c)
 
 **Summary**: Copies keep a document's unparsed entities, elements from external
@@ -9310,6 +9603,13 @@ entities kept by copies, and `sxml check` with the DTD.
 - **clang-tidy**: `src/processor.c`'s multi-level pointer conversion is an
   explicit cast now.
 
+**Sources**: XT40 passes, whole suite, and the dtd cases, before and after
+(`tools/run-xslt.sh`, release build); QT4 fn-id, fn-idref,
+fn-system-properties, app-FunctxFunctx, fn-doc and fn-parse-xml, XQ40 and XP40,
+before and after (`tools/run-qt4.sh`, release build); XQ40 whole suite passes
+and failures, before and after, with 7.11 driver claims (c857ce3)
+(`tools/run-qt4.sh`, release build).
+
 ### D211. DTD validation is an optional feature; the core size audit (packet 7.2b)
 
 **Summary**: DTD validation becomes the optional feature "dtd-validation",
@@ -9374,6 +9674,19 @@ was 2,294,051 bytes stripped (801,273 gzipped) at 7fac033, over D207's
   The 14 cases (QT4 numberformat15, 38, 41, 42; XT40 format-number 014, 035,
   038, 039, 040, 041, backwards-022, version-021, xpath-compat-0302, 0401) stay
   failures, not reclassified (D178).
+
+**Sources**: sxml.wasm stripped and gzipped, over budget
+(`bindings/javascript/test/size-budget.mjs`, at 7fac033); linker maps of the
+core module, code and data per object, from 8d19cbf through the packets that
+grew it; sxml.wasm, sxml-full.wasm and the CLI module, stripped and gzipped -9,
+before and after (`bindings/javascript/test/size-budget.mjs`); sxml.wasm
+stripped and gzipped with the timezones of 7.16
+(`bindings/javascript/test/size-budget.mjs`, at 384a2e8); QT4 fn-doc,
+fn-parse-xml, fn-doc-available, fn-system-properties, fn-id, fn-idref and XT40
+document, before and after, all features configured (`tools/run-qt4.sh`,
+`tools/run-xslt.sh`, release build); quoted from D197: the 14 xs:numeric cases;
+configured: the sxml.wasm budget, 2,200,000 / 770,000 (from
+`bindings/javascript/CMakeLists.txt`).
 
 ### D212. XSLT streamability analysis (packet 7.6a)
 
@@ -9447,6 +9760,12 @@ Recorded 2026-10-19, after D97, D162, D166, D183, D184. Replaces D97's
   xsl:fork, which 19.8.4.19 allows); supports-streaming; the fallback option.
   7.6b can read the verdicts: a guaranteed-streamable mode or source document
   is what it may stream, and the postures name what each construct selects.
+
+**Sources**: XT40 passes, whole suite, before at ed905be and after at 8a8fd58;
+the streaming and strm cases (`tools/run-xslt.sh`, release build); XT40
+streaming cases with the feature claimed and no analysis (`tools/run-xslt.sh`,
+release build, at f12ac89); configured: the frame limit of the analysis,
+100,000 (from `src/xslt_streamability.c`).
 
 ### D213. Full UCA collations over the host's DUCET (packet 7.15a)
 
@@ -9531,6 +9850,17 @@ host serves the DUCET; the fallback stays for hosts that do not.
 - **Left for 7.15b**: tailorings (lang other than the root languages, reorder)
   from CLDR rules, the XSLT driver serving the DUCET (with lang sorts), CLDR's
   root order where it differs from the DUCET.
+
+**Sources**: CollationTest samples, NON_IGNORABLE and SHIFTED line counts
+(`ctest`, from `tests/collation_uca_test.c`); full CollationTest _SHORT files,
+not vendored (`tests/collation_uca_test.c`); QT4 advanced-uca-fallback,
+non_unicode_codepoint_collation and the collation sets, XQ40 and XP40, and XT40
+collations and the unchanged groups, before and after (`tools/run-qt4.sh`,
+`tools/run-xslt.sh`, release build); sxml.wasm, sxml-full.wasm and the CLI,
+stripped and gzipped, before at 8a8fd58 and with the feature
+(`bindings/javascript/test/size-budget.mjs`); configured: the CLI budget,
+7,500,000 / 1,650,000 (from `bindings/javascript/CMakeLists.txt`); size of the
+shipped allkeys.txt (from `third_party/unicode-collation/allkeys.txt`).
 
 ### D214. XQuery and XPath Full Text 3.0 in XQuery (packet 7.12a)
 
@@ -9744,6 +10074,19 @@ as the packet goes on.
   1,829,508 (+18,872): within their budgets. The stemmer tables are about 30 KB
   of source data.
 
+**Sources**: growth of the compiled XQuery parser with the Full Text keywords
+reserved and contextual; QT4 ft-\* (XQ40), before and after 7.12a, debug and
+release driver (`tools/run-qt4.sh`); sxml.wasm, sxml-full.wasm and the CLI,
+stripped and gzipped, after 7.12a (`bindings/javascript/test/size-budget.mjs`,
+at 81728fb); Snowball stems of the 210,829 words of the six snowball-data
+vocabularies against Snowball runtime 3.1.1, under ASan and UBSan; QT4 ft-\*
+(XQ40) after 7.12b and 7.12c (643 at 637ab45 to 672), and XQ40 whole suite
+(`tools/run-qt4.sh`, release build); sxml.wasm, sxml-full.wasm and the CLI,
+stripped and gzipped, after 7.12b and 7.12c, against HEAD at 2cf6efa
+(`bindings/javascript/test/size-budget.mjs`); configured: 2,000,000 match rows
+per run (from `src/full_text_match.c`); configured: 4,000,000 stemmer
+instructions per word (from `src/full_text_stem.c`).
+
 ### D215. Invisible XML: fn:invisible-xml over an Earley parser (packet 7.18)
 
 **Summary**: fn:invisible-xml is the optional feature "invisible-xml": one
@@ -9822,6 +10165,14 @@ supports-invisible-xml false).
   true one runs). The driver's non-goal tables no longer name fn-invisible-xml,
   so the 16 cases count in the D95 denominators.
 
+**Sources**: right recursion over 3,000 characters: Earley items; iXML
+community suite passes, errors and not run; grammar tests and test cases with a
+correct grammar (`tests/ixml/run-ixml-tests.sh`, `tests/ixml/ixml-driver.xq`,
+from `third_party/ixml-tests`); QT4 fn-invisible-xml, app-spec-examples,
+misc-BuiltInKeywords and fn-system-properties, XP40 and XQ40, before and after
+(`tools/run-qt4.sh`); size of the vendored iXML tests and of the performance
+tests left out (from `third_party/ixml-tests`).
+
 ### D216. JavaScript bindings for XQuery, XSLT and XSD validation (packet js-1)
 
 **Summary**: The JavaScript package's full module links shim files for XQuery,
@@ -9879,6 +10230,9 @@ Recorded 2026-10-19, after D10, D138, D187, D189, D205, D207, D208. The package
   `javascript/languages_full`; `javascript/languages` runs it on the core
   module, where it checks that the three are refused. The existing package
   tests pass on both modules.
+
+**Sources**: sxml.wasm and sxml-full.wasm stripped and gzip -9, before and
+after; the core with inline hints (`bindings/javascript/test/size-budget.mjs`).
 
 ### D217. The sxml command writes files: --output, --result-directory, --allow-put (packet cli-2)
 
@@ -11216,6 +11570,14 @@ source of the lexical rules; D222's segments are kept.
   runtime (vendored unmodified) would reduce; a long character data or
   attribute token still passes the lexer a character at a time.
 
+**Sources**: profile of sxml check of a 10.5 MB document of three XMark
+auctions (`callgrind`); instructions and seconds of check, tree, the parse
+benchmark and XMark-All, without and with the change (at ceacfa3); instructions
+of check of 10.5 MB after each change, the tracker, and segment sizes; debug
+unit tests 378/378, xmlconf and the grammar corpus 67/67 (`ctest`, debug
+build); QT4 and XT40 whole suites, case by case (XP40, XQ40, XT40 passed)
+(`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build).
+
 ### D233. Incremental bytes: the byte reader and the text window (packet 7.6f)
 
 **Summary**: A streamed document can be read through an `sxml_byte_reader` in
@@ -11315,6 +11677,12 @@ unchanged.
     captures on a stack, and end-K reads that window instead of the shallow
     one. Memory: the captured subtrees.
 
+**Sources**: sxml transform of a generated 95.6 MB, UTF-16 and 974 MB document,
+peak resident set, before and after (release build); parser memory of 3.9 MB
+and 2 MB read through a reader, unit tests (`ctest`, from `tests/xml_test.c`);
+XT40 and QT4 XQ40 passes, whole suites, case by case; xmlconf
+(`tools/run-xslt.sh`, `tools/run-qt4.sh`, release build).
+
 ### D234. Globals computed on first read, the hoist guard, typed modes (packet 4.21)
 
 **Summary**: Globals with an initializer are computed on first read through a
@@ -11391,6 +11759,10 @@ case.
   leftovers of D230 (XTDE3490 of merge-097's collection URI, xml-version-007,
   namespace-2606/-6202, docbook-004, fn:transform's three cases, xsl:copy of
   JNodes, XTDE0430/0440).
+
+**Sources**: XT40 passes, whole suite, case by case, at each step
+(`tools/run-xslt.sh`, release build); QT4 XQ40 passes, whole suite, case by
+case, at each step (`tools/run-qt4.sh`, release build).
 
 ### D235. XPath Full Text: a grammar of the feature; parser part extensions; the package's EXPath prefixes (packet 7.12d)
 
@@ -11475,6 +11847,16 @@ case.
   `include/sxml/xquery.h` still says "for XQuery" (see Proposed); the scanner
   is instantiated once per grammar (5,577 bytes again in the full module).
 
+**Sources**: compiled XPath parser with and without the Full Text productions,
+wasm32 code and data, -Os; ft cases run through the XPath API in a private
+build; XP40 and XQ40 passes, whole runs, 7749770 against the change
+(`tools/run-qt4.sh`, release build); XP40 applicable cases classified with both
+grammars (`tools/qt4-parse-check.py`); sxml.wasm, sxml-full.wasm and the CLI,
+stripped and gzipped, before and after d25980e
+(`bindings/javascript/test/size-budget.mjs`, wasm build); configured: size
+budgets of the full module and the CLI (from
+`bindings/javascript/CMakeLists.txt`).
+
 ### D236. Streamed xsl:merge (MERGE) and capture="yes" end rules while streaming (packet 7.6g)
 
 **Summary**: An xsl:merge with streamed sources becomes a new IR kind MERGE
@@ -11546,6 +11928,12 @@ the release driver, compared case by case.
   -067, -082), predicates, or more than 16 streamed sources; merge actions
   reading fn:last; capture-206 fails as before (an unstreamed difference);
   merge-097's collection URI (D234).
+
+**Sources**: sxml transform merging two generated 38.3 MB documents, peak
+resident, before and after (release build); allocator peak of
+evaluator_stream_test merging two 1.2 MB documents (`ctest`, from
+`tests/evaluator_stream_test.c`); XT40 passes, whole suite, case by case
+(`tools/run-xslt.sh`, release build).
 
 ### D237. Phase 7 gate review (packet 7.19)
 
@@ -11666,6 +12054,16 @@ the full lint of every preset are left to the owner's machine (D181).
 - **Not done** (listed in the LOG): 7.11's three XT40 transform cases; 7.4's
   four QT4 cases (by D208); the larger duplicates above; Phase 7 fuzzing at
   length and the full lint on the owner's machine.
+
+**Sources**: XP40, XQ40, XT40 and XSD passes and gate rates, whole suites, at
+6f79d8d and again at 9c5b1ba (`tools/run-qt4.sh`, `tools/run-xslt.sh`,
+`tools/run-xsd.sh`, `tools/conformance-report.py`, release build, at 9c5b1ba);
+slices, xmlconf, html5lib and iXML suite counts; sxml.wasm, sxml-full.wasm and
+the CLI module, stripped and gzipped, and the D225 guard
+(`bindings/javascript/test/size-budget.mjs`, wasm build); streamed sum over
+1,000,000 orders, peak resident; benchmarks xmark-all and itunes
+(`tests/bench/run-bench.py`); call cycle check, 229 files
+(`tools/check-call-cycles.py`).
 
 ### D238. Phase 6 plan: one host shim under JavaScript, Kotlin and Swift (packet 6.1)
 
@@ -11789,6 +12187,10 @@ and 7.
     dropped.
 - **PLAN.md**: the Phase 6 row names the host shim and the device gate.
 
+**Sources**: probe: stripped and gzip -9 shared library with every feature for
+the four Android ABIs, NDK r28c; configured: default size budget for
+libsxml_kotlin.so on arm64-v8a.
+
 ### D239. MIT license; the tinyactors-dev organization and its names (owner)
 
 **Summary**: sxml is MIT licensed, the npm package is `@tinyactors/sxml`, the
@@ -11865,6 +12267,11 @@ JavaScript shim to `bindings/host/` as the host shim (`sxml_host_*`, header
   - `sxml-full.wasm`: 7,637,204 / 1,671,861 to 7,637,765 / 1,672,092 (+561).
 
   Both are within the packet's 1 KB, and no budget changes.
+
+**Sources**: sxml.wasm and sxml-full.wasm, stripped and gzip -9, before and
+after, and the size guard against its baseline
+(`bindings/javascript/test/size-budget.mjs`, wasm build, from
+`bindings/javascript/test/size-baseline/sxml.txt`).
 
 ### D241. The Swift core: module Sxml, the merged archive, ARC and the test hooks (packet 6.7)
 
@@ -12213,6 +12620,13 @@ case by case.
     own minimums or index tables), which can move to
     `sxml_allocator_reserve_array` one at a time.
 
+**Sources**: XT40, XP40, XQ40 and XSD passes, whole suites, case by case,
+before at 6e1a371 and after (`tools/run-xslt.sh`, `tools/run-qt4.sh`,
+`tools/run-xsd.sh`, release build); sxml.wasm, sxml-full.wasm and the CLI,
+stripped and gzipped, and the D225 guard
+(`bindings/javascript/test/size-budget.mjs`, wasm build); call cycle check, 230
+files (`tools/check-call-cycles.py`).
+
 ### D250. The Kotlin full surface: XQuery, XSLT, XSD, the DUCET resource, U+0000 (packet 6.5)
 
 **Summary**: The Kotlin package gains XQuery, XSLT and XSD over the host shim's
@@ -12361,6 +12775,10 @@ resume plan.
   - `SXML_BUILD_KOTLIN`, named in 6.6's text, does not exist. `sxml_kotlin` is
     built whenever `ANDROID` is set.
 
+**Sources**: libsxml_kotlin.so per ABI, stripped and gzip -9, LOAD alignment,
+568 targets per ABI, NDK r28c (`tools/build-android.sh`); quoted from D238: the
+proposed budget for arm64-v8a.
+
 ### D252. XSLT on the newest draft: nothing moved; typed="~T" (packet 4.22)
 
 **Summary**: The newest XSLT, XPath, XQuery and F&O drafts are the 13 October
@@ -12425,6 +12843,11 @@ after, case by case.
   are not. Two corpus tests pin "~T" in patterns as an error.
 - **Left**: nothing for 4.22. When qtspecs or xslt40-test next move, refresh
   both together (D245) and run this classification again.
+
+**Sources**: XT40 passes, whole suite, case by case, before at 55d40c5 and
+after at aae4d04 (`tools/run-xslt.sh`, release build); grammars/xslt_pattern
+corpus, 101 of 101; 57 XT40 cases where the newest draft wins, classified from
+the runs.
 
 ### D255. Bindings paused; priorities are conformance, CLI builds, the book (owner)
 
@@ -12620,6 +13043,11 @@ whole runs. No public header changed; no IR expression kind added.
   applications and of closures with folded constants
   (deep-equal-40-function-items-092/106/119/120).
 
+**Sources**: clusters of the XP40 and XQ40 failures, whole runs at ee7f101
+(`tools/run-qt4.sh`, release build, at ee7f101); XP40 and XQ40 passes, whole
+runs, case by case, ee7f101 against 7849df6 (`tools/run-qt4.sh`, release
+build).
+
 ### D259. Laziness, joins and the step limit (packet perf-4)
 
 **Summary**: IR passes rewrite `E//T[P]` as a `descendant_path`, give each
@@ -12755,6 +13183,16 @@ milestone against its base commit built the same way.
   function bodies; the effective boolean value of nodes reads one node more
   than it needs.
 
+**Sources**: benchmarks, processor seconds and callgrind instructions, at
+c48ba8e without and with, and the book join over 2,000 orders
+(`tests/bench/run-bench.py`, `callgrind`, release build); QT4 XQ40 and XT40
+whole suites, case by case, at each milestone (`tools/run-qt4.sh`,
+`tools/run-xslt.sh`, release build); evaluation steps and seconds of the
+benchmarks, counting build; early-stopping expressions over 10^7 items and
+benchmark instructions, at 6b899d5 without and with
+(`tests/bench/run-bench.py`, `callgrind`, release build); allocations of the
+book C example, before and after.
+
 ### D260. XSLT conformance sweep by root-cause clusters (packet 4.23)
 
 **Summary**: The XSLT sweep fixes failures by root-cause clusters, among them
@@ -12836,6 +13274,12 @@ XQ40.
   (sf-snapshot, 9); xml-version-007, namespace-2606, docbook-004,
   document-4066, fn-transform-27/-82e/ -94 (causes as D230 and D234 give them).
 
+**Sources**: clusters of the XT40 failures, whole run at 72119c1
+(`tools/run-xslt.sh`, release build, at 72119c1); XT40 passes and gate rate,
+whole suite, case by case, after each change (`tools/run-xslt.sh`, release
+build); QT4 XP40 and XQ40: the assert-xml cases, fn-jkey, fn-jtree, fn-jvalue
+and prod-MapConstructor (`tools/run-qt4.sh`).
+
 ### D261. XSLT without XPath's predeclared prefixes (packet 4.24)
 
 **Summary**: XSLT expressions see only the applicable static namespaces and
@@ -12883,6 +13327,9 @@ predeclared. As D208 and D245 direct, the draft is the default:
   clang-tidy, the book check, and the whole XT40 suite with the release driver,
   case by case: **12,156 to 12,157 passed (120 wrong error), 362 to 361 failed,
   0 errors**, namespace-6202 from failure to pass, no case lost.
+
+**Sources**: XT40 passes, whole suite, case by case, before and after
+(`tools/run-xslt.sh`, release build).
 
 ### D262. XSLT conformance sweep: dynamic captured groups and D260's leftovers (packet 4.25)
 
@@ -12976,6 +13423,9 @@ lost.\*\* Commits 205e937, 03cf112, f611f74, aaa0dbe, 7b9dd14, b4a4769,
   fn-transform-27/-82e/-94).
 - The XT40 section of `docs/CONFORMANCE.md` was not regenerated: the file had
   another packet's uncommitted changes.
+
+**Sources**: XT40 passes, whole suite, case by case, after each change
+(`tools/run-xslt.sh`, release build).
 
 ### D263. XPath and XQuery conformance sweep: D258's leftovers and fresh clusters (packet 2.24)
 
@@ -13073,6 +13523,11 @@ expression kind added; one public header changed additively (tree.h, below).
   fn:transform 3, xml-to-json 4, xsd-validator 3, collations of group/order by
   2).
 
+**Sources**: XP40 and XQ40 passes and failure clusters, whole runs at d9ff5ed
+(`tools/run-qt4.sh`, release build, at d9ff5ed); XP40, XQ40 and XT40 passes,
+whole runs, case by case (`tools/run-qt4.sh`, `tools/run-xslt.sh`, release
+build, at 8669abe); staticTyping cases in XQ40 and XP40.
+
 ### D270. The book's XQuery and XSD parts (packet book-2)
 
 **Summary**: The book gives XQuery eleven sections and XSD nine, shows only
@@ -13159,6 +13614,9 @@ and outputs in the same commits.
   46,013 (xsd-validator-034 from this packet, the rest from 2.24's 2ec77a1 in
   the after build); XT40 12,191 passed, 327 failed (D262: 12,187, 331).
 
+**Sources**: XSD11, XQ40 and XT40 passes, before and after (`tools/run-xsd.sh`,
+`tools/run-qt4.sh`, `tools/run-xslt.sh`, release build); quoted from D262.
+
 ### D272. One build with everything (owner, 2026-10-20)
 
 **Summary**: Every shipped build, the sxml command, the native libraries and
@@ -13214,6 +13672,12 @@ budgets as necessary), because halfway solutions already exist."
     module for access, not size (D200). XPath's Full Text parser stays a
     grammar of its own (D235): structure, every build has it. fn:put stays
     XQuery's (XQUF 3.0).
+
+**Sources**: QT4 XP40 fn-load-xquery-module and fn-function-lookup sets, XQ40
+sets and XT40 load-xquery-module, before and after (`tools/run-qt4.sh`,
+`tools/run-xslt.sh`); sxml.wasm and sxml-full.wasm, stripped and gzipped,
+before and after (`bindings/javascript/test/size-budget.mjs`, wasm build);
+configured: the full module budget (from `bindings/javascript/CMakeLists.txt`).
 
 ### D273. XSLT conformance sweep: streamed availability, fn:document's options, the driver's tree delivery (packet 4.26)
 
@@ -13286,6 +13750,10 @@ before them). Commits 4e0ffdb, 3d97421, 564d293, e1188ef, 9024849, 2ff5431,
   static contexts; the rest of D260's single cases.
 - The XT40 section of `docs/CONFORMANCE.md` was not regenerated: the file has
   another packet's uncommitted changes.
+
+**Sources**: XT40 passes, whole suite, case by case, after each change, at
+5a855ca plus 2.24 commits (`tools/run-xslt.sh`, release build); QT4 XP40 and
+XQ40 sets of the changed functions (`tools/run-qt4.sh`).
 
 ### D274. XSLT conformance sweep: CDATA requests, key details, strip-space "none", XTTE0950 (packet 4.27)
 
@@ -13364,6 +13832,10 @@ e0dadcc, a7086d6, c427878, 150a638, 0c0f1e9, c1436f8, 92a8a8c.
   other items.
 - The XT40 section of `docs/CONFORMANCE.md` was not regenerated (a later packet
   regenerates it from whole runs of all suites).
+
+**Sources**: XT40 passes, whole suite, case by case, after each change
+(`tools/run-xslt.sh`, release build); XT40 passes with 2.25 commits
+(`tools/run-xslt.sh`, release build, at 92a8a8c).
 
 ### D275. XPath and XQuery conformance sweep: "//" paths, place static contexts, XML 1.1 query text (packet 2.25)
 
@@ -14373,6 +14845,15 @@ order: the book (commit 0cad9a1), the tests (a40851e), the implementation
   it the four grammars, 95 % parse tables), budget 14,000,000 / 2,800,000; the
   CLI module 15,026,404 / 2,696,842, budget 15,500,000 / 2,900,000.
 
+**Sources**: tree-sitter/suite passes before and after (corpus and highlights
+assertions), debug ASan/UBSan (`ctest`, debug build); the book's source code
+chapter: 32 examples, all match (`tools/check-book-examples.sh`); sxml.wasm
+before and after and the CLI module, stripped and gzipped
+(`bindings/javascript/test/size-budget.mjs`); configured: the size budgets of
+sxml.wasm and the CLI module (from `bindings/javascript/CMakeLists.txt`);
+configured: the tree-sitter suite baseline (1,410) (from
+`tests/tree-sitter/suite-baseline.txt`).
+
 ### D289. XSLT real gaps: split-when, deterministic functions, atomic-equal keys, adaptive character maps, schema roles, override signatures (packet 4.30)
 
 **Summary**: xsl:iterate and split-when share one `sxml_xslt_closure`,
@@ -14449,6 +14930,12 @@ from a whole run at 384040b. Commits 89aa625, 46ba9b9, dad90fb.
   shell; this record is the account. The XT40 section of `docs/CONFORMANCE.md`
   was not regenerated.
 
+**Sources**: XT40 passes, whole suite, before (a whole run at 384040b) and
+after each change, case by case (`tools/run-xslt.sh`, release build); QT4
+serializer sets (XQ40/XP40 method-adaptive, fn-serialize,
+method-xml/-text/-json/-html, OptionDecl.serialization): no new failure
+(`tools/run-qt4.sh`).
+
 ### D290. Invisible XML for large inputs: regular tokens, sparse item sets, text runs (packet 7.24)
 
 **Summary**: Invisible XML handles inputs of hundreds of MB by matching each
@@ -14521,6 +15008,16 @@ longer a draft (d46f559).
   '"')*, -'"'` in csv) could be read by an automaton too, the kept characters
   found by walking the unique path back at tree time; csv met its bound without
   it.
+
+**Sources**: iXML parse time, peak memory and memory per further MB of log,
+csv, calc, markdown and right recursion at 1 MB, log at 10 and 100 MB, and the
+ambiguous sum, before and after (`tests/bench/run-ixml-bench.py`, release
+build); share of items on the first derivation at the end of a parse (log, csv,
+calc, markdown, numbers); iXML suite passes, unchanged
+(`tests/ixml/run-ixml-tests.sh`, `ctest`, debug build); QT4 fn-invisible-xml
+(XP40, XQ40) and app-spec-examples iXML cases (`tools/run-qt4.sh`); ixml_fuzz
+for 600 s, 51,351 runs (`tools/fuzz.sh`); the five iXML chapters' 42 examples
+(`tools/check-book-examples.sh`).
 
 ### D291. XSLT per-package items, an absent global focus through call-template, namespace undeclarations (packet 4.31)
 
@@ -14600,6 +15097,12 @@ fdff1ee. No public header changed. Commits 4df51df, bb89091.
 - **Records**: the scratchpad was emptied by another session during the packet;
   the baseline was run again at fdff1ee. The XT40 section of
   `docs/CONFORMANCE.md` was not regenerated.
+
+**Sources**: XT40 passes, whole suite, before (a whole run at fdff1ee) and
+after each change, case by case (`tools/run-xslt.sh`, release build); QT4 sets
+the loader and fn:function-lookup touch (XQ40/XP40 fn-function-lookup, fn-doc,
+fn-doc-available, fn-collection, prod-ModuleImport), equal to
+docs/CONFORMANCE.md (`tools/run-qt4.sh`).
 
 ### D292. The codegen chapter builds a tree of the TypeScript program and prints it with XSLT (packet book-4)
 
@@ -14762,6 +15265,16 @@ waits for 6.12 (the host shim now passes languages, below).
   XSLT). Baseline not refreshed. The CLI module is unchanged by this packet
   (15,041,890 / 2,704,138).
 
+**Sources**: imports of side modules built from the eleven vendored grammars
+with tree-sitter build --wasm; the functions tree-sitter allows side modules to
+import (25) (from `third_party/tree-sitter/lib/src/wasm-stdlib/imports.txt`);
+javascript/code_languages: 12 of 12 (`ctest`, wasm build); the book's
+JavaScript chapter: 5 examples, all match (`tools/check-book-examples.sh`);
+sxml.wasm stripped and gzipped, and its linker map against the D225 baseline;
+the CLI module (`bindings/javascript/test/size-budget.mjs`, from
+`bindings/javascript/test/size-baseline/sxml.txt`); configured: the size budget
+of sxml.wasm (from `bindings/javascript/CMakeLists.txt`).
+
 ### D294. Streamed output and input in the JavaScript API (packet js-2)
 
 **Summary**: The host shim and JavaScript API stream serialized output to a
@@ -14862,6 +15375,16 @@ memory grows to fit the buffer and never shrinks.
   time. Not fixed here (an evaluator matter); the default step limit also stops
   the streamed identity of 95 MB from the package, which has no option for it.
 
+**Sources**: module memory, peak JavaScript heap and peak resident set of
+serialize and serializeTo, query, transform and streamedSource outputs on
+Node.js 22 (wasm build); tests/host_shim_test.c: 10 of 10 under ASan and UBSan
+(`ctest`, debug build); javascript/streams (test/stream.test.ts, 19 cases),
+with the 100.4 MB streamed output under its memory limits (`ctest`, wasm
+build); the book's JavaScript chapter: 6 examples match
+(`tools/check-book-examples.sh`); sxml.wasm stripped and gzipped, before and
+after (`bindings/javascript/test/size-budget.mjs`); configured: the size budget
+of sxml.wasm (from `bindings/javascript/CMakeLists.txt`).
+
 ### D295. Long streams: the text method streams, long text runs grow linearly, streamed elements grant steps (packet stream-1)
 
 **Summary**: Long text runs in the arena tree grow linearly, the
@@ -14948,6 +15471,19 @@ The two problems js-2 found (D294, "Found").
   sxml.wasm 13,452,276 bytes stripped, 2,423,328 gzipped (budget 14,000,000 /
   2,800,000, not raised).
 
+**Sources**: peak resident set and time of method text and xml over 20,000
+records, the streamed identity of 93 MB and method text over it, before and
+after, release CLI; also the quadratic case and other methods (release build);
+the same streams on Node.js 22 with the wasm module, a chunk source and a
+writeSync sink: module memory, resident set, time (wasm build); ctest: debug
+(ASan, UBSan), release and wasm, 407 of 407, with the new arena_tree and
+evaluator_stream cases (`ctest`); XT40, 96 sets (3,465 cases), before and
+after, case by case (`tools/run-xslt.sh`, release build); sxml.wasm stripped
+and gzipped (`bindings/javascript/test/size-budget.mjs`); configured: the size
+budget of sxml.wasm (from `bindings/javascript/CMakeLists.txt`); configured:
+the streamed element step grant (500); the default step limit is quoted from
+D259 (from `src/evaluator_internal.h`).
+
 ### D296. XSLT streaming conformance: the draft's XSLT Streaming 4.0, snapshot documents, document-node types (packet 4.32)
 
 **Summary**: Streaming analysis follows the new XSLT Streaming 4.0
@@ -15012,6 +15548,13 @@ outcome); XQ40 46,158 and XP40 32,815 as before. Commits d67e37f, 0378bf4,
   XTDE3350; D291's absent focus of globals, medium); capture-206 (D236);
   merge-017, -054, -067 and the three merge-097 cases are not streaming causes.
 
+**Sources**: XT40 passes, whole suite, before (a whole run at 19d3fb5) and
+after each change, case by case (`tools/run-xslt.sh`, release build); XQ40 and
+XP40 passes, whole suites, as before (`tools/run-qt4.sh`, release build); the
+book examples: 520 match (`tools/check-book-examples.sh`); peak resident set of
+a for-each with fn:snapshot over a 13 MB document of 400,000 records, streamed
+and unstreamed (release build).
+
 ### D297. A streamed writer for the html and xhtml methods (packet stream-2)
 
 **Summary**: The streamed serialization takes the html method without indent
@@ -15070,6 +15613,14 @@ Recorded 2026-10-21, after D71, D99, D231, D295.
   method-html, method-xhtml, method-xml, fn-serialize, method-adaptive as in
   CONFORMANCE.md. No public header changes (D99). sxml.wasm not rebuilt (about
   250 lines of internal C, no new tables).
+
+**Sources**: peak resident set of html, xhtml and xml outputs of 20,000 records
+of 1 KB in a streamable mode, before and after; outputs byte-identical (release
+build); serialize_html and evaluator_stream cases (30,000 records under a 1 MB
+limit, peaks 207 to 384 KB) (`ctest`); XT40 passes, whole catalog, before and
+after, case by case (`tools/run-xslt.sh`, release build); QT4 XQ40 method-html,
+method-xhtml, method-xml, fn-serialize, method-adaptive, as in CONFORMANCE.md
+(`tools/run-qt4.sh`).
 
 ### D298. Collections in the sxml command: directories, their parameters, --collection (packet cli-3)
 
@@ -15328,6 +15879,13 @@ before and after, no outcome differs.
   plain path of steps, or a body with stream points of its own (full windows
   per node, bounded by the node).
 
+**Sources**: peak resident set and wall seconds of the four problems on the 82
+MB trace archive (100,000 traces, 633,333 spans), before and after each change
+(release build); XT40, XQ40 and XP40 passes, whole suites, before and after
+each change, case by case (`tools/run-xslt.sh`, `tools/run-qt4.sh`, release
+build); run-bench outputs byte-identical, times within noise
+(`tests/bench/run-bench.py`, release build).
+
 ### D303. Vane is one service with modules and two SDKs (packet book-22)
 
 **Summary**: Vane becomes one TypeScript service of modules backed by
@@ -15463,6 +16021,13 @@ tree-sitter in the book's "Invisible XML Performance".
   once with a small C program against the vendored runtime, not part of the
   suite).
 
+**Sources**: sxml:parse-code over 1 MB of Markdown before and after (29 s, 97 %
+in ts_query_new; 1.1 s, 60 % in the parse); 1 MB of JSON with an iXML grammar,
+sxml:parse-code and fn:json-to-xml, and the Markdown input, with limits in
+--check (`tests/bench/run-ixml-bench.py`); tree-sitter's parse alone of the
+JSON, measured once with a small C program against the vendored runtime, not
+part of the suite.
+
 ### D307. The tree-sitter functions are tree-sitter:parse and tree-sitter:languages (packet 7.26)
 
 **Summary**: The tree-sitter functions are `tree-sitter:parse` and
@@ -15524,6 +16089,11 @@ Amends D285's \**API\*\* paragraph; the shape of the documents (D285's
   chapters (source-code, call-chains, call-chains-graph, codegen-pipeline,
   codegen-typescript, ixml-performance, appendix-cli: 89 examples; javascript: 6)
   match.
+
+**Sources**: source_code, name and the 258 CLI tests,
+tree-sitter/run-time-language; tree-sitter/suite before and after (`ctest`,
+debug build); javascript/code_languages and javascript/package (`ctest`, wasm
+build).
 
 ### D308. Each regex is compiled once per evaluation: the regex cache (packet perf-6)
 
@@ -15590,6 +16160,9 @@ Recorded 2026-10-28, after D53, D71, D105, D114, D148, D259. No header changed.
 - **Left**: an ASCII fast path for `\w` and `\d` (the generated
   `src/regex_unicode.c`); a matcher kept per entry would save its creation too,
   but holds a grown backtrack stack, so it is not done.
+
+**Sources**: 20,000 replace calls with "(W*)$AMOUNT(W*)" and with "$AMOUNT",
+processor seconds, fastest of five, before and after (release build).
 
 ### D309. Slices without copies: sequence slices, positional filters, matched bases (packet perf-5)
 

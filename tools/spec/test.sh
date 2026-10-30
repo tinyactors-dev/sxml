@@ -17,6 +17,13 @@ mkdir -p "$work/tools" "$work/.claude/hooks"
 cp -R "$root/docs" "$root/spec" "$work/"
 cp -R "$root/tools/spec" "$work/tools/"
 cp "$root/.claude/hooks/spec-nodes-only.py" "$work/.claude/hooks/"
+# The files the facts read (spec/articles/facts/), where they read them.
+mkdir -p "$work/tests/qt4" "$work/tests/xslt" "$work/tests/xsd" "$work/bindings/javascript"
+for source in tests/qt4/torture-slice.txt tests/qt4/xquery-slice.txt tests/xslt/slice.txt \
+              tests/xsd/slice.txt bindings/javascript/CMakeLists.txt; do
+  cp "$root/$source" "$work/$source"
+done
+ln -s "$root/third_party" "$work/third_party"
 spec=$work/tools/spec/spec
 failures=0
 
@@ -92,6 +99,24 @@ expect_refusal "an unknown status" "is not valid" "$spec" set-status 6.10 finish
 expect_refusal "a rename onto a term" "exists" "$spec" rename binding_shim item
 expect_success "the writes leave the spec checked" "$spec" check
 expect_output "the writes keep the source form readable" " 0 do not read back" "$spec" selftest
+
+# Facts: values computed from their sources, never stored.
+printf 'one\ntwo\n' > "$work/tests/qt4/test-facts.txt"
+expect_success "add a fact over an existing file" "$spec" add fact test/lines --title='Lines of the test file' \
+  --expression='count(unparsed-text-lines("tests/qt4/test-facts.txt"))' --source=tests/qt4/test-facts.txt
+expect_refusal "a fact that does not compute" "refused" "$spec" add fact test/broken --title='Broken' \
+  --expression='count(' --source=tests/qt4/test-facts.txt
+expect_success "cite a fact" "$spec" amend PLAN --summary='The plan; the test file has {{test/lines}} lines.'
+grep -q 'the test file has 2 lines' "$work/docs/PLAN.md" || fail "the page does not show the fact's value"
+printf 'three\n' >> "$work/tests/qt4/test-facts.txt"
+"$spec" check > "$work/out" 2>&1 || true
+grep -q "stale page: docs/PLAN.md" "$work/out" || fail "a changed source did not make the page stale"
+expect_success "generate after a source changed" "$spec" generate
+grep -q 'the test file has 3 lines' "$work/docs/PLAN.md" || fail "the page did not follow its source"
+expect_refusal "a measurement with no fact and no decision" "with no fact" "$spec" amend PLAN --summary='The plan, with 12,345 cases.'
+expect_refusal "a decision's measurement without sources" "has no sources" "$spec" add decision --title='Measured' --body='It passes 12,345 cases.'
+expect_success "add a source" "$spec" add-source D238 --what='a test source' --tool=tools/spec/spec --at=0123abc
+grep -q 'a test source (`tools/spec/spec`, at 0123abc)' "$work/docs/DECISIONS.md" || fail "the page does not show the source"
 
 # Hand edits are found: an article not in canonical form, a page edited.
 printf '\n' >> "$work/spec/articles/terms/item.xml"

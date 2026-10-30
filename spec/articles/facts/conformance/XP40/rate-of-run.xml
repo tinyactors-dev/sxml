@@ -1,0 +1,5 @@
+<fact id="conformance/XP40/rate-of-run">
+  <title>XP40 passed of run</title>
+  <expression>tokenize(unparsed-text-lines("docs/CONFORMANCE.md")[starts-with(., "| XP40 |")][1], "\s*\|\s*")[10]</expression>
+  <source file="docs/CONFORMANCE.md" written-by="tools/conformance-report.py"/>
+</fact>

@@ -30,4 +30,11 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="ctest" build="debug">tree-sitter/suite passes before and after (corpus and highlights assertions), debug ASan/UBSan</source>
+    <source tool="tools/check-book-examples.sh">the book's source code chapter: 32 examples, all match</source>
+    <source tool="bindings/javascript/test/size-budget.mjs">sxml.wasm before and after and the CLI module, stripped and gzipped</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the size budgets of sxml.wasm and the CLI module</source>
+    <source file="tests/tree-sitter/suite-baseline.txt">configured: the tree-sitter suite baseline (1,410)</source>
+  </sources>
 </decision>

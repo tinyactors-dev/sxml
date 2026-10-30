@@ -89,4 +89,14 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source>growth of the compiled XQuery parser with the Full Text keywords reserved and contextual</source>
+    <source tool="tools/run-qt4.sh">QT4 ft-* (XQ40), before and after 7.12a, debug and release driver</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" at="81728fb">sxml.wasm, sxml-full.wasm and the CLI, stripped and gzipped, after 7.12a</source>
+    <source>Snowball stems of the 210,829 words of the six snowball-data vocabularies against Snowball runtime 3.1.1, under ASan and UBSan</source>
+    <source tool="tools/run-qt4.sh" build="release">QT4 ft-* (XQ40) after 7.12b and 7.12c (643 at 637ab45 to 672), and XQ40 whole suite</source>
+    <source tool="bindings/javascript/test/size-budget.mjs">sxml.wasm, sxml-full.wasm and the CLI, stripped and gzipped, after 7.12b and 7.12c, against HEAD at 2cf6efa</source>
+    <source file="src/full_text_match.c">configured: 2,000,000 match rows per run</source>
+    <source file="src/full_text_stem.c">configured: 4,000,000 stemmer instructions per word</source>
+  </sources>
 </decision>

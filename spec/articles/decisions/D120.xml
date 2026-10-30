@@ -24,4 +24,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/qt4-parse-check.py">value templates in the XT40 scope, accepted, false rejects and "either"</source>
+  </sources>
 </decision>

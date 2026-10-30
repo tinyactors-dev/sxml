@@ -27,4 +27,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh" build="release">XQ40 passes, all 737 test sets, before and after, and the test sets that changed</source>
+  </sources>
 </decision>

@@ -27,4 +27,13 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="bindings/javascript/test/size-budget.mjs" at="7fac033">sxml.wasm stripped and gzipped, over budget</source>
+    <source>linker maps of the core module, code and data per object, from 8d19cbf through the packets that grew it</source>
+    <source tool="bindings/javascript/test/size-budget.mjs">sxml.wasm, sxml-full.wasm and the CLI module, stripped and gzipped -9, before and after</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" at="384a2e8">sxml.wasm stripped and gzipped with the timezones of 7.16</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 fn-doc, fn-parse-xml, fn-doc-available, fn-system-properties, fn-id, fn-idref and XT40 document, before and after, all features configured</source>
+    <source>quoted from <ref kind="decision" to="D197"/>: the 14 xs:numeric cases</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the sxml.wasm budget, 2,200,000 / 770,000</source>
+  </sources>
 </decision>

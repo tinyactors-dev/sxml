@@ -27,4 +27,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh tools/conformance-report.py" build="release" at="00ac981">XQ40 and XP40 passes, all 737 sets of each spec, before and after, and the slice</source>
+    <source>memory of 10,000 element constructors with 64 KiB arena blocks (655 MB)</source>
+  </sources>
 </decision>

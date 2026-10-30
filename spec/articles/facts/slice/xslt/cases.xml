@@ -1,0 +1,5 @@
+<fact id="slice/xslt/cases">
+  <title>Test cases in the XSLT slice</title>
+  <expression>count(unparsed-text-lines("tests/xslt/slice.txt")[matches(., "^[^#\s]")])</expression>
+  <source file="tests/xslt/slice.txt"/>
+</fact>

@@ -1,0 +1,13 @@
+<document id="FACTS" file="docs/FACTS.md">
+  <title>Facts</title>
+  <p>Each fact is a value the spec states and does not store: an XQuery expression over the files that hold it, computed whenever a page or a command shows it, so text that cites a fact (in source form, {{ID}}) always shows what its source says now. Add one with tools/spec/spec add fact.</p>
+  <table>
+    <row header="true">
+      <cell>Fact</cell>
+      <cell>What</cell>
+      <cell>Value</cell>
+      <cell>Read from</cell>
+    </row>
+    <collect kind="fact"/>
+  </table>
+</document>

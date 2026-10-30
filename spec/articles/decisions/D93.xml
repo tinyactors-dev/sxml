@@ -18,4 +18,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="llvm-strip gzip" build="wasm">sxml and sxml-qt4 modules raw, stripped and gzipped, the archives, and the native release sxml stripped</source>
+    <source tool="sxml-qt4" file="tests/qt4/torture-slice.txt">time of the torture slice (3 runs, 4 cores) and of xml_conformance, native release and wasm</source>
+    <source tool="ctest tools/run-wasi.mjs" build="wasm">xml_conformance and qt4/slice results under WASI</source>
+    <source>configured: the size budget, 1.5 MB stripped and 450 KB gzipped, 50 KB growth logged (PLAN.md risks)</source>
+  </sources>
 </decision>

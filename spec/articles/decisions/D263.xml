@@ -39,4 +39,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh" build="release" at="d9ff5ed">XP40 and XQ40 passes and failure clusters, whole runs at d9ff5ed</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release" at="8669abe">XP40, XQ40 and XT40 passes, whole runs, case by case</source>
+    <source>staticTyping cases in XQ40 and XP40</source>
+  </sources>
 </decision>

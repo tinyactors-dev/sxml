@@ -21,4 +21,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source>applicable XP40 queries building byte-identical ASTs without a part, and valid XQ40 queries and library modules with a scratch part</source>
+  </sources>
 </decision>

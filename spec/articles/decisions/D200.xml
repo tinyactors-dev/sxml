@@ -33,4 +33,11 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh" build="release">QT4 expath-file and fn-system-properties, XQ40 and XP40, before and after</source>
+    <source build="release">native code size of the EXPath File feature, x86-64</source>
+    <source tool="bindings/javascript/test/size-budget.mjs">sxml.wasm and sxml-full.wasm stripped, before at 531c5b6 and after at 10ca66e</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" at="1e91f97">sxml-full.wasm stripped at 1e91f97</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the core module budget, 2,100,000 bytes</source>
+  </sources>
 </decision>

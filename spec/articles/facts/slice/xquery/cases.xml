@@ -1,0 +1,5 @@
+<fact id="slice/xquery/cases">
+  <title>Test cases in the XQuery slice</title>
+  <expression>count(unparsed-text-lines("tests/qt4/xquery-slice.txt")[matches(., "^[^#\s]")])</expression>
+  <source file="tests/qt4/xquery-slice.txt"/>
+</fact>

@@ -30,4 +30,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 fn-civil-timezone, fn-format-dateTime, fn-format-time, app-spec-examples and the unchanged sets, XQ40 and XP40, and XT40 format-date, against 97aedba</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm">sxml-full.wasm, sxml.wasm and the CLI module, before and after</source>
+    <source file="third_party/tzdata/zoneinfo">vendored tzdata 2026e zoneinfo: file count and size</source>
+  </sources>
 </decision>

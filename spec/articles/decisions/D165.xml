@@ -42,4 +42,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source>files and size of the vendored xsdtests in third_party/xsdtests</source>
+    <source file="third_party/xsdtests/suite.xml">in-scope XSD 1.1 tests of suite.xml, schema and instance tests, by contributor, gate groups, and the other token choices</source>
+    <source>schema-aware QT4 XQ40 cases (about 1,100) and XSLT cases (about 690)</source>
+    <source>quoted from <ref kind="decision" to="D168"/></source>
+  </sources>
 </decision>

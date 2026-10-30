@@ -38,4 +38,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh">QT4 XP40 fn-load-xquery-module and fn-function-lookup sets, XQ40 sets and XT40 load-xquery-module, before and after</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm">sxml.wasm and sxml-full.wasm, stripped and gzipped, before and after</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the full module budget</source>
+  </sources>
 </decision>

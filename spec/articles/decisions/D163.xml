@@ -39,4 +39,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh tools/run-qt4.sh" build="release" at="9e7f5fc">XT40, XP40 and XQ40 passes, whole suites, before, and the slices</source>
+    <source tool="tools/run-xslt.sh tools/run-qt4.sh tools/conformance-report.py" build="release">XT40, XP40 and XQ40 passes, whole suites, after at the last commit of this packet, by test set, and the slices</source>
+    <source>size of a constructed tree of a few nodes, before and after sized arena trees (5 to 9 KB to about 1.3 KB), and array-022 within the 512 MB budget</source>
+    <source>json-to-xml-013: 209,579 documents from a 19 MB file, a tree of 2.7 million nodes, 2 GB without a budget</source>
+  </sources>
 </decision>

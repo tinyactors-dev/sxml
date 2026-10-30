@@ -53,4 +53,12 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh tools/run-xsd.sh tools/conformance-report.py" build="release" at="9c5b1ba">XP40, XQ40, XT40 and XSD passes and gate rates, whole suites, at 6f79d8d and again at 9c5b1ba</source>
+    <source>slices, xmlconf, html5lib and iXML suite counts</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm">sxml.wasm, sxml-full.wasm and the CLI module, stripped and gzipped, and the <ref kind="decision" to="D225"/> guard</source>
+    <source>streamed sum over 1,000,000 orders, peak resident</source>
+    <source tool="tests/bench/run-bench.py">benchmarks xmark-all and itunes</source>
+    <source tool="tools/check-call-cycles.py">call cycle check, 229 files</source>
+  </sources>
 </decision>

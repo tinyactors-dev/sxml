@@ -27,4 +27,12 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="release" tool="tests/bench/run-ixml-bench.py">iXML parse time, peak memory and memory per further MB of log, csv, calc, markdown and right recursion at 1 MB, log at 10 and 100 MB, and the ambiguous sum, before and after</source>
+    <source>share of items on the first derivation at the end of a parse (log, csv, calc, markdown, numbers)</source>
+    <source tool="tests/ixml/run-ixml-tests.sh ctest" build="debug">iXML suite passes, unchanged</source>
+    <source tool="tools/run-qt4.sh">QT4 fn-invisible-xml (XP40, XQ40) and app-spec-examples iXML cases</source>
+    <source tool="tools/fuzz.sh">ixml_fuzz for 600 s, 51,351 runs</source>
+    <source tool="tools/check-book-examples.sh">the five iXML chapters' 42 examples</source>
+  </sources>
 </decision>

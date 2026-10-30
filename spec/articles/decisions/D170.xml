@@ -33,4 +33,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xsd.sh" at="21c9531">XSD schema tests in scope with 5.5 and 5.6, and the XSD slice</source>
+  </sources>
 </decision>

@@ -21,4 +21,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xsd.sh" build="release">XSD schema tests by test set, run, passed and failed</source>
+    <source tool="tools/run-qt4.sh" build="release">XP40 and XQ40 passes, unchanged, and the slice</source>
+  </sources>
 </decision>

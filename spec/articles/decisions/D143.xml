@@ -39,4 +39,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="release">XP40 passes, errors, in-scope rate and area rates, before at 62947af and after, and the slice</source>
+  </sources>
 </decision>

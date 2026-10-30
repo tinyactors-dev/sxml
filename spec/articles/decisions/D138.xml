@@ -27,4 +27,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="bindings/javascript/test/size-budget.mjs ctest" build="wasm">sxml CLI module and sxml.wasm, stripped and gzipped (zlib -9), and the saving of -flto -Oz</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the size budget, 2,000,000 bytes stripped and 700,000 gzipped</source>
+    <source>quoted from <ref kind="decision" to="D93"/></source>
+  </sources>
 </decision>

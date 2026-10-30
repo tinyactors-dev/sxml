@@ -15,7 +15,7 @@ let $spec := spec:load()
 let $articles := spec:of-kind($spec, $kind[.])
   [$status = "" or tokenize(spec:status(.))[1] = $status or spec:status(.) = $status]
   [$since = "" or spec:date(.) ge $since]
-  [$missing-summary = "" or (empty(summary) and not(self::term or @status = "unused"))]
+  [$missing-summary = "" or (empty(summary) and not(self::term or self::fact or self::document or self::log-entry or @status = "unused"))]
 return string-join(
   for $article in $articles
   order by local-name($article),

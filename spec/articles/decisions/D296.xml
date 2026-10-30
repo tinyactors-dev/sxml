@@ -24,4 +24,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, before (a whole run at 19d3fb5) and after each change, case by case</source>
+    <source tool="tools/run-qt4.sh" build="release">XQ40 and XP40 passes, whole suites, as before</source>
+    <source tool="tools/check-book-examples.sh">the book examples: 520 match</source>
+    <source build="release">peak resident set of a for-each with fn:snapshot over a 13 MB document of 400,000 records, streamed and unstreamed</source>
+  </sources>
 </decision>

@@ -24,4 +24,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source>the 13 constructor test sets before and after, a scratch harness compiling with sxml_xquery_compile</source>
+  </sources>
 </decision>

@@ -30,4 +30,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, case by case, against 46cc929</source>
+    <source build="wasm">code and data of src/xpath_compatibility.c and the EXSLT part, MinSizeRel objects before linking</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" at="01a3993">sxml.wasm stripped and gzipped</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the sxml.wasm budget, 2,200,000 / 770,000</source>
+  </sources>
 </decision>

@@ -16,7 +16,8 @@ declare function local:page($spec as map(*), $document as element(document)) as 
   || spec:markdown($spec, $document, 1) => replace("\n+$", "") || "&#10;"
 };
 
-let $spec := spec:load()
+let $loaded := spec:load()
+let $spec := spec:with-values($loaded, $loaded?articles)
 let $pages := for $document in spec:of-kind($spec, "document") order by $document/@file
               return map { "file": string($document/@file), "text": local:page($spec, $document) }
 return

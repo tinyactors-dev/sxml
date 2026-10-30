@@ -71,7 +71,7 @@
     </list>
   </section>
   <section id="what-runs-here-and-what-waits-for-the-owner-6-1-probe-2026-10-20">
-    <title>What runs here and what waits for the owner (6.1 probe, 2026-10-20)</title>
+    <title>What runs here and what waits for the owner (<ref kind="packet" to="6.1"/> probe, 2026-10-20)</title>
     <p>The agent environment is Linux x86_64 with 4 cores and network access (Maven Central sometimes answers 429: retry). It has no KVM and no macOS.</p>
     <table>
       <row header="true">

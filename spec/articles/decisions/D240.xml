@@ -59,4 +59,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm" file="bindings/javascript/test/size-baseline/sxml.txt">sxml.wasm and sxml-full.wasm, stripped and gzip -9, before and after, and the size guard against its baseline</source>
+  </sources>
 </decision>

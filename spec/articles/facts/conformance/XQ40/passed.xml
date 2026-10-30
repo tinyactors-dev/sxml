@@ -1,0 +1,5 @@
+<fact id="conformance/XQ40/passed">
+  <title>XQ40 test cases passed</title>
+  <expression>xs:integer(replace(tokenize(unparsed-text-lines("docs/CONFORMANCE.md")[starts-with(., "| XQ40 |")][1], "\s*\|\s*")[5], ",", ""))</expression>
+  <source file="docs/CONFORMANCE.md" written-by="tools/conformance-report.py"/>
+</fact>

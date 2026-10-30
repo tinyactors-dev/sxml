@@ -45,4 +45,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xsd.sh tools/conformance-report.py" build="release">XSD in scope, instance and schema tests by contributor, gate groups and the slice, at the packet's last commit</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">XP40, XQ40 and XT40 passes, unchanged</source>
+    <source file="third_party/xsdtests/suite.xml">instance tests the suite expects hints for in groups without a schema test (55)</source>
+  </sources>
 </decision>

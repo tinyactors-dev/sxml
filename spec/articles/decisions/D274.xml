@@ -36,4 +36,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, case by case, after each change</source>
+    <source tool="tools/run-xslt.sh" build="release" at="92a8a8c">XT40 passes with 2.25 commits</source>
+  </sources>
 </decision>

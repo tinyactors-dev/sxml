@@ -15,4 +15,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="bindings/javascript/test/size-budget.mjs">sxml.wasm stripped, and the growth from XPath 1.0 compatibility mode; sxml-full.wasm stripped</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the core budget 2,200,000 / 770,000 and the full budget 4,000,000 / 1,400,000</source>
+  </sources>
 </decision>

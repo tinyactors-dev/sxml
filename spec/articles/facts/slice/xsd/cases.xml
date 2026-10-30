@@ -1,0 +1,5 @@
+<fact id="slice/xsd/cases">
+  <title>Test cases in the XSD slice</title>
+  <expression>count(unparsed-text-lines("tests/xsd/slice.txt")[matches(., "^[^#\s]")])</expression>
+  <source file="tests/xsd/slice.txt"/>
+</fact>

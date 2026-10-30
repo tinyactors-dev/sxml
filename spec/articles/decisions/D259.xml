@@ -39,4 +39,11 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tests/bench/run-bench.py callgrind" build="release">benchmarks, processor seconds and callgrind instructions, at c48ba8e without and with, and the book join over 2,000 orders</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 XQ40 and XT40 whole suites, case by case, at each milestone</source>
+    <source>evaluation steps and seconds of the benchmarks, counting build</source>
+    <source tool="tests/bench/run-bench.py callgrind" build="release">early-stopping expressions over 10^7 items and benchmark instructions, at 6b899d5 without and with</source>
+    <source>allocations of the book C example, before and after</source>
+  </sources>
 </decision>

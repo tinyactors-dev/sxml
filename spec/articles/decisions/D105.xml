@@ -24,4 +24,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/generate-regex-tables.py" file="src/regex_unicode.c">category runs, blocks, case pairs and read-only size of the generated regex tables</source>
+  </sources>
 </decision>

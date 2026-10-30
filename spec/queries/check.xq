@@ -9,7 +9,7 @@ xquery version "4.0";
 import module namespace spec = "urn:sxml:spec" at "spec/lib/spec.xqm";
 
 let $spec := spec:load()
-let $lines := (spec:not-canonical($spec), spec:check($spec))
+let $lines := (spec:not-canonical($spec), spec:check($spec), spec:check-facts($spec))
 let $errors := $lines[starts-with(., "error:")]
 let $articles := spec:of-kind($spec, ())
 let $summary :=
@@ -17,5 +17,5 @@ let $summary :=
   string-join(for $article in $articles group by $kind := local-name($article) order by $kind
               return count($article) || " " || $kind, ", ") || "); " ||
   count($errors) || " errors, " || (count($lines) - count($errors)) || " warnings; " ||
-  count($articles[not(self::term or self::document or self::log-entry or @status = "unused")][empty(summary)]) || " without a written summary"
+  count($articles[not(self::term or self::document or self::log-entry or self::fact or @status = "unused")][empty(summary)]) || " without a written summary"
 return string-join(($lines, $summary), "&#10;")

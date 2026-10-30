@@ -24,4 +24,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="sxml-xslt-test" file="third_party/xslt40-test/catalog.xml">xslt40-test cases that resolve, are applicable and are in scope</source>
+    <source file="tests/xslt/slice.txt">the slice: 154 in-scope applicable cases</source>
+    <source>quoted from <ref kind="decision" to="D95"/></source>
+  </sources>
 </decision>

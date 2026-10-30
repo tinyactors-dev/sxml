@@ -15,4 +15,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="ctest" file="tests/function_library_higher_order_test.c">map_merge_scales folds of 10,000 steps under ASan, 320,000 merges in release, and the quadratic version for 1,000</source>
+  </sources>
 </decision>

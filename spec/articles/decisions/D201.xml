@@ -42,4 +42,11 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh" build="release">QT4 fn-parse-html, fn-html-doc, misc-HtmlTestSuite and misc-BuiltInKeywords, before and after</source>
+    <source>html5lib tree construction and tokenizer tests of web-platform-tests, in a scratch harness</source>
+    <source tool="bindings/javascript/test/size-budget.mjs">sxml.wasm, sxml-full.wasm and the sxml CLI module, stripped and gzipped, before and after</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: sxml-full.wasm budget 3,000,000 and the CLI module budget 5,500,000 bytes</source>
+    <source tool="tests/fuzz/html_parse_fuzz.c">HTML parser fuzzing, 11,000 runs seeded from the suite</source>
+  </sources>
 </decision>

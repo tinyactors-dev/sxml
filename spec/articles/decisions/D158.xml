@@ -42,4 +42,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh" build="release" at="01cf728">XQ40 and XP40 passes, all 737 sets of each spec, before</source>
+    <source tool="tools/run-qt4.sh tools/conformance-report.py" build="release" at="5611dd2">XQ40 and XP40 passes, all 737 sets of each spec, after, and the slice</source>
+  </sources>
 </decision>

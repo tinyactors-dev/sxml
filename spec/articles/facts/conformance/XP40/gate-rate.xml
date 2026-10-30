@@ -1,0 +1,5 @@
+<fact id="conformance/XP40/gate-rate">
+  <title>XP40 gate rate (<ref kind="decision" to="D95"/>)</title>
+  <expression>replace((let $lines := unparsed-text-lines("docs/CONFORMANCE.md") return subsequence($lines, index-of($lines, "## XP40")[1])[starts-with(., "Gate rate")][1]), "^.*\*\*([0-9.]+ %)\*\*.*$", "$1")</expression>
+  <source file="docs/CONFORMANCE.md" written-by="tools/conformance-report.py"/>
+</fact>

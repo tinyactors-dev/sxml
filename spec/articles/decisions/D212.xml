@@ -27,4 +27,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, before at ed905be and after at 8a8fd58; the streaming and strm cases</source>
+    <source tool="tools/run-xslt.sh" build="release" at="f12ac89">XT40 streaming cases with the feature claimed and no analysis</source>
+    <source file="src/xslt_streamability.c">configured: the frame limit of the analysis, 100,000</source>
+  </sources>
 </decision>

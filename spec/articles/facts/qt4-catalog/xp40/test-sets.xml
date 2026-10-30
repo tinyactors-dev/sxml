@@ -1,0 +1,12 @@
+<fact id="qt4-catalog/xp40/test-sets">
+  <title>Test sets of the QT4 catalog with a test case that applies to XP40</title>
+  <expression>let $cases := doc("third_party/qt4tests/catalog.xml")/*:catalog/*:test-set ! doc(resolve-uri(@file, base-uri(.)))//*:test-case
+let $applies := fn($case, $language) {
+  let $spec := ($case/*:dependency[@type = "spec"], $case/../*:dependency[@type = "spec"])[1]
+  return empty($spec) or (some $token in tokenize($spec/@value) satisfies
+    let $version := xs:integer(replace($token, "^..(\d+)\+?$", "$1"))
+    return substring($token, 1, 2) = $language and ($version = 40 or (ends-with($token, "+") and $version le 40)))
+}
+return count(distinct-values($cases[$applies(., "XP")] ! base-uri(.)))</expression>
+  <source file="third_party/qt4tests/catalog.xml"/>
+</fact>

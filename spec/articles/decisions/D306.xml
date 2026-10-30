@@ -12,4 +12,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source>sxml:parse-code over 1 MB of Markdown before and after (29 s, 97 % in ts_query_new; 1.1 s, 60 % in the parse)</source>
+    <source tool="tests/bench/run-ixml-bench.py">1 MB of JSON with an iXML grammar, sxml:parse-code and fn:json-to-xml, and the Markdown input, with limits in --check</source>
+    <source>tree-sitter's parse alone of the JSON, measured once with a small C program against the vendored runtime, not part of the suite</source>
+  </sources>
 </decision>

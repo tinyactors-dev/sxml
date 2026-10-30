@@ -33,4 +33,12 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="wasm">module memory, peak JavaScript heap and peak resident set of serialize and serializeTo, query, transform and streamedSource outputs on Node.js 22</source>
+    <source tool="ctest" build="debug">tests/host_shim_test.c: 10 of 10 under ASan and UBSan</source>
+    <source tool="ctest" build="wasm">javascript/streams (test/stream.test.ts, 19 cases), with the 100.4 MB streamed output under its memory limits</source>
+    <source tool="tools/check-book-examples.sh">the book's JavaScript chapter: 6 examples match</source>
+    <source tool="bindings/javascript/test/size-budget.mjs">sxml.wasm stripped and gzipped, before and after</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the size budget of sxml.wasm</source>
+  </sources>
 </decision>

@@ -27,4 +27,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source file="src/processor.c">configured: defaults of maximum_expression_depth (10,000, <ref kind="decision" to="D63"/>) and maximum_evaluation_depth (1,000,000, <ref kind="decision" to="D75"/>)</source>
+  </sources>
 </decision>

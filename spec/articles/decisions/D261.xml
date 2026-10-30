@@ -21,4 +21,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, case by case, before and after</source>
+  </sources>
 </decision>

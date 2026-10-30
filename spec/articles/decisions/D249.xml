@@ -75,4 +75,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh tools/run-qt4.sh tools/run-xsd.sh" build="release">XT40, XP40, XQ40 and XSD passes, whole suites, case by case, before at 6e1a371 and after</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm">sxml.wasm, sxml-full.wasm and the CLI, stripped and gzipped, and the <ref kind="decision" to="D225"/> guard</source>
+    <source tool="tools/check-call-cycles.py">call cycle check, 230 files</source>
+  </sources>
 </decision>

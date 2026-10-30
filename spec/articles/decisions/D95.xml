@@ -18,4 +18,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source file="third_party/qt4tests/catalog.xml">denominators: XP40, XQ40 and XSLT 4.0 cases minus non-goal features and sets</source>
+    <source file="third_party/xslt40-test/catalog.xml">XSLT 4.0 cases in scope and in all</source>
+    <source tool="sxml-qt4" build="release">XP40 passes at the end of Phase 1 and the failures by cause</source>
+  </sources>
 </decision>

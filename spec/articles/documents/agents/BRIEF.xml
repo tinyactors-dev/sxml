@@ -57,6 +57,9 @@
         <p>Decisions another agent needs are new decisions: <code>tools/spec/spec add decision --title=... --summary=... --after='D12 D99' --body=-</code> (the number is taken for you). Give each a one-sentence summary: it is what other agents read first. Items for the owner are proposals: <code>tools/spec/spec add proposal</code>.</p>
       </item>
       <item>
+        <p>A decision that reports measurements (passes, sizes, timings) says where they came from: <code>tools/spec/spec add-source DN --what=... --tool=... --build=... --at=COMMIT</code> for each run. Text that states a current value (the passes now, a budget, a slice's size) cites its fact (<code>{{ID}}</code>, <code>tools/spec/spec show FACTS</code>, <code>add fact</code> for a new one) instead of copying the number.</p>
+      </item>
+      <item>
         <p>Add a short entry to the log: <code>tools/spec/spec log TEXT</code> (this week's entry, newest first).</p>
       </item>
       <item>

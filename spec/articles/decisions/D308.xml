@@ -27,4 +27,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="release">20,000 replace calls with "(W<em>)$AMOUNT(W</em>)" and with "$AMOUNT", processor seconds, fastest of five, before and after</source>
+    <source tool="tests/bench/regex-reuse.xq" build="release">tests/bench/regex-reuse.xq, processor seconds, before and after</source>
+  </sources>
 </decision>

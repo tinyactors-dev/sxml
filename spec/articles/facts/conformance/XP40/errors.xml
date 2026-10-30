@@ -1,0 +1,5 @@
+<fact id="conformance/XP40/errors">
+  <title>XP40 test cases ending in an error</title>
+  <expression>xs:integer(replace(tokenize(unparsed-text-lines("docs/CONFORMANCE.md")[starts-with(., "| XP40 |")][1], "\s*\|\s*")[8], ",", ""))</expression>
+  <source file="docs/CONFORMANCE.md" written-by="tools/conformance-report.py"/>
+</fact>

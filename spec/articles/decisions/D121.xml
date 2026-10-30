@@ -21,4 +21,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/qt4-parse-check.py">valid XQ40 queries, parsable library modules and XPST0003 queries through the C entry, a scratch harness over the case loader</source>
+  </sources>
 </decision>

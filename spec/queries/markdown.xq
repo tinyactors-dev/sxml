@@ -8,6 +8,7 @@ import module namespace spec = "urn:sxml:spec" at "spec/lib/spec.xqm";
 
 declare variable $name as xs:string external;
 
-let $spec := spec:load()
+let $loaded := spec:load()
+let $spec := spec:with-values($loaded, spec:one($loaded, $name))
 let $article := spec:one($spec, $name)
 return spec:markdown($spec, $article, if ($article/self::document) then 1 else 2) || "&#10;"

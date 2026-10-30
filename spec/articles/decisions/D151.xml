@@ -30,4 +30,11 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-qt4.sh tools/conformance-report.py" build="release" at="ed225c2">XP40 and XQ40 passes, in scope and by area, and the slice</source>
+    <source tool="tools/fuzz.sh">fuzzing, 300 s per target, all five at once, then the two XPath targets 300 s more</source>
+    <source>F&amp;O 4.0's signatures (282 names) looked up in the library at arities 0 to 7</source>
+    <source tool="tools/run-qt4.sh">XP40 and XQ40 outcomes, case by case, before and after the merges</source>
+    <source tool="ctest" build="debug" at="c7c0c35">the 193 debug tests with a probe that aborts on a nested run of the lowering machine</source>
+  </sources>
 </decision>

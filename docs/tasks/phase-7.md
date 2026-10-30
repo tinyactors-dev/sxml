@@ -57,7 +57,7 @@ not regress the counts of Phases 2 to 5.
   that XPath can reach would link into it. Packet 7.2 carries out the owner's
   choice, and features that would grow `sxml.wasm` wait for 7.2.
 
-## Not run today, by feature
+## Not run today, by feature (counts of the Phase 7 plan, D183)
 
 The counts come from `docs/CONFORMANCE.md` at 3b0812a, and from the catalogs
 where the dashboard shows only the 15 largest reasons. "First" means "the first
@@ -177,7 +177,7 @@ If every XPath-reachable feature were linked, `sxml.wasm` would grow by about
 | Wave | Packets (run together) | Why first |
 | --- | --- | --- |
 | 1 | 7.2 optional features (after the owner's choice), 7.3 xsl:evaluate, 7.4 backwards compatibility, 7.5 disable-output-escaping | Small, low risk, no `sxml.wasm` cost (7.4's XPath flag aside). 7.4 matters most to users: today every `version="1.0"` stylesheet raises XTDE0160 when an instruction of it is evaluated |
-| 2 | 7.6 XSLT streaming (a, b), 7.7 Update Facility (a, b, c) | The two largest sets (2,932 and 825); XSLT and XQuery only |
+| 2 | 7.6 XSLT streaming (a, b), 7.7 Update Facility (a, b, c) | The two largest sets (2,932 and 825, D183); XSLT and XQuery only |
 | 3 | 7.8 EXPath Binary, 7.9 EXPath File, 7.10 HTML5 (a, b), 7.11 fn:transform | Large sets or high demand, after 7.2 |
 | 4 | 7.12 Full Text (a, b, c), 7.13 XML 1.1 input, 7.14 DTD processing (a, b) | Highest risk (Full Text); 7.13 and 7.14 share the XML parser, so 7.14 follows 7.13 |
 | 5 | 7.15 UCA (a, b), 7.16 timezone database, 7.17 calendars and languages, 7.18 Invisible XML | Few cases and much data; 7.17 follows 7.16 (both use `src/format_date.c`) |
@@ -359,8 +359,8 @@ merges.
   fn:copy-of) and 19 "Streamability" (postures, sweeps, the streamability rules
   of each construct, guaranteed streamability, XTSE3430); XSLT 4.0, 27 (the
   streaming conformance feature).
-- **Unlocks**: XT40 streaming 2,932 (`tests/strm/` 2,564: sf-, si-, sx- sets;
-  `streamable` 139; `streaming-fallback` 6, today run unstreamed).
+- **Unlocks** (D183): XT40 streaming 2,932 (`tests/strm/` 2,564: sf-, si-, sx-
+  sets; `streamable` 139; `streaming-fallback` 6, today run unstreamed).
 - **Replaces**: today streamable="yes" runs unstreamed, as a non-streaming
   processor may (`src/xslt_read.c`, `src/xslt_accumulator.c`,
   supports-streaming false, the driver's streaming-fallback).
@@ -675,7 +675,7 @@ in the XHTML namespace, plus encoding sniffing and legacy decoders.
   - HTML Living Standard (WHATWG), 13.2 "Parsing HTML documents" (encoding
     sniffing 13.2.3, tokenization 13.2.5, tree construction 13.2.6) and 13.5
     "Named character references".
-- **Unlocks**: XQ40 1,401 (misc-HtmlTestSuite 1,379, from the
+- **Unlocks** (D183): XQ40 1,401 (misc-HtmlTestSuite 1,379, from the
   web-platform-tests HTML suite; fn-parse-html 14; fn-html-doc 8) and XP40 22.
 - **Replaces**: the functions are absent (XPST0017). Also the drivers' non-goal
   test sets misc-HtmlTestSuite, fn-parse-html and fn-html-doc.

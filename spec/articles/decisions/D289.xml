@@ -33,4 +33,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, before (a whole run at 384040b) and after each change, case by case</source>
+    <source tool="tools/run-qt4.sh">QT4 serializer sets (XQ40/XP40 method-adaptive, fn-serialize, method-xml/-text/-json/-html, OptionDecl.serialization): no new failure</source>
+  </sources>
 </decision>

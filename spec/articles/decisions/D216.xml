@@ -24,4 +24,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="bindings/javascript/test/size-budget.mjs">sxml.wasm and sxml-full.wasm stripped and gzip -9, before and after; the core with inline hints</source>
+    <source tool="ctest" file="bindings/javascript/test/full.test.ts">package tests of the full module, 24 under Node 22</source>
+  </sources>
 </decision>

@@ -19,6 +19,30 @@
         <xs:element name="title" type="inline"/>
         <xs:element name="summary" type="inline" minOccurs="0"/>
         <xs:element name="body" type="blocks"/>
+        <xs:element name="sources" minOccurs="0">
+          <xs:annotation><xs:documentation>Where the decision's measurements came from: one source per measurement or run.</xs:documentation></xs:annotation>
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="source" maxOccurs="unbounded">
+                <xs:annotation><xs:documentation>Its text says what was measured; tool, build, at and file say how: the program or command, the CMake preset, the commit measured, a file the number was read from.</xs:documentation></xs:annotation>
+                <xs:complexType>
+                  <xs:complexContent>
+                    <xs:extension base="inline">
+                      <xs:attribute name="tool" type="xs:string"/>
+                      <xs:attribute name="build" type="xs:token"/>
+                      <xs:attribute name="at">
+                        <xs:simpleType>
+                          <xs:restriction base="xs:token"><xs:pattern value="[0-9a-f]{7,40}"/></xs:restriction>
+                        </xs:simpleType>
+                      </xs:attribute>
+                      <xs:attribute name="file" type="xs:string"/>
+                    </xs:extension>
+                  </xs:complexContent>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
       </xs:sequence>
       <xs:attribute name="id" use="required" type="decision-identifier"/>
       <xs:attribute name="status" use="required">
@@ -85,6 +109,26 @@
     </xs:complexType>
   </xs:element>
 
+  <xs:element name="fact">
+    <xs:annotation><xs:documentation>A value the spec states and does not store: an XQuery expression over the files that hold it, evaluated whenever it is shown, so it cannot drift from them.</xs:documentation></xs:annotation>
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="title" type="inline"/>
+        <xs:element name="expression" type="xs:string">
+          <xs:annotation><xs:documentation>An XQuery 4.0 expression whose value is one atomic item; relative URIs are the repository's paths. An integer is shown with thousands separators.</xs:documentation></xs:annotation>
+        </xs:element>
+        <xs:element name="source" maxOccurs="unbounded">
+          <xs:annotation><xs:documentation>A file the expression reads, and what writes it.</xs:documentation></xs:annotation>
+          <xs:complexType>
+            <xs:attribute name="file" use="required" type="xs:string"/>
+            <xs:attribute name="written-by" type="xs:string"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="id" use="required" type="fact-identifier"/>
+    </xs:complexType>
+  </xs:element>
+
   <xs:element name="document">
     <xs:annotation><xs:documentation>A page people read: its own text, and the articles it includes, in order.</xs:documentation></xs:annotation>
     <xs:complexType>
@@ -122,6 +166,9 @@
   <xs:simpleType name="document-identifier">
     <xs:restriction base="xs:token"><xs:pattern value="[A-Za-z0-9_\-]+(/[A-Za-z0-9_\-]+)*"/></xs:restriction>
   </xs:simpleType>
+  <xs:simpleType name="fact-identifier">
+    <xs:restriction base="xs:token"><xs:pattern value="[a-z0-9][a-z0-9-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)+"/></xs:restriction>
+  </xs:simpleType>
   <xs:simpleType name="kind">
     <xs:restriction base="xs:token">
       <xs:enumeration value="decision"/>
@@ -130,6 +177,7 @@
       <xs:enumeration value="packet"/>
       <xs:enumeration value="log-entry"/>
       <xs:enumeration value="document"/>
+      <xs:enumeration value="fact"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -282,6 +330,12 @@
         <xs:annotation><xs:documentation>"Recorded DATE": when a decision was recorded.</xs:documentation></xs:annotation>
         <xs:complexType>
           <xs:attribute name="date" use="required" type="xs:date"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="value">
+        <xs:annotation><xs:documentation>The value of a fact, computed when the text is shown.</xs:documentation></xs:annotation>
+        <xs:complexType>
+          <xs:attribute name="of" use="required" type="fact-identifier"/>
         </xs:complexType>
       </xs:element>
       <xs:element name="status">

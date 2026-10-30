@@ -36,4 +36,12 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source>compiled XPath parser with and without the Full Text productions, wasm32 code and data, -Os</source>
+    <source>ft cases run through the XPath API in a private build</source>
+    <source tool="tools/run-qt4.sh" build="release">XP40 and XQ40 passes, whole runs, 7749770 against the change</source>
+    <source tool="tools/qt4-parse-check.py">XP40 applicable cases classified with both grammars</source>
+    <source tool="bindings/javascript/test/size-budget.mjs" build="wasm">sxml.wasm, sxml-full.wasm and the CLI, stripped and gzipped, before and after d25980e</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: size budgets of the full module and the CLI</source>
+  </sources>
 </decision>

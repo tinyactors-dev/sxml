@@ -5,25 +5,28 @@
 Kept by the orchestrator. Newest state first; each change is its own commit.
 Numbers are release-build passes from `docs/CONFORMANCE.md`.
 
-## State (2026-10-19)
+## State
 
 - Phases 0–5 and 7 closed by agent review (D11, D151, D161, D169, D182, D237);
   fuzzing at length and the full lint wait for the owner's machine (D181).
   7.11's gate (all 12 XT40 transform cases) is open: 10 pass; transform-004
   needs a suspendable compiler (D71), transform-401 waits on 4.22's
   newest-draft patterns (D249).
-- Passes (release, whole suites at e74d4ad, report-1, docs/CONFORMANCE.md):
-  XP40 32,815 (26 failed), XQ40 46,158 (74), XT40 12,268 (250), XSD11 41,599 of
-  41,610 run (11), iXML 886 of 907 (21 not run), tree-sitter 1,410 of 1,438 (8
-  failed, 1 corpus error). Zero errors in the W3C suites. Gate rates: XP40 99.8
-  %, XQ40 99.8 %, XT40 96.7 %, XSD 100.0 %. tools/conformance-report.py has no
-  iXML or tree-sitter sections yet.
+- Passes (release, whole suites, `docs/CONFORMANCE.md` at e74d4ad475b6 of
+  2026-10-20): XP40 32,815 (26 failed, 0 errors), XQ40 46,158 (74, 0), XT40
+  12,268 (250, 0), XSD11 41,599 of 41,610 run (11, 0). Gate rates: XP40 99.8 %,
+  XQ40 99.8 %, XT40 96.7 %, XSD 100.0 %. `tools/conformance-report.py` has no
+  iXML or tree-sitter sections yet: the iXML suite passed 886 of 907 (21 not
+  run) at D290, tree-sitter/suite 1,410 of 1,438 (8 failed, 1 corpus error) at
+  D307.
 - One build with everything (D272, size-3): every shipped build has every
   language and optional feature; the JavaScript package ships one `sxml.wasm`
-  (7,701,002 / 1,713,241 bytes; budget 8,000,000 / 2,800,000;
-  `./sxml-full.wasm` is an alias). CLI budget 9,500,000 / 2,100,000. The size
-  test compares the module's linker map with a baseline and prints the top
-  growths (D225). fn:load-xquery-module serves every language.
+  (`./sxml-full.wasm` is an alias), budget 14,000,000 / 2,800,000 bytes
+  (stripped / gzipped); the CLI module's is 15,500,000 / 2,900,000. Their sizes
+  when last measured, at wasm-1 (week-of-2026-10-26): 13,833,376 / 2,529,416
+  and 15,441,066 / 2,817,989. The size test compares the module's linker map
+  with a baseline and prints the top growths (D225). fn:load-xquery-module
+  serves every language.
 - EXPath Binary (D198) 646 of 646 and File (D200) 270 of 270 in XQ40; File
   needs `--allow-file-access` in the CLI and has no Windows implementation.
 
@@ -144,7 +147,7 @@ them unless --drafts.)
 - Sorting was measured and is not a problem: 780 elements sort in about 1.3 ms
   (`xsl:sort`) or 1.8 ms (`fn:sort`). SchXslt's 7 minutes were its own 800,000
   re-sorts; the fix (sort once in `schxslt:replace-params`) belongs upstream,
-  for the owner to offer.
+  for the owner to offer (measured in perf-8, commit 44f8d54).
 - 7.26 done (D307): tree-sitter:parse and tree-sitter:languages in
   urn:sxml:tree-sitter (name.h 17, additive), errors
   tree-sitter:unknown-language and tree-sitter:invalid-query; sxml:token and

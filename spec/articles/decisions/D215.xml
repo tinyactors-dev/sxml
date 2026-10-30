@@ -30,4 +30,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source>right recursion over 3,000 characters: Earley items</source>
+    <source tool="tests/ixml/run-ixml-tests.sh tests/ixml/ixml-driver.xq" file="third_party/ixml-tests">iXML community suite passes, errors and not run; grammar tests and test cases with a correct grammar</source>
+    <source tool="tools/run-qt4.sh">QT4 fn-invisible-xml, app-spec-examples, misc-BuiltInKeywords and fn-system-properties, XP40 and XQ40, before and after</source>
+    <source file="third_party/ixml-tests">size of the vendored iXML tests and of the performance tests left out</source>
+  </sources>
 </decision>

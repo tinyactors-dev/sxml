@@ -181,4 +181,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source>probe: stripped and gzip -9 shared library with every feature for the four Android ABIs, NDK r28c</source>
+    <source>configured: default size budget for libsxml_kotlin.so on arm64-v8a</source>
+  </sources>
 </decision>

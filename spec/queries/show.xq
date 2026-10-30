@@ -23,7 +23,8 @@ declare function local:outline($spec as map(*), $node as element(), $indent as x
     else ()
 };
 
-let $spec := spec:load()
+let $loaded := spec:load()
+let $spec := spec:with-values($loaded, spec:one($loaded, $name))
 let $article := spec:one($spec, $name)
 let $file := substring-after(document-uri(root($article)), $spec:root)
 let $date := spec:date($article)

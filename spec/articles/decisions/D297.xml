@@ -21,4 +21,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="release">peak resident set of html, xhtml and xml outputs of 20,000 records of 1 KB in a streamable mode, before and after; outputs byte-identical</source>
+    <source tool="ctest">serialize_html and evaluator_stream cases (30,000 records under a 1 MB limit, peaks 207 to 384 KB)</source>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole catalog, before and after, case by case</source>
+    <source tool="tools/run-qt4.sh">QT4 XQ40 method-html, method-xhtml, method-xml, fn-serialize, method-adaptive, as in CONFORMANCE.md</source>
+  </sources>
 </decision>

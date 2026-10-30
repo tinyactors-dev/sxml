@@ -33,4 +33,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release">XT40 in-scope passes, before and after, of the six package sets and the whole suite</source>
+  </sources>
 </decision>

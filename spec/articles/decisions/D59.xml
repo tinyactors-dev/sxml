@@ -24,4 +24,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="wasm">20,000 nested parentheses</source>
+    <source>XP40 valid queries that build, and the two <ref kind="decision" to="D29"/> false accepts</source>
+  </sources>
 </decision>

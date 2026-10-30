@@ -30,4 +30,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/qt4-parse-check.py tools/qt4-parse-harness.c" file="grammars/xquery/README.md">XP40, XQ40 and XSLT 4.0 pattern false rejects and false accepts, every applicable query, on 2026-10-16</source>
+  </sources>
 </decision>

@@ -37,7 +37,7 @@ declare function local:first-difference($left as node()*, $right as node()*) as 
 };
 
 let $spec := spec:load()
-let $nodes := (spec:of-kind($spec, ())[not(self::term)], spec:of-kind($spec, "document")//section)
+let $nodes := (spec:of-kind($spec, ())[not(self::term or self::fact)], spec:of-kind($spec, "document")//section)
 let $failures :=
   for $node in $nodes
   let $source := spec:source($spec, $node)

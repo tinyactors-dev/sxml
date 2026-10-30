@@ -1,0 +1,6 @@
+<fact id="qt4-catalog/test-cases">
+  <title>Test cases in the QT4 catalog</title>
+  <expression>let $cases := doc("third_party/qt4tests/catalog.xml")/*:catalog/*:test-set ! doc(resolve-uri(@file, base-uri(.)))//*:test-case
+return count($cases)</expression>
+  <source file="third_party/qt4tests/catalog.xml"/>
+</fact>

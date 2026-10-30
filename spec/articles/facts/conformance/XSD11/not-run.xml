@@ -1,0 +1,5 @@
+<fact id="conformance/XSD11/not-run">
+  <title>XSD11 test cases not run</title>
+  <expression>xs:integer(replace(tokenize(unparsed-text-lines("docs/CONFORMANCE.md")[starts-with(., "| XSD11 |")][1], "\s*\|\s*")[9], ",", ""))</expression>
+  <source file="docs/CONFORMANCE.md" written-by="tools/conformance-report.py"/>
+</fact>

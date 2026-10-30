@@ -33,4 +33,12 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release" at="b67c93f">XT40 in scope, whole suite, before</source>
+    <source tool="tools/run-xslt.sh tools/conformance-report.py" build="release">XT40 in scope, whole suite, with this packet alone, errors and the sets number, result-document, map-for-key, error</source>
+    <source tool="tools/run-xslt.sh" build="release" at="4cb75fd">XT40 in scope, whole suite, with packet 4.16's packages</source>
+    <source tool="tools/run-qt4.sh" build="release">XP40 and XQ40 passes, unchanged, and the slice</source>
+    <source>20,000 accesses $s[$k], before and after the constant predicate (26 s to 0.02 s)</source>
+    <source>memory per small element tree (about 9 KB) and per JSON object (about 1.5 KB) in json-to-xml-013 and array-022</source>
+  </sources>
 </decision>

@@ -30,4 +30,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh tools/run-qt4.sh" build="release">json-to-xml-013 memory; XT40, XP40 and XQ40 passes, whole suites, and the slices, before (at 53bd400) and after the change</source>
+  </sources>
 </decision>

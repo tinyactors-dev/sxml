@@ -30,4 +30,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh tools/conformance-report.py" build="release">XSLT passes in scope, whole suite, with the core sets and the top causes</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the WebAssembly CLI size budget, 5,000,000 / 1,100,000 bytes</source>
+  </sources>
 </decision>

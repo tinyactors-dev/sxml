@@ -24,4 +24,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release" at="72119c1">clusters of the XT40 failures, whole run at 72119c1</source>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes and gate rate, whole suite, case by case, after each change</source>
+    <source tool="tools/run-qt4.sh">QT4 XP40 and XQ40: the assert-xml cases, fn-jkey, fn-jtree, fn-jvalue and prod-MapConstructor</source>
+  </sources>
 </decision>

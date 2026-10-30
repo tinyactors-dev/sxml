@@ -39,4 +39,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xsd.sh">XSD schema tests by test set, with 5.4's uncommitted reader</source>
+  </sources>
 </decision>

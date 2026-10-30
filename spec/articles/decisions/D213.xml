@@ -33,4 +33,12 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="ctest" file="tests/collation_uca_test.c">CollationTest samples, NON_IGNORABLE and SHIFTED line counts</source>
+    <source tool="tests/collation_uca_test.c">full CollationTest _SHORT files, not vendored</source>
+    <source tool="tools/run-qt4.sh tools/run-xslt.sh" build="release">QT4 advanced-uca-fallback, non_unicode_codepoint_collation and the collation sets, XQ40 and XP40, and XT40 collations and the unchanged groups, before and after</source>
+    <source tool="bindings/javascript/test/size-budget.mjs">sxml.wasm, sxml-full.wasm and the CLI, stripped and gzipped, before at 8a8fd58 and with the feature</source>
+    <source file="bindings/javascript/CMakeLists.txt">configured: the CLI budget, 7,500,000 / 1,650,000</source>
+    <source file="third_party/unicode-collation/allkeys.txt">size of the shipped allkeys.txt</source>
+  </sources>
 </decision>

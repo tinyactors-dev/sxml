@@ -21,4 +21,10 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="sxml-xsd-test tools/run-xsd.sh" file="third_party/xsdtests/suite.xml">in-scope tests, schema and instance tests, by contributor and gate group, applying version tokens per element</source>
+    <source file="tests/xsd/slice.txt">slice: 147 in-scope tests</source>
+    <source tool="tools/run-xsd.sh" build="release">a full release run (45 s)</source>
+    <source>quoted from <ref kind="decision" to="D165"/></source>
+  </sources>
 </decision>

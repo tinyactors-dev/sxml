@@ -35,4 +35,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, before (a whole run at fdff1ee) and after each change, case by case</source>
+    <source tool="tools/run-qt4.sh">QT4 sets the loader and fn:function-lookup touch (XQ40/XP40 fn-function-lookup, fn-doc, fn-doc-available, fn-collection, prod-ModuleImport), equal to docs/CONFORMANCE.md</source>
+  </sources>
 </decision>

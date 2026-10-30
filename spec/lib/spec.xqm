@@ -13,6 +13,8 @@ module namespace spec = "urn:sxml:spec";
 
 import schema default element namespace "" at "../schema/spec.xsd";
 
+declare namespace file = "http://expath.org/ns/file";
+
 (:~ The repository root: this module is spec/lib/spec.xqm. :)
 declare variable $spec:root as xs:string := resolve-uri("../../", static-base-uri());
 
@@ -29,7 +31,7 @@ declare variable $spec:serialization as map(*) := {
 
 declare variable $spec:directories as map(xs:string, xs:string) := {
   "decision": "decisions", "proposal": "proposals", "term": "terms",
-  "packet": "packets", "log-entry": "log", "document": "documents"
+  "packet": "packets", "log-entry": "log", "document": "documents", "fact": "facts"
 };
 
 (:~ The URI of PATH, a path relative to the repository root. :)
@@ -102,17 +104,20 @@ declare %private function spec:no-such($spec as map(*), $name as xs:string) as x
 (:~ The article a reference names, or nothing when it dangles. :)
 declare function spec:target($spec as map(*), $reference as element()) as element()? {
   if ($reference/self::term) then $spec?index("term-name:" || $reference/@name)
+  else if ($reference/self::value) then $spec?index("fact:" || $reference/@of)
   else $spec?index($reference/@kind || ":" || $reference/@to)
 };
 
 (:~ Every reference in NODES: refs, terms and includes. :)
 declare function spec:references($nodes as node()*) as element()* {
-  $nodes/descendant-or-self::*[self::ref or self::term[@name] or self::include]
+  $nodes/descendant-or-self::*[self::ref or self::term[@name] or self::include or self::value]
 };
 
 (:~ The key a reference names. :)
 declare function spec:reference-key($reference as element()) as xs:string {
-  if ($reference/self::term) then "term:" || $reference/@name else $reference/@kind || ":" || $reference/@to
+  if ($reference/self::term) then "term:" || $reference/@name
+  else if ($reference/self::value) then "fact:" || $reference/@of
+  else $reference/@kind || ":" || $reference/@to
 };
 
 (:~ The articles whose text refers to ARTICLE; an include is not a citation. :)
@@ -199,6 +204,7 @@ declare %private function spec:plain-node($node as node()) as xs:string {
     case element(ref) return string($node/@to)
     case element(term) return if ($node/@name) then string($node/@name) else spec:plain($node/node())
     case element(recorded) return "Recorded " || $node/@date
+    case element(value) return "{{" || $node/@of || "}}"
     case element(status) return string-join((spec:capitalize($node/@value), $node/@date), " ")
     case element() return spec:plain($node/node())
     default return ""
@@ -312,7 +318,12 @@ declare %private function spec:blocks($spec as map(*), $node as element(), $leve
       for $child in $node/*[not(self::title or self::summary)] return spec:block($spec, $child, 2, $indent, $mode))
     case element(decision) return (
       spec:hashes($level) || " " || $node/@id || ". " || $title, "", $superseded, $summary,
-      for $child in $node/body/* return spec:block($spec, $child, $level + 1, $indent, $mode))
+      for $child in $node/body/* return spec:block($spec, $child, $level + 1, $indent, $mode),
+      $node/sources ! ("**Sources**: " || string-join(source ! spec:source-line(., $mode), "; ") || ".", ""))
+    case element(fact) return
+      "| `" || $node/@id || "` | " || spec:inline($node/title/node(), true(), $mode) || " | " ||
+      (if (exists($spec?values) and map:contains($spec?values, string($node/@id))) then $spec?values(string($node/@id)) else "") ||
+      " | " || string-join($node/source ! ("`" || @file || "`" || @written-by ! (" (" || . || ")")), ", ") || " |"
     case element(packet) return (
       spec:hashes($level) || " " || $node/@id || " " || $title, $summary,
       for $child in $node/body/* return spec:block($spec, $child, $level + 1, $indent, $mode))
@@ -325,6 +336,14 @@ declare %private function spec:blocks($spec as map(*), $node as element(), $leve
              spec:inline($definition/node(), true(), $mode) || " |"
     case element(proposal) return spec:block($spec, spec:proposal-item($node), $level, $indent, $mode)
     default return spec:block($spec, $node, $level, $indent, $mode)
+};
+
+(:~ One source of a decision's measurements, as a page shows it. :)
+declare function spec:source-line($source as element(source), $mode as xs:string) as xs:string {
+  let $how := string-join((
+    $source/@tool ! string-join(tokenize(., "\s+")[.] ! ("`" || . || "`"), ", "), $source/@build ! (. || " build"), $source/@at ! ("at " || .),
+    $source/@file ! ("from `" || . || "`")), ", ")
+  return spec:inline($source/node(), false(), $mode) || ($how[.] ! (" (" || . || ")"))
 };
 
 declare %private function spec:proposal-item($proposal as element(proposal)) as element(item) {
@@ -427,6 +446,7 @@ declare function spec:inline($nodes as node()*, $in-table as xs:boolean, $mode a
       typeswitch ($node)
         case text() return
           let $text := replace(string($node), if ($mode = "source") then "([\\`*\[])" else "([\\`*])", "\\$1")
+          let $text := if ($mode = "source") then replace($text, "\{\{", "\\{{") else $text
           return if ($in-table) then replace($text, "\|", "\\|") else $text
         case element(code) return spec:code(string($node), $in-table)
         case element(term) return spec:code(string($node/@name), $in-table)
@@ -437,6 +457,7 @@ declare function spec:inline($nodes as node()*, $in-table as xs:boolean, $mode a
         case element(em) return "*" || spec:inline($node/node(), $in-table, $mode) || "*"
         case element(link) return "[" || spec:inline($node/node(), $in-table, $mode) || "](" || $node/@href || ")"
         case element(recorded) return "Recorded " || $node/@date
+        case element(value) return "{{" || $node/@of || "}}"
         case element(status) return "**" || spec:capitalize($node/@value) || "**" || $node/@date ! (" " || .)
         default return spec:inline($node/node(), $in-table, $mode))
 };
@@ -653,7 +674,7 @@ declare %private function spec:split-row($line as xs:string) as xs:string* {
 declare function spec:prose-inline($spec as map(*), $text as xs:string) as node()* {
   if ($text = "") then ()
   else
-    let $plain := replace($text, "^([^\\`*\[]*).*$", "$1", "s")
+    let $plain := replace($text, "^([^\\`*\[{]*).*$", "$1", "s")
     let $rest := substring($text, string-length($plain) + 1)
     return (spec:prose-references($spec, $plain), if ($rest = "") then () else spec:prose-special($spec, $rest))
 };
@@ -675,6 +696,10 @@ declare %private function spec:prose-special($spec as map(*), $text as xs:string
         return (
           if (exists($spec?index("term-name:" || $content))) then <term name="{ $content }"/> else <code>{ $content }</code>,
           spec:prose-inline($spec, substring($after, $close + string-length($run))))
+  else if (matches($text, "^\{\{[a-z0-9][^}]*\}\}", "s")) then
+    let $fact := replace($text, "^\{\{([^}]*)\}\}.*$", "$1", "s")
+    return (<value of="{ $fact }"/>, spec:prose-inline($spec, substring($text, string-length($fact) + 5)))
+  else if (starts-with($text, "{")) then (text { "{" }, spec:prose-inline($spec, substring($text, 2)))
   else if (matches($text, "^\[\[[a-z-]+:[^\]]+\]\]", "s")) then
     let $key := replace($text, "^\[\[([^\]]+)\]\].*$", "$1", "s")
     return (<ref kind="{ substring-before($key, ':') }" to="{ substring-after($key, ':') }"/>,
@@ -740,6 +765,66 @@ declare %private function spec:prose-references($spec as map(*), $text as xs:str
     else text { $part }
 };
 
+(: ---- Facts ---- :)
+
+(:~ The module that computes FACTS: one function per fact, in their order. :)
+declare function spec:fact-module($facts as element(fact)*) as xs:string {
+  string-join((
+    'module namespace fact = "urn:sxml:spec:fact";',
+    'declare base-uri "' || $spec:root || '";',
+    for $fact at $position in $facts
+    return "declare function fact:f" || $position || "() as xs:anyAtomicType* { " || $fact/expression || " };"
+  ), "&#10;")
+};
+
+(:~ A fact's value as text: an integer with thousands separators, anything else as it is. :)
+declare function spec:fact-text($value as xs:anyAtomicType) as xs:string {
+  if ($value instance of xs:integer) then format-integer($value, "#,##0") else string($value)
+};
+
+(:~
+ : The values of FACTS, a map from identifier to text, computed in one
+ : trusted module; or, for a fact that fails or gives other than one
+ : item, "error: " and why.
+ :)
+declare function spec:fact-values($facts as element(fact)*) as map(xs:string, xs:string) {
+  let $call := fn($module, $position) {
+    let $values := $module?functions(QName("urn:sxml:spec:fact", "f" || $position))?0()
+    return if (count($values) = 1) then spec:fact-text($values) else "error: " || count($values) || " values"
+  }
+  let $all := try { load-xquery-module("urn:sxml:spec:fact", { "trusted": true(), "content": spec:fact-module($facts) }) }
+              catch * { () }
+  return map:merge(
+    for $fact at $position in $facts
+    return map:entry(string($fact/@id),
+      if (exists($all)) then try { $call($all, $position) } catch * { "error: " || $err:description }
+      else
+        (: The module does not compile: compile each fact alone to find which. :)
+        try {
+          let $one := load-xquery-module("urn:sxml:spec:fact", { "trusted": true(), "content": spec:fact-module($fact) })
+          return $call($one, 1)
+        } catch * { "error: " || $err:description }))
+};
+
+(:~
+ : SPEC with the facts that NODES show computed: in "values", and in place
+ : of each value element of the articles, as text.
+ :)
+declare function spec:with-values($spec as map(*), $nodes as node()*) as map(*) {
+  let $wanted := distinct-values(($nodes//value/@of, $nodes/descendant-or-self::fact/@id,
+                                  if ($nodes//collect[@kind = "fact"]) then spec:of-kind($spec, "fact")/@id else ()))
+  let $facts := spec:of-kind($spec, "fact")[@id = $wanted]
+  return
+    if (empty($facts)) then $spec
+    else
+      let $values := spec:fact-values($facts)
+      let $articles := $spec?articles ! (
+        if (.//value[@of = $wanted]) then document { * transform with {
+          for $value in .//value[map:contains($values, string(@of))] return replace node $value with text { $values(string($value/@of)) }
+        } } else .)
+      return map:put(spec:load($articles), "values", $values)
+};
+
 (: ---- Checks ---- :)
 
 (:~
@@ -775,7 +860,8 @@ declare function spec:check($spec as map(*)) as xs:string* {
     where not($included(spec:key($article)) or local-name($article) = $collected)
     return "error: " || spec:key($article) || " is in no document",
     for $term in $all/self::term[count(definition) > 1]
-    return "warning: term:" || $term/@id || " has " || count($term/definition) || " definitions"
+    return "warning: term:" || $term/@id || " has " || count($term/definition) || " definitions",
+    spec:check-measurements($spec)
   )
 };
 
@@ -789,6 +875,65 @@ declare function spec:not-canonical($spec as map(*)) as xs:string* {
   let $uri := document-uri($article)
   where serialize($article, $spec:serialization) || "&#10;" ne unparsed-text($uri)
   return "error: " || substring-after($uri, $spec:root) || " is not in canonical form; it was edited as text"
+};
+
+(:~ A number that reports a measurement: 32,815 or 99.8 %, not a target such as "≥ 90 %". :)
+declare variable $spec:measured as xs:string := "\d{1,3}(,\d{3})+|\d+(\.\d+)? ?%";
+
+declare function spec:measurements($text as xs:string) as xs:string* {
+  let $parts := analyze-string($text, $spec:measured)/*
+  for $part at $position in $parts
+  where $part/self::fn:match and not(matches(string($parts[$position - 1]), "[≥≤<>]\s*$"))
+  return string($part)
+};
+
+(:~
+ : Where measured numbers lack a source: a decision that states one and
+ : has no sources; and, in a document, packet or proposal, a number that
+ : is not a fact's value and stands in no row, list item or paragraph that
+ : cites the decision, packet or log entry that measured it, under no
+ : section or article title that does (in a packet, the decision of its
+ : done line counts for all of it). Log entries are records of their own,
+ : as decisions are; terms define words. Facts that fail, and files a fact or a source names that do not
+ : exist, are errors too.
+ :)
+declare function spec:check-measurements($spec as map(*)) as xs:string* {
+  let $all := $spec?articles/*
+  let $texts := fn($nodes) { $nodes//text()[not(ancestor::code or ancestor::pre or ancestor::sources)] }
+  return (
+    for $decision in $all/self::decision[not(@status = "unused")][empty(sources)]
+    let $numbers := $texts($decision) ! spec:measurements(.)
+    where exists($numbers)
+    return "error: " || spec:key($decision) || " states measurements (" || string-join(subsequence($numbers, 1, 3), ", ") ||
+           (if (count($numbers) > 3) then ", ..." else "") || ") but has no sources",
+    for $article in $all[not(self::decision or self::fact or self::log-entry or self::term)]
+    let $packet-cites := $article/self::packet/body/*[1][status]//ref[@kind = "decision"]
+    for $text in $texts($article)
+    let $numbers := spec:measurements($text)
+    where exists($numbers) and empty($packet-cites)
+    let $record := ($text/ancestor::*[self::row or self::item or self::p or self::definition or self::cell or self::title or self::summary][last()])
+    let $record := ($text/ancestor::row, $text/ancestor::item[parent::list[not(ancestor::item)]], $record)[1]
+    let $scope := ($record, $text/ancestor::section/title, $article/title)
+    where empty($scope//ref[@kind = ("decision", "log-entry", "packet")])
+    return "error: " || spec:key($article) || " states " || $numbers[1] || " with no fact and no decision it comes from: " ||
+           substring(normalize-space(spec:plain($text)), 1, 80),
+    for $fact in $all/self::fact, $file in $fact/source/@file
+    where not(unparsed-text-available(spec:uri($file)))
+    return "error: " || spec:key($fact) || " reads " || $file || ", which does not exist",
+    for $source in $all/self::decision/sources/source, $path in $source/(@tool, @file) ! tokenize(., "[,;\s]+")[contains(., "/")]
+    where not(unparsed-text-available(spec:uri($path)))
+    return "warning: " || spec:key($source/ancestor::decision) || " cites " || $path || ", which no longer exists"
+  )
+};
+
+(:~ The facts that fail: computed apart, because their sources are read. :)
+declare function spec:check-facts($spec as map(*)) as xs:string* {
+  let $facts := spec:of-kind($spec, "fact")
+  let $values := spec:fact-values($facts)
+  for $fact in $facts
+  let $value := $values(string($fact/@id))
+  where starts-with($value, "error: ")
+  return "error: " || spec:key($fact) || ": " || substring-after($value, "error: ")
 };
 
 (: ---- Writes ---- :)
@@ -836,7 +981,13 @@ declare updating function spec:store($spec as map(*), $changed as element()*) {
   let $refusals := spec:refusals($spec, $changed)
   return
     if (exists($refusals)) then error(xs:QName("spec:refused"), "refused: " || string-join($refusals, "&#10;"))
-    else for $article in $changed return spec:put($article, spec:file($spec, $article))
+    else
+      (: fn:put does not make directories: a new article's is made first (EXPath File). :)
+      let $made := for $article in $changed
+                   let $directory := replace(spec:file($spec, $article), "/[^/]+$", "") => substring-after("file://")
+                   where not(file:exists($directory))
+                   return file:create-dir($directory)
+      for $article in $changed return spec:put($article, spec:file($spec, $article))
 };
 
 (:~ Write ARTICLE to the file URI in canonical form. :)

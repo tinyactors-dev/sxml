@@ -1,0 +1,6 @@
+<fact id="qt4-catalog/no-spec">
+  <title>Test cases of the QT4 catalog with no spec dependency on the case or its set</title>
+  <expression>let $cases := doc("third_party/qt4tests/catalog.xml")/*:catalog/*:test-set ! doc(resolve-uri(@file, base-uri(.)))//*:test-case
+return count($cases[empty((*:dependency, ../*:dependency)[@type = "spec"])])</expression>
+  <source file="third_party/qt4tests/catalog.xml"/>
+</fact>

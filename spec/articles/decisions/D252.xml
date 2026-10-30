@@ -38,4 +38,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/run-xslt.sh" build="release">XT40 passes, whole suite, case by case, before at 55d40c5 and after at aae4d04</source>
+    <source>grammars/xslt_pattern corpus, 101 of 101</source>
+    <source>57 XT40 cases where the newest draft wins, classified from the runs</source>
+  </sources>
 </decision>

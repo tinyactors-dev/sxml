@@ -61,6 +61,11 @@ you implement or use.
   taken for you). Give each a one-sentence summary: it is what other agents
   read first. Items for the owner are proposals: `tools/spec/spec add
   proposal`.
+- A decision that reports measurements (passes, sizes, timings) says where they
+  came from: `tools/spec/spec add-source DN --what=... --tool=... --build=...
+  --at=COMMIT` for each run. Text that states a current value (the passes now,
+  a budget, a slice's size) cites its fact (`{{ID}}`, `tools/spec/spec show
+  FACTS`, `add fact` for a new one) instead of copying the number.
 - Add a short entry to the log: `tools/spec/spec log TEXT` (this week's entry,
   newest first).
 - Commit messages are the record of the work: say what changed, why, the golden

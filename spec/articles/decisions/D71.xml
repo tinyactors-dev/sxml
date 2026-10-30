@@ -27,4 +27,8 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source>100,000 levels of parentheses, calls, inline functions and predicates compile, natively and on wasm</source>
+    <source file="src/xpath_static_internal.h">configured: SXML_XPATH_MAXIMUM_TYPE_DEPTH, 64 frames</source>
+  </sources>
 </decision>

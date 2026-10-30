@@ -18,4 +18,7 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tools/generate-unicode-tables.py" file="src/unicode_tables.c">HTML names in the generated Unicode tables</source>
+  </sources>
 </decision>

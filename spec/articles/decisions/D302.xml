@@ -27,4 +27,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source build="release">peak resident set and wall seconds of the four problems on the 82 MB trace archive (100,000 traces, 633,333 spans), before and after each change</source>
+    <source tool="tools/run-xslt.sh tools/run-qt4.sh" build="release">XT40, XQ40 and XP40 passes, whole suites, before and after each change, case by case</source>
+    <source tool="tests/bench/run-bench.py" build="release">run-bench outputs byte-identical, times within noise</source>
+  </sources>
 </decision>

@@ -1,0 +1,5 @@
+<fact id="conformance/torture-slice">
+  <title>The torture slice's result in the conformance report</title>
+  <expression>replace(unparsed-text-lines("docs/CONFORMANCE.md")[starts-with(., "**") and contains(., "passed**")][1], "^\*\*([0-9]+/[0-9]+) passed.*$", "$1")</expression>
+  <source file="docs/CONFORMANCE.md" written-by="tools/conformance-report.py"/>
+</fact>
