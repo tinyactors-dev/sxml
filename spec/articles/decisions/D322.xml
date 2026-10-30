@@ -31,5 +31,6 @@
     <source tool="tests/qt4/driver tests/xslt/driver" build="release">XP40, XQ40 and XT40 passes, base and change built alike from snapshots, case by case</source>
     <source tool="ctest" build="debug-gcc">the whole test suite, 437 of 437</source>
     <source tool="callgrind" build="release">scratch experiment in sxml_atomic_item_make: the expand stage with xs:string and xs:untypedAtomic resolved without the registry; UTF-8 validation and cell allocation shares</source>
+    <source tool="callgrind" build="release" at="47a1d9a33">callgrind profile of SchXslt's expand stage of EN 16931 at 47a1d9a33: atomizations, distinct nodes, instructions per atomization</source>
   </sources>
 </decision>

@@ -16645,7 +16645,9 @@ matches (release build); QT4 XP40 and XQ40 regex sets and XT40 regex groups,
 release drivers, before and after, case by case (`tools/run-qt4.sh`,
 `tools/run-xslt.sh`, release build); 14,400 random regexes over random inputs
 through fn:analyze-string, before and after; configured: the start filter walk,
-a stack of 32 and at most 256 visits (from `src/regex.c`).
+a stack of 32 and at most 256 visits (from `src/regex.c`); processor seconds,
+fastest of seven, before / +1 / +2 / +3 / +4: regex-match.xq, regex-reuse.xq,
+200,000 matches (release build).
 
 ### D311. Required literals in regex search (packet perf-9)
 
@@ -18084,7 +18086,10 @@ and change built alike from snapshots, case by case (`tests/qt4/driver`,
 `tests/xslt/driver`, release build); the whole test suite, 437 of 437 (`ctest`,
 debug-gcc build); scratch experiment in sxml_atomic_item_make: the expand stage
 with xs:string and xs:untypedAtomic resolved without the registry; UTF-8
-validation and cell allocation shares (`callgrind`, release build).
+validation and cell allocation shares (`callgrind`, release build); callgrind
+profile of SchXslt's expand stage of EN 16931 at 47a1d9a33: atomizations,
+distinct nodes, instructions per atomization (`callgrind`, release build, at
+47a1d9a33).
 
 ### D323. Schematron implemented: what 7.28 built and the readings it took (packet 7.28)
 
@@ -18780,7 +18785,21 @@ the ASTs and the IR are the same.
 
 **Sources**: callgrind profile at ae61af90e: invoice transform and validate,
 sxml_xpath_parse, parses, reductions of a typical assertion; repeated attribute
-texts (`callgrind`, release build, at ae61af90e).
+texts (`callgrind`, release build, at ae61af90e); parse states and table sizes
+of the regenerated grammars, and the size of the sxml command
+(`tools/generate-grammars.sh`); instructions, base ae61af90e and the change
+from snapshots: invoice transform and validate by step, parses,
+tests/bench/xpath-parse.xsl, xmark-all (`callgrind`,
+`tests/bench/xpath-parse.xsl`, release build); processor seconds, fastest of
+15, interleaved: transform, validate, xpath-parse; the XT40 run (release
+build); a scratch harness parsing 133,165 texts with both builds; IR text form
+after the passes, scratch-only hook: EN 16931 stylesheet, its .sch unit,
+xpath-parse and the 414,483 XT40 units (release build); XP40, XQ40 and XT40
+passes, base and change built alike, case by case (`tests/qt4/driver`,
+`tests/xslt/driver`, release build); 7.30's suite (sxml-schematron-test run),
+VEFA (run_vefa.py and sxml-schematron-test vefa) (`tests/schematron/driver`);
+the whole test suite, 457 of 459 (`ctest`, debug-gcc build); quoted from D288
+and D295: sxml.wasm's budget and size.
 
 ### D330. IR passes walk each body once, with a cheaper child walk (packet perf-16)
 
@@ -18867,6 +18886,20 @@ IR after the passes is the same, item demands included.
   what it adds), the hoist pass's `analyse_let` 0.020, verify 0.030,
   global-read 0.028.
 
+**Sources**: callgrind profile at ae61af90e of validate --schematron of one
+invoice: the IR passes and their walks (`callgrind`, release build, at
+ae61af90e); instructions, base ae61af90e and the change from snapshots: invoice
+validate and transform with the passes, growth N = 8 to 256, assertion
+templates, xmark-all (`callgrind`, release build); processor seconds: validate
+and transform (fastest of 15), N = 128, 256, 384 assertions and xmark-all
+(fastest of 5), the XT40 run (release build); IR text form and item demand
+hashes after the passes, scratch-only hook: EN 16931 .sch compile and XSLT,
+growth stylesheets, 414,470 XT40 units (release build); XP40, XQ40 and XT40
+passes, base and change built alike, case by case (`tests/qt4/driver`,
+`tests/xslt/driver`, release build); 7.30's suite through sxml-schematron-test
+run, VEFA (run_vefa.py) (`tests/schematron/driver`); the whole test suite, 459
+of 459 (`ctest`, debug-gcc build).
+
 ### D331. Schematron: the function library's prefixes, the document of each finding, real rule sets read with warnings (packet fix-7)
 
 **Summary**: Schematron resolves `xs`, `fn`, `math`, `map`, `array` and `err`
@@ -18946,6 +18979,14 @@ nothing of its text copied.
   `vane-api.xsd`; reports: Warnings with `older.sch`, written for the book) and
   it builds. No shared XSLT file changed. The package's additions typecheck;
   `sxml.wasm` was not built (no WASI SDK here).
+
+**Sources**: 7.30's suite: cases, pass, fail, deviations,
+implementation-defined, not applicable (`tests/schematron/driver`); EN 16931
+UBL and CII checks from the sources, and XRechnung UBL and CII instances (ctest
+schematron/en16931-ubl, -cii, schematron/xrechnung-\*) (`ctest`); differential
+against SchXslt 1.10.1 on the unpatched sources (ctest
+schematron/differential-\* with SXML_SCHEMATRON_DIFFERENTIAL) (`ctest`,
+`tests/schematron/driver/differential.py`).
 
 ## Proposed
 

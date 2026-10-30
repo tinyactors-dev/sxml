@@ -76,6 +76,16 @@ says now. Add one with tools/spec/spec add fact.
 | `slice/xquery/cases` | Test cases in the XQuery slice | 186 | `tests/qt4/xquery-slice.txt` |
 | `slice/xsd/cases` | Test cases in the XSD slice | 147 | `tests/xsd/slice.txt` |
 | `slice/xslt/cases` | Test cases in the XSLT slice | 154 | `tests/xslt/slice.txt` |
+| `xslt40-test/assertions/all-of` | Occurrences of all-of in the results of xslt40-test's test cases | 1,273 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/assert` | Occurrences of assert in the results of xslt40-test's test cases | 8,998 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/assert-message` | Occurrences of assert-message in the results of xslt40-test's test cases | 92 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/assert-result-document` | Occurrences of assert-result-document in the results of xslt40-test's test cases | 156 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/assert-serialization` | Occurrences of assert-serialization in the results of xslt40-test's test cases | 112 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/assert-string-value` | Occurrences of assert-string-value in the results of xslt40-test's test cases | 350 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/assert-warning` | Occurrences of assert-warning in the results of xslt40-test's test cases | 6 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/assert-xml` | Occurrences of assert-xml in the results of xslt40-test's test cases | 5,215 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/error` | Occurrences of error in the results of xslt40-test's test cases | 2,828 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/assertions/serialization-matches` | Occurrences of serialization-matches in the results of xslt40-test's test cases | 890 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/commented-test-sets` | Test-set entries commented out in the xslt40-test catalog | 28 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/defines-stylesheet` | Test cases of xslt40-test whose source names the stylesheet | 16 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/groups/attr` | Test cases of xslt40-test in the group attr | 1,634 | `third_party/xslt40-test/catalog.xml` |
@@ -86,7 +96,11 @@ says now. Add one with tools/spec/spec add fact.
 | `xslt40-test/groups/misc` | Test cases of xslt40-test in the group misc | 3,123 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/groups/strm` | Test cases of xslt40-test in the group strm | 2,564 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/groups/type` | Test cases of xslt40-test in the group type | 975 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/initial-function` | Test cases of xslt40-test with initial-function | 38 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/initial-mode` | Test cases of xslt40-test with initial-mode | 156 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/initial-template` | Test cases of xslt40-test with initial-template | 6,312 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/no-spec` | Test cases of xslt40-test with no spec dependency on the case or its set | 12 | `third_party/xslt40-test/catalog.xml` |
+| `xslt40-test/packages` | Test cases of xslt40-test that use a package, in the test or the environment | 434 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/principal-in-environment` | Test cases of xslt40-test with a principal module only in the environment | 4,708 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/principal-in-test` | Test cases of xslt40-test with a principal module in the test | 9,143 | `third_party/xslt40-test/catalog.xml` |
 | `xslt40-test/scope` | Test cases of xslt40-test in the XSLT 4.0 gate scope | 8,728 | `third_party/xslt40-test/catalog.xml` |

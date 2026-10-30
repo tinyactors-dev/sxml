@@ -24,4 +24,9 @@
       </item>
     </list>
   </body>
+  <sources>
+    <source tool="tests/schematron/driver">7.30's suite: cases, pass, fail, deviations, implementation-defined, not applicable</source>
+    <source tool="ctest">EN 16931 UBL and CII checks from the sources, and XRechnung UBL and CII instances (ctest schematron/en16931-ubl, -cii, schematron/xrechnung-*)</source>
+    <source tool="ctest tests/schematron/driver/differential.py">differential against SchXslt 1.10.1 on the unpatched sources (ctest schematron/differential-* with SXML_SCHEMATRON_DIFFERENTIAL)</source>
+  </sources>
 </decision>

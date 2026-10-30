@@ -1,0 +1,7 @@
+<fact id="xslt40-test/assertions/assert-string-value">
+  <title>Occurrences of assert-string-value in the results of xslt40-test's test cases</title>
+  <expression>let $sets := doc("third_party/xslt40-test/catalog.xml")/*:catalog/*:test-set
+let $cases := $sets ! doc(resolve-uri(@file, base-uri(.)))//*:test-case
+return count($cases/*:result/descendant-or-self::*:assert-string-value)</expression>
+  <source file="third_party/xslt40-test/catalog.xml"/>
+</fact>

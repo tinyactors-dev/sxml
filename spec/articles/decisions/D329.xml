@@ -36,5 +36,13 @@
   <sources>
     <source tool="callgrind" build="release" at="ae61af90e">callgrind profile at ae61af90e: invoice transform and validate, sxml_xpath_parse, parses, reductions of a typical assertion; repeated attribute texts</source>
     <source tool="tools/generate-grammars.sh">parse states and table sizes of the regenerated grammars, and the size of the sxml command</source>
+    <source tool="callgrind tests/bench/xpath-parse.xsl" build="release">instructions, base ae61af90e and the change from snapshots: invoice transform and validate by step, parses, tests/bench/xpath-parse.xsl, xmark-all</source>
+    <source build="release">processor seconds, fastest of 15, interleaved: transform, validate, xpath-parse; the XT40 run</source>
+    <source>a scratch harness parsing 133,165 texts with both builds</source>
+    <source build="release">IR text form after the passes, scratch-only hook: EN 16931 stylesheet, its .sch unit, xpath-parse and the 414,483 XT40 units</source>
+    <source tool="tests/qt4/driver tests/xslt/driver" build="release">XP40, XQ40 and XT40 passes, base and change built alike, case by case</source>
+    <source tool="tests/schematron/driver">7.30's suite (sxml-schematron-test run), VEFA (run_vefa.py and sxml-schematron-test vefa)</source>
+    <source tool="ctest" build="debug-gcc">the whole test suite, 457 of 459</source>
+    <source>quoted from <ref kind="decision" to="D288"/> and <ref kind="decision" to="D295"/>: sxml.wasm's budget and size</source>
   </sources>
 </decision>
