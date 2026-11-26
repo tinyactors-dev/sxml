@@ -529,7 +529,11 @@ them in the processor configuration, for example
 
 The `@tinyactors/sxml` package in [`bindings/javascript`](bindings/javascript)
 runs the same library as WebAssembly, with no runtime dependencies. It is
-not on npm yet: build it from this repository as its README describes.
+on npm:
+
+```sh
+npm install @tinyactors/sxml
+```
 
 ```js
 import { load } from '@tinyactors/sxml';

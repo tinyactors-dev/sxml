@@ -72,6 +72,13 @@ do.
    lands in `build/npm/vX.Y.Z/`. A run that failed, or a tag older than the
    workflow, is published with "Run workflow" on `npm.yml` and the tag.
 
+   Before pushing the tag, check the package's trusted publisher on npmjs.com
+   (the package, Settings): GitHub Actions, `tinyactors-dev/sxml`, workflow
+   `npm.yml`, no environment, `npm stage publish` only. npm drops a new one
+   that no publish validates within two days, so one set up after a release has
+   expired by the next: delete it and add it again, and the tag's run validates
+   it.
+
    The npm name `sxml` belongs to another project. The package is named
    `@tinyactors/sxml` (D239).
 8. **After the release**, open a new "unreleased" section in `CHANGELOG.md`.

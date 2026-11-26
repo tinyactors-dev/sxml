@@ -11,9 +11,14 @@ no dependencies. It speaks the same languages as the C library and the
 
 ## Getting the package
 
-The package is in the sxml repository, in `bindings/javascript`. It is
-not on npm yet; its README explains how to build it from the
-repository. It needs Node.js 22.18 or later, or any current browser.
+The package is on npm, built from `bindings/javascript` in the sxml
+repository:
+
+```sh
+npm install @tinyactors/sxml
+```
+
+It needs Node.js 22.18 or later, or any current browser.
 
 It comes with one WebAssembly module, `sxml.wasm`, which has everything
 the `sxml` command has but EXPath File: XML parsing, XPath 4.0 with the
