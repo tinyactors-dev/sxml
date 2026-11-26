@@ -3,6 +3,12 @@
   "version": "0.2.0",
   "description": "sxml for JavaScript: XML, XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 in Node.js and browsers, over WebAssembly",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tinyactors-dev/sxml.git",
+    "directory": "bindings/javascript"
+  },
+  "homepage": "https://sxml.tinyactors.dev",
   "type": "module",
   "exports": {
     ".": {

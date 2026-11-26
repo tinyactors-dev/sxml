@@ -5,6 +5,13 @@
 One short entry per week, newest first: what passed, what's next, what is
 blocked. Add an item to this week's entry with `tools/spec/spec log TEXT`.
 
+## Week of 2026-11-23
+
+- The JavaScript package gets a release step (D332): a pushed tag runs
+  .github/workflows/npm.yml, which builds, tests, packs and smoke-tests
+  @tinyactors/sxml from the tag and stages it on npm; 0.2.0 was never published
+  (npm answered 404).
+
 ## Week of 2026-10-26
 
 - wasm-1 done: sxml.wasm built and its package run here for the first time

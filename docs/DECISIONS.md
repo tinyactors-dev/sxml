@@ -18983,6 +18983,48 @@ against SchXslt 1.10.1 on the unpatched sources (ctest
 schematron/differential-\* with SXML_SCHEMATRON_DIFFERENTIAL) (`ctest`,
 `tests/schematron/driver/differential.py`).
 
+### D332. A workflow publishes the JavaScript package on each release tag (owner)
+
+**Summary**: Pushing a release tag runs .github/workflows/npm.yml, which
+builds, tests, packs and smoke-tests @tinyactors/sxml from the tag
+(tools/npm-package.sh) and stages it on npm with trusted publishing; a
+maintainer approves it with 2FA.
+
+Recorded 2026-11-26, after D239.
+
+Recorded 2026-11-26 at the owner's word ("we need a release step for this").
+Release 0.2.0 was tagged and its GitHub release carries the `sxml` archives,
+but step 7 of RELEASE, publishing the JavaScript package by hand, was never
+done: a user found that `@tinyactors/sxml`, which the website shows as an
+import, returns 404 on npm, and used the released command instead.
+
+- **The step is a script.** `tools/npm-package.sh pack TAG` (`mise run
+  npm:pack`) builds the package from the tagged commit in a git worktree under
+  `build/npm/TAG/`, so the script of `main` can build an older tag. It checks
+  that the tag, `version.h`, `package.json` and `package-lock.json` name one
+  version; builds the wasm preset; runs `npm ci` and the package's tests (ctest
+  `javascript/*`, the size budget and the types included); builds `dist/`;
+  packs the tarball and checks its files; and installs it into an empty project
+  that imports the package by its name and evaluates an XPath expression.
+- **A workflow runs it on the tag.** `.github/workflows/npm.yml` runs on a
+  pushed `v*` tag, or by hand with a tag, and calls `tools/npm-package.sh
+  publish TAG`: the same checks, then `npm stage publish` with npm's trusted
+  publishing (OIDC: no npm token exists; npm attaches provenance). A version
+  npm has already is skipped, so a run can be repeated. A prerelease version
+  goes to the dist-tag of its first identifier, never `latest`. The script
+  refuses to publish outside GitHub Actions.
+- **A maintainer approves each version** with 2FA (npmjs.com, Staged Packages;
+  or `npm stage approve`), as the other tinyactors packages do.
+- **It is not CI.** D123 stands: nothing runs on pushes to `main`. This
+  workflow runs only for a release tag.
+- **The first version is published by hand.** npm sets up a trusted publisher
+  only for a package that exists. So the owner publishes 0.2.0 once from a
+  terminal (`mise run npm:pack -- v0.2.0`, then `npm stage publish` in
+  `build/npm/v0.2.0/source/bindings/javascript`, then approve it), then names
+  `tinyactors-dev/sxml` and `npm.yml` as the package's trusted publisher with
+  staged publishing allowed. Later releases need only the tag. The package
+  names its repository in `package.json`, as npm's trusted publishing requires.
+
 ## Proposed
 
 - **Cheaper atomic string cells** (D322, perf-11; for a later perf packet

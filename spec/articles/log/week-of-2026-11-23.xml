@@ -1,0 +1,10 @@
+<log-entry id="week-of-2026-11-23">
+  <title>Week of 2026-11-23</title>
+  <body>
+    <list loose="true">
+      <item>
+        <p>The JavaScript package gets a release step (<ref kind="decision" to="D332"/>): a pushed tag runs .github/workflows/npm.yml, which builds, tests, packs and smoke-tests @tinyactors/sxml from the tag and stages it on npm; 0.2.0 was never published (npm answered 404).</p>
+      </item>
+    </list>
+  </body>
+</log-entry>

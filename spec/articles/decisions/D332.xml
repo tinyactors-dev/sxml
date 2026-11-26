@@ -1,0 +1,25 @@
+<decision id="D332" status="accepted">
+  <title>A workflow publishes the JavaScript package on each release tag (owner)</title>
+  <summary>Pushing a release tag runs .github/workflows/npm.yml, which builds, tests, packs and smoke-tests @tinyactors/sxml from the tag (tools/npm-package.sh) and stages it on npm with trusted publishing; a maintainer approves it with 2FA.</summary>
+  <body>
+    <p><recorded date="2026-11-26"/>, after <ref kind="decision" to="D239"/>.</p>
+    <p>Recorded 2026-11-26 at the owner's word ("we need a release step for this"). Release 0.2.0 was tagged and its GitHub release carries the <code>sxml</code> archives, but step 7 of <ref kind="document" to="RELEASE"/>, publishing the JavaScript package by hand, was never done: a user found that <code>@tinyactors/sxml</code>, which the website shows as an import, returns 404 on npm, and used the released command instead.</p>
+    <list>
+      <item>
+        <p><strong>The step is a script.</strong> <code>tools/npm-package.sh pack TAG</code> (<code>mise run npm:pack</code>) builds the package from the tagged commit in a git worktree under <code>build/npm/TAG/</code>, so the script of <code>main</code> can build an older tag. It checks that the tag, <code>version.h</code>, <code>package.json</code> and <code>package-lock.json</code> name one version; builds the wasm preset; runs <code>npm ci</code> and the package's tests (ctest <code>javascript/*</code>, the size budget and the types included); builds <code>dist/</code>; packs the tarball and checks its files; and installs it into an empty project that imports the package by its name and evaluates an XPath expression.</p>
+      </item>
+      <item>
+        <p><strong>A workflow runs it on the tag.</strong> <code>.github/workflows/npm.yml</code> runs on a pushed <code>v*</code> tag, or by hand with a tag, and calls <code>tools/npm-package.sh publish TAG</code>: the same checks, then <code>npm stage publish</code> with npm's trusted publishing (OIDC: no npm token exists; npm attaches provenance). A version npm has already is skipped, so a run can be repeated. A prerelease version goes to the dist-tag of its first identifier, never <code>latest</code>. The script refuses to publish outside GitHub Actions.</p>
+      </item>
+      <item>
+        <p><strong>A maintainer approves each version</strong> with 2FA (npmjs.com, Staged Packages; or <code>npm stage approve</code>), as the other tinyactors packages do.</p>
+      </item>
+      <item>
+        <p><strong>It is not CI.</strong> <ref kind="decision" to="D123"/> stands: nothing runs on pushes to <code>main</code>. This workflow runs only for a release tag.</p>
+      </item>
+      <item>
+        <p><strong>The first version is published by hand.</strong> npm sets up a trusted publisher only for a package that exists. So the owner publishes 0.2.0 once from a terminal (<code>mise run npm:pack -- v0.2.0</code>, then <code>npm stage publish</code> in <code>build/npm/v0.2.0/source/bindings/javascript</code>, then approve it), then names <code>tinyactors-dev/sxml</code> and <code>npm.yml</code> as the package's trusted publisher with staged publishing allowed. Later releases need only the tag. The package names its repository in <code>package.json</code>, as npm's trusted publishing requires.</p>
+      </item>
+    </list>
+  </body>
+</decision>

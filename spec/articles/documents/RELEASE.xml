@@ -59,16 +59,10 @@ npm ci --prefix bindings/javascript &amp;&amp; ctest --preset wasm -R javascript
         <p><strong>Commit</strong> the version and the changelog as "Release X.Y.Z", then push to <code>main</code>.</p>
       </item>
       <item>
-        <p><strong>Tag</strong> (owner): <code>git tag -a vX.Y.Z -m "sxml X.Y.Z"</code>, then <code>git push origin vX.Y.Z</code>. Create a GitHub release from the tag with the changelog section as its notes. Attach <code>sxml.wasm</code> and the package tarball from step 7.</p>
+        <p><strong>Tag</strong> (owner): <code>git tag -a vX.Y.Z -m "sxml X.Y.Z"</code>, then <code>git push origin vX.Y.Z</code>. Create a GitHub release from the tag with the changelog section as its notes, and attach the <code>sxml</code> archives (<code>mise run dist</code>).</p>
       </item>
       <item>
-        <p><strong>Publish the JavaScript package</strong> (owner). Do this from the tagged commit:</p>
-        <pre language="sh">cmake --preset wasm &amp;&amp; cmake --build --preset wasm --target sxml_javascript_module
-cd bindings/javascript
-npm ci
-SXML_WASM_PATH=../../build/wasm/bindings/javascript/sxml.wasm npm run build
-npm pack            # check the tarball: dist/*.js, dist/*.d.ts, dist/sxml.wasm, dist/allkeys.txt
-npm publish         # needs the npm account and the package name</pre>
+        <p><strong>Publish the JavaScript package.</strong> The pushed tag starts <code>.github/workflows/npm.yml</code> (<ref kind="decision" to="D332"/>), which runs <code>tools/npm-package.sh publish</code>: it builds the package from the tag, runs its tests (ctest <code>javascript/*</code>), packs it, installs the tarball into a fresh project as a check and stages it on npm with trusted publishing. The owner then approves the staged version with 2FA: npmjs.com, the package, Staged Packages; or <code>npm stage list @tinyactors/sxml</code> and <code>npm stage approve ID</code>. To build and check the tarball without publishing, run <code>mise run npm:pack -- vX.Y.Z</code>; it lands in <code>build/npm/vX.Y.Z/</code>. A run that failed, or a tag older than the workflow, is published with "Run workflow" on <code>npm.yml</code> and the tag.</p>
         <p>The npm name <code>sxml</code> belongs to another project. The package is named <code>@tinyactors/sxml</code> (<ref kind="decision" to="D239"/>).</p>
       </item>
       <item>

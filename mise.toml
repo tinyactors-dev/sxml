@@ -92,3 +92,11 @@ run = "tools/publish-site.sh"
 [tasks."site:dev"]
 description = "Serve the landing page on http://localhost:5173, rebuilt as its files change (the book is served by book:serve)"
 run = ["npm ci --prefix website --no-audit --no-fund", "npm run --prefix website dev"]
+
+[tasks."npm:pack"]
+description = "Build, test and pack @tinyactors/sxml from a release tag into build/npm/TAG/ (default: version.h's): mise run npm:pack [-- TAG]"
+run = "tools/npm-package.sh pack"
+
+[tasks."npm:publish"]
+description = "npm:pack, then stage the package on npm with trusted publishing; GitHub Actions only (.github/workflows/npm.yml)"
+run = "tools/npm-package.sh publish"

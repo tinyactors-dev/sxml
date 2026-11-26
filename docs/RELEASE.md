@@ -60,17 +60,17 @@ do.
    `main`.
 6. **Tag** (owner): `git tag -a vX.Y.Z -m "sxml X.Y.Z"`, then `git push origin
    vX.Y.Z`. Create a GitHub release from the tag with the changelog section as
-   its notes. Attach `sxml.wasm` and the package tarball from step 7.
-7. **Publish the JavaScript package** (owner). Do this from the tagged commit:
-
-   ```sh
-   cmake --preset wasm && cmake --build --preset wasm --target sxml_javascript_module
-   cd bindings/javascript
-   npm ci
-   SXML_WASM_PATH=../../build/wasm/bindings/javascript/sxml.wasm npm run build
-   npm pack            # check the tarball: dist/*.js, dist/*.d.ts, dist/sxml.wasm, dist/allkeys.txt
-   npm publish         # needs the npm account and the package name
-   ```
+   its notes, and attach the `sxml` archives (`mise run dist`).
+7. **Publish the JavaScript package.** The pushed tag starts
+   `.github/workflows/npm.yml` (D332), which runs `tools/npm-package.sh
+   publish`: it builds the package from the tag, runs its tests (ctest
+   `javascript/*`), packs it, installs the tarball into a fresh project as a
+   check and stages it on npm with trusted publishing. The owner then approves
+   the staged version with 2FA: npmjs.com, the package, Staged Packages; or
+   `npm stage list @tinyactors/sxml` and `npm stage approve ID`. To build and
+   check the tarball without publishing, run `mise run npm:pack -- vX.Y.Z`; it
+   lands in `build/npm/vX.Y.Z/`. A run that failed, or a tag older than the
+   workflow, is published with "Run workflow" on `npm.yml` and the tag.
 
    The npm name `sxml` belongs to another project. The package is named
    `@tinyactors/sxml` (D239).

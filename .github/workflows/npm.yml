@@ -1,0 +1,49 @@
+# Publishes the JavaScript package @tinyactors/sxml (docs/RELEASE.md,
+# step 7). All the work is in tools/npm-package.sh: it builds the package
+# from the release tag, runs its tests, packs it, installs the tarball into
+# a fresh project and stages it on npm with trusted publishing (OIDC: no npm
+# token exists; npm attaches provenance). The version is public once a
+# maintainer approves it with 2FA on npmjs.com. npm's trusted publisher for
+# @tinyactors/sxml must name this file, npm.yml, and allow staged publishing.
+#
+# Two ways in:
+#   - pushing a tag vX.Y.Z (the release, step 6);
+#   - "Run workflow" with a tag, for a tag pushed before this workflow
+#     existed or a run that failed. The script of main builds that tag.
+# Re-running is harmless: a version npm has already is skipped.
+name: npm
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release tag to publish, such as v0.3.0"
+        required: true
+
+permissions:
+  contents: read
+  id-token: write # npm trusted publishing
+
+concurrency:
+  group: npm
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    env:
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+      - name: Build, check and stage the package
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: tools/npm-package.sh publish "$TAG"
