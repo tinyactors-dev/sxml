@@ -175,3 +175,43 @@ Each of these is unmeasured:
 - In sxml itself: the format as a header and spec article, its own
   allocator use, no `malloc`; and a decision on where the extension lives
   (`apps/`, `bindings/`, or its own repository).
+
+## Querying EXI (2026-11-27, after sxml 0.3.0)
+
+`bench_exi.py`: the spike's queries over the same 20,000 orders stored as
+text, XDMB and eight EXI forms; every result equal across all ten. EXI
+blobs are decoded into a tree on every call (`sxml_host_exi_parse`), their
+options read from the header, or, for schema-informed streams, from the
+connection (`xml_exi_schema(xsd, alignment)`). "full" keeps comments, PIs
+and prefixes, as XDMB does; the others keep EXI's default fidelity.
+Machine: x86_64, Intel Xeon, 4 CPUs; SQLite 3.53.1; sxml at `678c9a354`,
+release build, clang. Times in microseconds per row, best of 3.
+
+| form | bytes | vs text | encode | open only | revenue | filter | extract | xquery | last line |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| text | 18,891,166 | 1.00 | | 127.1 | 138.9 | 137.5 | 136.8 | 134.3 | 133.9 |
+| XDMB | 18,064,333 | 0.96 | 141.4 | 3.3 | 14.8 | 5.2 | 5.6 | 9.1 | 7.9 |
+| EXI bit-packed | 8,631,905 | 0.46 | 163.3 | 24.8 | 35.2 | 27.0 | 25.3 | 29.7 | 29.0 |
+| EXI byte-aligned | 10,506,382 | 0.56 | 157.7 | 22.4 | 33.5 | 27.0 | 27.6 | 28.3 | 29.0 |
+| EXI pre-compression | 10,506,382 | 0.56 | 172.7 | 23.7 | 36.7 | 29.2 | 26.9 | 34.9 | 30.0 |
+| EXI compression | 7,280,167 | 0.39 | 213.1 | 33.2 | 44.4 | 34.0 | 35.1 | 38.6 | 38.7 |
+| EXI bit-packed, full | 9,281,326 | 0.49 | 170.8 | 25.2 | 35.2 | 25.7 | 26.8 | 30.6 | 27.4 |
+| EXI compression, full | 7,855,496 | 0.42 | 216.9 | 35.8 | 46.1 | 35.7 | 36.2 | 41.5 | 36.6 |
+| EXI schema bit-packed | 4,396,634 | 0.23 | 206.1 | 66.2 | 78.6 | 67.5 | 64.4 | 76.8 | 66.1 |
+| EXI schema compression | 4,042,055 | 0.21 | 256.5 | 69.7 | 82.6 | 76.7 | 75.0 | 76.8 | 74.2 |
+
+- Decoding EXI costs about 22 to 25 us an order (950 B of XML), five times
+  less than parsing the text (127 us) and seven times more than opening
+  XDMB in place (3.3 us). DEFLATE adds about 10 us.
+- Schema-informed streams are half the size of schema-less ones but decode
+  three times slower. A separate run with orders of 1 and 40 lines: about
+  40 us per decode is fixed, even for a 48 B stream (the grammars are
+  built from the schema for every document; the decoder keeps nothing
+  between calls), and each line costs about 1.4 us against 0.7 us
+  schema-less (typed values turned back into text). Building the
+  grammars once per schema would remove the fixed part (unmeasured).
+- What the numbers say for the extension: XDMB for columns that are
+  queried; EXI where size matters more than query time (archive,
+  transfer): bit-packed EXI is 0.46 of the text and still five times
+  faster to query than text, schema-informed 0.23 once its grammars are
+  cached.
