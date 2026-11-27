@@ -96,6 +96,16 @@ typedef struct sxml_exi_frame {
     size_t binding_mark;
 } sxml_exi_frame;
 
+/* What a self-contained element puts aside (8.4.3, SC): the string
+   table, grammars and top level of the stream around it, and where its
+   own frames start. */
+typedef struct sxml_exi_saved_state {
+    sxml_exi_string_table table;
+    sxml_exi_grammars grammars;
+    sxml_exi_nonterminal top_nonterminal;
+    size_t frame_base;
+} sxml_exi_saved_state;
+
 /* The production an event code named, and whether it was learned. */
 typedef struct sxml_exi_decoded_event {
     sxml_exi_production production;
@@ -128,6 +138,12 @@ typedef struct sxml_exi_decoding {
     sxml_exi_frame *frames;
     size_t frame_count;
     size_t frame_capacity;
+    /* Inside self-contained elements: the frames below frame_base are the
+       enclosing streams'; saved_states, one per element. */
+    size_t frame_base;
+    sxml_exi_saved_state *saved_states;
+    size_t saved_state_count;
+    size_t saved_state_capacity;
     sxml_exi_scoped_binding *bindings;
     size_t binding_count;
     size_t binding_capacity;
@@ -157,6 +173,8 @@ typedef struct sxml_exi_decoding {
        grammars are in use (8.5). */
     bool has_header_options;
     bool is_finished;
+    /* After SC: the fragment's SE is the element's own start tag. */
+    bool is_self_contained_start;
     bool is_schema_informed;
     /* Pre-compression or compression (EXI 9): events recorded per block,
        values read per channel after the block's structure. */
@@ -904,7 +922,7 @@ static sxml_status sxml_exi_flush_start(sxml_exi_decoding *decoding) {
 /* --------------------------------------------------------------- Events */
 
 static sxml_exi_frame *sxml_exi_top_frame(sxml_exi_decoding *decoding) {
-    return decoding->frame_count == 0 ? NULL : &decoding->frames[decoding->frame_count - 1];
+    return decoding->frame_count <= decoding->frame_base ? NULL : &decoding->frames[decoding->frame_count - 1];
 }
 
 /* The position of the innermost open element, or of the top level. */
@@ -960,8 +978,21 @@ static sxml_status sxml_exi_start_element(sxml_exi_decoding *decoding, const sxm
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    /* The parent's start tag ends here: send it, and move the parent on. */
-    status = sxml_exi_flush_start(decoding);
+    /* The parent's start tag ends here: send it, and move the parent on.
+       In a self-contained element's fragment its first SE is the
+       element's own, whose start tag is held still: this one replaces it
+       (8.4.3, SC Fragment); the fragment holds that element alone. */
+    const sxml_name_identifier held_name = decoding->pending_name;
+    const bool is_own_start = decoding->is_self_contained_start;
+    if (is_own_start) {
+        decoding->is_self_contained_start = false;
+        decoding->has_pending_start = false;
+    } else if (decoding->saved_state_count > 0 && decoding->frame_count == decoding->frame_base) {
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT,
+                             "a self-contained element's fragment with a second element");
+    } else {
+        status = sxml_exi_flush_start(decoding);
+    }
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -1024,6 +1055,10 @@ static sxml_status sxml_exi_start_element(sxml_exi_decoding *decoding, const sxm
         .binding_mark = decoding->binding_count,
     };
     status = sxml_exi_name_identifier(decoding, qname, &decoding->pending_name);
+    if (status == SXML_STATUS_OK && is_own_start && decoding->pending_name.index != held_name.index) {
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT,
+                             "a self-contained element's fragment that starts another element");
+    }
     decoding->has_pending_start = true;
     decoding->pending_uri = qname.uri;
     decoding->pending_prefix_index = prefix_index;
@@ -1784,6 +1819,83 @@ static sxml_status sxml_exi_decode_declared(sxml_exi_decoding *decoding, const s
     return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT, "a production schema-informed grammars do not have");
 }
 
+/* ----------------------------------------------- Self-contained elements */
+
+/* The string table and grammars a stream starts with (Appendix D, 8.4). */
+static sxml_status sxml_exi_decoder_start_state(sxml_exi_decoding *decoding) {
+    const sxml_status status = sxml_exi_string_table_initialize(
+        &decoding->table, &(sxml_exi_string_table_configuration){.allocator = decoding->allocator, .options = &decoding->options});
+    if (status == SXML_STATUS_OK) {
+        sxml_exi_grammars_initialize(
+            &decoding->grammars,
+            &(sxml_exi_grammars_configuration){.allocator = decoding->allocator,
+                                               .options = &decoding->options,
+                                               .maximum_learned_production_count =
+                                                   decoding->limits.maximum_learned_production_count});
+    }
+    return status;
+}
+
+/* 8.4.3, SC Fragment: SC follows the element's SE directly; the stream
+   skips to a byte, the string table and grammars are put aside for new
+   ones, and the element is read again as a fragment (SD, SE (qname), its
+   content, ED), whose SE replaces the start tag held. */
+static sxml_status sxml_exi_begin_self_contained(sxml_exi_decoding *decoding) {
+    if (!decoding->has_pending_start || decoding->attribute_count != 0 || decoding->declaration_count != 0) {
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT, "SC after the start of its element's content");
+    }
+    sxml_exi_reader_align(&decoding->reader);
+    void *saved_states = decoding->saved_states;
+    sxml_status status = sxml_exi_grow(decoding->allocator, &(sxml_exi_array){.elements = &saved_states,
+                                                                               .capacity = &decoding->saved_state_capacity,
+                                                                               .element_count = decoding->saved_state_count,
+                                                                               .element_size = sizeof(sxml_exi_saved_state)});
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    decoding->saved_states = saved_states;
+    if (decoding->saved_state_count >= decoding->limits.maximum_depth) {
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_LIMIT_EXCEEDED, "self-contained elements nested deeper than the limit");
+    }
+    decoding->saved_states[decoding->saved_state_count++] = (sxml_exi_saved_state){
+        .table = decoding->table,
+        .grammars = decoding->grammars,
+        .top_nonterminal = decoding->top_nonterminal,
+        .frame_base = decoding->frame_base,
+    };
+    status = sxml_exi_decoder_start_state(decoding);
+    if (status != SXML_STATUS_OK) {
+        /* The saved state is the current one again: nothing new to free. */
+        decoding->saved_state_count--;
+        decoding->table = decoding->saved_states[decoding->saved_state_count].table;
+        return status;
+    }
+    decoding->frame_base = decoding->frame_count;
+    decoding->top_nonterminal = SXML_EXI_NONTERMINAL_FRAGMENT_CONTENT;
+    decoding->is_self_contained_start = true;
+    return SXML_STATUS_OK;
+}
+
+/* The fragment's ED: the stream skips to a byte and the stream around
+   the element comes back, the element ended (its fragment's EE was its
+   end; the enclosing stream has no EE for it). */
+static sxml_status sxml_exi_end_self_contained(sxml_exi_decoding *decoding) {
+    if (decoding->is_self_contained_start) {
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT, "a self-contained element's fragment without it");
+    }
+    sxml_exi_reader_align(&decoding->reader);
+    sxml_exi_string_table_finalize(&decoding->table);
+    sxml_exi_grammars_finalize(&decoding->grammars);
+    const sxml_exi_saved_state *saved = &decoding->saved_states[--decoding->saved_state_count];
+    decoding->table = saved->table;
+    decoding->grammars = saved->grammars;
+    decoding->top_nonterminal = saved->top_nonterminal;
+    decoding->frame_base = saved->frame_base;
+    decoding->binding_count = decoding->frames[decoding->frame_count - 1].binding_mark;
+    decoding->frame_count--;
+    return SXML_STATUS_OK;
+}
+
 /* An undeclared production (8.5.4.4) of grammar. */
 typedef struct sxml_exi_undeclared_event {
     uint32_t grammar;
@@ -1828,7 +1940,8 @@ static sxml_status sxml_exi_decode_undeclared(sxml_exi_decoding *decoding, const
     case SXML_EXI_UNDECLARED_NAMESPACE:
         return sxml_exi_namespace(decoding);
     case SXML_EXI_UNDECLARED_SELF_CONTAINED:
-        return SXML_EXI_FAIL(decoding, SXML_STATUS_UNSUPPORTED_FEATURE, "self-contained elements are not read yet");
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_UNSUPPORTED_FEATURE,
+                             "self-contained elements with schema-informed grammars are not read");
     case SXML_EXI_UNDECLARED_START_ELEMENT_ANY:
         status = sxml_exi_read_qname(decoding, &qname);
         if (status != SXML_STATUS_OK) {
@@ -1915,13 +2028,16 @@ static sxml_status sxml_exi_decode_event(sxml_exi_decoding *decoding) {
     case SXML_EXI_EVENT_DOCTYPE:
         return sxml_exi_doctype(decoding);
     case SXML_EXI_EVENT_END_DOCUMENT:
+        if (decoding->saved_state_count > 0) {
+            return sxml_exi_end_self_contained(decoding);
+        }
         decoding->is_finished = true;
         return SXML_STATUS_OK;
     case SXML_EXI_EVENT_ENTITY_REFERENCE:
         return SXML_EXI_FAIL(decoding, SXML_STATUS_UNSUPPORTED_FEATURE,
                              "an entity reference, which a tree cannot hold unexpanded");
     case SXML_EXI_EVENT_SELF_CONTAINED:
-        return SXML_EXI_FAIL(decoding, SXML_STATUS_UNSUPPORTED_FEATURE, "self-contained elements are not read yet");
+        return sxml_exi_begin_self_contained(decoding);
     case SXML_EXI_EVENT_START_DOCUMENT:
     case SXML_EXI_EVENT_START_ELEMENT_URI:
     case SXML_EXI_EVENT_ATTRIBUTE_URI:
@@ -2114,6 +2230,11 @@ static sxml_status sxml_exi_end_block(sxml_exi_decoding *decoding) {
 static void sxml_exi_release_decoding(sxml_exi_decoding *decoding) {
     sxml_exi_string_table_finalize(&decoding->table);
     sxml_exi_grammars_finalize(&decoding->grammars);
+    for (size_t saved_index = 0; saved_index < decoding->saved_state_count; saved_index++) {
+        sxml_exi_string_table_finalize(&decoding->saved_states[saved_index].table);
+        sxml_exi_grammars_finalize(&decoding->saved_states[saved_index].grammars);
+    }
+    sxml_allocator_release(decoding->allocator, decoding->saved_states);
     if (decoding->is_schema_informed) {
         sxml_exi_schema_grammars_finalize(&decoding->schema_grammars);
     }

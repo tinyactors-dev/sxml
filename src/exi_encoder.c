@@ -52,6 +52,16 @@ typedef struct sxml_exi_block_channel {
     uint32_t value_count;
 } sxml_exi_block_channel;
 
+/* What a self-contained element puts aside (8.4.3, SC): the string
+   table, grammars and top level of the stream around it, and where its
+   own elements start. */
+typedef struct sxml_exi_saved_state {
+    sxml_exi_string_table table;
+    sxml_exi_grammars grammars;
+    sxml_exi_nonterminal top_nonterminal;
+    size_t element_base;
+} sxml_exi_saved_state;
+
 typedef struct sxml_exi_encoding {
     const sxml_exi_encode_request *request;
     sxml_allocator allocator;
@@ -76,6 +86,12 @@ typedef struct sxml_exi_encoding {
     sxml_exi_open_element *elements;
     size_t element_count;
     size_t element_capacity;
+    /* Inside self-contained elements: the elements below element_base
+       are the enclosing streams'; saved_states, one per element. */
+    size_t element_base;
+    sxml_exi_saved_state *saved_states;
+    size_t saved_state_count;
+    size_t saved_state_capacity;
     sxml_exi_nonterminal top_nonterminal;
     sxml_byte_view failure_description;
     /* Pre-compression and compression (EXI 9): output holds the header and
@@ -114,7 +130,7 @@ static sxml_status sxml_exi_encoder_record(sxml_exi_encoding *encoding, sxml_exi
 /* ---------------------------------------------------------- Positions */
 
 static sxml_exi_open_element *sxml_exi_innermost(sxml_exi_encoding *encoding) {
-    return encoding->element_count == 0 ? NULL : &encoding->elements[encoding->element_count - 1];
+    return encoding->element_count <= encoding->element_base ? NULL : &encoding->elements[encoding->element_count - 1];
 }
 
 static sxml_exi_position sxml_exi_encoder_position(sxml_exi_encoding *encoding) {
@@ -2023,6 +2039,125 @@ static sxml_status sxml_exi_encode_other(sxml_exi_encoding *encoding, const sxml
 
 /* ------------------------------------------------------------- The walk */
 
+/* ------------------------------------------------- Self-contained elements */
+
+/* Whether the element is one the request writes self-contained. */
+static bool sxml_exi_is_self_contained(const sxml_exi_encoding *encoding, const sxml_node_description *description) {
+    if (!encoding->options.allows_self_contained) {
+        return false;
+    }
+    const sxml_element_name_view names = encoding->request->self_contained_elements;
+    for (size_t name_index = 0; name_index < names.element_name_count; name_index++) {
+        if (names.element_names[name_index].index == description->node_name.index) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The string table and grammars a stream starts with (Appendix D, 8.4). */
+static sxml_status sxml_exi_encoder_start_state(sxml_exi_encoding *encoding) {
+    const sxml_status status = sxml_exi_string_table_initialize(
+        &encoding->table, &(sxml_exi_string_table_configuration){.allocator = encoding->allocator, .options = &encoding->options});
+    if (status == SXML_STATUS_OK) {
+        sxml_exi_grammars_initialize(&encoding->grammars,
+                                     &(sxml_exi_grammars_configuration){.allocator = encoding->allocator,
+                                                                        .options = &encoding->options,
+                                                                        .maximum_learned_production_count = UINT32_MAX});
+    }
+    return status;
+}
+
+/* 8.4.3, SC Fragment: after the element's SE, SC (a second-level code of
+   StartTagContent) and padding to a byte; the string table and grammars
+   put aside for new ones; then, as EXIficient's EXIBodyEncoderInOrderSC
+   writes it, the fragment SD, SE (qname) and, with Preserve.prefixes, a
+   declaration of the element's own prefix. The element's own
+   declarations, attributes and content follow in the fragment. */
+static sxml_status sxml_exi_begin_self_contained(sxml_exi_encoding *encoding, const sxml_exi_node_event *event) {
+    if (encoding->is_schema_informed) {
+        return SXML_EXI_ENCODER_FAIL(encoding, SXML_STATUS_UNSUPPORTED_FEATURE,
+                                     "self-contained elements with schema-informed grammars are not written");
+    }
+    sxml_status status = sxml_exi_write_tail(encoding, SXML_EXI_EVENT_SELF_CONTAINED);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_writer_align(&encoding->writer);
+    }
+    if (status == SXML_STATUS_OK && encoding->saved_state_count == encoding->saved_state_capacity) {
+        void *saved_states = encoding->saved_states;
+        status = sxml_allocator_reserve_array(
+            encoding->allocator, &(sxml_array_reservation_request){.elements = &saved_states,
+                                                                   .capacity = &encoding->saved_state_capacity,
+                                                                   .element_count = encoding->saved_state_count,
+                                                                   .required_count = encoding->saved_state_count + 1,
+                                                                   .element_size = sizeof(sxml_exi_saved_state),
+                                                                   .element_alignment = alignof(sxml_exi_saved_state),
+                                                                   .minimum_capacity = 4});
+        encoding->saved_states = saved_states;
+    }
+    if (status != SXML_STATUS_OK || encoding->saved_states == NULL) {
+        return status == SXML_STATUS_OK ? SXML_STATUS_INVALID_ARGUMENT : status;
+    }
+    encoding->saved_states[encoding->saved_state_count++] = (sxml_exi_saved_state){
+        .table = encoding->table,
+        .grammars = encoding->grammars,
+        .top_nonterminal = encoding->top_nonterminal,
+        .element_base = encoding->element_base,
+    };
+    encoding->element_base = encoding->element_count;
+    encoding->top_nonterminal = SXML_EXI_NONTERMINAL_FRAGMENT_CONTENT;
+    status = sxml_exi_encoder_start_state(encoding);
+    if (status != SXML_STATUS_OK) {
+        /* Nothing new to release: the saved state is the current one. */
+        encoding->saved_state_count--;
+        encoding->table = encoding->saved_states[encoding->saved_state_count].table;
+        encoding->element_base = encoding->saved_states[encoding->saved_state_count].element_base;
+        return status;
+    }
+    status = sxml_exi_encode_start_element(encoding, event);
+    if (status == SXML_STATUS_OK && encoding->options.fidelity.preserves_prefixes) {
+        sxml_exi_name_text name = {0};
+        status = sxml_exi_name_text_of(encoding, event->description, &name);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_exi_encode_namespace(
+                encoding, &(sxml_exi_namespace_write){.binding = {.uri = name.uri, .prefix = name.prefix},
+                                                      .is_local_element_namespace = true});
+        }
+    }
+    return status;
+}
+
+/* After the EE of a self-contained element: the fragment's ED, padding
+   to a byte, and the stream around it back, whose element ends there
+   without an EE of its own. */
+static sxml_status sxml_exi_end_self_contained(sxml_exi_encoding *encoding) {
+    sxml_status status = sxml_exi_write_tail(encoding, SXML_EXI_EVENT_END_DOCUMENT);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_writer_align(&encoding->writer);
+    }
+    sxml_exi_string_table_finalize(&encoding->table);
+    sxml_exi_grammars_finalize(&encoding->grammars);
+    const sxml_exi_saved_state *saved = &encoding->saved_states[--encoding->saved_state_count];
+    encoding->table = saved->table;
+    encoding->grammars = saved->grammars;
+    encoding->top_nonterminal = saved->top_nonterminal;
+    encoding->element_base = saved->element_base;
+    encoding->element_count--;
+    return status;
+}
+
+/* What a failure leaves inside self-contained elements: the saved tables
+   and grammars (the current ones are the caller's to finalize). */
+static void sxml_exi_release_saved_states(sxml_exi_encoding *encoding) {
+    for (size_t saved_index = 0; saved_index < encoding->saved_state_count; saved_index++) {
+        sxml_exi_string_table_finalize(&encoding->saved_states[saved_index].table);
+        sxml_exi_grammars_finalize(&encoding->saved_states[saved_index].grammars);
+    }
+    encoding->saved_state_count = 0;
+    sxml_allocator_release(encoding->allocator, encoding->saved_states);
+    encoding->saved_states = NULL;
+}
+
 /* Writes one child node of the innermost element (or of the top). */
 static sxml_status sxml_exi_encode_node(sxml_exi_encoding *encoding, sxml_node_reference node) {
     sxml_node_description description = {0};
@@ -2036,6 +2171,9 @@ static sxml_status sxml_exi_encode_node(sxml_exi_encoding *encoding, sxml_node_r
         status = sxml_exi_encoder_schema_grammar(encoding) != SXML_EXI_NONE
                      ? sxml_exi_encode_schema_start_element(encoding, &event)
                      : sxml_exi_encode_start_element(encoding, &event);
+        if (status == SXML_STATUS_OK && sxml_exi_is_self_contained(encoding, &description)) {
+            status = sxml_exi_begin_self_contained(encoding, &event);
+        }
         if (status == SXML_STATUS_OK && encoding->options.fidelity.preserves_prefixes) {
             status = sxml_exi_encode_namespaces(encoding, &event);
         }
@@ -2122,6 +2260,10 @@ static sxml_status sxml_exi_encode_body(sxml_exi_encoding *encoding, sxml_node_r
                      ? sxml_exi_encode_schema_end_element(encoding)
                      : sxml_exi_encode_learnable(encoding, SXML_EXI_EVENT_END_ELEMENT);
         encoding->element_count--;
+        if (status == SXML_STATUS_OK && encoding->saved_state_count > 0 &&
+            encoding->element_count == encoding->element_base) {
+            status = sxml_exi_end_self_contained(encoding);
+        }
     }
     if (status == SXML_STATUS_OK && encoding->is_schema_informed) {
         const sxml_exi_lookup end = sxml_exi_find_schema_production(
@@ -2250,6 +2392,7 @@ sxml_status sxml_exi_encode_stream(sxml_exi_encoder *encoder, const sxml_exi_enc
                                                .maximum_learned_production_count = UINT32_MAX});
         status = sxml_exi_encode_body(&encoding, request->root);
         sxml_exi_grammars_finalize(&encoding.grammars);
+        sxml_exi_release_saved_states(&encoding);
     }
     if (status == SXML_STATUS_OK && encoding.is_channelized) {
         status = sxml_exi_flush_block(&encoding);
