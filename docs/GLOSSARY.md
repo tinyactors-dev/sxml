@@ -95,6 +95,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `calendar` | The calendar a date is formatted in, named by a designator such as `AD` or `ISO` (F&O 4.0, section 9.9.4.8) |
 | `call_each` | The evaluator's own resumable body that calls a sequence of function items in turn and concatenates the results (a dynamic call on several functions, XPath 4.0, section 4.6.3.1) |
 | `caller_focus` | The focus of a static call, passed by lowering as three extra arguments (context value, position, size) to a native function that hands it on (fn:function-lookup binds a context-dependent function it finds to it) |
+| `canonical_exi` | The one `exi_stream` Canonical EXI (W3C Recommendation, 2018) assigns to an Information Set and a set of `exi_options`: the most precise productions, sorted namespace declarations and attributes, values in canonical form. The encoder writes it when `sxml_exi_canonicalization.is_canonical` is set (D333). |
 | `canonical_form` | How an article file is written: indented except inside the elements that hold text, where indentation would add text (`$spec:serialization`), with a final newline; a file not in it was edited as text (`spec:not-canonical`) |
 | `canonical_text` | The canonical lexical form of a value as UTF-8 bytes (F&O 4.0, section 19.1.2, casting to `xs:string`) |
 | `capture` | A node that a pattern of a tree-sitter query names with `@name`; the last highlights pattern that captures a node gives its `highlight` attribute |
@@ -244,6 +245,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `default_language` | The language of the dynamic context, for `fn:default-language` and the formatting functions |
 | `default_priority` | The priority of a template rule without a priority attribute, computed from the form of its pattern (XSLT 4.0, 6.4) |
 | `deferred_check` | An assertion or identity-constraint check of an element that reads its recorded subtree, queued by the schema validator and run when the outermost recorded element ends |
+| `deflate` | The compressed data format of RFC 1951 that the compression alignment of EXI applies to each `exi_channel` group. sxml has its own encoder and decoder of it (`src/deflate.c`, `src/inflate.c`), written for this from the RFC, with no third-party code (D333). |
 | `delivering_task` | An evaluator task in content position: when it finishes, its value is added to the construction of the receiving task below instead of being handed to the task below, and a loop's body or a call's body in it delivers each value at once (D166) |
 | `derivation_frame` | A union base type on the explicit stack of a derivation question, whose members are tried in turn |
 | `derivation_set` | A set of derivation methods (extension, restriction, list, union, substitution) as a bit set: XSD's {final}, {prohibited substitutions}, {disallowed substitutions}, {substitution group exclusions} |
@@ -325,6 +327,12 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `event` | One step given to a tree builder: start element, attribute, text, ... |
 | `exact_text` | The canonical decimal text of the exact value of a double, as compared with decimals |
 | `excluded_namespace` | A namespace whose namespace nodes literal result elements do not copy (XSLT 4.0, 11.1.3) |
+| `exi_channel` | The values of one qualified name within one compression block, which the pre-compression and compression alignments write together after the block structure channel; in compression each channel group is compressed with `deflate` on its own (EXI 1.0, section 9.2) (D333). |
+| `exi_grammar` | A set of productions that maps each event an `exi_stream` may have at a point to its event code (EXI 1.0, section 8). Built-in grammars, used without a schema, learn productions as the stream goes; schema-informed grammars are built once from a compiled XML Schema. One grammar machine runs both, for encoder and decoder (D333). |
+| `exi_options` | The parameters of an `exi_stream` that its decoder must know (EXI 1.0, section 5.4): alignment, the fidelity options, strict, fragment, selfContained, schemaId, datatypeRepresentationMap, blockSize, valueMaxLength and valuePartitionCapacity. Carried in the stream header as an options document, or known out of band; `sxml_exi_options` in C (D333). |
+| `exi_oracle` | EXIficient 1.0.4, an independent EXI implementation, run by `tools/exi-oracle/` only to make the golden streams of `tests/exi/`; nothing sxml builds, ships or tests at run time needs it or Java (D333). |
+| `exi_ratchet` | `tests/exi/passing.txt`: the golden EXI cases that pass. The test `exi/golden` fails when a listed case fails; each Phase 8 packet adds the cases it makes pass and removes none (D333). |
+| `exi_stream` | An EXI header followed by an EXI body: the binary form of an XML Information Set that Efficient XML Interchange 1.0 defines (W3C Recommendation, Second Edition, 2014). `sxml_exi_decoder` reads one into tree builder events, `sxml_exi_encoder` writes one from a tree (D333). |
 | `exit_code` | The process exit status: success 0, operation failed 1, usage error 2, input/output error 3, internal error 4 |
 | `expanded_name` | Namespace URI plus local name |
 | `expansion_segment` | A run of an expression's text after placeholders are replaced that comes from one place, the attribute or a sch:param's value, so that a syntax error points into that place (internal, D315) |
@@ -343,6 +351,7 @@ One spelling per concept. Identifiers use these words exactly. Add a term
 | `facet` | One constraining facet of a simple type's restriction step (XSD 1.1 Part 2, 4.3): its `facet_kind` (length, pattern, enumeration, minInclusive, ...) and its value as text |
 | `fallback_marker` | Text such as `[Calendar: AD]` or `[Language: en]` put before a formatted date when sxml uses another calendar or language than the one asked for |
 | `feature_data` | Large data an optional feature reads through the processor's resource resolver, in the data's standard format (DUCET `allkeys.txt`, CLDR rule text, TZif files), at first use, and keeps as its state in the processor (`sxml_optional_feature_read_data`; D184, D189) |
+| `fidelity_option` | One of the five `exi_options` that say what an `exi_stream` keeps beyond elements, attributes and text: comments, processing instructions, the DTD, prefixes, lexical values (EXI 1.0, section 6.3). Without one, the encoder drops that kind of content (D333). |
 | `field_index` | Position of a field in a record type, from 0 |
 | `field_key` | The xs:string key item of one record field, made by a record on first need |
 | `field_name` | The name a grammar gives a child of a syntax node by its role, such as `name` or `body`; the `field` attribute of its element |

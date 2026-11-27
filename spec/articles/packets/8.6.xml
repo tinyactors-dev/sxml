@@ -1,0 +1,18 @@
+<packet id="8.6">
+  <title>EXI pre-compression</title>
+  <summary>The pre-compression alignment in both directions: the structure channel, value channels by qualified name, blocks of blockSize values.</summary>
+  <body>
+    <p>After 8.5. EXI 1.0, section 9 ("EXI Compression") but DEFLATE.</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: <code>src/exi_channel.c</code>: the encoder buffers a block's values per <term name="exi_channel"/> and writes them in channel order; the decoder reads the structure channel first, then hands values out of the channels.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: that file, <code>tests/exi_channel_test.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: every decode and encode check of the pre-compression sets passes and is in the ratchet.</p>
+      </item>
+    </list>
+  </body>
+</packet>

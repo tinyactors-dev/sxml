@@ -1,0 +1,4 @@
+<term id="canonical_exi">
+  <name>canonical_exi</name>
+  <definition>The one <term name="exi_stream"/> Canonical EXI (W3C Recommendation, 2018) assigns to an Information Set and a set of <term name="exi_options"/>: the most precise productions, sorted namespace declarations and attributes, values in canonical form. The encoder writes it when <code>sxml_exi_canonicalization.is_canonical</code> is set (<ref kind="decision" to="D333"/>).</definition>
+</term>

@@ -1,0 +1,4 @@
+<term id="exi_ratchet">
+  <name>exi_ratchet</name>
+  <definition><code>tests/exi/passing.txt</code>: the golden EXI cases that pass. The test <code>exi/golden</code> fails when a listed case fails; each Phase 8 packet adds the cases it makes pass and removes none (<ref kind="decision" to="D333"/>).</definition>
+</term>

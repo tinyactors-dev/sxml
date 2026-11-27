@@ -1,0 +1,15 @@
+<packet id="8.15">
+  <title>EXI in the host shim and the JavaScript package</title>
+  <summary>The shim's encode and decode calls and the JavaScript package's processor.encodeEXI and processor.parseEXI, within the size budget.</summary>
+  <body>
+    <p>After 8.13.</p>
+    <list>
+      <item>
+        <p><strong>Owns</strong>: their parts of <code>bindings/host/</code> and <code>bindings/javascript/</code>, their tests, the budgets the size test names (<ref kind="decision" to="D272"/>).</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the package tests pass under node; the size test passes.</p>
+      </item>
+    </list>
+  </body>
+</packet>

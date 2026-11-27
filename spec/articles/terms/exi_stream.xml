@@ -1,0 +1,4 @@
+<term id="exi_stream">
+  <name>exi_stream</name>
+  <definition>An EXI header followed by an EXI body: the binary form of an XML Information Set that Efficient XML Interchange 1.0 defines (W3C Recommendation, Second Edition, 2014). <code>sxml_exi_decoder</code> reads one into tree builder events, <code>sxml_exi_encoder</code> writes one from a tree (<ref kind="decision" to="D333"/>).</definition>
+</term>

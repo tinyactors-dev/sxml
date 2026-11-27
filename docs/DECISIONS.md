@@ -19025,6 +19025,95 @@ import, returns 404 on npm, and used the released command instead.
   staged publishing allowed. Later releases need only the tag. The package
   names its repository in `package.json`, as npm's trusted publishing requires.
 
+### D333. EXI 1.0 and Canonical EXI: two codecs at the data model boundary, the exi output method, our own DEFLATE (owner)
+
+**Summary**: sxml reads and writes all of EXI 1.0 and Canonical EXI through a
+decoder of tree builder events and an encoder over trees (exi.h), with the
+output method exi:exi, the functions exi:serialize and exi:parse in
+urn:sxml:exi, schemaId through the resolver, its own DEFLATE, and EXIficient as
+the oracle of checked-in golden streams.
+
+Recorded 2026-11-27, after D99, D189, D255, D272, D307.
+
+Recorded 2026-11-27 at the owner's word: "Full EXI with compression, write our
+own DEFLATE, go ahead, drive this to completion", after a spike of a binary
+storage format (`spikes/sqlite-xml/`, commit 8061ee002) and a sketch the owner
+accepted, with the namespace `urn:sxml:exi`. Phase 8 (tasks/phase-8) carries it
+out; release 0.3.0 ships it.
+
+- **Whom it serves**: users who exchange XML with systems that speak EXI
+  (vehicle-to-grid charging, smart-energy and IoT protocols use schema-informed
+  EXI), users who sign XML in a canonical binary form, and users who want XML
+  smaller on the wire. No other XQuery or XSLT processor has EXI (none found in
+  a search, 2026-11-27).
+- **The standards**: Efficient XML Interchange (EXI) Format 1.0 (Second
+  Edition), W3C Recommendation 11 February 2014, all of it: the four
+  alignments, every option, built-in and schema-informed grammars; Canonical
+  EXI, W3C Recommendation 7 June 2018. The EXI Profile is not in this phase.
+  Compression uses DEFLATE (RFC 1951), and sxml writes its own encoder and
+  decoder of it, from the RFC, with no third-party code.
+- **Two codecs at the boundary of the data model** (`include/sxml/exi.h`).
+  `sxml_exi_decoder` reads a stream and sends tree builder events, as
+  `sxml_xml_parser` does, so the result is an ordinary arena tree.
+  `sxml_exi_encoder` walks any tree and writes to an `sxml_output_stream`, as
+  the serializer does. Nothing in the evaluator changes. One grammar machine
+  serves both directions; schema-informed grammars are built from the compiled
+  schema of `schema.h` (its components in `src/schema_internal.h`), so sxml's
+  XSD 1.1 implementation is the one schema model.
+- **The data model and EXI**: the encoder writes names, prefixes and namespace
+  declarations (an element's in-scope namespaces its parent lacks), attributes,
+  text, comments and processing instructions as the fidelity options allow. It
+  writes no type annotations: a schema-informed stream types its values by its
+  grammars. The decoder builds untyped nodes; validating them is the caller's.
+  A tree has no DTD and no entity references, so the encoder writes none and
+  the decoder ignores a DT event's contents and refuses an ER event.
+- **Names**: functions, the output method, its parameters and errors in
+  `urn:sxml:exi`, predeclared as `exi` (`SXML_NAMESPACE_EXI`). The EXI options
+  are the W3C's own, the options document in `http://www.w3.org/2009/exi`
+  (`SXML_NAMESPACE_EXI_FORMAT`), with no predeclared prefix, since sxml gives
+  `exi` to its own namespace; a W3C namespace gets no names W3C did not define.
+- **Serialization**: Serialization 4.0 lets `method` be a QName in a namespace,
+  an implementation-defined method that may skip the phases that make octets
+  from characters (its sections 3 and 4). So EXI is the method `exi:exi`
+  (`SXML_SERIALIZATION_METHOD_EXI`), with namespaced parameters (`exi:options`,
+  an exi:header element; `exi:include-cookie`, `exi:include-options`,
+  `exi:include-schema-id`; `exi:omit-options-document`, `exi:utc-time`;
+  `exi:self-contained-elements`), and Serialization's `canonical` parameter
+  means Canonical EXI for it. XQuery output declarations, `xsl:output`,
+  `xsl:result-document`, the command's `--method` and the bindings' serializers
+  all reach it. `fn:serialize` returns a string and skips encoding (F&O 4.0,
+  17.2.3), so with this method it raises SEPM0016.
+- **Functions**: `exi:serialize($input as item()*, $options as map(*)? := {})
+  as xs:base64Binary` (the method's bytes, its options the method's parameters
+  by local name) and `exi:parse($stream as xs:base64Binary?, $options as
+  map(*)? := {}) as document-node()?` (the options for a stream whose header
+  has none). `fn:parse-xml` keeps taking XML text only: choosing a format from
+  the bytes is guessing.
+- **Schemas by schemaId**: a stream's schemaId is resolved through the
+  processor's resource resolver, as a new kind `SXML_RESOURCE_KIND_EXI_SCHEMA`,
+  and the compiled schema is kept per schemaId
+  (`sxml_processor_exi_schema_resolver`).
+- **The command** (packet 8.14): `sxml encode FILE` writes an EXI stream, `sxml
+  decode FILE` writes XML text, with the options as flags;
+  `--input-format=xml|exi` on the commands that read a document. `encode`
+  refuses to write to a terminal.
+- **Bindings**: the host shim gets an encode and a decode call; the JavaScript
+  package `processor.encodeEXI(value, options)` and `processor.parseEXI(bytes,
+  options)`. Swift and Kotlin are paused (D255) and get their methods when they
+  resume.
+- **Untrusted streams**: the decoder bounds depth, decoded content bytes (and
+  so DEFLATE expansion) and learned productions (`sxml_exi_limits`), and every
+  decoder entry point gets a fuzzer.
+- **Verification**: EXIficient 1.0.4, the implementation of the EXI working
+  group's editors, is the oracle, run only to make test data
+  (`tools/exi-oracle/`). Its golden streams (`tests/exi/`: a sample of the
+  vendored suites and handmade documents, crossed with option sets that cover
+  every option) are checked in, so the tests need no Java. Each packet ratchets
+  `tests/exi/passing.txt`: a case that passed must keep passing. Decoding is
+  checked against EXIficient's decoding of the same stream, encoding byte for
+  byte against EXIficient's stream (DEFLATE output aside, which may differ and
+  is checked by decoding).
+
 ## Proposed
 
 - **Cheaper atomic string cells** (D322, perf-11; for a later perf packet

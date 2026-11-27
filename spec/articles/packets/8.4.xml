@@ -1,0 +1,18 @@
+<packet id="8.4">
+  <title>EXI decoder with built-in grammars</title>
+  <summary>Decodes schema-less streams in bit-packed and byte-aligned alignment into tree builder events, with every fidelity option and the fragment option.</summary>
+  <body>
+    <p>After 8.3. EXI 1.0, sections 5 (the header, options out of band), 6, 8.1 to 8.4 (built-in document, fragment and element grammars, with learning) and 8.3 (event codes as the fidelity options prune them).</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: <code>src/exi_grammar.c</code>, the grammar machine both codecs run; <code>src/exi_decoder.c</code>, the event loop to the builder, the NS events (prefixes ns0, ns1, ... without preserves_prefixes), the limits of <code>sxml_exi_limits</code>.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: those files, <code>tests/exi_decoder_test.c</code>, their part of <code>src/exi_internal.h</code>, <code>sxml_exi_decoder_decode</code> in <code>src/exi.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: every decode check of the sets bit-packed, bit-packed-full, byte-alignment-full, string-limits, string-limits-zero and fragment passes and is in the ratchet.</p>
+      </item>
+    </list>
+  </body>
+</packet>

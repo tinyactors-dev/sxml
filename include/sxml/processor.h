@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "sxml/exi.h"
 #include "sxml/export.h"
 #include "sxml/memory.h"
 #include "sxml/name.h"
@@ -224,6 +225,15 @@ typedef enum sxml_resource_kind {
        synonyms of its own one level further. NONE: a thesaurus by URI
        raises FTST0018; the default thesaurus is then empty. */
     SXML_RESOURCE_KIND_FULL_TEXT_THESAURUS,
+    /* The schema an EXI stream's schemaId names (EXI 1.0, section 5.4;
+       include/sxml/exi.h; D333), asked for by sxml_processor_exi_schema_resolver:
+       uri_reference and absolute_uri are the schemaId's text as it is.
+       Forms: BYTES or DOCUMENT_NODE, an XML Schema document, which the
+       processor compiles (with its imports and includes, as
+       SXML_RESOURCE_KIND_SCHEMA_DOCUMENT) and keeps for later streams with
+       the same schemaId. NONE: the stream cannot be decoded
+       (SXML_STATUS_UNSUPPORTED_FEATURE). Added by D333. */
+    SXML_RESOURCE_KIND_EXI_SCHEMA,
 } sxml_resource_kind;
 
 /* What sxml asks a resolver for. Views are borrowed for the call. */
@@ -677,6 +687,14 @@ SXML_EXPORT sxml_optional_feature sxml_test_optional_feature(void);
 SXML_EXPORT sxml_optional_feature sxml_expath_binary_feature(void);
 
 /*
+ * EXI (include/sxml/exi.h): the functions exi:serialize and exi:parse in
+ * urn:sxml:exi, the output method exi:exi of serialization, and
+ * sxml_processor_parse_exi_document. Without it the functions are absent
+ * (XPST0017) and the method raises SEPM0016. Its name is "exi" (D333).
+ */
+SXML_EXPORT sxml_optional_feature sxml_exi_feature(void);
+
+/*
  * The HTML parser (HTML Living Standard, 13.2): fn:parse-html and
  * fn:html-doc (F&O 4.0, 17.3), which build trees in the XHTML, SVG and
  * MathML namespaces. Without it both functions are absent (XPST0017).
@@ -1075,6 +1093,32 @@ SXML_EXPORT bool sxml_processor_has_optional_feature(const sxml_processor *proce
 SXML_NODISCARD SXML_EXPORT sxml_status sxml_processor_parse_document(
     sxml_processor *processor, const sxml_xml_parse_request *request,
     sxml_item *document_node);
+
+/*
+ * Decodes request->input as an EXI stream (include/sxml/exi.h) into a new
+ * arena tree with the processor's limits and writes its document node,
+ * owned, to *document_node, as sxml_processor_parse_document does for XML
+ * text. A request with the null schema resolver gets the processor's
+ * (sxml_processor_exi_schema_resolver). Needs the feature sxml_exi_feature
+ * (SXML_STATUS_UNSUPPORTED_FEATURE without it).
+ *
+ * Returns the failures of sxml_exi_decoder_decode, with request->diagnostic
+ * filled, and those of building the tree; *document_node is then untouched
+ * and nothing is left allocated. Added by D333.
+ */
+SXML_NODISCARD SXML_EXPORT sxml_status sxml_processor_parse_exi_document(
+    sxml_processor *processor, const sxml_exi_decode_request *request,
+    sxml_item *document_node);
+
+/*
+ * An EXI schema resolver (include/sxml/exi.h) that asks processor's
+ * resource resolver for each schemaId, with SXML_RESOURCE_KIND_EXI_SCHEMA,
+ * compiles the schema document it gets and keeps the compiled schema for
+ * the processor's life, so every stream with that schemaId shares it. It
+ * is valid while processor is. Added by D333.
+ */
+SXML_EXPORT sxml_exi_schema_resolver sxml_processor_exi_schema_resolver(
+    sxml_processor *processor);
 
 /*
  * An entity resolver (include/sxml/xml.h) that asks processor's resource

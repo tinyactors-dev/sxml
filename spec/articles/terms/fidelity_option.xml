@@ -1,0 +1,4 @@
+<term id="fidelity_option">
+  <name>fidelity_option</name>
+  <definition>One of the five <term name="exi_options"/> that say what an <term name="exi_stream"/> keeps beyond elements, attributes and text: comments, processing instructions, the DTD, prefixes, lexical values (EXI 1.0, section 6.3). Without one, the encoder drops that kind of content (<ref kind="decision" to="D333"/>).</definition>
+</term>

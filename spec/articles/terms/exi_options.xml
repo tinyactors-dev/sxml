@@ -1,0 +1,4 @@
+<term id="exi_options">
+  <name>exi_options</name>
+  <definition>The parameters of an <term name="exi_stream"/> that its decoder must know (EXI 1.0, section 5.4): alignment, the fidelity options, strict, fragment, selfContained, schemaId, datatypeRepresentationMap, blockSize, valueMaxLength and valuePartitionCapacity. Carried in the stream header as an options document, or known out of band; <code>sxml_exi_options</code> in C (<ref kind="decision" to="D333"/>).</definition>
+</term>

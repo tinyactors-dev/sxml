@@ -1,0 +1,4 @@
+<term id="exi_channel">
+  <name>exi_channel</name>
+  <definition>The values of one qualified name within one compression block, which the pre-compression and compression alignments write together after the block structure channel; in compression each channel group is compressed with <term name="deflate"/> on its own (EXI 1.0, section 9.2) (<ref kind="decision" to="D333"/>).</definition>
+</term>

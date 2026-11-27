@@ -2136,6 +2136,10 @@ static void sxml_serializer_resolve_pipeline(sxml_serializer *serializer) {
     case SXML_SERIALIZATION_METHOD_CSV:
         serializer->escape_style = SXML_ESCAPE_STYLE_CSV;
         break;
+    case SXML_SERIALIZATION_METHOD_EXI:
+        /* Writes bytes, not characters (D333): no escaping applies. */
+        serializer->escape_style = SXML_ESCAPE_STYLE_NONE;
+        break;
     }
     /* Serialization 4.0, 5.1.2: version 1.0 (the default) has no C0
        controls but tab, newline and carriage return. */
@@ -2359,6 +2363,11 @@ sxml_status sxml_serialize_sequence(sxml_item_heap *item_heap,
             break;
         case SXML_SERIALIZATION_METHOD_CSV:
             status = sxml_serialize_csv_method(&serializer, request->value);
+            break;
+        case SXML_SERIALIZATION_METHOD_EXI:
+            /* Packet 8.10 writes the method; until then, the status the
+               header gives a method sxml does not implement yet. */
+            status = SXML_STATUS_UNSUPPORTED_FEATURE;
             break;
         }
     }

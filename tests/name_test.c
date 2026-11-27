@@ -195,6 +195,8 @@ static void test_well_known_namespaces_have_fixed_identifiers(
         {SXML_NAMESPACE_EXSLT_COMMON, "http://exslt.org/common"},
         {SXML_NAMESPACE_SXML, "urn:sxml"},
         {SXML_NAMESPACE_TREE_SITTER, "urn:sxml:tree-sitter"},
+        {SXML_NAMESPACE_EXI, "urn:sxml:exi"},
+        {SXML_NAMESPACE_EXI_FORMAT, "http://www.w3.org/2009/exi"},
     };
     name_fixture fixture = {.storage = {0}, .name_pool = NULL};
     sxml_name_pool_configuration configuration = default_configuration();

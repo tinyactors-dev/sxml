@@ -1,0 +1,15 @@
+<packet id="8.2">
+  <title>EXI guardrails: oracle, golden corpus, ratchet, gate script</title>
+  <summary>Builds the deterministic checks every later packet must pass: the exi_oracle, the golden corpus of tests/exi, the driver exi_golden with its exi_ratchet, and tools/exi/check-packet.sh.</summary>
+  <body>
+    <p><status value="done" date="2026-11-27"/> After 8.1.</p>
+    <list>
+      <item>
+        <p><strong>Owns</strong>: new <code>tools/exi-oracle/</code>, <code>tests/exi/</code>, <code>tools/exi/check-packet.sh</code>; the registration in <code>tests/CMakeLists.txt</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: <code>exi/golden-self-check</code> passes (the comparison tells equal documents from different ones), <code>exi/golden</code> runs every case, and the gate script passes on the tree.</p>
+      </item>
+    </list>
+  </body>
+</packet>

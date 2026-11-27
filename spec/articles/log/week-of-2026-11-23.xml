@@ -3,6 +3,9 @@
   <body>
     <list loose="true">
       <item>
+        <p>8.1 and 8.2 done (<ref kind="decision" to="D333"/>): include/sxml/exi.h and the additive serialize.h, name.h and processor.h changes; the EXIficient oracle, the golden corpus of tests/exi (every option set), the driver exi_golden with its ratchet, and tools/exi/check-packet.sh.</p>
+      </item>
+      <item>
         <p>The JavaScript package gets a release step (<ref kind="decision" to="D332"/>): a pushed tag runs .github/workflows/npm.yml, which builds, tests, packs and smoke-tests @tinyactors/sxml from the tag and stages it on npm; 0.2.0 was never published (npm answered 404).</p>
       </item>
     </list>

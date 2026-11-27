@@ -66,6 +66,8 @@ static const sxml_byte_view sxml_well_known_namespace_uris
             SXML_BYTE_VIEW_INITIALIZER("http://exslt.org/common"),
         [SXML_NAMESPACE_SXML] = SXML_BYTE_VIEW_INITIALIZER("urn:sxml"),
         [SXML_NAMESPACE_TREE_SITTER] = SXML_BYTE_VIEW_INITIALIZER("urn:sxml:tree-sitter"),
+        [SXML_NAMESPACE_EXI] = SXML_BYTE_VIEW_INITIALIZER("urn:sxml:exi"),
+        [SXML_NAMESPACE_EXI_FORMAT] = SXML_BYTE_VIEW_INITIALIZER("http://www.w3.org/2009/exi"),
 };
 
 /* --------------------------------------------------------------- Tables */

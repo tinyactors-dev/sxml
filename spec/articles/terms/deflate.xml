@@ -1,0 +1,4 @@
+<term id="deflate">
+  <name>deflate</name>
+  <definition>The compressed data format of RFC 1951 that the compression alignment of EXI applies to each <term name="exi_channel"/> group. sxml has its own encoder and decoder of it (<code>src/deflate.c</code>, <code>src/inflate.c</code>), written for this from the RFC, with no third-party code (<ref kind="decision" to="D333"/>).</definition>
+</term>

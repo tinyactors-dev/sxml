@@ -535,6 +535,10 @@ sxml_qt4_resolve_from_table(void *state, const sxml_resource_request *request,
     case SXML_RESOURCE_KIND_FULL_TEXT_STOP_WORDS:
     case SXML_RESOURCE_KIND_FULL_TEXT_THESAURUS:
         return sxml_qt4_serve_full_text(&table_request, resource);
+    case SXML_RESOURCE_KIND_EXI_SCHEMA:
+        /* The QT4 suite has no EXI cases (D333). */
+        resource->description = SXML_TEXT("The QT4 driver serves no EXI schemas");
+        return SXML_STATUS_OK;
     case SXML_RESOURCE_KIND_XSLT_PACKAGE:
         break;
     }

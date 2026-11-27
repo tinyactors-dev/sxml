@@ -1,0 +1,18 @@
+<packet id="8.9">
+  <title>EXI schema-informed grammars</title>
+  <summary>Builds the schema-informed grammars of EXI 1.0, section 8.5, from a compiled schema, decodes and encodes with them, strict and not, with typed values and the datatypeRepresentationMap.</summary>
+  <body>
+    <p>After 8.5. EXI 1.0, sections 7.1 (built-in datatypes by schema type), 7.4 (datatypeRepresentationMap) and 8.5 (schema-informed document, fragment, element fragment and type grammars, normalization, event codes, the undeclared productions of non-strict grammars); the components of <code>src/schema_internal.h</code>.</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: <code>src/exi_schema_grammar.c</code>, the proto-grammars of every particle, term and attribute use, normalized and numbered, built once per schema and kept with it; xsi:type and xsi:nil; the built-in types only grammars of the empty schemaId.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: that file, <code>tests/exi_schema_grammar_test.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: every decode and encode check of the schema and xsd-types-only sets passes but header and canonical (8.10, 8.11), and the strict cases the oracle refused are refused.</p>
+      </item>
+    </list>
+  </body>
+</packet>

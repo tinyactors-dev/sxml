@@ -1,0 +1,56 @@
+<document id="tasks/phase-8" file="docs/tasks/phase-8.md">
+  <title>Phase 8: EXI</title>
+  <p>Goal: all of Efficient XML Interchange 1.0 (Second Edition, W3C Recommendation 2014) and Canonical EXI (W3C Recommendation 2018) in sxml, read and written through the tree builder and the serializer, shipped in release 0.3.0. A packet starts when every packet in its "After" list is committed. Phase 8 must not regress the counts of Phases 2 to 7.</p>
+  <section id="rules">
+    <title>Rules</title>
+    <list>
+      <item>
+        <p><strong>Headers first.</strong> Packet 8.2 writes every public declaration of the phase; later packets change no header in <code>include/sxml/</code>, and a need for one is a proposal.</p>
+      </item>
+      <item>
+        <p><strong>The ratchet.</strong><code>tests/exi/passing.txt</code> lists the golden cases that pass. The <code>exi/golden</code> test fails when one of them fails; a packet adds the cases it makes pass, and removes none.</p>
+      </item>
+      <item>
+        <p><strong>The gate script.</strong><code>tools/exi/check-packet.sh</code> runs what a packet must pass: the debug preset with sanitizers, the EXI unit tests and the ratchet, clang-tidy on the changed files, the call-cycle check, and no change under <code>include/sxml/</code>.</p>
+      </item>
+    </list>
+  </section>
+  <section id="packets">
+    <title>Packets</title>
+    <p>Each packet gives what it implements, what it owns, what it needs first ("After") and when it is done.</p>
+    <include kind="packet" to="8.1"/>
+    <include kind="packet" to="8.2"/>
+    <include kind="packet" to="8.3"/>
+    <include kind="packet" to="8.4"/>
+    <include kind="packet" to="8.5"/>
+    <include kind="packet" to="8.6"/>
+    <include kind="packet" to="8.7"/>
+    <include kind="packet" to="8.8"/>
+    <include kind="packet" to="8.9"/>
+    <include kind="packet" to="8.10"/>
+    <include kind="packet" to="8.11"/>
+    <include kind="packet" to="8.12"/>
+    <include kind="packet" to="8.13"/>
+    <include kind="packet" to="8.14"/>
+    <include kind="packet" to="8.15"/>
+    <include kind="packet" to="8.16"/>
+    <include kind="packet" to="8.17"/>
+  </section>
+  <section id="gate">
+    <title>Gate</title>
+    <list>
+      <item checked="false">
+        <p>Every golden case of <code>tests/exi/manifest.tsv</code> that EXIficient accepts passes: decoded as EXIficient decodes it, and encoded to the same bytes (compression decoded instead), and every case EXIficient refuses is refused.</p>
+      </item>
+      <item checked="false">
+        <p>The counts of Phases 2 to 7 have not dropped, and <code>sxml.wasm</code> is within its budget.</p>
+      </item>
+      <item checked="false">
+        <p>Each decoder entry point (the stream, DEFLATE, the options document) has a fuzz target, run briefly here and fully on the owner's machine.</p>
+      </item>
+      <item checked="false">
+        <p>The command, the host shim and the JavaScript package reach the codecs, each with tests, and the book has an EXI page.</p>
+      </item>
+    </list>
+  </section>
+</document>

@@ -1,0 +1,15 @@
+<packet id="8.10">
+  <title>EXI header options document</title>
+  <summary>Writes and reads the options document of the EXI header, with the schema-informed grammar of the EXI options schema, and the cookie.</summary>
+  <body>
+    <p>After 8.9. EXI 1.0, section 5 and Appendix C (the options schema).</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: <code>src/exi_header.c</code>; the options schema compiled from text embedded in the library and its grammar built by 8.9, once per encoder or decoder.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the decode and encode checks of the header-options and schema-header sets pass and are in the ratchet.</p>
+      </item>
+    </list>
+  </body>
+</packet>

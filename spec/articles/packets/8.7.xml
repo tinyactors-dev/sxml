@@ -1,0 +1,18 @@
+<packet id="8.7">
+  <title>DEFLATE of our own</title>
+  <summary>An RFC 1951 inflater and deflater written for sxml, with no third-party code: stored, fixed and dynamic Huffman blocks, a 32 KiB window, bounded output.</summary>
+  <body>
+    <p>After 8.2. RFC 1951.</p>
+    <list>
+      <item>
+        <p><strong>Mechanism</strong>: <code>src/inflate.c</code> (every block type, the length and distance codes, checks for every malformed case, output bounded by the caller) and <code>src/deflate.c</code> (LZ77 with hash chains over the 32 KiB window, dynamic Huffman blocks with lengths limited to 15 bits, stored blocks when they are smaller), behind <code>src/deflate_internal.h</code>.</p>
+      </item>
+      <item>
+        <p><strong>Owns</strong>: those files, <code>tests/deflate_test.c</code>, <code>tests/inflate_test.c</code>, <code>tests/deflate/</code> (vectors made once with another implementation and checked in: streams to inflate, including every block type and edge case).</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: inflate decodes every vector; deflate's output inflates back to its input for every vector and a generated corpus; malformed streams are refused, never read out of bounds; the gate script passes.</p>
+      </item>
+    </list>
+  </body>
+</packet>

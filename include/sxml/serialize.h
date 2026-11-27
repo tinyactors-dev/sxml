@@ -143,8 +143,9 @@ SXML_EXPORT void sxml_output_buffer_clear(sxml_output_buffer *output_buffer);
 /*
  * The output methods (Serialization 4.0, section 3 "Serialization
  * Parameters", parameter method). The list only grows. A method name with
- * a namespace (an implementation-defined method) has no constant: sxml
- * defines none, and the parameter reader raises SEPM0016 for one.
+ * a namespace is an implementation-defined method: sxml defines one,
+ * Q{urn:sxml:exi}exi (SXML_SERIALIZATION_METHOD_EXI, D333), and the
+ * parameter reader raises SEPM0016 for any other.
  */
 typedef enum sxml_serialization_method {
     /* Serialization 4.0, "Adaptive Output Method": items one after the
@@ -179,6 +180,15 @@ typedef enum sxml_serialization_method {
        of arrays of atomic items, as CSV records (SERE0025 for other
        input). */
     SXML_SERIALIZATION_METHOD_CSV,
+    /* Q{urn:sxml:exi}exi, an implementation-defined method (Serialization
+       4.0, section 3): after sequence normalization, the document is
+       written as an EXI stream (include/sxml/exi.h) with the parameters of
+       exi_parameters. It writes bytes, skipping the phases that turn
+       characters into octets, which Serialization 4.0, section 4 allows an
+       implementation-defined method; the character parameters (encoding,
+       indent, character maps, normalization-form, ...) do not apply. Added
+       by D333. */
+    SXML_SERIALIZATION_METHOD_EXI,
 } sxml_serialization_method;
 
 /*
@@ -421,6 +431,10 @@ typedef struct sxml_serialization_parameters {
        HTML method the version when html-version is absent. SESU0013 for
        an XML version other than 1.0 and 1.1. */
     sxml_byte_view version;
+    /* The parameters of the exi method in urn:sxml:exi (include/sxml/
+       exi.h); NULL for their defaults. Ignored by the other methods.
+       Added by D333. */
+    const struct sxml_exi_serialization_parameters *exi_parameters;
 } sxml_serialization_parameters;
 
 /* -------------------------------------------------- Parameter reader */

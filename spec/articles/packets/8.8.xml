@@ -1,0 +1,15 @@
+<packet id="8.8">
+  <title>EXI compression</title>
+  <summary>The compression alignment in both directions: pre-compression's channels, each block's streams compressed with our DEFLATE.</summary>
+  <body>
+    <p>After 8.6 and 8.7. EXI 1.0, section 9.3: the structure channel and channels of more than 100 values compressed one by one, the smaller channels together.</p>
+    <list>
+      <item>
+        <p><strong>Owns</strong>: the compression part of <code>src/exi_channel.c</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: every decode and encode check of the compression sets passes and is in the ratchet.</p>
+      </item>
+    </list>
+  </body>
+</packet>

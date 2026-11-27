@@ -107,6 +107,11 @@
         <cell>What <ref kind="decision" to="D97"/> left out of Phases 2–4: full UCA, HTML parsing, invisible XML, streaming, the Update Facility, Full Text, EXPath, compatibility modes, timezone database, other calendars and languages, fn:transform (<ref kind="decision" to="D162"/>); proposed for the owner: xsl:evaluate, DTD processing, XML 1.1 input, disable-output-escaping. Large parts may be optional build features (<ref kind="decision" to="D183"/>)</cell>
         <cell>Each feature's QT4, XSLT or xmlconf test sets pass at its packet's rate (<code>docs/tasks/phase-7.md</code>); earlier gates held; size budgets met</cell>
       </row>
+      <row>
+        <cell>8. EXI</cell>
+        <cell>Efficient XML Interchange 1.0, all of it (built-in and schema-informed grammars, every alignment, compression with our own DEFLATE) and Canonical EXI, through the tree builder, the serializer, the functions exi:serialize and exi:parse, the command and the JavaScript package (<ref kind="decision" to="D333"/>; <code>docs/tasks/phase-8.md</code>)</cell>
+        <cell>Every golden case of <code>tests/exi/</code> passes against the EXIficient oracle; earlier gates held; size budgets met</cell>
+      </row>
     </table>
     <p>Phases 0 to 3 are year one. Pass-rate targets for Phases 2 and 3 are set at the end of Phase 1.</p>
   </section>

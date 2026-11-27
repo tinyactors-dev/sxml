@@ -1,0 +1,4 @@
+<term id="exi_oracle">
+  <name>exi_oracle</name>
+  <definition>EXIficient 1.0.4, an independent EXI implementation, run by <code>tools/exi-oracle/</code> only to make the golden streams of <code>tests/exi/</code>; nothing sxml builds, ships or tests at run time needs it or Java (<ref kind="decision" to="D333"/>).</definition>
+</term>

@@ -1,0 +1,15 @@
+<packet id="8.1">
+  <title>EXI design and headers</title>
+  <summary>Records <ref kind="decision" to="D333"/> and writes every public declaration of Phase 8: include/sxml/exi.h, the exi method and its parameters in serialize.h, the namespaces in name.h, the feature, resource kind and processor functions in processor.h.</summary>
+  <body>
+    <p><status value="done" date="2026-11-27"/> After <ref kind="decision" to="D333"/>.</p>
+    <list>
+      <item>
+        <p><strong>Owns</strong>: new <code>include/sxml/exi.h</code>, <code>src/exi.c</code> (the lifecycles, encode and decode returning SXML_STATUS_UNSUPPORTED_FEATURE until their packets), <code>src/exi_internal.h</code>; additive changes to <code>include/sxml/serialize.h</code>, <code>name.h</code> (<code>SXML_NAMESPACE_EXI</code>, <code>SXML_NAMESPACE_EXI_FORMAT</code>; <ref kind="decision" to="D99"/>), <code>processor.h</code>, and the switches that list the enumerations they grow.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: every preset builds; the existing tests pass.</p>
+      </item>
+    </list>
+  </body>
+</packet>

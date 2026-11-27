@@ -110,8 +110,18 @@ typedef enum sxml_well_known_namespace {
        and tree-sitter:languages and their errors (packet 7.26, D307).
        Added after the freeze (D99). */
     SXML_NAMESPACE_TREE_SITTER = 17,
+    /* urn:sxml:exi, "exi": the functions exi:serialize and exi:parse, the
+       output method exi:exi, its serialization parameters and the errors
+       (D333). Added after the freeze (D99). */
+    SXML_NAMESPACE_EXI = 18,
+    /* http://www.w3.org/2009/exi, no prefix of its own (EXI 1.0, which
+       binds "exi" to it, while sxml binds "exi" to urn:sxml:exi): the
+       elements of the EXI options document and the names of the built-in
+       EXI datatypes (EXI 1.0, section 7.4, Appendix C; D333). Added after
+       the freeze (D99). */
+    SXML_NAMESPACE_EXI_FORMAT = 19,
     /* One more than the largest well-known namespace. */
-    SXML_NAMESPACE_WELL_KNOWN_COUNT = 18,
+    SXML_NAMESPACE_WELL_KNOWN_COUNT = 20,
 } sxml_well_known_namespace;
 
 /*

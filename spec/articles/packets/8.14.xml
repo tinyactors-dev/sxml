@@ -1,0 +1,15 @@
+<packet id="8.14">
+  <title>EXI in the sxml command</title>
+  <summary>The commands sxml encode and sxml decode, and --input-format on the commands that read documents.</summary>
+  <body>
+    <p>After 8.13. The rules of <ref kind="document" to="CLI"/>.</p>
+    <list>
+      <item>
+        <p><strong>Owns</strong>: new <code>apps/sxml/command_encode.c</code>, <code>command_decode.c</code>, their golden tests in <code>tests/cli/</code>, their sections in <code>apps/sxml/README.md</code>.</p>
+      </item>
+      <item>
+        <p><strong>Done when</strong>: the golden tests pass; encode refuses to write to a terminal; README and help agree.</p>
+      </item>
+    </list>
+  </body>
+</packet>

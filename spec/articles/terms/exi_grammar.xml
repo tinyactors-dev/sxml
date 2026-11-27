@@ -1,0 +1,4 @@
+<term id="exi_grammar">
+  <name>exi_grammar</name>
+  <definition>A set of productions that maps each event an <term name="exi_stream"/> may have at a point to its event code (EXI 1.0, section 8). Built-in grammars, used without a schema, learn productions as the stream goes; schema-informed grammars are built once from a compiled XML Schema. One grammar machine runs both, for encoder and decoder (<ref kind="decision" to="D333"/>).</definition>
+</term>

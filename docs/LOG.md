@@ -7,6 +7,11 @@ blocked. Add an item to this week's entry with `tools/spec/spec log TEXT`.
 
 ## Week of 2026-11-23
 
+- 8.1 and 8.2 done (D333): include/sxml/exi.h and the additive serialize.h,
+  name.h and processor.h changes; the EXIficient oracle, the golden corpus of
+  tests/exi (every option set), the driver exi_golden with its ratchet, and
+  tools/exi/check-packet.sh.
+
 - The JavaScript package gets a release step (D332): a pushed tag runs
   .github/workflows/npm.yml, which builds, tests, packs and smoke-tests
   @tinyactors/sxml from the tag and stages it on npm; 0.2.0 was never published
