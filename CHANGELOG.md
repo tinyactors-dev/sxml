@@ -24,6 +24,13 @@ release are in `docs/RELEASE.md`.
   grammars come from a compiled XSD (`sxml_schema`): typed values,
   `xsi:type` and `xsi:nil`, strict and non-strict grammars, and the
   built-in XSD types alone (an empty schemaId, EXI 1.0, 5.4).
+  The header carries the cookie and the options document when asked
+  (`sxml_exi_header_options`), and a decoder reads a stream's own
+  options from it. **Canonical EXI** (W3C Recommendation 2018):
+  `sxml_exi_canonicalization`, with `omitOptionsDocument` and `utcTime`.
+  **Self-contained elements**: `self_contained_elements` of the encode
+  request. Of the 5,589 golden checks, the six sxml fails are cases
+  where EXIficient is wrong (`tests/exi/oracle-deviations.txt`).
 - **EXI through the processor** (D333): the optional feature `exi`, in
   every build (D272); the functions `exi:serialize` and `exi:parse` in
   the namespace `urn:sxml:exi`, bound to the prefix `exi` in the `sxml`
@@ -39,7 +46,10 @@ release are in `docs/RELEASE.md`.
   on `sxml xpath`, `sxml xquery` and `sxml transform`, each with the EXI
   options as flags (`--alignment`, `--preserve`, `--fragment`,
   `--strict`, `--block-size`, `--value-max-length`,
-  `--value-partition-capacity`, `--schema`). The book has a chapter,
+  `--value-partition-capacity`, `--self-contained`, `--schema`); `sxml
+  encode` also takes `--include-cookie`, `--include-options`,
+  `--include-schema-id`, `--canonical`, `--omit-options-document`,
+  `--utc-time` and `--self-contained-element=NAME`. The book has a chapter,
   "Compact XML with EXI".
 - **`Processor.encodeExi` and `Processor.parseExi`** in the JavaScript
   package (D333), with the stream's options as an `ExiOptions` object,
