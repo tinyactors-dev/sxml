@@ -17,7 +17,7 @@
 #   1. No change under include/sxml/ (headers first: packet 8.2 wrote them).
 #   2. The exi_ratchet only grows: tests/exi/passing.txt loses no line.
 #   3. The debug build (Clang, AddressSanitizer, UndefinedBehaviorSanitizer,
-#      -Werror) builds the library, the EXI tests and the CLI.
+#      -Werror) builds everything, so --tests may select any test.
 #   4. The EXI unit tests and the golden test (with its ratchet) pass under
 #      the sanitizers: ctest -R '^(exi|deflate|inflate)'.
 #   5. clang-tidy is clean on the changed C files.
@@ -66,9 +66,8 @@ step "3. debug build with sanitizers"
 mkdir -p "$build"
 cmake -S . -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang \
     -DSXML_ENABLE_SANITIZERS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON >/dev/null
-ninja -C "$build" sxml exi_golden deflate_vectors sxml_cli $(cd "$build" && ninja -t targets all 2>/dev/null | \
-    sed -n 's/^\(\(exi\|deflate\|inflate\)[a-z_]*_test\): .*/\1/p' | sort -u) >/dev/null \
-    || { ninja -C "$build" sxml exi_golden deflate_vectors 2>&1 | grep -E 'error' | head -20; fail "the debug build"; }
+ninja -C "$build" >/dev/null \
+    || { ninja -C "$build" 2>&1 | grep -E 'error' | head -20; fail "the debug build"; }
 echo ok
 
 step "4. EXI tests under the sanitizers"
