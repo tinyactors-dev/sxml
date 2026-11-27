@@ -135,6 +135,13 @@ typedef struct sxml_exi_local_name {
        qname in the block numbered channel_block + 1 (0: none yet). */
     uint64_t channel_block;
     uint32_t channel_index;
+    /* Schema-informed (8.5): the grammar of the global element declared
+       with this qname, the global type grammar of the type named by it
+       (xsi:type, 8.5.4.4) and the datatype of the global attribute
+       declared with it (AT (*), 8.5.4.1.3.2); SXML_EXI_NONE for none. */
+    uint32_t schema_element_grammar;
+    uint32_t type_grammar;
+    uint32_t attribute_datatype;
 } sxml_exi_local_name;
 
 typedef struct sxml_exi_uri {
@@ -201,6 +208,19 @@ typedef struct sxml_exi_string_table {
     size_t used_slot_count;
 } sxml_exi_string_table;
 
+/* The names a schema adds to the string table (7.3.1, Appendix D): per
+   URI its local-names, as views borrowed for the table's initialization. */
+typedef struct sxml_exi_schema_partition {
+    sxml_byte_view uri;
+    const sxml_byte_view *local_names;
+    size_t local_name_count;
+} sxml_exi_schema_partition;
+
+typedef struct sxml_exi_schema_partition_view {
+    const sxml_exi_schema_partition *partitions;
+    size_t partition_count;
+} sxml_exi_schema_partition_view;
+
 /* What a table is made with. */
 typedef struct sxml_exi_string_table_configuration {
     sxml_allocator allocator;
@@ -208,6 +228,11 @@ typedef struct sxml_exi_string_table_configuration {
     /* Schema-informed: the XML Schema URI and its type names too
        (Appendix D.1, D.3). */
     bool is_schema_informed;
+    /* Schema-informed: the schema's URIs and local-names, merged with the
+       initial entries; the URIs that are not initial ones are appended in
+       lexicographical order, every partition's local-names sorted (7.3.1,
+       D.3). */
+    sxml_exi_schema_partition_view schema_partitions;
 } sxml_exi_string_table_configuration;
 
 /* Makes the table with its initial entries (Appendix D). */
@@ -418,6 +443,396 @@ SXML_NODISCARD sxml_status sxml_exi_read_event_code(sxml_exi_grammars *grammars,
 /* The terminal of a match, and the qname of a learned production. */
 sxml_exi_production sxml_exi_match_production(sxml_exi_grammars *grammars, sxml_exi_position position,
                                               sxml_exi_match match);
+
+/* ------------------------------------------------------------ Buffers */
+
+/* Bytes that grow through allocator (typed values as text, 7). */
+typedef struct sxml_exi_buffer {
+    sxml_allocator allocator;
+    uint8_t *bytes;
+    size_t byte_count;
+    size_t capacity;
+} sxml_exi_buffer;
+
+SXML_NODISCARD sxml_status sxml_exi_buffer_append(sxml_exi_buffer *buffer, sxml_byte_view bytes);
+void sxml_exi_buffer_release(sxml_exi_buffer *buffer);
+
+/* ---------------------------------------------------------- Datatypes */
+
+/*
+ * The EXI datatype representations a schema-informed grammar types values
+ * with (EXI 7.1, 7.2, Table 7-1), as the oracle EXIficient 1.0.4 derives
+ * them from XML Schema simple types (src/exi_schema_grammar.c).
+ */
+typedef enum sxml_exi_datatype_kind {
+    /* 7.1.10, through the string table. */
+    SXML_EXI_DATATYPE_STRING,
+    /* 7.1.10.1: a string whose literals use a restricted character set. */
+    SXML_EXI_DATATYPE_RESTRICTED_STRING,
+    SXML_EXI_DATATYPE_BASE64_BINARY,
+    SXML_EXI_DATATYPE_HEX_BINARY,
+    /* 7.1.2: one bit, or two with pattern facets. */
+    SXML_EXI_DATATYPE_BOOLEAN,
+    SXML_EXI_DATATYPE_PATTERN_BOOLEAN,
+    SXML_EXI_DATATYPE_DECIMAL,
+    SXML_EXI_DATATYPE_FLOAT,
+    /* 7.1.5: sign and magnitude, an Unsigned Integer, or an n-bit offset
+       from the lower bound of a range of at most 4096 values. */
+    SXML_EXI_DATATYPE_INTEGER,
+    SXML_EXI_DATATYPE_UNSIGNED_INTEGER,
+    SXML_EXI_DATATYPE_BOUNDED_INTEGER,
+    SXML_EXI_DATATYPE_DATE_TIME,
+    SXML_EXI_DATATYPE_LIST,
+    SXML_EXI_DATATYPE_ENUMERATION,
+} sxml_exi_datatype_kind;
+
+/* The Date-Time variants (7.1.8, Table 7-4). */
+typedef enum sxml_exi_date_time_kind {
+    SXML_EXI_DATE_TIME_DATE_TIME,
+    SXML_EXI_DATE_TIME_TIME,
+    SXML_EXI_DATE_TIME_DATE,
+    SXML_EXI_DATE_TIME_G_YEAR_MONTH,
+    SXML_EXI_DATE_TIME_G_YEAR,
+    SXML_EXI_DATE_TIME_G_MONTH_DAY,
+    SXML_EXI_DATE_TIME_G_DAY,
+    SXML_EXI_DATE_TIME_G_MONTH,
+} sxml_exi_date_time_kind;
+
+/* The whiteSpace facet (XSD 1.1 Part 2, 4.3.6) of a datatype. */
+typedef enum sxml_exi_whitespace {
+    SXML_EXI_WHITESPACE_PRESERVE,
+    SXML_EXI_WHITESPACE_REPLACE,
+    SXML_EXI_WHITESPACE_COLLAPSE,
+} sxml_exi_whitespace;
+
+/* The restricted character sets of Table 7-2 (Preserve.lexicalValues). */
+typedef enum sxml_exi_lexical_set {
+    SXML_EXI_LEXICAL_SET_NONE,
+    SXML_EXI_LEXICAL_SET_BASE64_BINARY,
+    SXML_EXI_LEXICAL_SET_HEX_BINARY,
+    SXML_EXI_LEXICAL_SET_BOOLEAN,
+    SXML_EXI_LEXICAL_SET_DATE_TIME,
+    SXML_EXI_LEXICAL_SET_DECIMAL,
+    SXML_EXI_LEXICAL_SET_DOUBLE,
+    SXML_EXI_LEXICAL_SET_INTEGER,
+} sxml_exi_lexical_set;
+
+typedef struct sxml_exi_datatype {
+    sxml_exi_datatype_kind datatype_kind;
+    sxml_exi_date_time_kind date_time_kind;
+    sxml_exi_whitespace whitespace;
+    /* LIST: the datatype of the items; ENUMERATION: the datatype its
+       values are of. */
+    uint32_t base_datatype;
+    /* BOUNDED_INTEGER: the bits of the offset, its lower bound (decimal
+       text in the grammars' text store) and the number of values;
+       ENUMERATION: the bits of the ordinal. */
+    uint32_t bit_count;
+    sxml_exi_text lower_bound;
+    uint32_t value_count;
+    /* ENUMERATION: value_count texts from first_value in the grammars'
+       enumeration values (the canonical text of each value, as decoded);
+       RESTRICTED_STRING: value_count code points from first_value in the
+       grammars' characters, ascending. */
+    size_t first_value;
+} sxml_exi_datatype;
+
+/* ---------------------------------------------- Schema-informed grammars */
+
+/* The kinds of schema-informed grammars (8.5), named as the oracle names
+   them: a start tag is a grammar Element_{i,j} with 0 <= j <= content
+   (the first one is Element_{i,0}), an element grammar one with
+   j > content or the copy Element_{i,content2} (8.5.4.4.1). */
+typedef enum sxml_exi_grammar_kind {
+    SXML_EXI_GRAMMAR_DOCUMENT_CONTENT,
+    SXML_EXI_GRAMMAR_DOCUMENT_END,
+    SXML_EXI_GRAMMAR_FRAGMENT_CONTENT,
+    SXML_EXI_GRAMMAR_FIRST_START_TAG,
+    SXML_EXI_GRAMMAR_START_TAG,
+    SXML_EXI_GRAMMAR_ELEMENT,
+} sxml_exi_grammar_kind;
+
+/* A production with a one-part event code (8.5.4.3): its terminal, the
+   qname of SE (qname) and AT (qname) or the URI of SE (uri : *) and
+   AT (uri : *), the datatype of a typed AT or CH (SXML_EXI_NONE: an
+   untyped CH of mixed content), the grammar it leads to (SXML_EXI_NONE
+   after EE and ED) and, for SE (qname), the element declaration whose
+   grammar the element is evaluated with. */
+typedef struct sxml_exi_schema_production {
+    sxml_exi_event_kind event_kind;
+    uint32_t uri;
+    uint32_t local_name;
+    uint32_t datatype;
+    uint32_t next;
+    uint32_t element;
+} sxml_exi_schema_production;
+
+typedef struct sxml_exi_schema_grammar {
+    sxml_exi_grammar_kind grammar_kind;
+    uint32_t first_production;
+    uint32_t production_count;
+    /* Start tags: Element_{i,content2}, where undeclared SE, CH, ER, CM
+       and PI lead; SXML_EXI_NONE for the others (they stay). */
+    uint32_t element_content;
+    /* Start tags: TypeEmpty (xsi:nil="true", 8.5.4.1.3); SXML_EXI_NONE
+       when not made. */
+    uint32_t type_empty;
+    bool has_end_element;
+    /* First start tags with strict: the AT (xsi:type) and AT (xsi:nil)
+       productions of 8.5.4.4.2. */
+    bool is_nillable;
+    bool is_type_castable;
+    /* The first AT (qname) production's event code and the number of
+       them (AT (qname) [untyped value], 8.5.4.4.1). */
+    uint32_t least_attribute;
+    uint32_t attribute_count;
+} sxml_exi_schema_grammar;
+
+/* The productions with two- and three-part event codes that 8.5.4.4 and
+   the fidelity options add to a schema-informed grammar, in order. */
+typedef enum sxml_exi_undeclared {
+    SXML_EXI_UNDECLARED_END_ELEMENT,
+    SXML_EXI_UNDECLARED_TYPE,
+    SXML_EXI_UNDECLARED_NIL,
+    SXML_EXI_UNDECLARED_ATTRIBUTE_ANY,
+    /* AT (qname) [untyped value] and AT (*) [untyped value], whose third
+       part picks the attribute. */
+    SXML_EXI_UNDECLARED_ATTRIBUTE_INVALID,
+    SXML_EXI_UNDECLARED_NAMESPACE,
+    SXML_EXI_UNDECLARED_SELF_CONTAINED,
+    SXML_EXI_UNDECLARED_START_ELEMENT_ANY,
+    SXML_EXI_UNDECLARED_CHARACTERS,
+    SXML_EXI_UNDECLARED_ENTITY_REFERENCE,
+    SXML_EXI_UNDECLARED_DOCTYPE,
+} sxml_exi_undeclared;
+
+enum {
+    SXML_EXI_MAXIMUM_UNDECLARED = 12,
+};
+
+/* The second-level productions of a grammar, and whether a last
+   second-level code leads to CM and PI (a third level). */
+typedef struct sxml_exi_undeclared_list {
+    sxml_exi_undeclared undeclared[SXML_EXI_MAXIMUM_UNDECLARED];
+    uint32_t undeclared_count;
+    bool has_third_level;
+} sxml_exi_undeclared_list;
+
+/* The schema-informed grammars of one stream. */
+typedef struct sxml_exi_schema_grammars {
+    sxml_allocator allocator;
+    const sxml_exi_options *options;
+    sxml_exi_schema_grammar *grammars;
+    size_t grammar_count;
+    size_t grammar_capacity;
+    sxml_exi_schema_production *productions;
+    size_t production_count;
+    size_t production_capacity;
+    sxml_exi_datatype *datatypes;
+    size_t datatype_count;
+    size_t datatype_capacity;
+    /* Per element declaration of the schema: its grammar, a first start
+       tag (SXML_EXI_NONE until made). */
+    uint32_t *element_grammars;
+    size_t element_declaration_count;
+    sxml_exi_text *enumeration_values;
+    size_t enumeration_value_count;
+    size_t enumeration_value_capacity;
+    uint32_t *characters;
+    size_t character_count;
+    size_t character_capacity;
+    sxml_exi_buffer text;
+    uint32_t document_content;
+    uint32_t document_end;
+    uint32_t fragment_content;
+    /* The element grammar of only EE, the content of every TypeEmpty. */
+    uint32_t empty_content;
+    /* The datatypes of xsi:nil (Boolean) and of untyped values (String,
+       for Preserve.lexicalValues). */
+    uint32_t boolean_datatype;
+    uint32_t string_datatype;
+} sxml_exi_schema_grammars;
+
+/* What the grammars are built from: the schema (NULL for the built-in
+   XML Schema types only, 8.5.1), the options, and the string table the
+   build initializes with the schema's names (7.3.1). */
+typedef struct sxml_exi_schema_build {
+    sxml_allocator allocator;
+    const sxml_exi_options *options;
+    const sxml_schema *schema;
+} sxml_exi_schema_build;
+
+/* Initializes table (schema-informed, with the schema's names) and builds
+   the grammars; on failure both are finalized and *failure_description
+   may name why. */
+typedef struct sxml_exi_schema_setup {
+    sxml_exi_string_table *table;
+    sxml_exi_schema_grammars *grammars;
+    sxml_byte_view *failure_description;
+} sxml_exi_schema_setup;
+
+SXML_NODISCARD sxml_status sxml_exi_schema_grammars_build(const sxml_exi_schema_build *build,
+                                                          const sxml_exi_schema_setup *setup);
+void sxml_exi_schema_grammars_finalize(sxml_exi_schema_grammars *grammars);
+
+/* The second-level productions of grammar (8.5.4.4, pruned as 8.3 says),
+   as the oracle numbers them. */
+void sxml_exi_schema_undeclared_list(const sxml_exi_schema_grammars *grammars, uint32_t grammar,
+                                     sxml_exi_undeclared_list *list);
+
+/* Where an event is in a schema-informed grammar: a declared production
+   (by its event code), an undeclared one, or CM or PI (third level). */
+typedef enum sxml_exi_schema_match_kind {
+    SXML_EXI_SCHEMA_MATCH_DECLARED,
+    SXML_EXI_SCHEMA_MATCH_UNDECLARED,
+    SXML_EXI_SCHEMA_MATCH_COMMENT,
+    SXML_EXI_SCHEMA_MATCH_PROCESSING_INSTRUCTION,
+} sxml_exi_schema_match_kind;
+
+typedef struct sxml_exi_schema_match {
+    sxml_exi_schema_match_kind match_kind;
+    /* DECLARED: the production's event code; UNDECLARED: which. */
+    uint32_t code;
+    sxml_exi_undeclared undeclared;
+    /* ATTRIBUTE_INVALID: the third part (an AT (qname) production's code
+       less least_attribute, or attribute_count for AT (*)). */
+    uint32_t attribute;
+} sxml_exi_schema_match;
+
+typedef struct sxml_exi_schema_code_write {
+    uint32_t grammar;
+    sxml_exi_schema_match match;
+} sxml_exi_schema_code_write;
+
+/* Writes the event code of match in grammar; DYNAMIC_ERROR when the
+   grammar has no such production (strict, or pruned). */
+SXML_NODISCARD sxml_status sxml_exi_schema_write_event_code(const sxml_exi_schema_grammars *grammars,
+                                                            const sxml_exi_schema_code_write *write,
+                                                            sxml_exi_bit_writer *writer);
+
+typedef struct sxml_exi_schema_code_read {
+    uint32_t grammar;
+    sxml_exi_bit_reader *reader;
+} sxml_exi_schema_code_read;
+
+/* Reads an event code in grammar; MALFORMED_INPUT for one it lacks. */
+SXML_NODISCARD sxml_status sxml_exi_schema_read_event_code(const sxml_exi_schema_grammars *grammars,
+                                                           const sxml_exi_schema_code_read *read,
+                                                           sxml_exi_schema_match *match);
+
+/* Whether grammar has the undeclared production. */
+typedef struct sxml_exi_undeclared_query {
+    uint32_t grammar;
+    sxml_exi_undeclared undeclared;
+} sxml_exi_undeclared_query;
+
+bool sxml_exi_schema_has_undeclared(const sxml_exi_schema_grammars *grammars, sxml_exi_undeclared_query query);
+
+/* The production of grammar at event code (borrowed). */
+static inline const sxml_exi_schema_production *sxml_exi_schema_production_at(const sxml_exi_schema_grammars *grammars,
+                                                                             uint32_t grammar, uint32_t code) {
+    return &grammars->productions[grammars->grammars[grammar].first_production + code];
+}
+
+/* --------------------------------------------------------- Typed values */
+
+/* A typed value's text, checked and turned into its representation. */
+typedef struct sxml_exi_value_text {
+    uint32_t datatype;
+    sxml_byte_view text;
+} sxml_exi_value_text;
+
+/*
+ * Whether text is a value of a datatype of kind other than STRING,
+ * RESTRICTED_STRING and LIST, as the oracle decides it (its lexical rules:
+ * text trimmed, the representation's own range checks, no facets but the
+ * bounds of a bounded integer and enumerations); writes it when writer is
+ * not NULL.
+ */
+typedef struct sxml_exi_typed_write {
+    const sxml_exi_schema_grammars *grammars;
+    sxml_exi_bit_writer *writer;
+} sxml_exi_typed_write;
+
+/* Whether a value is one of its datatype. */
+typedef struct sxml_exi_validity {
+    bool is_valid;
+} sxml_exi_validity;
+
+SXML_NODISCARD sxml_status sxml_exi_write_typed_value(const sxml_exi_typed_write *write, sxml_exi_value_text value,
+                                                      sxml_exi_validity *validity);
+
+/* Reads a value of a datatype of kind other than STRING,
+   RESTRICTED_STRING and LIST and appends its text (as the oracle writes
+   it) to output. */
+typedef struct sxml_exi_typed_read {
+    const sxml_exi_schema_grammars *grammars;
+    sxml_exi_bit_reader *reader;
+    sxml_exi_buffer *output;
+} sxml_exi_typed_read;
+
+SXML_NODISCARD sxml_status sxml_exi_read_typed_value(const sxml_exi_typed_read *read, uint32_t datatype);
+
+/* Appends to buffer the text the decoder writes for value (its
+   canonical text in the oracle's form) when text is a value of the
+   datatype (a kind other than STRING, RESTRICTED_STRING, LIST and
+   ENUMERATION; is_valid false otherwise). For the values of
+   enumerations (7.2). */
+typedef struct sxml_exi_canonical_output {
+    sxml_exi_buffer *buffer;
+    bool is_valid;
+} sxml_exi_canonical_output;
+
+SXML_NODISCARD sxml_status sxml_exi_canonicalize_value(const sxml_exi_schema_grammars *grammars,
+                                                       sxml_exi_value_text value, sxml_exi_canonical_output *output);
+
+/* The bounds of an integer type (its effective minInclusive,
+   minExclusive, maxInclusive and maxExclusive, empty when absent) and
+   the representation they give (7.1.5): a range of at most 4096 values
+   from lower_bound (its decimal text appended to the buffer), an
+   Unsigned Integer for a lower bound of 0 or more, or sign and
+   magnitude. */
+typedef struct sxml_exi_integer_bounds {
+    sxml_byte_view minimum_inclusive;
+    sxml_byte_view minimum_exclusive;
+    sxml_byte_view maximum_inclusive;
+    sxml_byte_view maximum_exclusive;
+} sxml_exi_integer_bounds;
+
+typedef struct sxml_exi_integer_range {
+    sxml_exi_datatype_kind datatype_kind;
+    uint32_t value_count;
+    sxml_exi_buffer *lower_bound;
+} sxml_exi_integer_range;
+
+SXML_NODISCARD sxml_status sxml_exi_integer_range_of(const sxml_exi_integer_bounds *bounds,
+                                                     sxml_exi_integer_range *range);
+
+/* The whiteSpace facet applied to text (XSD 1.1 Part 2, 4.3.6) into
+   output; output empty for an empty result. */
+typedef struct sxml_exi_whitespace_request {
+    sxml_exi_whitespace whitespace;
+    sxml_byte_view text;
+} sxml_exi_whitespace_request;
+
+SXML_NODISCARD sxml_status sxml_exi_apply_whitespace(sxml_exi_whitespace_request request, sxml_exi_buffer *output);
+
+/* The restricted character set of a literal (7.1.10.1) or of
+   Preserve.lexicalValues (Table 7-2): code points, ascending. */
+typedef struct sxml_exi_character_set {
+    const uint32_t *characters;
+    size_t character_count;
+} sxml_exi_character_set;
+
+sxml_exi_character_set sxml_exi_lexical_character_set(sxml_exi_lexical_set lexical_set);
+/* The Table 7-2 set of a datatype's values with Preserve.lexicalValues. */
+sxml_exi_lexical_set sxml_exi_datatype_lexical_set(const sxml_exi_schema_grammars *grammars, uint32_t datatype);
+/* The index of codepoint in set, or set.character_count when absent. */
+uint32_t sxml_exi_character_index(sxml_exi_character_set set, uint32_t codepoint);
+
+/* Splits text into list items at XML whitespace: *offset advances past
+   the next item, written to *item; false when none is left. */
+bool sxml_exi_next_list_item(sxml_byte_view text, size_t *offset, sxml_byte_view *item);
 
 /* ---------------------------------------------------------- The objects */
 

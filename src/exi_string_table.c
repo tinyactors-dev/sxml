@@ -5,6 +5,7 @@
  * index over all of them for the encoder's lookups.
  */
 #include <stdalign.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "exi_internal.h"
@@ -358,7 +359,11 @@ sxml_status sxml_exi_add_local_name(sxml_exi_string_table *table, const sxml_exi
         return status;
     }
     uri = &table->uris[key->uri];
-    uri->local_names[index] = (sxml_exi_local_name){.text = text, .element_grammar = SXML_EXI_NONE};
+    uri->local_names[index] = (sxml_exi_local_name){.text = text,
+                                                    .element_grammar = SXML_EXI_NONE,
+                                                    .schema_element_grammar = SXML_EXI_NONE,
+                                                    .type_grammar = SXML_EXI_NONE,
+                                                    .attribute_datatype = SXML_EXI_NONE};
     uri->local_name_count++;
     *local_name = index;
     return SXML_STATUS_OK;
@@ -518,7 +523,8 @@ sxml_status sxml_exi_add_value(sxml_exi_string_table *table, const sxml_exi_stri
 
 /* ------------------------------------------------------------ Lifecycle */
 
-/* Adds a URI with its initial prefix and local-names. */
+/* Adds a URI with its initial prefix and local-names, and the schema's
+   local-names of the same URI: all sorted lexicographically (D.3). */
 typedef struct sxml_exi_initial_uri {
     sxml_byte_view uri;
     bool has_prefix;
@@ -527,19 +533,116 @@ typedef struct sxml_exi_initial_uri {
     size_t local_name_count;
 } sxml_exi_initial_uri;
 
-static sxml_status sxml_exi_add_initial_uri(sxml_exi_string_table *table, const sxml_exi_initial_uri *initial) {
+static bool sxml_exi_views_equal(sxml_byte_view first, sxml_byte_view second) {
+    return first.byte_count == second.byte_count &&
+           (first.byte_count == 0 || memcmp(first.bytes, second.bytes, first.byte_count) == 0);
+}
+
+/* Lexicographical order of UTF-8, which is the order of code points. */
+static int sxml_exi_compare_views(const void *first, const void *second) {
+    const sxml_byte_view *left = first;
+    const sxml_byte_view *right = second;
+    const size_t common = left->byte_count < right->byte_count ? left->byte_count : right->byte_count;
+    const int order = common == 0 ? 0 : memcmp(left->bytes, right->bytes, common);
+    if (order != 0) {
+        return order;
+    }
+    return left->byte_count < right->byte_count ? -1 : left->byte_count > right->byte_count ? 1 : 0;
+}
+
+/* The initial URI and the schema partitions to add with it. */
+typedef struct sxml_exi_uri_entries {
+    const sxml_exi_initial_uri *initial;
+    sxml_exi_schema_partition_view schema;
+} sxml_exi_uri_entries;
+
+static sxml_status sxml_exi_add_initial_uri(sxml_exi_string_table *table, const sxml_exi_uri_entries *entries) {
+    const sxml_exi_initial_uri *initial = entries->initial;
+    size_t name_count = initial->local_name_count;
+    for (size_t partition_index = 0; partition_index < entries->schema.partition_count; partition_index++) {
+        const sxml_exi_schema_partition *partition = &entries->schema.partitions[partition_index];
+        if (sxml_exi_views_equal(partition->uri, initial->uri)) {
+            name_count += partition->local_name_count;
+        }
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate_array(
+        table->allocator,
+        (sxml_array_allocation_request){
+            .element_count = name_count, .element_size = sizeof(sxml_byte_view), .element_alignment = alignof(sxml_byte_view)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_byte_view *names = memory;
+    size_t filled = 0;
+    for (size_t name_index = 0; name_index < initial->local_name_count; name_index++) {
+        names[filled++] = initial->local_names[name_index];
+    }
+    for (size_t partition_index = 0; partition_index < entries->schema.partition_count; partition_index++) {
+        const sxml_exi_schema_partition *partition = &entries->schema.partitions[partition_index];
+        if (!sxml_exi_views_equal(partition->uri, initial->uri)) {
+            continue;
+        }
+        for (size_t name_index = 0; name_index < partition->local_name_count; name_index++) {
+            names[filled++] = partition->local_names[name_index];
+        }
+    }
+    if (filled > 1) {
+        qsort(names, filled, sizeof names[0], sxml_exi_compare_views);
+    }
     uint32_t uri = 0;
-    sxml_status status = sxml_exi_add_uri(table, &(sxml_exi_string_key){.text = initial->uri}, &uri);
+    status = sxml_exi_add_uri(table, &(sxml_exi_string_key){.text = initial->uri}, &uri);
     if (status == SXML_STATUS_OK && initial->has_prefix) {
         uint32_t prefix = 0;
         status = sxml_exi_add_prefix(table, &(sxml_exi_string_key){.text = initial->prefix, .uri = uri}, &prefix);
     }
-    for (size_t name_index = 0; name_index < initial->local_name_count && status == SXML_STATUS_OK; name_index++) {
+    for (size_t name_index = 0; name_index < filled && status == SXML_STATUS_OK; name_index++) {
+        if (name_index > 0 && sxml_exi_views_equal(names[name_index], names[name_index - 1])) {
+            continue;
+        }
         uint32_t local_name = 0;
-        status = sxml_exi_add_local_name(
-            table, &(sxml_exi_string_key){.text = initial->local_names[name_index], .uri = uri},
-            &local_name);
+        status = sxml_exi_add_local_name(table, &(sxml_exi_string_key){.text = names[name_index], .uri = uri},
+                                         &local_name);
     }
+    sxml_allocator_release(table->allocator, names);
+    return status;
+}
+
+/* The schema's URIs that are not initial ones, sorted and each added once
+   (7.3.1). */
+static sxml_status sxml_exi_add_schema_uris(sxml_exi_string_table *table, const sxml_exi_uri_entries *entries) {
+    const sxml_exi_schema_partition_view schema = entries->schema;
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate_array(
+        table->allocator,
+        (sxml_array_allocation_request){.element_count = schema.partition_count,
+                                        .element_size = sizeof(sxml_byte_view),
+                                        .element_alignment = alignof(sxml_byte_view)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_byte_view *uris = memory;
+    size_t uri_count = 0;
+    for (size_t partition_index = 0; partition_index < schema.partition_count; partition_index++) {
+        sxml_exi_lookup found = {0};
+        status = sxml_exi_find_uri(table, &(sxml_exi_string_key){.text = schema.partitions[partition_index].uri}, &found);
+        if (status == SXML_STATUS_OK && !found.is_found) {
+            uris[uri_count++] = schema.partitions[partition_index].uri;
+        }
+    }
+    if (uri_count > 1) {
+        qsort(uris, uri_count, sizeof uris[0], sxml_exi_compare_views);
+    }
+    for (size_t uri_index = 0; uri_index < uri_count && status == SXML_STATUS_OK; uri_index++) {
+        if (uri_index > 0 && sxml_exi_views_equal(uris[uri_index], uris[uri_index - 1])) {
+            continue;
+        }
+        const sxml_exi_initial_uri initial = {.uri = uris[uri_index]};
+        status = sxml_exi_add_initial_uri(table, &(sxml_exi_uri_entries){.initial = &initial, .schema = schema});
+    }
+    sxml_allocator_release(table->allocator, uris);
     return status;
 }
 
@@ -576,9 +679,14 @@ sxml_status sxml_exi_string_table_initialize(sxml_exi_string_table *table,
          .local_name_count = sizeof sxml_exi_xml_schema_type_names / sizeof sxml_exi_xml_schema_type_names[0]},
     };
     const size_t initial_count = configuration->is_schema_informed ? 4 : 3;
+    const sxml_exi_schema_partition_view schema =
+        configuration->is_schema_informed ? configuration->schema_partitions : (sxml_exi_schema_partition_view){0};
     sxml_status status = SXML_STATUS_OK;
     for (size_t uri_index = 0; uri_index < initial_count && status == SXML_STATUS_OK; uri_index++) {
-        status = sxml_exi_add_initial_uri(table, &initial[uri_index]);
+        status = sxml_exi_add_initial_uri(table, &(sxml_exi_uri_entries){.initial = &initial[uri_index], .schema = schema});
+    }
+    if (status == SXML_STATUS_OK && schema.partition_count > 0) {
+        status = sxml_exi_add_schema_uris(table, &(sxml_exi_uri_entries){.schema = schema});
     }
     if (status != SXML_STATUS_OK) {
         sxml_exi_string_table_finalize(table);

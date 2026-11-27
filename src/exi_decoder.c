@@ -63,9 +63,11 @@ typedef struct sxml_exi_channel {
     size_t first_slot_entry;
 } sxml_exi_channel;
 
-/* A value slot: its channel, and its text once read. */
+/* A value slot: its channel, its datatype (SXML_EXI_NONE for a String,
+   7.1.10) and its text once read. */
 typedef struct sxml_exi_slot {
     uint32_t channel;
+    uint32_t datatype;
     sxml_exi_text text;
 } sxml_exi_slot;
 
@@ -87,6 +89,9 @@ typedef struct sxml_exi_frame {
     uint32_t local_name;
     uint32_t element_grammar;
     sxml_exi_nonterminal nonterminal;
+    /* The schema-informed grammar the element is in (8.5); SXML_EXI_NONE
+       for a built-in element grammar (8.4.3). */
+    uint32_t schema_grammar;
     /* The bindings in scope when the element started. */
     size_t binding_mark;
 } sxml_exi_frame;
@@ -108,6 +113,11 @@ typedef struct sxml_exi_decoding {
     sxml_exi_bit_reader reader;
     sxml_exi_string_table table;
     sxml_exi_grammars grammars;
+    /* Schema-informed (8.5): the schema's grammars (with the top level's
+       grammar among them, top_schema_grammar, below). */
+    sxml_exi_schema_grammars schema_grammars;
+    /* A typed value as text, before it is stored. */
+    sxml_exi_buffer typed_text;
     /* Decoded text the events refer to (values, prefixes, comments). */
     uint8_t *text_bytes;
     size_t text_byte_count;
@@ -124,6 +134,9 @@ typedef struct sxml_exi_decoding {
     sxml_name_identifier pending_name;
     uint32_t pending_uri;
     uint32_t pending_prefix_index;
+    /* Schema-informed: the top level's grammar (DocContent, DocEnd or
+       FragmentContent). */
+    uint32_t top_schema_grammar;
     bool has_pending_prefix_index;
     sxml_exi_text pending_local_prefix;
     bool has_pending_local_prefix;
@@ -138,9 +151,11 @@ typedef struct sxml_exi_decoding {
     /* The top level: document or fragment, and where it is. */
     sxml_exi_nonterminal top_nonterminal;
     sxml_byte_view failure_description;
-    /* The header had options; the body reached ED. */
+    /* The header had options; the body reached ED; schema-informed
+       grammars are in use (8.5). */
     bool has_header_options;
     bool is_finished;
+    bool is_schema_informed;
     /* Pre-compression or compression (EXI 9): events recorded per block,
        values read per channel after the block's structure. */
     bool is_channelized;
@@ -212,6 +227,9 @@ static sxml_status sxml_exi_grow(sxml_allocator allocator, const sxml_exi_array 
 }
 
 static sxml_byte_view sxml_exi_decoded_view(const sxml_exi_decoding *decoding, sxml_exi_text text) {
+    if (decoding->text_bytes == NULL) {
+        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    }
     return (sxml_byte_view){.bytes = decoding->text_bytes + text.offset, .byte_count = text.byte_count};
 }
 
@@ -273,18 +291,41 @@ static sxml_status sxml_exi_append_codepoint(sxml_exi_decoding *decoding, uint64
     return sxml_exi_append_text(decoding, (sxml_byte_view){.bytes = bytes, .byte_count = byte_count});
 }
 
-/* Reads codepoint_count characters (EXI 7.1.10) into the text store. */
-static sxml_status sxml_exi_read_characters(sxml_exi_decoding *decoding, uint64_t codepoint_count,
+/* Reads codepoint_count characters (EXI 7.1.10) into the text store: each
+   an Unsigned Integer, or with a restricted character set (7.1.10.1) an
+   n-bit index into it, the index N escaping an Unsigned Integer. */
+typedef struct sxml_exi_characters_read {
+    uint64_t codepoint_count;
+    sxml_exi_character_set character_set;
+} sxml_exi_characters_read;
+
+static sxml_status sxml_exi_read_characters(sxml_exi_decoding *decoding, const sxml_exi_characters_read *read,
                                             sxml_exi_text *text) {
     const size_t start = decoding->text_byte_count;
-    /* Each character takes at least one byte of the stream: a count past
+    const uint64_t codepoint_count = read->codepoint_count;
+    const sxml_exi_character_set set = read->character_set;
+    const uint32_t width = set.character_count > 0 ? sxml_exi_bit_width(set.character_count + 1) : 0;
+    /* Each character takes at least one bit of the stream: a count past
        what is left cannot be right. */
-    if (codepoint_count > decoding->reader.input.byte_count - decoding->reader.byte_position) {
+    if (codepoint_count / 8 > decoding->reader.input.byte_count - decoding->reader.byte_position) {
         return SXML_EXI_FAIL(decoding, SXML_STATUS_UNEXPECTED_END_OF_INPUT, "a string longer than the stream");
     }
     for (uint64_t character_index = 0; character_index < codepoint_count; character_index++) {
         uint64_t codepoint = 0;
-        sxml_status status = sxml_exi_read_unsigned(&decoding->reader, &codepoint);
+        sxml_status status = SXML_STATUS_OK;
+        if (set.character_count > 0) {
+            uint32_t code = 0;
+            status = sxml_exi_read_n_bit(&decoding->reader, (sxml_exi_bits_request){.bit_count = width}, &code);
+            if (status == SXML_STATUS_OK && code < set.character_count) {
+                codepoint = set.characters[code];
+            } else if (status == SXML_STATUS_OK && code == set.character_count) {
+                status = sxml_exi_read_unsigned(&decoding->reader, &codepoint);
+            } else if (status == SXML_STATUS_OK) {
+                status = SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT, "a restricted character past its set");
+            }
+        } else {
+            status = sxml_exi_read_unsigned(&decoding->reader, &codepoint);
+        }
         if (status == SXML_STATUS_OK) {
             status = sxml_exi_append_codepoint(decoding, codepoint);
         }
@@ -305,7 +346,7 @@ static sxml_status sxml_exi_read_string(sxml_exi_decoding *decoding, sxml_exi_te
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    return sxml_exi_read_characters(decoding, length, text);
+    return sxml_exi_read_characters(decoding, &(sxml_exi_characters_read){.codepoint_count = length}, text);
 }
 
 /* ---------------------------------------------------------- String table */
@@ -355,7 +396,7 @@ static sxml_status sxml_exi_read_local_name(sxml_exi_decoding *decoding, uint32_
         return SXML_STATUS_OK;
     }
     sxml_exi_text text = {0};
-    status = sxml_exi_read_characters(decoding, length - 1, &text);
+    status = sxml_exi_read_characters(decoding, &(sxml_exi_characters_read){.codepoint_count = length - 1}, &text);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -373,8 +414,16 @@ typedef struct sxml_exi_qname {
 } sxml_exi_qname;
 
 /* Reads a value (7.3.3) of the qname (uri, local_name) into the decoder's
-   store. */
-static sxml_status sxml_exi_read_value_text(sxml_exi_decoding *decoding, sxml_exi_qname qname, sxml_exi_text *value) {
+   store; a literal's characters may use a restricted character set
+   (7.1.10.1, Table 7-2). */
+typedef struct sxml_exi_value_read {
+    sxml_exi_qname qname;
+    sxml_exi_character_set character_set;
+} sxml_exi_value_read;
+
+static sxml_status sxml_exi_read_value_literal(sxml_exi_decoding *decoding, const sxml_exi_value_read *read,
+                                               sxml_exi_text *value) {
+    const sxml_exi_qname qname = read->qname;
     uint64_t length = 0;
     sxml_status status = sxml_exi_read_unsigned(&decoding->reader, &length);
     if (status != SXML_STATUS_OK) {
@@ -410,7 +459,8 @@ static sxml_status sxml_exi_read_value_text(sxml_exi_decoding *decoding, sxml_ex
         *value = (sxml_exi_text){.offset = start, .byte_count = (uint32_t)hit.byte_count};
         return status;
     }
-    status = sxml_exi_read_characters(decoding, length - 2, value);
+    status = sxml_exi_read_characters(
+        decoding, &(sxml_exi_characters_read){.codepoint_count = length - 2, .character_set = read->character_set}, value);
     if (status != SXML_STATUS_OK) {
         return status;
     }
@@ -420,13 +470,106 @@ static sxml_status sxml_exi_read_value_text(sxml_exi_decoding *decoding, sxml_ex
                                                      .local_name = qname.local_name});
 }
 
+/* A value to read: its qname (whose value partitions a String uses) and
+   its datatype, SXML_EXI_NONE for a String (7.1.10). */
+typedef struct sxml_exi_typed_value {
+    sxml_exi_qname qname;
+    uint32_t datatype;
+} sxml_exi_typed_value;
+
+/* The restricted character set a String of datatype uses: the
+   datatype's own (7.1.10.1), or Table 7-2's with Preserve.lexicalValues. */
+static sxml_exi_character_set sxml_exi_value_character_set(const sxml_exi_decoding *decoding, uint32_t datatype) {
+    const sxml_exi_schema_grammars *grammars = &decoding->schema_grammars;
+    if (datatype == SXML_EXI_NONE) {
+        return (sxml_exi_character_set){.characters = NULL, .character_count = 0};
+    }
+    if (decoding->options.fidelity.preserves_lexical_values) {
+        return sxml_exi_lexical_character_set(sxml_exi_datatype_lexical_set(grammars, datatype));
+    }
+    const sxml_exi_datatype *entry = &grammars->datatypes[datatype];
+    if (entry->datatype_kind == SXML_EXI_DATATYPE_RESTRICTED_STRING) {
+        return (sxml_exi_character_set){.characters = grammars->characters + entry->first_value,
+                                        .character_count = entry->value_count};
+    }
+    return (sxml_exi_character_set){.characters = NULL, .character_count = 0};
+}
+
+/* Whether a value of datatype is a String in the stream (the string
+   table's, 7.3.3): untyped, a string, or any with Preserve.lexicalValues. */
+static bool sxml_exi_is_string_value(const sxml_exi_decoding *decoding, uint32_t datatype) {
+    if (datatype == SXML_EXI_NONE || decoding->options.fidelity.preserves_lexical_values) {
+        return true;
+    }
+    const sxml_exi_datatype_kind kind = decoding->schema_grammars.datatypes[datatype].datatype_kind;
+    return kind == SXML_EXI_DATATYPE_STRING || kind == SXML_EXI_DATATYPE_RESTRICTED_STRING;
+}
+
+/* A value that is not a list: a String, or a typed value appended to the
+   store as the oracle writes it. */
+static sxml_status sxml_exi_read_scalar_text(sxml_exi_decoding *decoding, sxml_exi_typed_value value,
+                                             sxml_exi_text *text) {
+    if (sxml_exi_is_string_value(decoding, value.datatype)) {
+        return sxml_exi_read_value_literal(
+            decoding,
+            &(sxml_exi_value_read){.qname = value.qname, .character_set = sxml_exi_value_character_set(decoding, value.datatype)},
+            text);
+    }
+    decoding->typed_text.byte_count = 0;
+    sxml_status status = sxml_exi_read_typed_value(&(sxml_exi_typed_read){.grammars = &decoding->schema_grammars,
+                                                                          .reader = &decoding->reader,
+                                                                          .output = &decoding->typed_text},
+                                                   value.datatype);
+    if (status == SXML_STATUS_MALFORMED_INPUT) {
+        return SXML_EXI_FAIL(decoding, status, "a typed value its datatype does not allow");
+    }
+    const size_t start = decoding->text_byte_count;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_append_text(
+            decoding, (sxml_byte_view){.bytes = decoding->typed_text.bytes, .byte_count = decoding->typed_text.byte_count});
+    }
+    *text = (sxml_exi_text){.offset = start, .byte_count = (uint32_t)(decoding->text_byte_count - start)};
+    return status;
+}
+
+/* A value of an AT or CH event (7): a String, a typed value, or a List
+   (7.1.11: its length, then its items, written separated by spaces). */
+static sxml_status sxml_exi_read_value_text(sxml_exi_decoding *decoding, sxml_exi_typed_value value,
+                                            sxml_exi_text *text) {
+    const bool is_list = value.datatype != SXML_EXI_NONE && !decoding->options.fidelity.preserves_lexical_values &&
+                         decoding->schema_grammars.datatypes[value.datatype].datatype_kind == SXML_EXI_DATATYPE_LIST;
+    if (!is_list) {
+        return sxml_exi_read_scalar_text(decoding, value, text);
+    }
+    uint64_t item_count = 0;
+    sxml_status status = sxml_exi_read_unsigned(&decoding->reader, &item_count);
+    if (status == SXML_STATUS_OK && item_count > decoding->reader.input.byte_count * 8) {
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT, "a list longer than the stream");
+    }
+    const uint32_t item_datatype = decoding->schema_grammars.datatypes[value.datatype].base_datatype;
+    const size_t start = decoding->text_byte_count;
+    for (uint64_t item_index = 0; item_index < item_count && status == SXML_STATUS_OK; item_index++) {
+        if (item_index > 0) {
+            status = sxml_exi_append_text(decoding, SXML_EXI_TEXT(" "));
+        }
+        sxml_exi_text item = {0};
+        if (status == SXML_STATUS_OK) {
+            status = sxml_exi_read_scalar_text(decoding, (sxml_exi_typed_value){.qname = value.qname, .datatype = item_datatype},
+                                               &item);
+        }
+    }
+    *text = (sxml_exi_text){.offset = start, .byte_count = (uint32_t)(decoding->text_byte_count - start)};
+    return status;
+}
+
 /* A value of an AT or CH event: read now, or, with pre-compression and
    compression, a slot of its qname's channel, read when the block ends
    (9.2.2). */
-static sxml_status sxml_exi_take_value(sxml_exi_decoding *decoding, sxml_exi_qname qname, sxml_exi_value_handle *value) {
+static sxml_status sxml_exi_take_value(sxml_exi_decoding *decoding, sxml_exi_typed_value typed, sxml_exi_value_handle *value) {
+    const sxml_exi_qname qname = typed.qname;
     if (!decoding->is_channelized) {
         *value = (sxml_exi_value_handle){.is_slot = false};
-        return sxml_exi_read_value_text(decoding, qname, &value->text);
+        return sxml_exi_read_value_text(decoding, typed, &value->text);
     }
     sxml_exi_local_name *owner = &decoding->table.uris[qname.uri].local_names[qname.local_name];
     uint32_t channel = owner->channel_index;
@@ -459,7 +602,7 @@ static sxml_status sxml_exi_take_value(sxml_exi_decoding *decoding, sxml_exi_qna
     decoding->slots = elements;
     decoding->channels[channel].value_count++;
     *value = (sxml_exi_value_handle){.is_slot = true, .slot = (uint32_t)decoding->slot_count};
-    decoding->slots[decoding->slot_count++] = (sxml_exi_slot){.channel = channel};
+    decoding->slots[decoding->slot_count++] = (sxml_exi_slot){.channel = channel, .datatype = typed.datatype};
     decoding->block_value_count++;
     return SXML_STATUS_OK;
 }
@@ -873,6 +1016,9 @@ static sxml_status sxml_exi_start_element(sxml_exi_decoding *decoding, const sxm
         .local_name = qname.local_name,
         .element_grammar = entry->element_grammar,
         .nonterminal = SXML_EXI_NONTERMINAL_START_TAG_CONTENT,
+        /* 8.5.2, 8.5.4.4.1: an element of a global element declaration
+           has its grammar, wherever SE (*) matched it. */
+        .schema_grammar = decoding->is_schema_informed ? entry->schema_element_grammar : SXML_EXI_NONE,
         .binding_mark = decoding->binding_count,
     };
     status = sxml_exi_name_identifier(decoding, qname, &decoding->pending_name);
@@ -908,8 +1054,13 @@ static sxml_status sxml_exi_end_element(sxml_exi_decoding *decoding, const sxml_
 }
 
 /* xsi:type's value without Preserve.lexicalValues: a QName (7.1.7), as
-   prefix:local text with a prefix bound to its URI. */
-static sxml_status sxml_exi_read_type_name(sxml_exi_decoding *decoding, sxml_byte_view *value) {
+   prefix:local text with a prefix bound to its URI, and the qname. */
+typedef struct sxml_exi_type_name {
+    sxml_byte_view value;
+    sxml_exi_qname qname;
+} sxml_exi_type_name;
+
+static sxml_status sxml_exi_read_type_name(sxml_exi_decoding *decoding, sxml_exi_type_name *type_name) {
     sxml_exi_qname type = {0};
     sxml_status status = sxml_exi_read_uri(decoding, &type.uri);
     if (status == SXML_STATUS_OK) {
@@ -936,7 +1087,9 @@ static sxml_status sxml_exi_read_type_name(sxml_exi_decoding *decoding, sxml_byt
     if (prefix_text.byte_count > sizeof prefix_copy) {
         return SXML_EXI_FAIL(decoding, SXML_STATUS_LIMIT_EXCEEDED, "an xsi:type prefix longer than 256 bytes");
     }
-    memcpy(prefix_copy, prefix_text.bytes, prefix_text.byte_count);
+    if (prefix_text.byte_count > 0) {
+        memcpy(prefix_copy, prefix_text.bytes, prefix_text.byte_count);
+    }
     const size_t start = decoding->text_byte_count;
     if (prefix_text.byte_count > 0) {
         status = sxml_exi_append_text(decoding, (sxml_byte_view){.bytes = prefix_copy, .byte_count = prefix_text.byte_count});
@@ -948,7 +1101,61 @@ static sxml_status sxml_exi_read_type_name(sxml_exi_decoding *decoding, sxml_byt
         status = sxml_exi_append_text(decoding, local);
     }
     if (status == SXML_STATUS_OK) {
-        *value = (sxml_byte_view){.bytes = decoding->text_bytes + start, .byte_count = decoding->text_byte_count - start};
+        type_name->value =
+            (sxml_byte_view){.bytes = decoding->text_bytes + start, .byte_count = decoding->text_byte_count - start};
+        type_name->qname = type;
+    }
+    return status;
+}
+
+/* 8.5.4.4: xsi:type's type, when a grammar is found for it, is the
+   element's grammar from here on (a global type grammar). */
+static void sxml_exi_switch_to_type(sxml_exi_decoding *decoding, sxml_exi_qname type) {
+    sxml_exi_frame *frame = decoding->frame_count == 0 ? NULL : &decoding->frames[decoding->frame_count - 1];
+    if (!decoding->is_schema_informed || frame == NULL) {
+        return;
+    }
+    const uint32_t grammar = decoding->table.uris[type.uri].local_names[type.local_name].type_grammar;
+    if (grammar != SXML_EXI_NONE) {
+        frame->schema_grammar = grammar;
+    }
+}
+
+/* With Preserve.lexicalValues: xsi:type's text, its prefix resolved by
+   the bindings in scope (none: no namespace). */
+static sxml_status sxml_exi_switch_to_lexical_type(sxml_exi_decoding *decoding, sxml_byte_view text) {
+    size_t colon = 0;
+    while (colon < text.byte_count && text.bytes[colon] != ':') {
+        colon++;
+    }
+    const bool has_prefix = colon < text.byte_count;
+    const sxml_byte_view prefix = {.bytes = text.bytes, .byte_count = has_prefix ? colon : 0};
+    const sxml_byte_view local = has_prefix ? (sxml_byte_view){.bytes = text.bytes + colon + 1, .byte_count = text.byte_count - colon - 1}
+                                            : text;
+    sxml_byte_view uri = {.bytes = NULL, .byte_count = 0};
+    bool is_bound = !has_prefix;
+    for (size_t binding_index = decoding->binding_count; binding_index > 0; binding_index--) {
+        const sxml_exi_scoped_binding *binding = &decoding->bindings[binding_index - 1];
+        const sxml_byte_view bound = sxml_exi_decoded_view(decoding, binding->prefix);
+        if (bound.byte_count == prefix.byte_count &&
+            (prefix.byte_count == 0 || memcmp(bound.bytes, prefix.bytes, prefix.byte_count) == 0)) {
+            uri = sxml_exi_decoded_view(decoding, binding->uri);
+            is_bound = true;
+            break;
+        }
+    }
+    if (!is_bound) {
+        return SXML_STATUS_OK;
+    }
+    sxml_exi_lookup found_uri = {0};
+    sxml_exi_lookup found_local = {0};
+    sxml_status status = sxml_exi_find_uri(&decoding->table, &(sxml_exi_string_key){.text = uri}, &found_uri);
+    if (status == SXML_STATUS_OK && found_uri.is_found) {
+        status = sxml_exi_find_local_name(&decoding->table,
+                                          &(sxml_exi_string_key){.text = local, .uri = found_uri.index}, &found_local);
+    }
+    if (status == SXML_STATUS_OK && found_uri.is_found && found_local.is_found) {
+        sxml_exi_switch_to_type(decoding, (sxml_exi_qname){.uri = found_uri.index, .local_name = found_local.index});
     }
     return status;
 }
@@ -1005,12 +1212,22 @@ static sxml_status sxml_exi_attribute(sxml_exi_decoding *decoding, const sxml_ex
     sxml_exi_value_handle value = {.is_slot = false};
     if (is_type && !decoding->options.fidelity.preserves_lexical_values) {
         /* xsi:type's value stays in the structure channel (9.2.1). */
-        sxml_byte_view type_name = {0};
+        sxml_exi_type_name type_name = {0};
         status = sxml_exi_read_type_name(decoding, &type_name);
-        value.text = (sxml_exi_text){.offset = (size_t)(type_name.bytes - decoding->text_bytes),
-                                     .byte_count = (uint32_t)type_name.byte_count};
+        value.text = (sxml_exi_text){.offset = (size_t)(type_name.value.bytes - decoding->text_bytes),
+                                     .byte_count = (uint32_t)type_name.value.byte_count};
+        if (status == SXML_STATUS_OK) {
+            sxml_exi_switch_to_type(decoding, type_name.qname);
+        }
+    } else if (is_type && decoding->is_schema_informed) {
+        /* Preserve.lexicalValues: a String, in the structure channel. */
+        status = sxml_exi_read_value_text(decoding, (sxml_exi_typed_value){.qname = qname, .datatype = SXML_EXI_NONE},
+                                          &value.text);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_exi_switch_to_lexical_type(decoding, sxml_exi_decoded_view(decoding, value.text));
+        }
     } else {
-        status = sxml_exi_take_value(decoding, qname, &value);
+        status = sxml_exi_take_value(decoding, (sxml_exi_typed_value){.qname = qname, .datatype = SXML_EXI_NONE}, &value);
     }
     sxml_exi_pending_attribute attribute = {.value = value};
     if (status == SXML_STATUS_OK) {
@@ -1105,7 +1322,7 @@ static sxml_status sxml_exi_characters(sxml_exi_decoding *decoding, const sxml_e
     }
     sxml_exi_value_handle value = {.is_slot = false};
     if (status == SXML_STATUS_OK) {
-        status = sxml_exi_take_value(decoding, qname, &value);
+        status = sxml_exi_take_value(decoding, (sxml_exi_typed_value){.qname = qname, .datatype = SXML_EXI_NONE}, &value);
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_exi_emit(decoding, &(sxml_exi_emitted){.emitted_kind = SXML_EXI_EMITTED_TEXT, .text = value});
@@ -1159,8 +1376,477 @@ static sxml_status sxml_exi_doctype(sxml_exi_decoding *decoding) {
     return status;
 }
 
+/* ------------------------------------------------ Schema-informed events */
+
+/* The schema-informed grammar of the innermost element or the top level;
+   SXML_EXI_NONE in a built-in element grammar. */
+static uint32_t sxml_exi_current_schema_grammar(const sxml_exi_decoding *decoding) {
+    if (!decoding->is_schema_informed) {
+        return SXML_EXI_NONE;
+    }
+    if (decoding->frame_count == 0) {
+        return decoding->top_schema_grammar;
+    }
+    return decoding->frames[decoding->frame_count - 1].schema_grammar;
+}
+
+static void sxml_exi_move_to_schema_grammar(sxml_exi_decoding *decoding, uint32_t grammar) {
+    if (decoding->frame_count == 0) {
+        decoding->top_schema_grammar = grammar;
+    } else {
+        decoding->frames[decoding->frame_count - 1].schema_grammar = grammar;
+    }
+}
+
+/* Where undeclared SE, CH, ER, CM and PI lead (8.5.4.4.1): a start tag's
+   Element_{i,content2}; an element grammar stays. */
+static uint32_t sxml_exi_content_grammar_of(const sxml_exi_decoding *decoding, uint32_t grammar) {
+    const uint32_t content = decoding->schema_grammars.grammars[grammar].element_content;
+    return content != SXML_EXI_NONE ? content : grammar;
+}
+
+/* An element started from a schema-informed grammar: its qname, the
+   grammar it is evaluated with (SXML_EXI_NONE: its built-in element
+   grammar, 8.4.3) and where its parent goes on. */
+typedef struct sxml_exi_schema_start {
+    sxml_exi_qname qname;
+    uint32_t element_grammar;
+    uint32_t parent_grammar;
+} sxml_exi_schema_start;
+
+/* The grammar of an element matched by SE (*) or SE (uri : *): the global
+   element's, else a built-in one (8.5.4.1.7). */
+static uint32_t sxml_exi_global_element_grammar(const sxml_exi_decoding *decoding, sxml_exi_qname qname) {
+    return decoding->table.uris[qname.uri].local_names[qname.local_name].schema_element_grammar;
+}
+
+static sxml_status sxml_exi_schema_start_element(sxml_exi_decoding *decoding, const sxml_exi_schema_start *start) {
+    const sxml_exi_qname qname = start->qname;
+    uint32_t prefix_index = 0;
+    sxml_status status = SXML_STATUS_OK;
+    if (decoding->options.fidelity.preserves_prefixes) {
+        status = sxml_exi_read_qname_prefix(decoding, qname.uri, &prefix_index);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_flush_start(decoding);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_exi_move_to_schema_grammar(decoding, start->parent_grammar);
+    if (decoding->frame_count >= decoding->limits.maximum_depth) {
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_LIMIT_EXCEEDED, "elements nested deeper than the limit");
+    }
+    uint32_t element_grammar = SXML_EXI_NONE;
+    if (start->element_grammar == SXML_EXI_NONE) {
+        sxml_exi_local_name *entry = &decoding->table.uris[qname.uri].local_names[qname.local_name];
+        if (entry->element_grammar == SXML_EXI_NONE) {
+            uint32_t made = 0;
+            status = sxml_exi_grammars_add_element(&decoding->grammars, &made);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            entry = &decoding->table.uris[qname.uri].local_names[qname.local_name];
+            entry->element_grammar = made;
+        }
+        element_grammar = entry->element_grammar;
+    }
+    void *elements = decoding->frames;
+    status = sxml_exi_grow(decoding->allocator, &(sxml_exi_array){.elements = &elements,
+                                                                   .capacity = &decoding->frame_capacity,
+                                                                   .element_count = decoding->frame_count,
+                                                                   .element_size = sizeof(sxml_exi_frame)});
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    decoding->frames = elements;
+    decoding->frames[decoding->frame_count++] = (sxml_exi_frame){
+        .uri = qname.uri,
+        .local_name = qname.local_name,
+        .element_grammar = element_grammar,
+        .nonterminal = SXML_EXI_NONTERMINAL_START_TAG_CONTENT,
+        .schema_grammar = start->element_grammar,
+        .binding_mark = decoding->binding_count,
+    };
+    status = sxml_exi_name_identifier(decoding, qname, &decoding->pending_name);
+    decoding->has_pending_start = true;
+    decoding->pending_uri = qname.uri;
+    decoding->pending_prefix_index = prefix_index;
+    decoding->has_pending_prefix_index = decoding->options.fidelity.preserves_prefixes;
+    decoding->has_pending_local_prefix = false;
+    return status;
+}
+
+static sxml_status sxml_exi_schema_end_element(sxml_exi_decoding *decoding) {
+    if (decoding->frame_count == 0) {
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT, "an end of element outside any element");
+    }
+    sxml_status status = sxml_exi_flush_start(decoding);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_emit(decoding, &(sxml_exi_emitted){.emitted_kind = SXML_EXI_EMITTED_END_ELEMENT});
+    }
+    if (status == SXML_STATUS_OK) {
+        decoding->binding_count = decoding->frames[decoding->frame_count - 1].binding_mark;
+        decoding->frame_count--;
+    }
+    return status;
+}
+
+/* The prefix of an attribute's qname: read with Preserve.prefixes (7.1.7),
+   else one in scope or made. */
+static sxml_status sxml_exi_attribute_prefix(sxml_exi_decoding *decoding, uint32_t uri, sxml_exi_text *prefix) {
+    *prefix = (sxml_exi_text){0};
+    if (!decoding->options.fidelity.preserves_prefixes) {
+        return sxml_exi_synthesize_prefix(decoding, uri, prefix);
+    }
+    uint32_t prefix_index = 0;
+    sxml_status status = sxml_exi_read_qname_prefix(decoding, uri, &prefix_index);
+    if (status == SXML_STATUS_OK && decoding->table.uris[uri].prefix_count > 0) {
+        status = sxml_exi_prefix_text(decoding, (sxml_exi_qname){.uri = uri, .local_name = prefix_index}, prefix);
+    }
+    return status;
+}
+
+/* Holds an attribute of the start tag being read. */
+typedef struct sxml_exi_held_attribute {
+    sxml_exi_qname qname;
+    sxml_exi_text prefix;
+    sxml_exi_value_handle value;
+} sxml_exi_held_attribute;
+
+static sxml_status sxml_exi_hold_attribute(sxml_exi_decoding *decoding, const sxml_exi_held_attribute *held) {
+    if (!decoding->has_pending_start) {
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT, "an attribute after the start tag");
+    }
+    sxml_exi_pending_attribute attribute = {.value = held->value};
+    sxml_status status = sxml_exi_name_identifier(decoding, held->qname, &attribute.name);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_prefix_identifier(decoding, held->prefix, &attribute.prefix);
+    }
+    void *elements = decoding->attributes;
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_grow(decoding->allocator, &(sxml_exi_array){.elements = &elements,
+                                                                       .capacity = &decoding->attribute_capacity,
+                                                                       .element_count = decoding->attribute_count,
+                                                                       .element_size = sizeof(sxml_exi_pending_attribute)});
+    }
+    if (status == SXML_STATUS_OK) {
+        decoding->attributes = elements;
+        decoding->attributes[decoding->attribute_count++] = attribute;
+    }
+    return status;
+}
+
+static bool sxml_exi_is_type_attribute(sxml_exi_qname qname) {
+    return qname.uri == 2 && qname.local_name == 1;
+}
+
+/* An attribute of a schema-informed grammar: its prefix, then its value,
+   typed by datatype, or by the global attribute of its qname when
+   is_wildcard (AT (*) and AT (uri : *), 8.5.4.1.3.2, 8.5.4.4.1); an
+   xsi:type an AT (*) matched is a QName that switches the grammar. */
+typedef struct sxml_exi_schema_attribute {
+    sxml_exi_qname qname;
+    uint32_t datatype;
+    bool is_wildcard;
+} sxml_exi_schema_attribute;
+
+static sxml_status sxml_exi_read_schema_attribute(sxml_exi_decoding *decoding, const sxml_exi_schema_attribute *request) {
+    const sxml_exi_qname qname = request->qname;
+    sxml_exi_held_attribute held = {.qname = qname};
+    sxml_status status = sxml_exi_attribute_prefix(decoding, qname.uri, &held.prefix);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (request->is_wildcard && sxml_exi_is_type_attribute(qname)) {
+        if (decoding->options.fidelity.preserves_lexical_values) {
+            status = sxml_exi_read_value_text(decoding, (sxml_exi_typed_value){.qname = qname, .datatype = SXML_EXI_NONE},
+                                              &held.value.text);
+            if (status == SXML_STATUS_OK) {
+                status = sxml_exi_switch_to_lexical_type(decoding, sxml_exi_decoded_view(decoding, held.value.text));
+            }
+        } else {
+            sxml_exi_type_name type_name = {0};
+            status = sxml_exi_read_type_name(decoding, &type_name);
+            held.value.text = (sxml_exi_text){.offset = (size_t)(type_name.value.bytes - decoding->text_bytes),
+                                              .byte_count = (uint32_t)type_name.value.byte_count};
+            if (status == SXML_STATUS_OK) {
+                sxml_exi_switch_to_type(decoding, type_name.qname);
+            }
+        }
+    } else {
+        const uint32_t datatype =
+            request->is_wildcard ? decoding->table.uris[qname.uri].local_names[qname.local_name].attribute_datatype
+                                 : request->datatype;
+        status = sxml_exi_take_value(decoding, (sxml_exi_typed_value){.qname = qname, .datatype = datatype}, &held.value);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_hold_attribute(decoding, &held);
+    }
+    return status;
+}
+
+/* AT (xsi:type) (8.5.4.4): a QName (or with Preserve.lexicalValues a
+   String), in the structure channel (9.2.1); the type's grammar from
+   here on. */
+static sxml_status sxml_exi_read_schema_type(sxml_exi_decoding *decoding) {
+    const sxml_exi_qname qname = {.uri = 2, .local_name = 1};
+    sxml_exi_held_attribute held = {.qname = qname};
+    sxml_status status = sxml_exi_attribute_prefix(decoding, qname.uri, &held.prefix);
+    if (status == SXML_STATUS_OK && decoding->options.fidelity.preserves_lexical_values) {
+        status = sxml_exi_read_value_text(decoding, (sxml_exi_typed_value){.qname = qname, .datatype = SXML_EXI_NONE},
+                                          &held.value.text);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_exi_switch_to_lexical_type(decoding, sxml_exi_decoded_view(decoding, held.value.text));
+        }
+    } else if (status == SXML_STATUS_OK) {
+        sxml_exi_type_name type_name = {0};
+        status = sxml_exi_read_type_name(decoding, &type_name);
+        held.value.text = (sxml_exi_text){.offset = (size_t)(type_name.value.bytes - decoding->text_bytes),
+                                          .byte_count = (uint32_t)type_name.value.byte_count};
+        if (status == SXML_STATUS_OK) {
+            sxml_exi_switch_to_type(decoding, type_name.qname);
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_hold_attribute(decoding, &held);
+    }
+    return status;
+}
+
+/* AT (xsi:nil) (8.5.4.4): a Boolean (or a String of Table 7-2's boolean
+   set), in the structure channel; true makes TypeEmpty the grammar. */
+static sxml_status sxml_exi_read_schema_nil(sxml_exi_decoding *decoding, uint32_t grammar) {
+    const sxml_exi_qname qname = {.uri = 2, .local_name = 0};
+    sxml_exi_held_attribute held = {.qname = qname};
+    sxml_status status = sxml_exi_attribute_prefix(decoding, qname.uri, &held.prefix);
+    bool is_nil = false;
+    if (status == SXML_STATUS_OK && decoding->options.fidelity.preserves_lexical_values) {
+        status = sxml_exi_read_value_text(
+            decoding, (sxml_exi_typed_value){.qname = qname, .datatype = decoding->schema_grammars.boolean_datatype},
+            &held.value.text);
+        const sxml_byte_view text = sxml_exi_decoded_view(decoding, held.value.text);
+        is_nil = (text.byte_count == 4 && memcmp(text.bytes, "true", 4) == 0) ||
+                 (text.byte_count == 1 && text.bytes[0] == '1');
+    } else if (status == SXML_STATUS_OK) {
+        sxml_exi_boolean boolean = {0};
+        status = sxml_exi_read_boolean(&decoding->reader, &boolean);
+        is_nil = boolean.value;
+        const size_t start = decoding->text_byte_count;
+        if (status == SXML_STATUS_OK) {
+            status = sxml_exi_append_text(decoding, is_nil ? SXML_EXI_TEXT("true") : SXML_EXI_TEXT("false"));
+        }
+        held.value.text = (sxml_exi_text){.offset = start, .byte_count = (uint32_t)(decoding->text_byte_count - start)};
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_hold_attribute(decoding, &held);
+    }
+    if (status == SXML_STATUS_OK && is_nil) {
+        const uint32_t type_empty = decoding->schema_grammars.grammars[grammar].type_empty;
+        if (type_empty != SXML_EXI_NONE) {
+            sxml_exi_move_to_schema_grammar(decoding, type_empty);
+        }
+    }
+    return status;
+}
+
+/* A CH of a schema-informed grammar: a typed value of datatype, or a
+   String (SXML_EXI_NONE); then grammar next. */
+typedef struct sxml_exi_schema_characters {
+    uint32_t datatype;
+    uint32_t next;
+} sxml_exi_schema_characters;
+
+static sxml_status sxml_exi_read_schema_characters(sxml_exi_decoding *decoding,
+                                                   const sxml_exi_schema_characters *characters) {
+    const sxml_exi_frame *frame = sxml_exi_top_frame(decoding);
+    if (frame == NULL) {
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT, "characters outside the document element");
+    }
+    const sxml_exi_qname qname = {.uri = frame->uri, .local_name = frame->local_name};
+    sxml_exi_move_to_schema_grammar(decoding, characters->next);
+    sxml_status status = sxml_exi_flush_start(decoding);
+    sxml_exi_value_handle value = {.is_slot = false};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_take_value(decoding, (sxml_exi_typed_value){.qname = qname, .datatype = characters->datatype},
+                                     &value);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_emit(decoding, &(sxml_exi_emitted){.emitted_kind = SXML_EXI_EMITTED_TEXT, .text = value});
+    }
+    return status;
+}
+
+/* A qname read in full (SE (*), AT (*)): its URI, then its local-name. */
+static sxml_status sxml_exi_read_qname(sxml_exi_decoding *decoding, sxml_exi_qname *qname) {
+    sxml_status status = sxml_exi_read_uri(decoding, &qname->uri);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_read_local_name(decoding, qname->uri, &qname->local_name);
+    }
+    return status;
+}
+
+/* A declared production of a schema-informed grammar (8.5.4.3). */
+static sxml_status sxml_exi_decode_declared(sxml_exi_decoding *decoding, const sxml_exi_schema_production *production) {
+    sxml_exi_qname qname = {.uri = production->uri, .local_name = production->local_name};
+    sxml_status status = SXML_STATUS_OK;
+    switch (production->event_kind) {
+    case SXML_EXI_EVENT_START_ELEMENT:
+        return sxml_exi_schema_start_element(
+            decoding, &(sxml_exi_schema_start){.qname = qname,
+                                               .element_grammar = decoding->schema_grammars.element_grammars[production->element],
+                                               .parent_grammar = production->next});
+    case SXML_EXI_EVENT_START_ELEMENT_URI:
+    case SXML_EXI_EVENT_START_ELEMENT_ANY:
+        if (production->event_kind == SXML_EXI_EVENT_START_ELEMENT_URI) {
+            status = sxml_exi_read_local_name(decoding, qname.uri, &qname.local_name);
+        } else {
+            status = sxml_exi_read_qname(decoding, &qname);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_exi_schema_start_element(
+            decoding, &(sxml_exi_schema_start){.qname = qname,
+                                               .element_grammar = sxml_exi_global_element_grammar(decoding, qname),
+                                               .parent_grammar = production->next});
+    case SXML_EXI_EVENT_END_ELEMENT:
+        return sxml_exi_schema_end_element(decoding);
+    case SXML_EXI_EVENT_ATTRIBUTE:
+        sxml_exi_move_to_schema_grammar(decoding, production->next);
+        return sxml_exi_read_schema_attribute(
+            decoding, &(sxml_exi_schema_attribute){.qname = qname, .datatype = production->datatype, .is_wildcard = false});
+    case SXML_EXI_EVENT_ATTRIBUTE_URI:
+    case SXML_EXI_EVENT_ATTRIBUTE_ANY:
+        if (production->event_kind == SXML_EXI_EVENT_ATTRIBUTE_URI) {
+            status = sxml_exi_read_local_name(decoding, qname.uri, &qname.local_name);
+        } else {
+            status = sxml_exi_read_qname(decoding, &qname);
+        }
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        sxml_exi_move_to_schema_grammar(decoding, production->next);
+        return sxml_exi_read_schema_attribute(
+            decoding, &(sxml_exi_schema_attribute){.qname = qname, .datatype = SXML_EXI_NONE, .is_wildcard = true});
+    case SXML_EXI_EVENT_CHARACTERS:
+        return sxml_exi_read_schema_characters(
+            decoding, &(sxml_exi_schema_characters){.datatype = production->datatype, .next = production->next});
+    case SXML_EXI_EVENT_END_DOCUMENT:
+        decoding->is_finished = true;
+        return SXML_STATUS_OK;
+    case SXML_EXI_EVENT_START_DOCUMENT:
+    case SXML_EXI_EVENT_NAMESPACE:
+    case SXML_EXI_EVENT_COMMENT:
+    case SXML_EXI_EVENT_PROCESSING_INSTRUCTION:
+    case SXML_EXI_EVENT_DOCTYPE:
+    case SXML_EXI_EVENT_ENTITY_REFERENCE:
+    case SXML_EXI_EVENT_SELF_CONTAINED:
+        break;
+    }
+    return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT, "a production schema-informed grammars do not have");
+}
+
+/* An undeclared production (8.5.4.4) of grammar. */
+typedef struct sxml_exi_undeclared_event {
+    uint32_t grammar;
+    const sxml_exi_schema_match *match;
+} sxml_exi_undeclared_event;
+
+static sxml_status sxml_exi_decode_undeclared(sxml_exi_decoding *decoding, const sxml_exi_undeclared_event *event) {
+    const uint32_t grammar = event->grammar;
+    const sxml_exi_schema_grammars *grammars = &decoding->schema_grammars;
+    sxml_exi_qname qname = {0};
+    sxml_status status = SXML_STATUS_OK;
+    switch (event->match->undeclared) {
+    case SXML_EXI_UNDECLARED_END_ELEMENT:
+        return sxml_exi_schema_end_element(decoding);
+    case SXML_EXI_UNDECLARED_TYPE:
+        return sxml_exi_read_schema_type(decoding);
+    case SXML_EXI_UNDECLARED_NIL:
+        return sxml_exi_read_schema_nil(decoding, grammar);
+    case SXML_EXI_UNDECLARED_ATTRIBUTE_ANY:
+        status = sxml_exi_read_qname(decoding, &qname);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_exi_read_schema_attribute(
+            decoding, &(sxml_exi_schema_attribute){.qname = qname, .datatype = SXML_EXI_NONE, .is_wildcard = true});
+    case SXML_EXI_UNDECLARED_ATTRIBUTE_INVALID: {
+        const sxml_exi_schema_grammar *current = &grammars->grammars[grammar];
+        if (event->match->attribute < current->attribute_count) {
+            const sxml_exi_schema_production *production =
+                sxml_exi_schema_production_at(grammars, grammar, current->least_attribute + event->match->attribute);
+            qname = (sxml_exi_qname){.uri = production->uri, .local_name = production->local_name};
+            sxml_exi_move_to_schema_grammar(decoding, production->next);
+        } else {
+            status = sxml_exi_read_qname(decoding, &qname);
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+        }
+        return sxml_exi_read_schema_attribute(
+            decoding, &(sxml_exi_schema_attribute){.qname = qname, .datatype = SXML_EXI_NONE, .is_wildcard = false});
+    }
+    case SXML_EXI_UNDECLARED_NAMESPACE:
+        return sxml_exi_namespace(decoding);
+    case SXML_EXI_UNDECLARED_SELF_CONTAINED:
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_UNSUPPORTED_FEATURE, "self-contained elements are not read yet");
+    case SXML_EXI_UNDECLARED_START_ELEMENT_ANY:
+        status = sxml_exi_read_qname(decoding, &qname);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        return sxml_exi_schema_start_element(
+            decoding, &(sxml_exi_schema_start){.qname = qname,
+                                               .element_grammar = sxml_exi_global_element_grammar(decoding, qname),
+                                               .parent_grammar = sxml_exi_content_grammar_of(decoding, grammar)});
+    case SXML_EXI_UNDECLARED_CHARACTERS:
+        return sxml_exi_read_schema_characters(
+            decoding, &(sxml_exi_schema_characters){.datatype = SXML_EXI_NONE,
+                                                    .next = sxml_exi_content_grammar_of(decoding, grammar)});
+    case SXML_EXI_UNDECLARED_ENTITY_REFERENCE:
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_UNSUPPORTED_FEATURE,
+                             "an entity reference, which a tree cannot hold unexpanded");
+    case SXML_EXI_UNDECLARED_DOCTYPE:
+        return sxml_exi_doctype(decoding);
+    }
+    return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT, "an undeclared production unknown here");
+}
+
+/* One event of a schema-informed grammar. */
+static sxml_status sxml_exi_decode_schema_event(sxml_exi_decoding *decoding, uint32_t grammar) {
+    sxml_exi_schema_match match = {0};
+    sxml_status status = sxml_exi_schema_read_event_code(
+        &decoding->schema_grammars, &(sxml_exi_schema_code_read){.grammar = grammar, .reader = &decoding->reader}, &match);
+    if (status != SXML_STATUS_OK) {
+        return status == SXML_STATUS_MALFORMED_INPUT
+                   ? SXML_EXI_FAIL(decoding, status, "an event code no production of the grammar has")
+                   : status;
+    }
+    switch (match.match_kind) {
+    case SXML_EXI_SCHEMA_MATCH_DECLARED:
+        return sxml_exi_decode_declared(decoding, sxml_exi_schema_production_at(&decoding->schema_grammars, grammar, match.code));
+    case SXML_EXI_SCHEMA_MATCH_UNDECLARED:
+        return sxml_exi_decode_undeclared(decoding, &(sxml_exi_undeclared_event){.grammar = grammar, .match = &match});
+    case SXML_EXI_SCHEMA_MATCH_COMMENT:
+    case SXML_EXI_SCHEMA_MATCH_PROCESSING_INSTRUCTION:
+        status = match.match_kind == SXML_EXI_SCHEMA_MATCH_COMMENT ? sxml_exi_comment(decoding)
+                                                                   : sxml_exi_processing_instruction(decoding);
+        if (status == SXML_STATUS_OK && decoding->frame_count > 0) {
+            sxml_exi_move_to_schema_grammar(decoding, sxml_exi_content_grammar_of(decoding, grammar));
+        }
+        return status;
+    }
+    return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT, "an event code no production of the grammar has");
+}
+
 /* One event at the current position; is_finished at ED. */
 static sxml_status sxml_exi_decode_event(sxml_exi_decoding *decoding) {
+    const uint32_t schema_grammar = sxml_exi_current_schema_grammar(decoding);
+    if (schema_grammar != SXML_EXI_NONE) {
+        return sxml_exi_decode_schema_event(decoding, schema_grammar);
+    }
     const sxml_exi_position position = sxml_exi_current_position(decoding);
     sxml_exi_match match = {0};
     sxml_status status = sxml_exi_read_event_code(
@@ -1299,7 +1985,8 @@ static sxml_status sxml_exi_read_channel(sxml_exi_decoding *decoding, uint32_t c
     for (uint32_t value_index = 0; value_index < values->value_count; value_index++) {
         const uint32_t slot = decoding->channel_slots[values->first_slot_entry + value_index];
         sxml_exi_text text = {0};
-        sxml_status status = sxml_exi_read_value_text(decoding, qname, &text);
+        sxml_status status = sxml_exi_read_value_text(
+            decoding, (sxml_exi_typed_value){.qname = qname, .datatype = decoding->slots[slot].datatype}, &text);
         if (status != SXML_STATUS_OK) {
             return status;
         }
@@ -1390,6 +2077,10 @@ static sxml_status sxml_exi_end_block(sxml_exi_decoding *decoding) {
 static void sxml_exi_release_decoding(sxml_exi_decoding *decoding) {
     sxml_exi_string_table_finalize(&decoding->table);
     sxml_exi_grammars_finalize(&decoding->grammars);
+    if (decoding->is_schema_informed) {
+        sxml_exi_schema_grammars_finalize(&decoding->schema_grammars);
+    }
+    sxml_exi_buffer_release(&decoding->typed_text);
     sxml_allocator_release(decoding->allocator, decoding->text_bytes);
     sxml_allocator_release(decoding->allocator, decoding->frames);
     sxml_allocator_release(decoding->allocator, decoding->bindings);
@@ -1409,6 +2100,10 @@ static sxml_status sxml_exi_decode_body(sxml_exi_decoding *decoding) {
     /* SD: the one production of Document and Fragment takes no bits. */
     decoding->top_nonterminal =
         decoding->options.is_fragment ? SXML_EXI_NONTERMINAL_FRAGMENT_CONTENT : SXML_EXI_NONTERMINAL_DOCUMENT_CONTENT;
+    if (decoding->is_schema_informed) {
+        decoding->top_schema_grammar = decoding->options.is_fragment ? decoding->schema_grammars.fragment_content
+                                                                     : decoding->schema_grammars.document_content;
+    }
     while (status == SXML_STATUS_OK && !decoding->is_finished) {
         status = sxml_exi_decode_event(decoding);
         if (status == SXML_STATUS_OK && decoding->is_channelized &&
@@ -1451,12 +2146,25 @@ sxml_status sxml_exi_decode_stream(sxml_exi_decoder *decoder, const sxml_exi_dec
     if (status == SXML_STATUS_OK && decoding.block_size == 0) {
         status = SXML_EXI_FAIL(&decoding, SXML_STATUS_MALFORMED_INPUT, "a blockSize of 0");
     }
-    if (status == SXML_STATUS_OK && (request->schema != NULL || options->schema_identifier.schema_identifier_kind ==
-                                                                    SXML_EXI_SCHEMA_IDENTIFIER_BUILT_IN_TYPES ||
-                                     options->schema_identifier.schema_identifier_kind == SXML_EXI_SCHEMA_IDENTIFIER_TEXT)) {
-        status = SXML_EXI_FAIL(&decoding, SXML_STATUS_UNSUPPORTED_FEATURE,
-                               "schema-informed grammars are not read yet (packet 8.9)");
+    /* 8.5: a schema known out of band, one the schemaId names, or the
+       built-in types only. */
+    const sxml_schema *schema = request->schema;
+    const sxml_exi_schema_identifier_kind identifier_kind = options->schema_identifier.schema_identifier_kind;
+    if (status == SXML_STATUS_OK && schema == NULL && identifier_kind == SXML_EXI_SCHEMA_IDENTIFIER_TEXT) {
+        if (request->schema_resolver.operations != NULL && request->schema_resolver.operations->resolve != NULL) {
+            status = request->schema_resolver.operations->resolve(request->schema_resolver.state,
+                                                                  &options->schema_identifier, &schema);
+        }
+        if (status == SXML_STATUS_OK && schema == NULL) {
+            status = SXML_EXI_FAIL(&decoding, SXML_STATUS_UNSUPPORTED_FEATURE, "a schemaId no schema is found for");
+        }
     }
+    decoding.is_schema_informed = identifier_kind != SXML_EXI_SCHEMA_IDENTIFIER_NONE &&
+                                  (schema != NULL || identifier_kind == SXML_EXI_SCHEMA_IDENTIFIER_BUILT_IN_TYPES);
+    if (identifier_kind == SXML_EXI_SCHEMA_IDENTIFIER_BUILT_IN_TYPES) {
+        schema = NULL;
+    }
+    decoding.typed_text = (sxml_exi_buffer){.allocator = decoding.allocator};
     if (status == SXML_STATUS_OK && (options->alignment == SXML_EXI_ALIGNMENT_BYTE_ALIGNMENT || decoding.is_channelized)) {
         /* 5: the header is padded to a byte; 9: compressed values are
            byte-aligned. */
@@ -1468,7 +2176,17 @@ sxml_status sxml_exi_decode_stream(sxml_exi_decoder *decoder, const sxml_exi_dec
         decoding.raw_position = decoding.reader.byte_position;
         status = sxml_exi_open_stream(&decoding);
     }
-    if (status == SXML_STATUS_OK) {
+    if (status == SXML_STATUS_OK && decoding.is_schema_informed) {
+        status = sxml_exi_schema_grammars_build(
+            &(sxml_exi_schema_build){.allocator = decoding.allocator, .options = options, .schema = schema},
+            &(sxml_exi_schema_setup){.table = &decoding.table,
+                                     .grammars = &decoding.schema_grammars,
+                                     .failure_description = &decoding.failure_description});
+        if (status != SXML_STATUS_OK) {
+            decoding.is_schema_informed = false;
+            decoding.table = (sxml_exi_string_table){.allocator = decoding.allocator};
+        }
+    } else if (status == SXML_STATUS_OK) {
         status = sxml_exi_string_table_initialize(
             &decoding.table, &(sxml_exi_string_table_configuration){.allocator = decoding.allocator, .options = options});
     }
