@@ -118,6 +118,8 @@ typedef struct sxml_exi_decoding {
     sxml_exi_schema_grammars schema_grammars;
     /* A typed value as text, before it is stored. */
     sxml_exi_buffer typed_text;
+    /* The schemaId text of the header's options document (5.4). */
+    sxml_exi_buffer header_text;
     /* Decoded text the events refer to (values, prefixes, comments). */
     uint8_t *text_bytes;
     size_t text_byte_count;
@@ -2116,6 +2118,7 @@ static void sxml_exi_release_decoding(sxml_exi_decoding *decoding) {
         sxml_exi_schema_grammars_finalize(&decoding->schema_grammars);
     }
     sxml_exi_buffer_release(&decoding->typed_text);
+    sxml_exi_buffer_release(&decoding->header_text);
     sxml_allocator_release(decoding->allocator, decoding->text_bytes);
     sxml_allocator_release(decoding->allocator, decoding->frames);
     sxml_allocator_release(decoding->allocator, decoding->bindings);
@@ -2167,11 +2170,18 @@ sxml_status sxml_exi_decode_stream(sxml_exi_decoder *decoder, const sxml_exi_dec
         .limits = decoder->configuration.limits,
         .options = request->options != NULL ? *request->options : default_options,
         .reader = {.input = request->input},
+        .header_text = {.allocator = decoder->configuration.allocator},
     };
     sxml_status status = sxml_exi_read_header(&decoding);
     if (status == SXML_STATUS_OK && decoding.has_header_options) {
-        status = SXML_EXI_FAIL(&decoding, SXML_STATUS_UNSUPPORTED_FEATURE,
-                               "an options document in the header is not read yet (packet 8.10)");
+        /* 5.4: the header's options replace those known out of band. */
+        status = sxml_exi_read_options_document(&(sxml_exi_options_document_read){
+            .reader = &decoding.reader,
+            .options = &decoding.options,
+            .schema_identifier_text = &decoding.header_text,
+            .failure_description = &decoding.failure_description});
+        decoding.options.schema_identifier.text =
+            (sxml_byte_view){.bytes = decoding.header_text.bytes, .byte_count = decoding.header_text.byte_count};
     }
     const sxml_exi_options *options = &decoding.options;
     decoding.is_channelized =

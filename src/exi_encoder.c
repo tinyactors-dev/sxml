@@ -2076,10 +2076,12 @@ static sxml_status sxml_exi_encode_body(sxml_exi_encoding *encoding, sxml_node_r
     return status;
 }
 
-/* EXI 5: [cookie] 1 0, presence bit, final version 1 (0 0000). */
+/* EXI 5: [cookie] 1 0, presence bit, final version 1 (0 0000), [options
+   document (5.4)]. */
 static sxml_status sxml_exi_write_header(sxml_exi_encoding *encoding) {
     sxml_status status = SXML_STATUS_OK;
-    if (encoding->request->header_options.includes_cookie) {
+    const sxml_exi_header_options *header_options = &encoding->request->header_options;
+    if (header_options->includes_cookie) {
         for (size_t byte_index = 0; byte_index < 4 && status == SXML_STATUS_OK; byte_index++) {
             status = sxml_exi_write_bits(&encoding->writer,
                                          (sxml_exi_bits){.value = (uint8_t)"$EXI"[byte_index], .bit_count = 8});
@@ -2089,10 +2091,24 @@ static sxml_status sxml_exi_write_header(sxml_exi_encoding *encoding) {
         status = sxml_exi_write_bits(&encoding->writer, (sxml_exi_bits){.value = 0x2, .bit_count = 2});
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_exi_write_bits(&encoding->writer, (sxml_exi_bits){.value = 0, .bit_count = 1});
+        status = sxml_exi_write_bits(&encoding->writer,
+                                     (sxml_exi_bits){.value = header_options->includes_options ? 1U : 0U, .bit_count = 1});
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_exi_write_bits(&encoding->writer, (sxml_exi_bits){.value = 0, .bit_count = 5});
+    }
+    if (status == SXML_STATUS_OK && header_options->includes_options) {
+        status = sxml_exi_write_options_document(
+            &encoding->writer, &(sxml_exi_options_document){.options = &encoding->options,
+                                                            .includes_schema_identifier =
+                                                                header_options->includes_schema_identifier,
+                                                            .is_schema_informed = encoding->is_schema_informed});
+        if (status == SXML_STATUS_UNSUPPORTED_FEATURE) {
+            status = SXML_EXI_ENCODER_FAIL(encoding, status,
+                                           "a datatypeRepresentationMap is not written in the options document");
+        } else if (status == SXML_STATUS_INVALID_ARGUMENT) {
+            status = SXML_EXI_ENCODER_FAIL(encoding, status, "a schemaId to write for a schema the options do not name");
+        }
     }
     return status;
 }
@@ -2112,10 +2128,9 @@ sxml_status sxml_exi_encode_stream(sxml_exi_encoder *encoder, const sxml_exi_enc
                                                     : sxml_tree_describe(request->root.tree, &tree_description);
     encoding.name_pool = tree_description.name_pool;
     const sxml_exi_options *options = &encoding.options;
-    if (status == SXML_STATUS_OK &&
-        (request->header_options.includes_options || request->canonicalization.is_canonical)) {
+    if (status == SXML_STATUS_OK && request->canonicalization.is_canonical) {
         status = SXML_EXI_ENCODER_FAIL(&encoding, SXML_STATUS_UNSUPPORTED_FEATURE,
-                                       "options documents and Canonical EXI are not written yet (packets 8.10, 8.11)");
+                                       "Canonical EXI is not written yet (packet 8.11)");
     }
     encoding.is_channelized =
         options->alignment == SXML_EXI_ALIGNMENT_PRE_COMPRESSION || options->alignment == SXML_EXI_ALIGNMENT_COMPRESSION;

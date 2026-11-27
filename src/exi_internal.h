@@ -857,3 +857,31 @@ SXML_NODISCARD sxml_status sxml_exi_decode_stream(sxml_exi_decoder *decoder, con
                                                   sxml_tree_builder builder);
 SXML_NODISCARD sxml_status sxml_exi_encode_stream(sxml_exi_encoder *encoder, const sxml_exi_encode_request *request,
                                                   sxml_output_stream output_stream);
+
+/* ------------------------------------------------------ Options document */
+
+/* The options document of the header (EXI 5.4, Appendix C; exi_header.c):
+   the options, written as EXIficient writes them (each that is not its
+   default); schemaId when includes_schema_identifier too, which for an
+   ABSENT schemaId says what the stream is: its text needs one, so a
+   schema-informed stream without one is refused. */
+typedef struct sxml_exi_options_document {
+    const sxml_exi_options *options;
+    bool includes_schema_identifier;
+    bool is_schema_informed;
+} sxml_exi_options_document;
+
+SXML_NODISCARD sxml_status sxml_exi_write_options_document(sxml_exi_bit_writer *writer,
+                                                           const sxml_exi_options_document *document);
+
+/* Reads an options document into *options (from the defaults); the
+   schemaId's text is appended to schema_identifier_text, for the caller
+   to point options->schema_identifier.text at. */
+typedef struct sxml_exi_options_document_read {
+    sxml_exi_bit_reader *reader;
+    sxml_exi_options *options;
+    sxml_exi_buffer *schema_identifier_text;
+    sxml_byte_view *failure_description;
+} sxml_exi_options_document_read;
+
+SXML_NODISCARD sxml_status sxml_exi_read_options_document(const sxml_exi_options_document_read *read);
