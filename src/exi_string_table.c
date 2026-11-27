@@ -72,6 +72,10 @@ static const sxml_byte_view sxml_exi_xml_schema_type_names[] = {
 
 
 sxml_byte_view sxml_exi_string_table_view(const sxml_exi_string_table *table, sxml_exi_text text) {
+    if (table->text_bytes == NULL) {
+        /* No text yet: an offset applied to a null pointer is undefined (C17 6.5.6). */
+        return (sxml_byte_view){.bytes = NULL, .byte_count = 0};
+    }
     return (sxml_byte_view){.bytes = table->text_bytes + text.offset, .byte_count = text.byte_count};
 }
 

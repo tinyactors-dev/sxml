@@ -1251,6 +1251,30 @@ static sxml_status sxml_exi_attribute(sxml_exi_decoding *decoding, const sxml_ex
     return status;
 }
 
+/* Whether a namespace declaration is one Namespaces in XML 1.0, section 3,
+   allows: xml only for its namespace and that namespace only for xml,
+   xmlns and its namespace never declared, and no prefix undeclared (that is
+   XML 1.1's). A stream may carry any; the tree must not get them. */
+static bool sxml_exi_is_allowed_binding(sxml_byte_view prefix, sxml_byte_view uri) {
+    static const uint8_t xml_prefix[] = {'x', 'm', 'l'};
+    static const uint8_t xmlns_prefix[] = {'x', 'm', 'l', 'n', 's'};
+    static const uint8_t xml_uri[] = "http://www.w3.org/XML/1998/namespace";
+    static const uint8_t xmlns_uri[] = "http://www.w3.org/2000/xmlns/";
+    const sxml_byte_view xml = {.bytes = xml_prefix, .byte_count = sizeof(xml_prefix)};
+    const sxml_byte_view xmlns = {.bytes = xmlns_prefix, .byte_count = sizeof(xmlns_prefix)};
+    const sxml_byte_view xml_namespace = {.bytes = xml_uri, .byte_count = sizeof(xml_uri) - 1};
+    const sxml_byte_view xmlns_namespace = {.bytes = xmlns_uri, .byte_count = sizeof(xmlns_uri) - 1};
+    const bool is_xml_prefix = sxml_byte_view_equals(prefix, xml);
+    const bool is_xml_namespace = sxml_byte_view_equals(uri, xml_namespace);
+    if (is_xml_prefix != is_xml_namespace) {
+        return false;
+    }
+    if (sxml_byte_view_equals(prefix, xmlns) || sxml_byte_view_equals(uri, xmlns_namespace)) {
+        return false;
+    }
+    return prefix.byte_count == 0 || uri.byte_count > 0;
+}
+
 static sxml_status sxml_exi_namespace(sxml_exi_decoding *decoding) {
     uint32_t uri = 0;
     sxml_status status = sxml_exi_read_uri(decoding, &uri);
@@ -1292,6 +1316,17 @@ static sxml_status sxml_exi_namespace(sxml_exi_decoding *decoding) {
     if (status != SXML_STATUS_OK) {
         return status;
     }
+    const sxml_exi_text uri_text = {.offset = uri_start, .byte_count = (uint32_t)(decoding->text_byte_count - uri_start)};
+    if (!sxml_exi_is_allowed_binding(sxml_exi_decoded_view(decoding, prefix), sxml_exi_decoded_view(decoding, uri_text))) {
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT,
+                             "a namespace declaration Namespaces in XML 1.0 does not allow (section 3)");
+    }
+    if (is_local_element_namespace.value && (!decoding->has_pending_start || uri != decoding->pending_uri)) {
+        /* EXI 1.0, 4: local-element-ns marks the declaration of the element's
+           own prefix, so its URI is the element's. */
+        return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT,
+                             "a local-element-ns declaration of another namespace than its element's");
+    }
     if (is_local_element_namespace.value) {
         decoding->pending_local_prefix = prefix;
         decoding->has_pending_local_prefix = true;
@@ -1299,7 +1334,7 @@ static sxml_status sxml_exi_namespace(sxml_exi_decoding *decoding) {
     return sxml_exi_add_declaration(
         decoding, &(sxml_exi_pending_binding){
                       .prefix = prefix,
-                      .uri = {.offset = uri_start, .byte_count = (uint32_t)(decoding->text_byte_count - uri_start)}});
+                      .uri = uri_text});
 }
 
 static sxml_status sxml_exi_characters(sxml_exi_decoding *decoding, const sxml_exi_decoded_event *event) {

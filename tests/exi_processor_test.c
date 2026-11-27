@@ -719,6 +719,48 @@ static void test_schema_resolver_keeps_compiled_schemas(sxml_test_state *state) 
     SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
 }
 
+/* Streams the decoder fuzzer found (tests/fuzz/exi_decode_fuzz.c), refused
+   as malformed: one whose first local name is read before any text (a null
+   pointer plus an offset, undefined in C17 6.5.6), and one whose
+   local-element-ns declaration names another namespace than its element's
+   (EXI 1.0, 4), which made an element of one namespace with the prefix of
+   another. */
+static void test_parse_refuses_fuzzer_streams(sxml_test_state *state) {
+    fixture test_fixture;
+    SXML_TEST_REQUIRE(state,
+                      fixture_create(&(fixture_options){.names_feature = true}, &test_fixture) == SXML_STATUS_OK);
+    static const uint8_t no_text_yet[] = {0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a, 0x8a, 0x8b, 0xff, 0x01};
+    static const uint8_t foreign_local_prefix[] = {0x80, 0x30, 0x27, 0x30, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+                                                   0x55, 0x55, 0x55, 0x55, 0xc0, 0x00, 0x00, 0x24, 0x00, 0x00, 0x00,
+                                                   0x32, 0x24, 0x80, 0x00, 0xd8};
+    const sxml_exi_options pre_compression = {.alignment = SXML_EXI_ALIGNMENT_PRE_COMPRESSION};
+    const sxml_exi_options fragment = {.alignment = SXML_EXI_ALIGNMENT_BIT_PACKED,
+                                       .fidelity = {.preserves_comments = true,
+                                                    .preserves_processing_instructions = true,
+                                                    .preserves_prefixes = true},
+                                       .is_fragment = true,
+                                       .has_block_size = true,
+                                       .block_size = 4};
+    sxml_diagnostic diagnostic = {.description = {.bytes = NULL, .byte_count = 0}, .location = {.line_number = 0}};
+    sxml_item document = {.representation = 0};
+    SXML_TEST_EXPECT(state, sxml_processor_parse_exi_document(
+                                test_fixture.processor,
+                                &(sxml_exi_decode_request){.input = {.bytes = no_text_yet, .byte_count = sizeof(no_text_yet)},
+                                                           .options = &pre_compression,
+                                                           .diagnostic = &diagnostic},
+                                &document) == SXML_STATUS_MALFORMED_INPUT &&
+                                document.representation == 0);
+    SXML_TEST_EXPECT(state, sxml_processor_parse_exi_document(
+                                test_fixture.processor,
+                                &(sxml_exi_decode_request){
+                                    .input = {.bytes = foreign_local_prefix, .byte_count = sizeof(foreign_local_prefix)},
+                                    .options = &fragment,
+                                    .diagnostic = &diagnostic},
+                                &document) == SXML_STATUS_MALFORMED_INPUT &&
+                                document.representation == 0);
+    SXML_TEST_EXPECT(state, fixture_destroy(&test_fixture));
+}
+
 static const sxml_test_case exi_processor_test_cases[] = {
     {.name = "options_reader_reads_each_option", .function = test_options_reader_reads_each_option},
     {.name = "options_reader_refuses_invalid_documents", .function = test_options_reader_refuses_invalid_documents},
@@ -728,6 +770,7 @@ static const sxml_test_case exi_processor_test_cases[] = {
     {.name = "method_from_output_declarations", .function = test_method_from_output_declarations},
     {.name = "parameter_reader_reads_the_exi_parameters", .function = test_parameter_reader_reads_the_exi_parameters},
     {.name = "parse_exi_document", .function = test_parse_exi_document},
+    {.name = "parse_refuses_fuzzer_streams", .function = test_parse_refuses_fuzzer_streams},
     {.name = "schema_resolver_keeps_compiled_schemas", .function = test_schema_resolver_keeps_compiled_schemas},
 };
 
