@@ -46,3 +46,11 @@ endif()
 sxml_apply_project_flags(exi_golden)
 add_test(NAME exi/golden COMMAND exi_golden "${PROJECT_SOURCE_DIR}")
 add_test(NAME exi/golden-self-check COMMAND exi_golden "${PROJECT_SOURCE_DIR}" --self-check)
+
+# The DEFLATE vectors (packet 8.7; D333): src/inflate.c and src/deflate.c
+# against tests/deflate/, which zlib wrote.
+add_executable(deflate_vectors deflate/deflate_vectors.c)
+target_link_libraries(deflate_vectors PRIVATE sxml)
+target_include_directories(deflate_vectors PRIVATE "${PROJECT_SOURCE_DIR}/src")
+sxml_apply_project_flags(deflate_vectors)
+add_test(NAME deflate/vectors COMMAND deflate_vectors "${PROJECT_SOURCE_DIR}")

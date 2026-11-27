@@ -62,9 +62,9 @@ step "3. debug build with sanitizers"
 mkdir -p "$build"
 cmake -S . -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang \
     -DSXML_ENABLE_SANITIZERS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON >/dev/null
-ninja -C "$build" sxml exi_golden sxml_cli $(cd "$build" && ninja -t targets all 2>/dev/null | \
+ninja -C "$build" sxml exi_golden deflate_vectors sxml_cli $(cd "$build" && ninja -t targets all 2>/dev/null | \
     sed -n 's/^\(\(exi\|deflate\|inflate\)[a-z_]*_test\): .*/\1/p' | sort -u) >/dev/null \
-    || { ninja -C "$build" sxml exi_golden 2>&1 | grep -E 'error' | head -20; fail "the debug build"; }
+    || { ninja -C "$build" sxml exi_golden deflate_vectors 2>&1 | grep -E 'error' | head -20; fail "the debug build"; }
 echo ok
 
 step "4. EXI tests under the sanitizers"
