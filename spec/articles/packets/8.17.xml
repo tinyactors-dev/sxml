@@ -2,7 +2,7 @@
   <title>Phase 8 gate and release 0.3.0</title>
   <summary>Reviews the gate of Phase 8 and prepares release 0.3.0 by docs/RELEASE.md, for the owner to tag.</summary>
   <body>
-    <p>After every other packet of Phase 8.</p>
+    <p><status value="done" date="2026-11-27"/> After every other packet of Phase 8.</p>
     <list>
       <item>
         <p><strong>Done when</strong>: the gate's boxes are reviewed; the version is 0.3.0 in its four places; the changelog section is dated; the release commit is on main.</p>

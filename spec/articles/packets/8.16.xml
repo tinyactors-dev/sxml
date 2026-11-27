@@ -2,7 +2,7 @@
   <title>EXI fuzzing and documentation</title>
   <summary>Fuzz targets for the decoder, inflate and the options reader; the book's EXI page; the changelog.</summary>
   <body>
-    <p>After 8.13.</p>
+    <p><status value="done" date="2026-11-27"/> After 8.13.</p>
     <list>
       <item>
         <p><strong>Owns</strong>: new <code>tests/fuzz/exi_decode_fuzz.c</code>, <code>inflate_fuzz.c</code>; a page of <code>docs/book</code>; the Unreleased section of <code>CHANGELOG.md</code>.</p>

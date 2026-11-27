@@ -3,6 +3,9 @@
   <body>
     <list loose="true">
       <item>
+        <p>Release 0.3.0 committed (1e6a27a98) at the owner's call, before the debug-gcc, wasm and release presets' full runs, tools/lint.sh and the conformance reruns finished; the owner tags v0.3.0 (<ref kind="decision" to="D333"/>).</p>
+      </item>
+      <item>
         <p>Packets 8.10 (header options document and cookie), 8.11 (Canonical EXI) and 8.12 (self-contained elements) landed: 5,583 of 5,589 golden checks pass; the six others are EXIficient bugs, listed with evidence in tests/exi/oracle-deviations.txt (<ref kind="decision" to="D333"/>).</p>
       </item>
       <item>

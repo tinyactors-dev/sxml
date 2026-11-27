@@ -248,7 +248,7 @@ processor.encodeEXI and processor.parseEXI, within the size budget.
 **Summary**: Fuzz targets for the decoder, inflate and the options reader; the
 book's EXI page; the changelog.
 
-After 8.13.
+**Done** 2026-11-27 After 8.13.
 
 - **Owns**: new `tests/fuzz/exi_decode_fuzz.c`, `inflate_fuzz.c`; a page of
   `docs/book`; the Unreleased section of `CHANGELOG.md`.
@@ -259,7 +259,7 @@ After 8.13.
 **Summary**: Reviews the gate of Phase 8 and prepares release 0.3.0 by
 docs/RELEASE.md, for the owner to tag.
 
-After every other packet of Phase 8.
+**Done** 2026-11-27 After every other packet of Phase 8.
 
 - **Done when**: the gate's boxes are reviewed; the version is 0.3.0 in its
   four places; the changelog section is dated; the release commit is on main.
