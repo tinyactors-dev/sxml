@@ -43,4 +43,6 @@ jobs:
       - name: Build
         run: cmake --build --preset release
       - name: Test
-        run: ctest --preset release --parallel 4 --timeout 300
+        # The Swift and Kotlin bindings are paused (D255): the runner has both
+        # toolchains, so their tests are registered, and they are left out.
+        run: ctest --preset release --parallel 4 --timeout 300 --exclude-regex "^(kotlin|swift)/"
