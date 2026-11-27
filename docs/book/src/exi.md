@@ -172,6 +172,42 @@ $ sxml xpath 'bin:length(unparsed-binary("orders.strict.exi"))'
 To check a document against its schema, and to learn what is wrong with
 it, validate it (see [Validating with XSD](xsd.md)).
 
+## One stream for one document
+
+Two documents that mean the same can make different streams. `order-a.xml`
+and `order-b.xml` are the same order, with the attributes in another order
+and the tags laid out differently; XPath finds them deep-equal, but the
+encoder writes the attributes as they come:
+
+```console
+$ sxml encode --output=order-a.exi order-a.xml
+$ sxml encode --output=order-b.exi order-b.xml
+$ sxml xpath 'deep-equal(doc("order-a.xml"), doc("order-b.xml")), unparsed-binary("order-a.exi") = unparsed-binary("order-b.exi")'
+true()
+false()
+```
+
+Canonical EXI, a W3C Recommendation of its own, fixes every choice the
+format leaves to the encoder: the attributes and namespace declarations
+are sorted, each event takes the most specific production of the
+grammar that fits it, and the header carries the options. With `--canonical`, the same document
+always gives the same bytes, so a stream can be hashed, signed or compared
+byte for byte:
+
+```console
+$ sxml encode --canonical --output=order-a.canonical.exi order-a.xml
+$ sxml encode --canonical --output=order-b.canonical.exi order-b.xml
+$ sxml xpath 'unparsed-binary("order-a.canonical.exi") = unparsed-binary("order-b.canonical.exi")'
+true()
+$ sxml decode order-b.canonical.exi
+<order id="A-1007" status="paid"><line quantity="2" sku="HD-310"/></order>
+```
+
+The decoder needs no flags for it: the options are in the header.
+`--omit-options-document` leaves them out, when both sides know them, and
+`--utc-time` writes the date-times a schema types in UTC, so that one
+instant written in two time zones gives one stream.
+
 ## Querying EXI
 
 A command that reads a document reads EXI with `--input-format=exi`,
