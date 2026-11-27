@@ -752,6 +752,8 @@ typedef struct sxml_exi_value_text {
 typedef struct sxml_exi_typed_write {
     const sxml_exi_schema_grammars *grammars;
     sxml_exi_bit_writer *writer;
+    /* Canonical EXI's utcTime (its 4.5.5): Date-Time values in UTC. */
+    bool uses_utc_time;
 } sxml_exi_typed_write;
 
 /* Whether a value is one of its datatype. */

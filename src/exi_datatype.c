@@ -965,6 +965,82 @@ static void sxml_exi_normalize_date_time(sxml_exi_parsed_value *parsed) {
     }
 }
 
+/* fQuotient and modulo of XML Schema 1.0 Part 2, E ("Adding durations to
+   dateTimes"). */
+static int64_t sxml_exi_floor_quotient(int64_t dividend, int64_t divisor) {
+    const int64_t quotient = dividend / divisor;
+    return (dividend % divisor != 0 && (dividend < 0) != (divisor < 0)) ? quotient - 1 : quotient;
+}
+
+static int64_t sxml_exi_floor_modulo(int64_t dividend, int64_t divisor) {
+    return dividend - sxml_exi_floor_quotient(dividend, divisor) * divisor;
+}
+
+/* maximumDayInMonthFor (XML Schema 1.0 Part 2, E): the month taken
+   modulo 12, a month 0 being the previous year's December. EXIficient's
+   DateTimeValue lacks May among the 31-day months and gives month 0 28
+   days; no golden case reaches either. */
+static int64_t sxml_exi_maximum_day(int64_t year_value, int64_t month_value) {
+    const int64_t month = sxml_exi_floor_modulo(month_value - 1, 12) + 1;
+    const int64_t year = year_value + sxml_exi_floor_quotient(month_value - 1, 12);
+    if (month == 1 || month == 3 || month == 5 || month == 7 || month == 8 || month == 10 || month == 12) {
+        return 31;
+    }
+    if (month == 4 || month == 6 || month == 9 || month == 11) {
+        return 30;
+    }
+    const bool is_leap = sxml_exi_floor_modulo(year, 400) == 0 ||
+                         (sxml_exi_floor_modulo(year, 100) != 0 && sxml_exi_floor_modulo(year, 4) == 0);
+    return month == 2 && is_leap ? 29 : 28;
+}
+
+/* Canonical EXI 4.5.5, utcTime: the value in UTC, by XML Schema 1.0
+   Part 2, E with the seconds untouched, as DateTimeValue.doNormalize
+   computes it, for every Date-Time type (a value without a timezone too:
+   its day is clamped to its month, and it keeps having none). */
+static void sxml_exi_date_time_to_utc(sxml_exi_parsed_value *parsed) {
+    int64_t year = parsed->year;
+    int64_t month = parsed->month_day / 32U;
+    int64_t day = (int64_t)parsed->month_day - month * 32;
+    int64_t hour = parsed->time / 4096U;
+    const int64_t rest = (int64_t)parsed->time - hour * 4096;
+    int64_t minutes = rest / 64;
+    const int64_t seconds = rest - minutes * 64;
+    int64_t zone_hours = 0;
+    int64_t zone_minutes = 0;
+    if (parsed->has_time_zone && parsed->time_zone != 0) {
+        zone_hours = parsed->time_zone / 64;
+        zone_minutes = parsed->time_zone - zone_hours * 64;
+    }
+    int64_t temporary = minutes - zone_minutes;
+    minutes = sxml_exi_floor_modulo(temporary, 60);
+    int64_t carry = sxml_exi_floor_quotient(temporary, 60);
+    temporary = hour - zone_hours + carry;
+    hour = sxml_exi_floor_modulo(temporary, 24);
+    carry = sxml_exi_floor_quotient(temporary, 24);
+    const int64_t maximum_day = sxml_exi_maximum_day(year, month);
+    const int64_t clamped_day = day > maximum_day ? maximum_day : day < 1 ? 1 : day;
+    day = clamped_day + carry;
+    for (;;) {
+        if (day < 1) {
+            day += sxml_exi_maximum_day(year, month - 1);
+            carry = -1;
+        } else if (day > sxml_exi_maximum_day(year, month)) {
+            day -= sxml_exi_maximum_day(year, month);
+            carry = 1;
+        } else {
+            break;
+        }
+        temporary = month + carry;
+        month = sxml_exi_floor_modulo(temporary - 1, 12) + 1;
+        year += sxml_exi_floor_quotient(temporary - 1, 12);
+    }
+    parsed->year = year;
+    parsed->month_day = (uint32_t)(month * 32 + day);
+    parsed->time = (uint32_t)(((hour * 64) + minutes) * 64 + seconds);
+    parsed->time_zone = 0;
+}
+
 /* FloatValue.parse (7.1.4), in Java's long arithmetic, then its
    constructor's normalization. */
 static bool sxml_exi_parse_float(sxml_byte_view text, sxml_exi_parsed_value *parsed) {
@@ -1841,6 +1917,10 @@ sxml_status sxml_exi_write_typed_value(const sxml_exi_typed_write *write, sxml_e
     sxml_exi_parse_result result = {.parsed = &parsed};
     sxml_status status = sxml_exi_parse_value(&context, value, &result);
     validity->is_valid = status == SXML_STATUS_OK && result.is_valid;
+    if (validity->is_valid && write->uses_utc_time &&
+        write->grammars->datatypes[value.datatype].datatype_kind == SXML_EXI_DATATYPE_DATE_TIME) {
+        sxml_exi_date_time_to_utc(&parsed);
+    }
     if (validity->is_valid && write->writer != NULL) {
         status = sxml_exi_write_parsed(
             &(sxml_exi_parsed_write){.writer = write->writer, .context = &context, .datatype = value.datatype}, &parsed);

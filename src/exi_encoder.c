@@ -380,8 +380,11 @@ static sxml_status sxml_exi_write_scalar_value(sxml_exi_encoding *encoding, cons
                                                      .character_set = sxml_exi_encoder_character_set(encoding, value->datatype)});
     }
     sxml_exi_validity validity = {0};
+    const sxml_exi_canonicalization *canonicalization = &encoding->request->canonicalization;
     sxml_status status = sxml_exi_write_typed_value(
-        &(sxml_exi_typed_write){.grammars = &encoding->schema_grammars, .writer = &encoding->writer},
+        &(sxml_exi_typed_write){.grammars = &encoding->schema_grammars,
+                                .writer = &encoding->writer,
+                                .uses_utc_time = canonicalization->is_canonical && canonicalization->uses_utc_time},
         (sxml_exi_value_text){.datatype = value->datatype, .text = value->key.text}, &validity);
     if (status == SXML_STATUS_OK && !validity.is_valid) {
         status = SXML_EXI_ENCODER_FAIL(encoding, SXML_STATUS_INVALID_ARGUMENT, "a value not of its datatype");
@@ -1172,10 +1175,59 @@ static bool sxml_exi_texts_equal(sxml_byte_view first, sxml_byte_view second) {
 /* The NS events of an element (Preserve.prefixes): its in-scope
    namespaces its parent does not have, and the default namespace's
    undeclaration when the parent has one and it has none. */
+/* The namespace declarations of an element, written at once, or with
+   Canonical EXI (its 4.4) sorted by prefix first: each inserted after the
+   equal ones, as the oracle inserts them. */
+typedef struct sxml_exi_namespace_list {
+    sxml_exi_namespace_write *writes;
+    size_t write_count;
+    size_t write_capacity;
+    bool sorts;
+} sxml_exi_namespace_list;
+
+static int sxml_exi_prefix_order(sxml_byte_view left, sxml_byte_view right) {
+    const size_t common = left.byte_count < right.byte_count ? left.byte_count : right.byte_count;
+    const int order = common == 0 ? 0 : memcmp(left.bytes, right.bytes, common);
+    if (order != 0 || left.byte_count == right.byte_count) {
+        return order;
+    }
+    return left.byte_count < right.byte_count ? -1 : 1;
+}
+
+static sxml_status sxml_exi_emit_namespace(sxml_exi_encoding *encoding, sxml_exi_namespace_list *list,
+                                           const sxml_exi_namespace_write *write) {
+    if (!list->sorts) {
+        return sxml_exi_encode_namespace(encoding, write);
+    }
+    if (list->writes == NULL || list->write_count == list->write_capacity) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    size_t position = list->write_count;
+    while (position > 0 && sxml_exi_prefix_order(list->writes[position - 1].binding.prefix, write->binding.prefix) > 0) {
+        list->writes[position] = list->writes[position - 1];
+        position--;
+    }
+    list->writes[position] = *write;
+    list->write_count++;
+    return SXML_STATUS_OK;
+}
+
 static sxml_status sxml_exi_encode_namespaces(sxml_exi_encoding *encoding, const sxml_exi_node_event *event) {
     sxml_namespace_binding_view own = {0};
     sxml_namespace_binding_view inherited = {0};
     sxml_status status = sxml_node_get_in_scope_namespaces(event->node, &own);
+    sxml_exi_namespace_list list = {.sorts = encoding->request->canonicalization.is_canonical};
+    if (status == SXML_STATUS_OK && list.sorts) {
+        void *memory = NULL;
+        list.write_capacity = own.namespace_binding_count + 1;
+        status = sxml_allocator_allocate_array(
+            encoding->allocator,
+            (sxml_array_allocation_request){.element_count = list.write_capacity,
+                                            .element_size = sizeof(sxml_exi_namespace_write),
+                                            .element_alignment = alignof(sxml_exi_namespace_write)},
+            &memory);
+        list.writes = memory;
+    }
     const sxml_node_description *description = event->description;
     sxml_node_description parent_description = {0};
     bool has_element_parent = false;
@@ -1208,8 +1260,8 @@ static sxml_status sxml_exi_encode_namespaces(sxml_exi_encoding *encoding, const
                               sxml_exi_texts_equal(text.uri, element_name.uri);
         has_local_element_namespace = has_local_element_namespace || is_local;
         if (status == SXML_STATUS_OK) {
-            status = sxml_exi_encode_namespace(
-                encoding, &(sxml_exi_namespace_write){.binding = text, .is_local_element_namespace = is_local});
+            status = sxml_exi_emit_namespace(
+                encoding, &list, &(sxml_exi_namespace_write){.binding = text, .is_local_element_namespace = is_local});
         }
     }
     /* An undeclared default namespace: the parent has one, this has none. */
@@ -1223,14 +1275,18 @@ static sxml_status sxml_exi_encode_namespaces(sxml_exi_encoding *encoding, const
             has_default = has_default || own.namespace_bindings[binding_index].namespace_prefix.index == 0;
         }
         if (parent_has_default && !has_default) {
-            status = sxml_exi_encode_namespace(
-                encoding,
+            status = sxml_exi_emit_namespace(
+                encoding, &list,
                 &(sxml_exi_namespace_write){.binding = {0},
                                             .is_local_element_namespace = !has_local_element_namespace &&
                                                                           element_name.uri.byte_count == 0 &&
                                                                           element_name.prefix.byte_count == 0});
         }
     }
+    for (size_t write_index = 0; status == SXML_STATUS_OK && write_index < list.write_count; write_index++) {
+        status = sxml_exi_encode_namespace(encoding, &list.writes[write_index]);
+    }
+    sxml_allocator_release(encoding->allocator, list.writes);
     return status;
 }
 
@@ -1984,8 +2040,10 @@ static sxml_status sxml_exi_encode_node(sxml_exi_encoding *encoding, sxml_node_r
             status = sxml_exi_encode_namespaces(encoding, &event);
         }
         if (status == SXML_STATUS_OK) {
-            status = encoding->is_schema_informed ? sxml_exi_encode_schema_attributes(encoding, &event)
-                                                  : sxml_exi_encode_attributes(encoding, &event);
+            /* Canonical EXI 4.4: sorted with every grammar. */
+            const bool sorts = encoding->is_schema_informed || encoding->request->canonicalization.is_canonical;
+            status = sorts ? sxml_exi_encode_schema_attributes(encoding, &event)
+                           : sxml_exi_encode_attributes(encoding, &event);
         }
         return status;
     case SXML_NODE_KIND_TEXT:
@@ -2080,7 +2138,14 @@ static sxml_status sxml_exi_encode_body(sxml_exi_encoding *encoding, sxml_node_r
    document (5.4)]. */
 static sxml_status sxml_exi_write_header(sxml_exi_encoding *encoding) {
     sxml_status status = SXML_STATUS_OK;
-    const sxml_exi_header_options *header_options = &encoding->request->header_options;
+    /* Canonical EXI 3: no cookie, and the options document unless
+       omitOptionsDocument. */
+    const sxml_exi_canonicalization *canonicalization = &encoding->request->canonicalization;
+    const sxml_exi_header_options header_options_value =
+        canonicalization->is_canonical
+            ? (sxml_exi_header_options){.includes_options = !canonicalization->omits_options_document}
+            : encoding->request->header_options;
+    const sxml_exi_header_options *header_options = &header_options_value;
     if (header_options->includes_cookie) {
         for (size_t byte_index = 0; byte_index < 4 && status == SXML_STATUS_OK; byte_index++) {
             status = sxml_exi_write_bits(&encoding->writer,
@@ -2128,9 +2193,9 @@ sxml_status sxml_exi_encode_stream(sxml_exi_encoder *encoder, const sxml_exi_enc
                                                     : sxml_tree_describe(request->root.tree, &tree_description);
     encoding.name_pool = tree_description.name_pool;
     const sxml_exi_options *options = &encoding.options;
-    if (status == SXML_STATUS_OK && request->canonicalization.is_canonical) {
-        status = SXML_EXI_ENCODER_FAIL(&encoding, SXML_STATUS_UNSUPPORTED_FEATURE,
-                                       "Canonical EXI is not written yet (packet 8.11)");
+    /* Canonical EXI 4.1: compression is computed as pre-compression. */
+    if (request->canonicalization.is_canonical && encoding.options.alignment == SXML_EXI_ALIGNMENT_COMPRESSION) {
+        encoding.options.alignment = SXML_EXI_ALIGNMENT_PRE_COMPRESSION;
     }
     encoding.is_channelized =
         options->alignment == SXML_EXI_ALIGNMENT_PRE_COMPRESSION || options->alignment == SXML_EXI_ALIGNMENT_COMPRESSION;
