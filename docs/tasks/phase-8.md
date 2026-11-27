@@ -224,7 +224,7 @@ the schemaId resolver, and the options reader.
 **Summary**: The commands sxml encode and sxml decode, and --input-format on
 the commands that read documents.
 
-After 8.13. The rules of CLI.
+**Done** 2026-11-27 After 8.13. The rules of CLI.
 
 - **Owns**: new `apps/sxml/command_encode.c`, `command_decode.c`, their golden
   tests in `tests/cli/`, their sections in `apps/sxml/README.md`.

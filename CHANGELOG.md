@@ -32,6 +32,12 @@ release are in `docs/RELEASE.md`.
   resource resolver (`SXML_RESOURCE_KIND_EXI_SCHEMA`). `name.h` gains
   `SXML_NAMESPACE_EXI` and `SXML_NAMESPACE_EXI_FORMAT`, `serialize.h`
   `SXML_SERIALIZATION_METHOD_EXI` and the parameters' `exi_parameters`.
+- **`sxml encode` and `sxml decode`** (D333), and `--input-format=exi`
+  on `sxml xpath`, `sxml xquery` and `sxml transform`, each with the EXI
+  options as flags (`--alignment`, `--preserve`, `--fragment`,
+  `--strict`, `--block-size`, `--value-max-length`,
+  `--value-partition-capacity`, `--schema`). The book has a chapter,
+  "Compact XML with EXI".
 
 ### Changed
 

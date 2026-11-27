@@ -7,6 +7,10 @@ blocked. Add an item to this week's entry with `tools/spec/spec log TEXT`.
 
 ## Week of 2026-11-23
 
+- Packet 8.14 (sxml encode, sxml decode, --input-format=exi) landed:
+  check-command 206 of 206, the book chapter's 16 examples, the gate with the
+  wasm tests (D333).
+
 - Packet 8.13 (EXI through the processor) landed: the exi feature,
   exi:serialize and exi:parse, the exi:exi output method from XQuery and XSLT,
   the options reader, the schemaId resolver; tools/exi/check-processor.py
