@@ -103,6 +103,75 @@ compressed stream groups at a time, and `--value-max-length` and
 encoder remembers. Each one changes the stream, so the decoder needs the
 same.
 
+## With a schema
+
+The streams so far are schema-less: the decoder knows nothing of the
+document before it starts, so every name is written in full the first
+time it appears, and every value as text. When both sides have the
+document's schema, the encoder writes the document against the grammar
+the schema gives: the names it declares are known from the start, an
+element the content model expects next takes no bits at all to name,
+and a value of a simple type is written as that type, a decimal as its
+digits and an enumeration as its index. `orders.xsd` is a schema of the
+order feed:
+
+```console
+$ sxml encode --schema=orders.xsd --output=orders.schema.exi orders.xml
+$ sxml encode --schema=orders.xsd --alignment=compression --output=orders.schema.deflate.exi orders.xml
+$ sxml xpath '("orders.schema.exi", "orders.schema.deflate.exi") ! `{.}: {bin:length(unparsed-binary(.))} bytes`'
+"orders.schema.exi: 1573 bytes"
+"orders.schema.deflate.exi: 837 bytes"
+```
+
+A third less than without the schema, and the decoder needs the same
+schema to read it. It also changes what comes back. A value written as
+a decimal is read back as the decimal, in its canonical form, the white
+space between elements of element-only content is gone (the schema says
+it means nothing), and the attributes come in the order of their names:
+
+```console
+$ sxml xpath --input-format=exi --schema=orders.xsd --context-item=orders.schema.exi '(//line)[1], (//total)[1]'
+<line price="89.0" quantity="3" sku="KB-104">Mechanical keyboard</line>
+<total currency="EUR">320.9</total>
+```
+
+When the text of a value matters, `--preserve=lexical-values` keeps it,
+at the cost of writing it as text:
+
+```console
+$ sxml encode --schema=orders.xsd --preserve=lexical-values --output=orders.lexical.exi orders.xml
+$ sxml xpath --input-format=exi --schema=orders.xsd --preserve=lexical-values --context-item=orders.lexical.exi \
+    '(//line)[1], (//total)[1]'
+<line price="89.00" quantity="3" sku="KB-104">Mechanical keyboard</line>
+<total currency="EUR">320.90</total>
+```
+
+A schema-informed stream is not a validation: a document the schema
+does not allow is still written, with the productions EXI keeps for
+what the schema did not foresee, at some cost in size. A status the
+enumeration lacks comes back as it was:
+
+```console
+$ printf '<orders date="2026-11-27"><order id="A-1" status="lost"/></orders>' > lost.xml
+$ sxml encode --schema=orders.xsd --output=lost.exi lost.xml
+$ sxml xpath --input-format=exi --schema=orders.xsd --context-item=lost.exi 'string(//order/@status)'
+"lost"
+```
+
+With `--strict`, those productions are left out: such a document cannot
+be written, and the streams are smaller still:
+
+```console
+$ sxml encode --schema=orders.xsd --strict --output=lost.strict.exi lost.xml
+sxml encode: lost.xml: content the schema-informed grammar has no production for
+$ sxml encode --schema=orders.xsd --strict --output=orders.strict.exi orders.xml
+$ sxml xpath 'bin:length(unparsed-binary("orders.strict.exi"))'
+1426
+```
+
+To check a document against its schema, and to learn what is wrong with
+it, validate it (see [Validating with XSD](xsd.md)).
+
 ## Querying EXI
 
 A command that reads a document reads EXI with `--input-format=exi`,
