@@ -2,7 +2,7 @@
   <title>EXI self-contained elements</title>
   <summary>The selfContained option in both directions: SC events, their byte alignment and their own string tables and grammars.</summary>
   <body>
-    <p>After 8.10. EXI 1.0, section 8.5.4.4.1 and the selfContained option.</p>
+    <p><status value="done" date="2026-11-27"/> After 8.10. EXI 1.0, section 8.5.4.4.1 and the selfContained option.</p>
     <list>
       <item>
         <p><strong>Done when</strong>: a golden set with selfContained (added to <code>tools/exi-oracle/make-golden.py</code>) passes; the gate script passes.</p>

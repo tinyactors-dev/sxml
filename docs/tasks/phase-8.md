@@ -178,7 +178,8 @@ codes, the undeclared productions of non-strict grammars); the components of
 **Summary**: Writes and reads the options document of the EXI header, with the
 schema-informed grammar of the EXI options schema, and the cookie.
 
-After 8.9. EXI 1.0, section 5 and Appendix C (the options schema).
+**Done** 2026-11-27 After 8.9. EXI 1.0, section 5 and Appendix C (the options
+schema).
 
 - **Mechanism**: `src/exi_header.c`; the options schema compiled from text
   embedded in the library and its grammar built by 8.9, once per encoder or
@@ -191,7 +192,7 @@ After 8.9. EXI 1.0, section 5 and Appendix C (the options schema).
 attributes and namespace declarations, whitespace, canonical values, utcTime
 and omitOptionsDocument.
 
-After 8.10. Canonical EXI, sections 3 and 4.
+**Done** 2026-11-27 After 8.10. Canonical EXI, sections 3 and 4.
 
 - **Owns**: the canonical part of `src/exi_encoder.c` and `src/exi_datatype.c`.
 - **Done when**: every encode check of the canonical sets passes byte for byte
@@ -201,7 +202,8 @@ After 8.10. Canonical EXI, sections 3 and 4.
 **Summary**: The selfContained option in both directions: SC events, their byte
 alignment and their own string tables and grammars.
 
-After 8.10. EXI 1.0, section 8.5.4.4.1 and the selfContained option.
+**Done** 2026-11-27 After 8.10. EXI 1.0, section 8.5.4.4.1 and the
+selfContained option.
 
 - **Done when**: a golden set with selfContained (added to
   `tools/exi-oracle/make-golden.py`) passes; the gate script passes.

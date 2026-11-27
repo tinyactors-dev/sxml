@@ -2,7 +2,7 @@
   <title>Canonical EXI</title>
   <summary>The encoder's canonical form: event choice, the ordering of attributes and namespace declarations, whitespace, canonical values, utcTime and omitOptionsDocument.</summary>
   <body>
-    <p>After 8.10. Canonical EXI, sections 3 and 4.</p>
+    <p><status value="done" date="2026-11-27"/> After 8.10. Canonical EXI, sections 3 and 4.</p>
     <list>
       <item>
         <p><strong>Owns</strong>: the canonical part of <code>src/exi_encoder.c</code> and <code>src/exi_datatype.c</code>.</p>

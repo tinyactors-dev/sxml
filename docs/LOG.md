@@ -7,6 +7,11 @@ blocked. Add an item to this week's entry with `tools/spec/spec log TEXT`.
 
 ## Week of 2026-11-23
 
+- Packets 8.10 (header options document and cookie), 8.11 (Canonical EXI) and
+  8.12 (self-contained elements) landed: 5,583 of 5,589 golden checks pass; the
+  six others are EXIficient bugs, listed with evidence in
+  tests/exi/oracle-deviations.txt (D333).
+
 - Packets 8.9 (schema-informed grammars and typed values: every schema and
   xsd-types-only golden case in both directions; ratchet 3,789) and 8.15
   (Processor.encodeExi and parseExi; 100 golden checks in JavaScript) landed
