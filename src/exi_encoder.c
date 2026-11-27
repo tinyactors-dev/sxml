@@ -1293,7 +1293,7 @@ static sxml_status sxml_exi_encode_namespaces(sxml_exi_encoding *encoding, const
         if (parent_has_default && !has_default) {
             status = sxml_exi_emit_namespace(
                 encoding, &list,
-                &(sxml_exi_namespace_write){.binding = {0},
+                &(sxml_exi_namespace_write){.binding = {.uri = {.bytes = NULL, .byte_count = 0}, .local_name = {.bytes = NULL, .byte_count = 0}, .prefix = {.bytes = NULL, .byte_count = 0}},
                                             .is_local_element_namespace = !has_local_element_namespace &&
                                                                           element_name.uri.byte_count == 0 &&
                                                                           element_name.prefix.byte_count == 0});
