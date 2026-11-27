@@ -7,7 +7,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before
 decision record (`docs/DECISIONS.md`) always says so. The steps for a
 release are in `docs/RELEASE.md`.
 
-## [Unreleased]
+## [0.3.0] - 2026-11-27
+
+EXI 1.0 and Canonical EXI (Phase 8, D333): every alignment, compression
+with sxml's own DEFLATE, schema-informed grammars, the options in the
+header and self-contained elements, through the C API, the processor
+(`exi:serialize`, `exi:parse`, the output method `exi:exi`), the `sxml`
+command and the JavaScript package. `SXML_API_VERSION` is 0.3.0.
 
 ### Added
 
@@ -387,5 +393,5 @@ installs with mise (`mise use -g github:tinyactors-dev/sxml`).
 - Conformance: the W3C QT4 test suite runs through `sxml-qt4`, and the
   latest results are in `docs/CONFORMANCE.md`.
 
-[Unreleased]: https://github.com/tinyactors-dev/sxml/compare/v0.2.0...HEAD
+[0.3.0]: https://github.com/tinyactors-dev/sxml/releases/tag/v0.3.0
 [0.2.0]: https://github.com/tinyactors-dev/sxml/releases/tag/v0.2.0

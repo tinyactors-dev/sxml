@@ -19,7 +19,7 @@
  */
 
 #define SXML_VERSION_MAJOR 0
-#define SXML_VERSION_MINOR 2
+#define SXML_VERSION_MINOR 3
 #define SXML_VERSION_PATCH 0
 
 /*
@@ -41,9 +41,9 @@
  * version (Semantic Versioning; before 1.0.0, the minor version). A host
  * tests for an interface with
  *
- *     #if SXML_API_VERSION >= SXML_VERSION_ENCODE(0, 2, 0)
+ *     #if SXML_API_VERSION >= SXML_VERSION_ENCODE(0, 3, 0)
  */
-#define SXML_API_VERSION SXML_VERSION_ENCODE(0, 2, 0)
+#define SXML_API_VERSION SXML_VERSION_ENCODE(0, 3, 0)
 
 /*
  * Returns the library version as text, for example "0.2.0".

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(sxml
-    VERSION 0.2.0
+    VERSION 0.3.0
     DESCRIPTION "Small XML implementation: XDM 4.0, XPath 4.0, XQuery 4.0"
     LANGUAGES C)
 

@@ -32,7 +32,7 @@ function withProcessor(body: (processor: Processor) => void): void {
 describe('the module', () => {
   test('reports the release version, that of the package', () => {
     const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-    assert.equal(sxml.version, '0.2.0');
+    assert.equal(sxml.version, '0.3.0');
     assert.equal(packageJson.version, sxml.version);
   });
 });
