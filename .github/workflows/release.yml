@@ -89,6 +89,13 @@ jobs:
         with:
           ref: ${{ needs.find.outputs.commit }}
           fetch-depth: 0
+      - name: Take the release tools from main
+        # The archives and the notes are the release commit's, but a release
+        # commit may predate the tools this workflow runs.
+        run: |
+          git fetch --no-tags origin main
+          git show FETCH_HEAD:tools/release-notes.sh > tools/release-notes.sh
+          chmod +x tools/release-notes.sh
       - name: Tag the release commit
         run: |
           if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
