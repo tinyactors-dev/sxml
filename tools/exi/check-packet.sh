@@ -12,6 +12,10 @@
 #                    include/sxml/ are allowed
 #   --tests=REGEX    the ctest tests of step 4 (default '^(exi|deflate|inflate)');
 #                    narrower only for a packet that does not touch the others
+#   --wasm-build=DIRECTORY  also build the wasm preset there (WASI_SDK_PREFIX
+#                    names the WASI SDK) and run its javascript/ tests: the
+#                    package, the languages, the feature list, the size
+#                    budget (step 8)
 #
 # Checks:
 #   1. No change under include/sxml/ (headers first: packet 8.2 wrote them).
@@ -32,12 +36,14 @@ base=HEAD
 build=$root/build/exi-debug
 allow_headers=no
 tests='^(exi|deflate|inflate)'
+wasm_build=
 for argument in "$@"; do
     case $argument in
         --base=*) base=${argument#--base=} ;;
         --build=*) build=${argument#--build=} ;;
         --allow-headers) allow_headers=yes ;;
         --tests=*) tests=${argument#--tests=} ;;
+        --wasm-build=*) wasm_build=${argument#--wasm-build=} ;;
         *) echo "check-packet: unknown argument '$argument'" >&2; exit 2 ;;
     esac
 done
@@ -116,5 +122,12 @@ echo ok
 
 step "7. no call cycle (D71)"
 python3 tools/check-call-cycles.py "$build" || fail "tools/check-call-cycles.py"
+
+if [ -n "$wasm_build" ]; then
+    step "8. the wasm preset and its javascript/ tests"
+    cmake --preset wasm -B "$wasm_build" >/dev/null || fail "configuring the wasm preset"
+    cmake --build "$wasm_build" >/dev/null || { cmake --build "$wasm_build" 2>&1 | grep -E 'error' | head -20; fail "the wasm build"; }
+    ctest --test-dir "$wasm_build" -R '^javascript/' --output-on-failure || fail "ctest -R '^javascript/' (wasm)"
+fi
 
 printf '\ncheck-packet: all checks passed\n'
