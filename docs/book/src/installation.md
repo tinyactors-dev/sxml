@@ -114,7 +114,7 @@ your `PATH`.
 
 ```console
 $ sxml help | head -5
-sxml - check, validate, query and transform XML documents
+sxml - check, validate, query, transform and encode XML documents
 
 Usage: sxml [--version] COMMAND [ARGUMENT...]
 
