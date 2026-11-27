@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8"?><test xsi:noNamespaceSchemaLocation="double_minExclusive005.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><!-- (facet=minExclusive and value=1.1 and facet=maxExclusive and value=7.7) and document value=5.55 --><foo>555E-2</foo></test>

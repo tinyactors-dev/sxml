@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8"?><root xsi:noNamespaceSchemaLocation="ctL018.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:myNS="http://www.dummy.com"><fooTest myNS:testAttr="Test Attribute"><child_1>info</child_1><child_2>3</child_2></fooTest></root>

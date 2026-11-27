@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8"?><root attrTest="test attribute" attrTest2="second test attribute" attrTest3="third attribute" attrTest4="fourth attribute" xsi:noNamespaceSchemaLocation="ctB084.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><myElement>field data</myElement></root>

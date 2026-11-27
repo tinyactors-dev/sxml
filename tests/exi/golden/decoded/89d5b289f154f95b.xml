@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?><ns3:test-set xmlns:ns3="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-distinct-ordered-nodes" covers-40="PR1198" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ns3:description>Tests for the distinct-ordered-nodes function</ns3:description><ns3:link type="spec" document="http://www.w3.org/TR/xpath-functions-30/" idref="func-filter"/><ns3:dependency type="spec" value="XP40+ XQ40+"/><ns3:test-case name="d-o-n-001"><ns3:description>Empty input</ns3:description><ns3:created by="Michael Kay" on="2024-05-09"/><ns3:test>distinct-ordered-nodes(())</ns3:test><ns3:result><ns3:assert-empty/></ns3:result></ns3:test-case><ns3:test-case name="d-o-n-002"><ns3:description>Empty input</ns3:description><ns3:created by="Michael Kay" on="2024-05-09"/><ns3:modified by="Christian Gruen" on="2024-10-07" change="PR1437"/><ns3:test>distinct-ordered-nodes(())</ns3:test><ns3:result><ns3:assert-empty/></ns3:result></ns3:test-case><ns3:test-case name="d-o-n-003"><ns3:description>Single node</ns3:description><ns3:created by="Michael Kay" on="2024-05-09"/><ns3:test>
+         let $x := parse-xml('&lt;x/&gt;')
+         return $x is distinct-ordered-nodes($x)
+      </ns3:test><ns3:result><ns3:assert-true/></ns3:result></ns3:test-case><ns3:test-case name="d-o-n-004"><ns3:description>Sibling elements</ns3:description><ns3:created by="Michael Kay" on="2024-05-09"/><ns3:test>
+         let $x := parse-xml('&lt;x&gt;&lt;a/&gt;&lt;b/&gt;&lt;c/&gt;&lt;d/&gt;&lt;/x&gt;')
+         let $d := $x//d
+         let $c := $x//c
+         let $b := $x//b
+         let $a := $x//a
+         return distinct-ordered-nodes(($c, $b, $d, $a)) ! local-name()
+      </ns3:test><ns3:result><ns3:assert-deep-eq>"a", "b", "c", "d"</ns3:assert-deep-eq></ns3:result></ns3:test-case><ns3:test-case name="d-o-n-005"><ns3:description>Sibling elements with duplicates</ns3:description><ns3:created by="Michael Kay" on="2024-05-09"/><ns3:test>
+         let $x := parse-xml('&lt;x&gt;&lt;a/&gt;&lt;b/&gt;&lt;c/&gt;&lt;d/&gt;&lt;/x&gt;')
+         let $d := $x//d
+         let $c := $x//c
+         let $b := $x//b
+         let $a := $x//a
+         return distinct-ordered-nodes(($c, $b, $d, $a, $b, $c, $d)) ! local-name()
+      </ns3:test><ns3:result><ns3:assert-deep-eq>"a", "b", "c", "d"</ns3:assert-deep-eq></ns3:result></ns3:test-case><ns3:test-case name="d-o-n-006"><ns3:description>Sibling elements and parent with duplicates</ns3:description><ns3:created by="Michael Kay" on="2024-05-09"/><ns3:test>
+         let $x := parse-xml('&lt;p&gt;&lt;a/&gt;&lt;b/&gt;&lt;c/&gt;&lt;d/&gt;&lt;/p&gt;')
+         let $d := $x//d
+         let $c := $x//c
+         let $b := $x//b
+         let $a := $x//a
+         let $p := ($a | $b | $d)/parent::*
+         return distinct-ordered-nodes(($c, $b, $d, $p, $a, $b, $c, $d)) ! local-name()
+      </ns3:test><ns3:result><ns3:assert-deep-eq>"p", "a", "b", "c", "d"</ns3:assert-deep-eq></ns3:result></ns3:test-case><ns3:test-case name="d-o-n-007"><ns3:description>Sibling elements and attributes</ns3:description><ns3:created by="Michael Kay" on="2024-05-09"/><ns3:test>
+         let $x := parse-xml("&lt;p&gt;&lt;a q='1'/&gt;&lt;b r='2'/&gt;&lt;c s='3'/&gt;&lt;d t='4'/&gt;&lt;/p&gt;")
+         let $y := random-number-generator()?permute($x//* | $x//@*)
+         let $z := distinct-ordered-nodes(($y, $x//d))
+         return $z ! local-name()
+      </ns3:test><ns3:result><ns3:assert-deep-eq>"p", "a", "q", "b", "r", "c", "s", "d", "t"</ns3:assert-deep-eq></ns3:result></ns3:test-case><ns3:test-case name="d-o-n-008"><ns3:description>Multiple documents</ns3:description><ns3:created by="Michael Kay" on="2024-05-09"/><ns3:test>
+         let $x1 := parse-xml("&lt;p&gt;&lt;a q='1'/&gt;&lt;b r='2'/&gt;&lt;c s='3'/&gt;&lt;d t='4'/&gt;&lt;/p&gt;")
+         let $x2 := parse-xml("&lt;p&gt;&lt;a q='11'/&gt;&lt;b r='12'/&gt;&lt;c s='13'/&gt;&lt;d t='14'/&gt;&lt;/p&gt;")
+         let $y := random-number-generator()?permute($x1//* | $x2//@* | $x2//* | $x1//@*)
+         let $z := distinct-ordered-nodes($y)
+         return $z ! local-name()
+      </ns3:test><ns3:result><ns3:assert-deep-eq>"p", "a", "q", "b", "r", "c", "s", "d", "t", "p", "a", "q", "b", "r", "c", "s", "d", "t"</ns3:assert-deep-eq></ns3:result></ns3:test-case><ns3:test-case name="d-o-n-009" covers-40="PR2878"><ns3:description>Nodes in a sequence containing multiple maps</ns3:description><ns3:created by="Christian Gruen" on="2026-08-27"/><ns3:modified by="Christian Gruen" on="2026-09-26" change="PR2878"/><ns3:test>
+         let $data := jtree({ 'b': ({ 'c': 1 }, { 'c': 2 }) })
+         return distinct-ordered-nodes(($data/b/*[2]/c, $data/b/*[1]/c, $data/b/*[2]/c)) ! jvalue()
+      </ns3:test><ns3:result><ns3:assert-deep-eq>1, 2</ns3:assert-deep-eq></ns3:result></ns3:test-case><ns3:test-case name="d-o-n-901"><ns3:description>Type error</ns3:description><ns3:created by="Michael Kay" on="2024-05-09"/><ns3:test>distinct-ordered-nodes(42)</ns3:test><ns3:result><ns3:error code="XPTY0004"/></ns3:result></ns3:test-case></ns3:test-set>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><ns3:refentry xmlns:ns3="http://docbook.org/ns/docbook" version="5.0" xml:id="custom.css.source" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ns3:refmeta><ns3:refentrytitle>custom.css.source</ns3:refentrytitle><ns3:refmiscinfo class="other" otherclass="datatype">string</ns3:refmiscinfo></ns3:refmeta><ns3:refnamediv><ns3:refname>custom.css.source</ns3:refname><ns3:refpurpose>Name of a custom CSS input file</ns3:refpurpose></ns3:refnamediv><ns3:refsynopsisdiv><ns4:fragment xmlns:ns4="http://nwalsh.com/xmlns/litprog/fragment" xml:id="custom.css.source.frag"><ns5:param xmlns:ns5="http://www.w3.org/1999/XSL/Transform" name="custom.css.source"/></ns4:fragment></ns3:refsynopsisdiv><ns3:refsection><ns3:info><ns3:title>Description</ns3:title></ns3:info><ns3:para>The <ns3:parameter>custom.css.source</ns3:parameter>
+parameter enables you to add CSS styles to DocBook's
+HTML output.</ns3:para><ns3:para>The parameter
+specifies the name of a file containing custom
+CSS styles.  The file must be a well-formed XML file that
+consists of a single <ns3:tag>style</ns3:tag> root
+element that contains CSS styles as its text content.
+For example:</ns3:para><ns3:programlisting>&lt;?xml version="1.0"?&gt;
+&lt;style&gt;
+h2 {
+  font-weight: bold;
+  color: blue;
+}
+...
+&lt;/style&gt;
+</ns3:programlisting><ns3:para>The filename specified by the parameter
+should have a <ns3:literal>.xml</ns3:literal>
+filename suffix, although that is not required.
+The default value of this parameter is blank.</ns3:para><ns3:para>If <ns3:parameter>custom.css.source</ns3:parameter> is not blank, then
+the stylesheet takes the following actions.
+These actions take place regardless of the value of
+the <ns3:parameter>make.clean.html</ns3:parameter> parameter.</ns3:para><ns3:orderedlist><ns3:listitem><ns3:para>The stylesheet uses the XSLT <ns3:literal>document()</ns3:literal>
+    function to open the file specified by the parameter and
+    load it into a variable.</ns3:para></ns3:listitem><ns3:listitem><ns3:para>The stylesheet forms an output pathname consisting of the
+    value of the <ns3:parameter>base.dir</ns3:parameter> parameter (if it is set)
+    and the value of <ns3:parameter>custom.css.source</ns3:parameter>,
+    with the <ns3:literal>.xml</ns3:literal> suffix stripped off.
+    </ns3:para></ns3:listitem><ns3:listitem><ns3:para>The stylesheet removes the <ns3:tag>style</ns3:tag>
+    wrapper element and writes just the CSS text content to the output file.</ns3:para></ns3:listitem><ns3:listitem><ns3:para>The stylesheet adds a <ns3:tag>link</ns3:tag> element to the
+    HTML <ns3:tag>HEAD</ns3:tag> element to reference this external CSS stylesheet.
+    For example:
+    <ns3:programlisting>&lt;link rel="stylesheet" href="custom.css" type="text/css"&gt;
+    </ns3:programlisting></ns3:para></ns3:listitem></ns3:orderedlist><ns3:para>If the <ns3:parameter>make.clean.html</ns3:parameter> parameter is nonzero
+(the default is zero),
+and if the <ns3:parameter>docbook.css.source</ns3:parameter> parameter
+is not blank (the default is not blank),
+then the stylesheet will also generate a default CSS file
+and add a <ns3:tag>link</ns3:tag> tag to reference it.
+The <ns3:tag>link</ns3:tag> to the custom CSS comes after the 
+<ns3:tag>link</ns3:tag> to the default, so it should cascade properly
+in most browsers.
+If you do not want two <ns3:tag>link</ns3:tag> tags, and
+instead want your custom CSS to import the default generated
+CSS file, then do the following:
+</ns3:para><ns3:orderedlist><ns3:listitem><ns3:para>Add a line like the following to your custom CSS source file:</ns3:para><ns3:programlisting>@import url("docbook.css")
+    </ns3:programlisting></ns3:listitem><ns3:listitem><ns3:para>Set the <ns3:parameter>docbook.css.link</ns3:parameter> parameter 
+    to zero. This will omit the <ns3:tag>link</ns3:tag> tag
+    that references the default CSS file.</ns3:para></ns3:listitem></ns3:orderedlist><ns3:para>If you set <ns3:parameter>make.clean.html</ns3:parameter> to nonzero but
+you do not want the default CSS generated, then also set
+the <ns3:parameter>docbook.css.source</ns3:parameter> parameter to blank.
+Then no default CSS will be generated, and so
+all CSS styles must come from your custom CSS file.</ns3:para><ns3:para>You can use the <ns3:parameter>generate.css.header</ns3:parameter>
+parameter to instead write the CSS to each HTML <ns3:tag>HEAD</ns3:tag>
+element in a <ns3:tag>style</ns3:tag> tag instead of an external CSS file.</ns3:para></ns3:refsection></ns3:refentry>

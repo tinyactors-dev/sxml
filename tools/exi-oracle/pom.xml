@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The EXI oracle (tools/exi-oracle/README.md): EXIficient, the EXI
+     implementation the W3C EXI working group's editors wrote, pinned. A
+     development tool only: nothing sxml ships or tests at run time needs
+     Java. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>dev.tinyactors.sxml</groupId>
+  <artifactId>exi-oracle</artifactId>
+  <version>1</version>
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+  <dependencies>
+    <dependency>
+      <groupId>com.siemens.ct.exi</groupId>
+      <artifactId>exificient</artifactId>
+      <version>1.0.4</version>
+    </dependency>
+  </dependencies>
+</project>

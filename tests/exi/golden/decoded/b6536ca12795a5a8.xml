@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8"?><ns3:foo xmlns:ns3="http://example.org/namespace" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ns4:foo xmlns:ns4="http://example.org/other-namespace"/></ns3:foo>

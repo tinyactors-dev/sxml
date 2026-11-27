@@ -1,0 +1,2 @@
+# The exi_ratchet (tests/exi/README.md): checks that must keep passing.
+# Written by exi_golden --update; never remove a line by hand.

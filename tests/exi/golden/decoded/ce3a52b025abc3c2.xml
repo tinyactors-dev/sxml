@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?><TESTCASES PROFILE="Richard Tobin's XML Namespaces 1.0 test suite 14 Feb 2003"><TEST ID="rmt-ns10-001" RECOMMENDATION="NS1.0" SECTIONS="2" TYPE="valid" URI="001.xml">
+Namespace name test: a perfectly good http URI
+</TEST><TEST ID="rmt-ns10-002" RECOMMENDATION="NS1.0" SECTIONS="2" TYPE="valid" URI="002.xml">
+Namespace name test: a syntactically plausible URI with a
+fictitious scheme
+</TEST><TEST ID="rmt-ns10-003" RECOMMENDATION="NS1.0" SECTIONS="2" TYPE="valid" URI="003.xml">
+Namespace name test: a perfectly good http URI with a fragment
+</TEST><TEST ID="rmt-ns10-004" RECOMMENDATION="NS1.0" SECTIONS="2" TYPE="error" URI="004.xml">
+Namespace name test: a relative URI (deprecated)
+</TEST><TEST ID="rmt-ns10-005" RECOMMENDATION="NS1.0" SECTIONS="2" TYPE="error" URI="005.xml">
+Namespace name test: a same-document relative URI (deprecated)
+</TEST><TEST ID="rmt-ns10-006" RECOMMENDATION="NS1.0" SECTIONS="2" TYPE="error" URI="006.xml">
+Namespace name test: an http IRI that is not a URI
+</TEST><TEST ID="rmt-ns10-007" RECOMMENDATION="NS1.0" SECTIONS="1" TYPE="valid" URI="007.xml">
+Namespace inequality test: different capitalization
+</TEST><TEST ID="rmt-ns10-008" RECOMMENDATION="NS1.0" SECTIONS="1" TYPE="valid" URI="008.xml">
+Namespace inequality test: different escaping
+</TEST><TEST ID="rmt-ns10-009" RECOMMENDATION="NS1.0" SECTIONS="1" TYPE="not-wf" URI="009.xml">
+Namespace equality test: plain repetition
+</TEST><TEST ID="rmt-ns10-010" RECOMMENDATION="NS1.0" SECTIONS="1" TYPE="not-wf" URI="010.xml">
+Namespace equality test: use of character reference
+</TEST><TEST ID="rmt-ns10-011" RECOMMENDATION="NS1.0" SECTIONS="1" TYPE="not-wf" URI="011.xml">
+Namespace equality test: use of entity reference
+</TEST><TEST ID="rmt-ns10-012" RECOMMENDATION="NS1.0" SECTIONS="1" TYPE="not-wf" URI="012.xml">
+Namespace inequality test: equal after attribute value normalization
+</TEST><TEST ID="rmt-ns10-013" RECOMMENDATION="NS1.0" SECTIONS="3" TYPE="not-wf" URI="013.xml">
+Bad QName syntax: multiple colons
+</TEST><TEST ID="rmt-ns10-014" RECOMMENDATION="NS1.0" SECTIONS="3" TYPE="not-wf" URI="014.xml">
+Bad QName syntax: colon at end
+</TEST><TEST ID="rmt-ns10-015" RECOMMENDATION="NS1.0" SECTIONS="3" TYPE="not-wf" URI="015.xml">
+Bad QName syntax: colon at start
+</TEST><TEST ID="rmt-ns10-016" RECOMMENDATION="NS1.0" SECTIONS="2" TYPE="not-wf" URI="016.xml">
+Bad QName syntax: xmlns:
+</TEST><TEST ID="rmt-ns10-017" RECOMMENDATION="NS1.0" SECTIONS="-" TYPE="invalid" URI="017.xml">
+Simple legal case: no namespaces
+</TEST><TEST ID="rmt-ns10-018" RECOMMENDATION="NS1.0" SECTIONS="5.2" TYPE="invalid" URI="018.xml">
+Simple legal case: default namespace
+</TEST><TEST ID="rmt-ns10-019" RECOMMENDATION="NS1.0" SECTIONS="4" TYPE="invalid" URI="019.xml">
+Simple legal case: prefixed element
+</TEST><TEST ID="rmt-ns10-020" RECOMMENDATION="NS1.0" SECTIONS="4" TYPE="invalid" URI="020.xml">
+Simple legal case: prefixed attribute
+</TEST><TEST ID="rmt-ns10-021" RECOMMENDATION="NS1.0" SECTIONS="5.2" TYPE="invalid" URI="021.xml">
+Simple legal case: default namespace and unbinding
+</TEST><TEST ID="rmt-ns10-022" RECOMMENDATION="NS1.0" SECTIONS="5.2" TYPE="invalid" URI="022.xml">
+Simple legal case: default namespace and rebinding
+</TEST><TEST ID="rmt-ns10-023" RECOMMENDATION="NS1.0" SECTIONS="2" TYPE="not-wf" URI="023.xml">
+Illegal use of 1.1-style prefix unbinding in 1.0 document
+</TEST><TEST ID="rmt-ns10-024" RECOMMENDATION="NS1.0" SECTIONS="5.1" TYPE="invalid" URI="024.xml">
+Simple legal case: prefix rebinding
+</TEST><TEST ID="rmt-ns10-025" RECOMMENDATION="NS1.0" SECTIONS="4" TYPE="not-wf" URI="025.xml">
+Unbound element prefix
+</TEST><TEST ID="rmt-ns10-026" RECOMMENDATION="NS1.0" SECTIONS="4" TYPE="not-wf" URI="026.xml">
+Unbound attribute prefix
+</TEST><TEST ID="rmt-ns10-027" RECOMMENDATION="NS1.0" SECTIONS="2" TYPE="invalid" URI="027.xml">
+Reserved prefixes and namespaces: using the xml prefix undeclared
+</TEST><TEST ID="rmt-ns10-028" RECOMMENDATION="NS1.0" SECTIONS="NE05" TYPE="invalid" URI="028.xml">
+Reserved prefixes and namespaces: declaring the xml prefix correctly
+</TEST><TEST ID="rmt-ns10-029" RECOMMENDATION="NS1.0" SECTIONS="NE05" TYPE="not-wf" URI="029.xml">
+Reserved prefixes and namespaces: declaring the xml prefix incorrectly
+</TEST><TEST ID="rmt-ns10-030" RECOMMENDATION="NS1.0" SECTIONS="NE05" TYPE="not-wf" URI="030.xml">
+Reserved prefixes and namespaces: binding another prefix
+to the xml namespace
+</TEST><TEST ID="rmt-ns10-031" RECOMMENDATION="NS1.0" SECTIONS="NE05" TYPE="not-wf" URI="031.xml">
+Reserved prefixes and namespaces: declaring the xmlns prefix
+with its correct URI (illegal)
+</TEST><TEST ID="rmt-ns10-032" RECOMMENDATION="NS1.0" SECTIONS="NE05" TYPE="not-wf" URI="032.xml">
+Reserved prefixes and namespaces: declaring the xmlns prefix
+with an incorrect URI
+</TEST><TEST ID="rmt-ns10-033" RECOMMENDATION="NS1.0" SECTIONS="NE05" TYPE="not-wf" URI="033.xml">
+Reserved prefixes and namespaces: binding another prefix
+to the xmlns namespace
+</TEST><TEST ID="rmt-ns10-034" RECOMMENDATION="NS1.0" SECTIONS="NE05" TYPE="invalid" URI="034.xml">
+Reserved prefixes and namespaces: binding a reserved prefix
+</TEST><TEST ID="rmt-ns10-035" RECOMMENDATION="NS1.0" SECTIONS="5.3" TYPE="not-wf" URI="035.xml">
+Attribute uniqueness: repeated identical attribute
+</TEST><TEST ID="rmt-ns10-036" RECOMMENDATION="NS1.0" SECTIONS="5.3" TYPE="not-wf" URI="036.xml">
+Attribute uniqueness: repeated attribute with different prefixes
+</TEST><TEST ID="rmt-ns10-037" RECOMMENDATION="NS1.0" SECTIONS="5.3" TYPE="invalid" URI="037.xml">
+Attribute uniqueness: different attributes with same local name
+</TEST><TEST ID="rmt-ns10-038" RECOMMENDATION="NS1.0" SECTIONS="5.3" TYPE="invalid" URI="038.xml">
+Attribute uniqueness: prefixed and unprefixed attributes with same
+local name
+</TEST><TEST ID="rmt-ns10-039" RECOMMENDATION="NS1.0" SECTIONS="5.3" TYPE="invalid" URI="039.xml">
+Attribute uniqueness: prefixed and unprefixed attributes with same
+local name, with default namespace
+</TEST><TEST ID="rmt-ns10-040" RECOMMENDATION="NS1.0" SECTIONS="5.3" TYPE="invalid" URI="040.xml">
+Attribute uniqueness: prefixed and unprefixed attributes with same
+local name, with default namespace and element in default namespace
+</TEST><TEST ID="rmt-ns10-041" RECOMMENDATION="NS1.0" SECTIONS="5.3" TYPE="invalid" URI="041.xml">
+Attribute uniqueness: prefixed and unprefixed attributes with same
+local name, element in same namespace as prefixed attribute
+</TEST><TEST ID="rmt-ns10-042" RECOMMENDATION="NS1.0" SECTIONS="NE08" TYPE="not-wf" URI="042.xml">
+Colon in PI name
+</TEST><TEST ID="rmt-ns10-043" RECOMMENDATION="NS1.0" SECTIONS="NE08" TYPE="not-wf" URI="043.xml">
+Colon in entity name
+</TEST><TEST ID="rmt-ns10-044" RECOMMENDATION="NS1.0" SECTIONS="NE08" TYPE="not-wf" URI="044.xml">
+Colon in entity name
+</TEST><TEST ID="rmt-ns10-045" RECOMMENDATION="NS1.0" SECTIONS="NE08" TYPE="invalid" URI="045.xml">
+Colon in ID attribute name
+</TEST><TEST ID="rmt-ns10-046" RECOMMENDATION="NS1.0" SECTIONS="NE08" TYPE="invalid" URI="046.xml">
+Colon in ID attribute name
+</TEST><TEST ID="ht-ns10-047" RECOMMENDATION="NS1.0" SECTIONS="NE03" TYPE="valid" URI="047.xml">
+Reserved name: _not_ an error
+</TEST><TEST ID="ht-ns10-048" RECOMMENDATION="NS1.0" SECTIONS="NE03" TYPE="valid" URI="048.xml">
+Reserved name: _not_ an error
+</TEST></TESTCASES>

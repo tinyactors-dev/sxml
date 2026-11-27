@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8"?><ns4:doc xmlns:ns4="http://xsdtesting" xsi:schemaLocation="http://xsdtesting attgD033.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ns3="http://www.w3.org/2001/XMLSchema"><ns4:elem xmlns:ns5="not-exist" ns5:bar="123"/></ns4:doc>

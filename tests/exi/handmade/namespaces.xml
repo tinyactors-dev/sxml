@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<invoice xmlns="urn:example:billing" xmlns:t="urn:example:tax" xmlns:x="urn:example:extra" t:region="EU">
+  <line xmlns="urn:example:lines" t:rate="0.2"><item>Plan</item></line>
+  <line xmlns=""><item x:note="no namespace">Support</item></line>
+  <t:summary xmlns:t="urn:example:tax-2024" t:version="2"><t:total>120.00</t:total></t:summary>
+  <x:x xmlns:x="urn:example:extra"/>
+</invoice>

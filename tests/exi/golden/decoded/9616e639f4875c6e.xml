@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?><ns3:refentry xmlns:ns3="http://docbook.org/ns/docbook" version="5.0" xml:id="process.empty.source.toc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ns3:refmeta><ns3:refentrytitle>process.empty.source.toc</ns3:refentrytitle><ns3:refmiscinfo class="other" otherclass="datatype">boolean</ns3:refmiscinfo></ns3:refmeta><ns3:refnamediv><ns3:refname>process.empty.source.toc</ns3:refname><ns3:refpurpose>Generate automated TOC if <ns3:tag>toc</ns3:tag> element occurs in a source document?</ns3:refpurpose></ns3:refnamediv><ns3:refsynopsisdiv><ns4:fragment xmlns:ns4="http://nwalsh.com/xmlns/litprog/fragment" xml:id="process.empty.source.toc.frag"><ns5:param xmlns:ns5="http://www.w3.org/1999/XSL/Transform" name="process.empty.source.toc" select="0"/></ns4:fragment></ns3:refsynopsisdiv><ns3:refsection><ns3:info><ns3:title>Description</ns3:title></ns3:info><ns3:para>Specifies that if an empty <ns3:tag>toc</ns3:tag> element is found in a
+source document, an automated TOC is generated at this point in the
+document.
+<ns3:note><ns3:para>Depending on what the value of the
+  <ns3:parameter>generate.toc</ns3:parameter> parameter is, setting this
+  parameter to <ns3:literal>1</ns3:literal> could result in generation of
+  duplicate automated TOCs. So the
+  <ns3:parameter>process.empty.source.toc</ns3:parameter> is primarily useful
+  as an "override": by placing an empty <ns3:tag>toc</ns3:tag> in your
+  document and setting this parameter to <ns3:literal>1</ns3:literal>, you can
+  force a TOC to be generated even if <ns3:tag>generate.toc</ns3:tag>
+  says not to.</ns3:para></ns3:note></ns3:para></ns3:refsection></ns3:refentry>

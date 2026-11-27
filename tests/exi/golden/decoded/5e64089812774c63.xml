@@ -1,0 +1,5 @@
+<test2 xmlns="http://xyz.com/" xmlns:ZZZ="http://def.com/"><name>text
+      <name xmlns="http://abc.com/" ZZZ:dasAttribut="AttributWert">more text
+      </name></name>
+  even more text
+</test2>

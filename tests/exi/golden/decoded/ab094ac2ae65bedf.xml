@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?><ns3:refentry xmlns:ns3="http://docbook.org/ns/docbook" version="5.0" xml:id="page.margin.inner" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ns3:refmeta><ns3:refentrytitle>page.margin.inner</ns3:refentrytitle><ns3:refmiscinfo class="other" otherclass="datatype">length</ns3:refmiscinfo></ns3:refmeta><ns3:refnamediv><ns3:refname>page.margin.inner</ns3:refname><ns3:refpurpose>The inner page margin</ns3:refpurpose></ns3:refnamediv><ns3:refsynopsisdiv><ns4:fragment xmlns:ns4="http://nwalsh.com/xmlns/litprog/fragment" xml:id="page.margin.inner.frag"><ns5:param xmlns:ns5="http://www.w3.org/1999/XSL/Transform" name="page.margin.inner"><ns5:choose><ns5:when test="$double.sided != 0">1.25in</ns5:when><ns5:otherwise>1in</ns5:otherwise></ns5:choose></ns5:param></ns4:fragment></ns3:refsynopsisdiv><ns3:refsection><ns3:info><ns3:title>Description</ns3:title></ns3:info><ns3:para>The inner page margin is the distance from bound edge of the
+page to the first column of text. </ns3:para><ns3:para>The inner page margin is the distance from bound edge of the
+page to the outer edge of the first column of text.</ns3:para><ns3:para>In left-to-right text direction,
+this is the left margin of recto (front side) pages.
+For single-sided output, it is the left margin
+of all pages.</ns3:para><ns3:para>In right-to-left text direction,
+this is the right margin of recto pages.
+For single-sided output, this is the
+right margin of all pages.</ns3:para><ns3:note><ns3:para>Current versions (at least as of version 4.13)
+of the XEP XSL-FO processor do not
+correctly handle these margin settings for documents
+with right-to-left text direction.
+The workaround in that situation is to reverse
+the values for <ns3:parameter>page.margin.inner</ns3:parameter>
+and <ns3:parameter>page.margin.outer</ns3:parameter>, until
+this bug is fixed by RenderX.  It does not affect documents
+with left-to-right text direction.</ns3:para></ns3:note><ns3:para>See also <ns3:parameter>writing.mode</ns3:parameter>.</ns3:para></ns3:refsection></ns3:refentry>

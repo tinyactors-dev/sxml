@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?><ns3:refentry xmlns:ns3="http://docbook.org/ns/docbook" version="5.0" xml:id="man.authors.section.enabled" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ns3:refmeta><ns3:refentrytitle>man.authors.section.enabled</ns3:refentrytitle><ns3:refmiscinfo class="other" otherclass="datatype">boolean</ns3:refmiscinfo></ns3:refmeta><ns3:refnamediv><ns3:refname>man.authors.section.enabled</ns3:refname><ns3:refpurpose>Display auto-generated AUTHORS section?</ns3:refpurpose></ns3:refnamediv><ns3:refsynopsisdiv><ns4:fragment xmlns:ns4="http://nwalsh.com/xmlns/litprog/fragment" xml:id="man.authors.section.enabled.frag"><ns5:param xmlns:ns5="http://www.w3.org/1999/XSL/Transform" name="man.authors.section.enabled">1</ns5:param></ns4:fragment></ns3:refsynopsisdiv><ns3:refsection><ns3:info><ns3:title>Description</ns3:title></ns3:info><ns3:para>If the value of
+<ns3:parameter>man.authors.section.enabled</ns3:parameter> is non-zero
+(the default), then an <ns3:literal>AUTHORS</ns3:literal> section is
+generated near the end of each man page. The output of the
+<ns3:literal>AUTHORS</ns3:literal> section is assembled from any
+<ns3:tag>author</ns3:tag>, <ns3:tag>editor</ns3:tag>, and <ns3:tag>othercredit</ns3:tag>
+metadata found in the contents of the child <ns3:tag>info</ns3:tag> or
+<ns3:tag>refentryinfo</ns3:tag> (if any) of the <ns3:tag>refentry</ns3:tag>
+itself, or from any <ns3:tag>author</ns3:tag>, <ns3:tag>editor</ns3:tag>, and
+<ns3:tag>othercredit</ns3:tag> metadata that may appear in <ns3:tag>info</ns3:tag>
+contents of any ancestors of the <ns3:tag>refentry</ns3:tag>.</ns3:para><ns3:para>If the value of
+<ns3:parameter>man.authors.section.enabled</ns3:parameter> is zero, the
+the auto-generated <ns3:literal>AUTHORS</ns3:literal> section is
+suppressed.</ns3:para><ns3:para>Set the value of
+  <ns3:parameter>man.authors.section.enabled</ns3:parameter> to zero if
+  you want to have a manually created <ns3:literal>AUTHORS</ns3:literal>
+  section in your source, and you want it to appear in output
+  instead of the auto-generated <ns3:literal>AUTHORS</ns3:literal>
+  section.</ns3:para></ns3:refsection></ns3:refentry>

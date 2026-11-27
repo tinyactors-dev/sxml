@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?><ns3:refentry xmlns:ns3="http://docbook.org/ns/docbook" version="5.0" xml:id="man.th.extra2.suppress" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ns3:refmeta><ns3:refentrytitle>man.th.extra2.suppress</ns3:refentrytitle><ns3:refmiscinfo class="other" otherclass="datatype">boolean</ns3:refmiscinfo></ns3:refmeta><ns3:refnamediv><ns3:refname>man.th.extra2.suppress</ns3:refname><ns3:refpurpose>Suppress extra2 part of header/footer?</ns3:refpurpose></ns3:refnamediv><ns3:refsynopsisdiv><ns4:fragment xmlns:ns4="http://nwalsh.com/xmlns/litprog/fragment" xml:id="man.th.extra2.suppress.frag"><ns5:param xmlns:ns5="http://www.w3.org/1999/XSL/Transform" name="man.th.extra2.suppress">0</ns5:param></ns4:fragment></ns3:refsynopsisdiv><ns3:refsection><ns3:info><ns3:title>Description</ns3:title></ns3:info><ns3:para>If the value of <ns3:parameter>man.th.extra2.suppress</ns3:parameter> is
+non-zero, then the <ns3:literal>extra2</ns3:literal> part of the
+<ns3:literal>.TH</ns3:literal> title line header/footer is suppressed.</ns3:para><ns3:para>The content of the <ns3:literal>extra2</ns3:literal> field is usually
+displayed in the left footer of the page and is typically "source"
+data, often in the form
+<ns3:replaceable>Name</ns3:replaceable> <ns3:replaceable>Version</ns3:replaceable>;
+for example, "GTK+ 1.2" (from the <ns3:literal>gtk-options(7)</ns3:literal>
+man page).</ns3:para><ns3:note><ns3:para>You can use the
+  <ns3:parameter>refentry.source.name.suppress</ns3:parameter> and
+  <ns3:parameter>refentry.version.suppress</ns3:parameter> parameters to
+  independently suppress the <ns3:replaceable>Name</ns3:replaceable> and
+  <ns3:replaceable>Version</ns3:replaceable> parts of the
+  <ns3:literal>extra2</ns3:literal> field.</ns3:para></ns3:note></ns3:refsection></ns3:refentry>

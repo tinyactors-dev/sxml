@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?><ns3:refentry xmlns:ns3="http://docbook.org/ns/docbook" version="5.0" xml:id="olink.base.uri" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ns3:refmeta><ns3:refentrytitle>olink.base.uri</ns3:refentrytitle><ns3:refmiscinfo class="other" otherclass="datatype">uri</ns3:refmiscinfo></ns3:refmeta><ns3:refnamediv><ns3:refname>olink.base.uri</ns3:refname><ns3:refpurpose>Base URI used in olink hrefs</ns3:refpurpose></ns3:refnamediv><ns3:refsynopsisdiv><ns4:fragment xmlns:ns4="http://nwalsh.com/xmlns/litprog/fragment" xml:id="olink.base.uri.frag"><ns5:param xmlns:ns5="http://www.w3.org/1999/XSL/Transform" name="olink.base.uri"/></ns4:fragment></ns3:refsynopsisdiv><ns3:refsection><ns3:info><ns3:title>Description</ns3:title></ns3:info><ns3:para>When cross reference data is collected for resolving olinks, it
+may be necessary to prepend a base URI to each target's href. This
+parameter lets you set that base URI when cross reference data is
+collected. This feature is needed when you want to link to a document
+that is processed without chunking. The output filename for such a
+document is not known to the XSL stylesheet; the only target
+information consists of fragment identifiers such as
+<ns3:literal>#idref</ns3:literal>. To enable the resolution of olinks between
+documents, you should pass the name of the HTML output file as the
+value of this parameter. Then the hrefs recorded in the cross
+reference data collection look like
+<ns3:literal>outfile.html#idref</ns3:literal>, which can be reached as links
+from other documents.</ns3:para></ns3:refsection></ns3:refentry>

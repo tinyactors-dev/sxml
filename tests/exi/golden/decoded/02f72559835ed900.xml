@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?><ns3:refentry xmlns:ns3="http://docbook.org/ns/docbook" version="5.0" xml:id="chunk.first.sections" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ns3:refmeta><ns3:refentrytitle>chunk.first.sections</ns3:refentrytitle><ns3:refmiscinfo class="other" otherclass="datatype">boolean</ns3:refmiscinfo></ns3:refmeta><ns3:refnamediv><ns3:refname>chunk.first.sections</ns3:refname><ns3:refpurpose>Chunk the first top-level section?</ns3:refpurpose></ns3:refnamediv><ns3:refsynopsisdiv><ns4:fragment xmlns:ns4="http://nwalsh.com/xmlns/litprog/fragment" xml:id="chunk.first.sections.frag"><ns5:param xmlns:ns5="http://www.w3.org/1999/XSL/Transform" name="chunk.first.sections" select="0"/></ns4:fragment></ns3:refsynopsisdiv><ns3:refsection><ns3:info><ns3:title>Description</ns3:title></ns3:info><ns3:para>If non-zero, a chunk will be created for the first top-level
+<ns3:tag>sect1</ns3:tag> or <ns3:tag>section</ns3:tag> elements in
+each component. Otherwise, that section will be part of the chunk for
+its parent.
+</ns3:para></ns3:refsection></ns3:refentry>

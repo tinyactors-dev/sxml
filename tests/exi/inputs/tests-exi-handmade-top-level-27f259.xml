@@ -1,0 +1,1 @@
+<?xml-stylesheet type="text/xsl" href="session.xsl"?><!-- a chat session export --><session id="s-9"><message from="ada">hi</message><!--edited--><message from="grace">hello<?mark?></message></session><!-- trailing comment --><?trailer done?>

@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8"?><ns3:test-set xmlns:ns3="http://www.w3.org/2010/09/qt-fots-catalog" name="fn-build-uri" covers-40="PR215" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ns3:description>fn:build-uri() tests</ns3:description><ns3:link type="spec" document="https://qt4cg.org/specifications/xpath-functions-40/" idref="func-build-uri"/><ns3:dependency type="spec" value="XQ40+ XP40+"/><ns3:test-case name="fn-build-uri-from-parse-001"><ns3:description>Builds a simple URI</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+        "authority": "example.com",
+        "host": "example.com",
+        "path": "/path/to/file",
+        "path-segments": ("", "path", "to", "file"),
+        "scheme": "https",
+        "uri": "https://example.com\path\to\file"
+      })</ns3:test><ns3:result><ns3:assert-eq>"https://example.com/path/to/file"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-002"><ns3:description>Builds a URI with a complicated authority</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:modified by="Michael Kay" on="2025-08-30" change="port must be an integer"/><ns3:test>fn:build-uri(map {'uri': 'https://user:password@example.com:443/path',
+                           'scheme': 'https',
+                           'authority': 'user:password@example.com:443',
+                           'host': 'example.com',
+                           'port': 443,
+                           'path-segments': ('', 'path'),
+                           'path': '/path'})</ns3:test><ns3:result><ns3:assert-eq>"https://example.com:443/path"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-003"><ns3:description>Builds a URI with a escaped path components</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {'scheme': 'http',
+                           'authority': 'foo',
+                           'host': 'foo',
+                           'uri': 'http://foo'
+                           })</ns3:test><ns3:result><ns3:assert-eq>"http://foo"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-004"><ns3:description>Builds a URI with a escaped path components</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:modified by="Michael Kay" on="2025-08-30" change="port must be an integer"/><ns3:test>fn:build-uri(map {'scheme': 'https',
+                           'uri': 'https://user:password@example.com:443/path/a%2fb/a+b',
+                           'authority': 'user:password@example.com:443',
+                           'port': 443,
+                           'host': 'example.com',
+                           'path-segments': ('','path','a/b','a b'),
+                           'path': '/path/a%2fb/a+b'})</ns3:test><ns3:result><ns3:any-of><ns3:assert-eq>"https://example.com:443/path/a%2fb/a%20b"</ns3:assert-eq><ns3:assert-eq>"https://example.com:443/path/a%2Fb/a%20b"</ns3:assert-eq></ns3:any-of></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-005"><ns3:description>Builds a URI with a fragment identifier</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+        "authority": "qt4cg.org",
+        "fragment": "parse-uri",
+        "host": "qt4cg.org",
+        "path": "/specifications/xpath-functions-40/Overview.html",
+        "path-segments": ("", "specifications", "xpath-functions-40", "Overview.html"),
+        "scheme": "https",
+        "uri": "https://qt4cg.org/specifications/xpath-functions-40/Overview.html#parse-uri"
+      })</ns3:test><ns3:result><ns3:assert-eq>"https://qt4cg.org/specifications/xpath-functions-40/Overview.html#parse-uri"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-006"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "http://www.ietf.org/rfc/rfc2396.txt",
+  "scheme": "http",
+  "authority": "www.ietf.org",
+  "host": "www.ietf.org",
+  "path": "/rfc/rfc2396.txt",
+  "path-segments": ("", "rfc", "rfc2396.txt")
+})</ns3:test><ns3:result><ns3:assert-eq>"http://www.ietf.org/rfc/rfc2396.txt"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-007"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "https://example.com/path/to/file",
+  "scheme": "https",
+  "authority": "example.com",
+  "host": "example.com",
+  "path": "/path/to/file",
+  "path-segments": ("", "path", "to", "file")
+})</ns3:test><ns3:result><ns3:assert-eq>"https://example.com/path/to/file"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-008"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:modified by="Michael Kay" on="2023-03-16" change="run both on XPath and XQuery"/><ns3:modified by="Michael Kay" on="2025-08-30" change="port must be an integer"/><ns3:test>
+      let $amp := codepoints-to-string(38) return
+      fn:build-uri(map {
+                    "uri": "https://example.com:8080/path?s=%22hello world%22" || $amp || "sort=relevance",
+                    "scheme": "https",
+                    "authority": "example.com:8080",
+                    "host": "example.com",
+                    "port": 8080,
+                    "path": "/path",
+                    "query": "s=%22hello world%22" || $amp || ";sort=relevance",
+                    "query-parameters": map {
+                      "s": """hello world""",
+                      "sort": "relevance"
+                    },
+                    "path-segments": ("", "path")
+      })</ns3:test><ns3:result><ns3:any-of><ns3:assert-eq>`https://example.com:8080/path?s="hello%20world"&amp;sort=relevance`</ns3:assert-eq><ns3:assert-eq>`https://example.com:8080/path?s=sort=relevance&amp;"hello%20world"`</ns3:assert-eq><ns3:assert-eq>`https://example.com:8080/path?s=%22hello%20world%22&amp;sort=relevance`</ns3:assert-eq><ns3:assert-eq>`https://example.com:8080/path?s=sort=relevance&amp;%22hello%20world%22`</ns3:assert-eq></ns3:any-of></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-009"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "https://user@example.com/path/to/file",
+  "scheme": "https",
+  "authority": "user@example.com",
+  "userinfo": "user",
+  "host": "example.com",
+  "path": "/path/to/file",
+  "path-segments": ("", "path", "to", "file")
+})</ns3:test><ns3:result><ns3:assert-eq>"https://user@example.com/path/to/file"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-010"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "ftp://ftp.is.co.za/rfc/rfc1808.txt",
+  "scheme": "ftp",
+  "authority": "ftp.is.co.za",
+  "host": "ftp.is.co.za",
+  "path": "/rfc/rfc1808.txt",
+  "path-segments": ("", "rfc", "rfc1808.txt")
+})</ns3:test><ns3:result><ns3:assert-eq>"ftp://ftp.is.co.za/rfc/rfc1808.txt"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-012"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "file:///c:/path/to/file",
+  "scheme": "file",
+  "path": "/c:/path/to/file",
+  "path-segments": ("", "c:", "path", "to", "file")
+})</ns3:test><ns3:result><ns3:any-of><ns3:assert-eq>"file:///c:/path/to/file"</ns3:assert-eq></ns3:any-of></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-013"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "file:/C:/Program%20Files/test.jar",
+  "scheme": "file",
+  "path": "/C:/Program%20Files/test.jar",
+  "path-segments": ("", "C:", "Program Files", "test.jar")
+})</ns3:test><ns3:result><ns3:assert-eq>"file:///C:/Program%20Files/test.jar"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-014"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "file:\\c:\path\to\file",
+  "scheme": "file",
+  "path": "/c:/path/to/file",
+  "path-segments": ("", "c:", "path", "to", "file")
+})</ns3:test><ns3:result><ns3:any-of><ns3:assert-eq>"file:///c:/path/to/file"</ns3:assert-eq></ns3:any-of></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-015"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "file:\c:\path\to\file",
+  "scheme": "file",
+  "path": "/c:/path/to/file",
+  "path-segments": ("", "c:", "path", "to", "file")
+})</ns3:test><ns3:result><ns3:any-of><ns3:assert-eq>"file:///c:/path/to/file"</ns3:assert-eq></ns3:any-of></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-016"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "c:\path\to\file",
+  "scheme": "file",
+  "path": "/c:/path/to/file",
+  "path-segments": ("", "c:", "path", "to", "file")
+})</ns3:test><ns3:result><ns3:any-of><ns3:assert-eq>"file:///c:/path/to/file"</ns3:assert-eq></ns3:any-of></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-017"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "/path/to/file",
+  "path": "/path/to/file",
+  "path-segments": ("", "path", "to", "file")
+})</ns3:test><ns3:result><ns3:assert-eq>"/path/to/file"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-018"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "#testing",
+  "fragment": "testing"
+})</ns3:test><ns3:result><ns3:assert-eq>"#testing"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-019"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "?q=1",
+  "query": "q=1",
+  "query-parameters": map {
+    "q": "1"
+  }
+})</ns3:test><ns3:result><ns3:assert-eq>"?q=1"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-020"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "ldap://[2001:db8::7]/c=GB?objectClass?one",
+  "scheme": "ldap",
+  "authority": "[2001:db8::7]",
+  "host": "[2001:db8::7]",
+  "path": "/c=GB",
+  "query": "objectClass?one",
+  "query-parameters": map {
+    "": "objectClass?one"
+  },
+  "path-segments": ("", "c=GB")
+})</ns3:test><ns3:result><ns3:assert-eq>"ldap://[2001:db8::7]/c=GB?objectClass?one"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-021"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "mailto:John.Doe@example.com",
+  "scheme": "mailto",
+  "path": "John.Doe@example.com",
+  "path-segments": "John.Doe@example.com"
+})</ns3:test><ns3:result><ns3:assert-eq>"mailto:John.Doe@example.com"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-022"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "news:comp.infosystems.www.servers.unix",
+  "scheme": "news",
+  "path": "comp.infosystems.www.servers.unix",
+  "path-segments": "comp.infosystems.www.servers.unix"
+})</ns3:test><ns3:result><ns3:assert-eq>"news:comp.infosystems.www.servers.unix"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-023"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+  "uri": "tel:+1-816-555-1212",
+  "scheme": "tel",
+  "path": "+1-816-555-1212",
+  "path-segments": "+1-816-555-1212"
+})</ns3:test><ns3:result><ns3:assert-eq>"tel:+1-816-555-1212"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-024"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:modified by="Michael Kay" on="2025-08-30" change="port must be an integer"/><ns3:test>fn:build-uri(map {
+            "uri": "telnet://192.0.2.16:80/",
+            "scheme": "telnet",
+            "authority": "192.0.2.16:80",
+            "host": "192.0.2.16",
+            "port": 80,
+            "path": "/",
+            "path-segments": ("", "")
+          })</ns3:test><ns3:result><ns3:assert-eq>"telnet://192.0.2.16:80/"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-025"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+           "uri": "urn:oasis:names:specification:docbook:dtd:xml:4.1.2",
+           "scheme": "urn",
+           "path": "oasis:names:specification:docbook:dtd:xml:4.1.2",
+           "path-segments": "oasis:names:specification:docbook:dtd:xml:4.1.2"
+         })</ns3:test><ns3:result><ns3:assert-eq>"urn:oasis:names:specification:docbook:dtd:xml:4.1.2"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-026"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+    "uri": "tag:textalign.net,2015:ns",
+    "scheme": "tag",
+    "path": "textalign.net,2015:ns",
+    "path-segments": ("textalign.net,2015:ns")
+  })</ns3:test><ns3:result><ns3:assert-eq>"tag:textalign.net,2015:ns"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-027"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+    "uri": "tag:jan@example.com,1999-01-31:my-uri",
+    "scheme": "tag",
+    "path": "jan@example.com,1999-01-31:my-uri",
+    "path-segments": ("jan@example.com,1999-01-31:my-uri")
+})</ns3:test><ns3:result><ns3:assert-eq>"tag:jan@example.com,1999-01-31:my-uri"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-028"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+            "uri": "jar:file:/C:/Program%20Files/test.jar!/foo/bar",
+            "scheme": "jar",
+            "path": "file:/C:/Program%20Files/test.jar!/foo/bar",
+            "path-segments": ("file:", "C:", "Program Files", "test.jar!", "foo", "bar")
+          })</ns3:test><ns3:result><ns3:assert-eq>"jar:file:/C:/Program Files/test.jar!/foo/bar"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-029"><ns3:description>Builds an example from the specification</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:test>fn:build-uri(map {
+    "uri": "http://www.example.org/Dürst",
+    "scheme": "http",
+    "authority": "www.example.org",
+    "host": "www.example.org",
+    "path": "/Dürst",
+    "path-segments": ("", "Dürst")
+})</ns3:test><ns3:result><ns3:assert-eq>"http://www.example.org/Dürst"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-031"><ns3:description>Builds a URI preserving deprecated features</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:modified by="Michael Kay" on="2025-08-30" change="port must be an integer"/><ns3:test>fn:build-uri(map {'uri': 'https://user:password@example.com:443/path',
+                           'scheme': 'https',
+                           'authority': 'user:password@example.com:443',
+                           'userinfo': 'user:password',
+                           'host': 'example.com',
+                           'port': 443,
+                           'path-segments': ('', 'path'),
+                           'path': '/path'},
+                        map { 'allow-deprecated-features': true() })</ns3:test><ns3:result><ns3:assert-eq>"https://user:password@example.com:443/path"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-032-modified"><ns3:description>Builds a URI omitting known ports</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-10"/><ns3:modified by="Michael Kay" on="2025-08-30" change="port must be an integer"/><ns3:test>fn:build-uri(map {'uri': 'https://user:password@example.com:443/path',
+                           'scheme': 'https',
+                           'authority': 'user:password@example.com:443',
+                           'host': 'example.com',
+                           'port': 443,
+                           'path-segments': ('', 'path'),
+                           'path': '/path'}, map { 'omit-default-ports': true() })</ns3:test><ns3:result><ns3:assert-eq>"https://example.com/path"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-001"><ns3:description>Constructs a URI from a path</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-08"/><ns3:test>fn:build-uri(map {'scheme': 'https',
+                            'host': 'example.com',
+                            'path': '/path/to/file'}, map { })</ns3:test><ns3:result><ns3:assert-eq>'https://example.com/path/to/file'</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-002"><ns3:description>Constructs a URI from path segments</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-08"/><ns3:test>fn:build-uri(map {'scheme': 'https',
+                            'host': 'example.com',
+                            'path-segments': ('', 'path','to','file'),
+                            'path': '/wont/be/used'}, map { })</ns3:test><ns3:result><ns3:assert-eq>'https://example.com/path/to/file'</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-003"><ns3:description>Constructs a URI with query segments</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-08"/><ns3:test>fn:build-uri(map {'scheme': 'https',
+                            'host': 'example.com',
+                            'path-segments': ('', 'path','to','file'),
+                            'query-parameters': map {
+                              'key1': 'value1',
+                              'key2': '',
+                              '': 'value3'
+                             }
+                            }, map { })</ns3:test><ns3:result><ns3:any-of><ns3:assert-eq>`https://example.com/path/to/file?key1=value1&amp;key2=&amp;value3`</ns3:assert-eq><ns3:assert-eq>`https://example.com/path/to/file?key1=value1&amp;value3&amp;key2=`</ns3:assert-eq><ns3:assert-eq>`https://example.com/path/to/file?key2=&amp;key1=value1&amp;value3`</ns3:assert-eq><ns3:assert-eq>`https://example.com/path/to/file?key2=&amp;value3&amp;key1=value1`</ns3:assert-eq><ns3:assert-eq>`https://example.com/path/to/file?value3&amp;key1=value1&amp;key2=`</ns3:assert-eq><ns3:assert-eq>`https://example.com/path/to/file?value3&amp;key2=&amp;key1=value1`</ns3:assert-eq></ns3:any-of></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-004"><ns3:description>Constructs a URI with character encoding</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-08"/><ns3:modified by="Michael Kay" on="2023-03-16" change="run both on XPath and XQuery"/><ns3:test>
+      let $amp := codepoints-to-string(38) return
+      fn:build-uri(map {'scheme': 'https',
+                            'host': 'example.com',
+                            'path-segments': ('', 'path to', 'a/b', 'file'),
+                            'query-parameters': map {
+                              'ke=y1': 'val'||$amp||'ue1',
+                              'ke?y2': 'val''ue2'
+                            }
+                       }, map { }) </ns3:test><ns3:result><ns3:any-of><ns3:assert-eq>`https://example.com/path%20to/a%2Fb/file?ke%3Dy1=val%26ue1&amp;ke?y2=val'ue2`</ns3:assert-eq><ns3:assert-eq>`https://example.com/path%20to/a%2fb/file?ke%3dy1=val%26ue1&amp;ke?y2=val'ue2`</ns3:assert-eq></ns3:any-of></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-005"><ns3:description>Constructs a URI with a fragment</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-08"/><ns3:test>fn:build-uri(map {'scheme': 'https',
+                            'host': 'example.com',
+                            'path-segments': ('', 'path to','a/b','file'),
+                            'fragment': 'frag id'
+                           }, map { })</ns3:test><ns3:result><ns3:any-of><ns3:assert-eq>'https://example.com/path%20to/a%2fb/file#frag%20id'</ns3:assert-eq><ns3:assert-eq>'https://example.com/path%20to/a%2Fb/file#frag%20id'</ns3:assert-eq></ns3:any-of></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-006"><ns3:description>Constructs a URI with a query and a fragment</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-08"/><ns3:test>fn:build-uri(map {'scheme': 'https',
+                            'host': 'example.com',
+                            'path-segments': ('', 'path','to','file'),
+                            'query-parameters': map {
+                              'key1': 'value1',
+                              'key2': 'value2'
+                            },
+                            'fragment': 'fragid'}, map { })</ns3:test><ns3:result><ns3:assert-eq>`https://example.com/path/to/file?key1=value1&amp;key2=value2#fragid`</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-007"><ns3:description>Constructs an hierarchical URI with an unknown scheme</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-12"/><ns3:test>fn:build-uri(map {'scheme': 'querty',
+                            'path-segments': ('', 'abc'),
+                            'path': 'abc'}, map { })</ns3:test><ns3:result><ns3:assert-eq>"querty:///abc"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-008"><ns3:description>Constructs a non-hierarchical URI with an unknown scheme</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-03-12"/><ns3:test>fn:build-uri(map {'scheme': 'querty',
+                            'hierarchical': false(),
+                            'path-segments': ('abc'),
+                            'path': 'abc'}, map { })</ns3:test><ns3:result><ns3:assert-eq>"querty:abc"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-from-parse-901"><ns3:description>Supply path segments as a sequence</ns3:description><ns3:created by="Michael Kay" on="2023-10-20"/><ns3:test>fn:build-uri(map {
+      "authority": "example.com",
+      "host": "example.com",
+      "path": "/path/to/file",
+      "path-segments": ("", "path", "to", "file"),
+      "scheme": "https",
+      "uri": "https://example.com\path\to\file"
+      })</ns3:test><ns3:result><ns3:assert-eq>"https://example.com/path/to/file"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-009"><ns3:description>Tests that a list of query parameter values is handled correctly.</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-10-24"/><ns3:test>fn:build-uri(map {'scheme': 'http',
+                           "hierarchical": true(),
+                           'authority': 'example.com',
+                           'host': 'example.com',
+                           'path-segments': ('','path'),
+                           "query-parameters": map {
+                             "a": ("1", "3"),
+                             "b": `2&amp;4`
+                           }})</ns3:test><ns3:result><ns3:assert-eq>`http://example.com/path?a=1&amp;a=3&amp;b=2%264`</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-010a"><ns3:description>Tests character encoding</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-10-26"/><ns3:modified by="Norm Tovey-Walsh" on="2024-09-12" change="Changed encoded characters in the result"/><ns3:modified by="Christian Gruen" on="2026-08-12" change="PR2812"/><ns3:test>fn:build-uri(map {'scheme': 'http',
+                           "hierarchical": true(),
+                           'authority': 'example.com',
+                           'host': 'example.com',
+                           'path-segments': ('',` !"#$%&amp;'()*+,-./0123456789:;&lt;=&gt;?`),
+                           "query-parameters": map {
+                             "a": (` !"#$%&amp;'()*+,-`),
+                             "b": (`./0123456789:;&lt;=&gt;?`)
+                           },
+                           "fragment": ` !"#$%&amp;'()*+,-./0123456789:;&lt;=&gt;?`
+                         })</ns3:test><ns3:result><ns3:assert-eq>`http://example.com/%20!"%23$%25&amp;'()*+,-.%2F0123456789:;&lt;=&gt;%3F?a=%20!"%23$%25%26'()*%2B,-&amp;b=./0123456789:;&lt;%3D&gt;?#%20!"%23$%25&amp;'()*+,-./0123456789:;&lt;=&gt;?`</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-010b"><ns3:description>Tests character encoding</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-10-26"/><ns3:modified by="Norm Tovey-Walsh" on="2024-09-12" change="Changed encoded characters in the result"/><ns3:test>fn:build-uri(map {'scheme': 'http',
+                           "hierarchical": true(),
+                           'authority': 'example.com',
+                           'host': 'example.com',
+                           'path-segments': ('','@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_'),
+                           "query-parameters": map {
+                             "a": ("@ABCDEFGHIJKLMN"),
+                             "b": ("OPQRSTUVWXYZ[\]^_")
+                           },
+                           "fragment": "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_"
+                         })</ns3:test><ns3:result><ns3:assert-eq>`http://example.com/@ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B\%5D^_?a=@ABCDEFGHIJKLMN&amp;b=OPQRSTUVWXYZ%5B\%5D^_#@ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B\%5D^_`</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-010c"><ns3:description>Tests character encoding</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-10-26"/><ns3:modified by="Norm Tovey-Walsh" on="2024-09-12" change="Changed encoded characters in the result"/><ns3:test>fn:build-uri(map {'scheme': 'http',
+                           "hierarchical": true(),
+                           'authority': 'example.com',
+                           'host': 'example.com',
+                           'path-segments': ('','`abcdefghijklmnopqrstuvwxyz{|}~'),
+                           "query-parameters": map {
+                             "a": ("`abcdefghijklmn"),
+                             "b": ("opqrstuvwxyz{|}~")
+                           },
+                           "fragment": "`abcdefghijklmnopqrstuvwxyz{|}~"
+                         })</ns3:test><ns3:result><ns3:assert-eq>`http://example.com/``abcdefghijklmnopqrstuvwxyz{{|}}~?a=``abcdefghijklmn&amp;b=opqrstuvwxyz{{|}}~#``abcdefghijklmnopqrstuvwxyz{{|}}~`</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-010d"><ns3:description>Tests character encoding</ns3:description><ns3:created by="Norm Tovey-Walsh" on="2023-10-26"/><ns3:test>fn:build-uri(map {'scheme': 'http',
+                           "hierarchical": true(),
+                           'authority': 'example.com',
+                           'host': 'example.com',
+                           'path-segments': ('','&#129335; ¡¢£¤ǌ†&#78284;&#78225;&#127988;&#917607;&#917602;&#917623;&#917612;&#917619;&#917631;'),
+                           "query-parameters": map {
+                             "a": ("&#129335; ¡¢£¤ǌ"),
+                             "b": ("†&#78284;&#78225;&#127988;&#917607;&#917602;&#917623;&#917612;&#917619;&#917631;")
+                           },
+                           "fragment": "&#129335; ¡¢£¤ǌ†&#78284;&#78225;&#127988;&#917607;&#917602;&#917623;&#917612;&#917619;&#917631;"
+                         })</ns3:test><ns3:result><ns3:assert-eq>`http://example.com/&#129335; ¡¢£¤ǌ†&#78284;&#78225;&#127988;&#917607;&#917602;&#917623;&#917612;&#917619;&#917631;?a=&#129335; ¡¢£¤ǌ&amp;b=†&#78284;&#78225;&#127988;&#917607;&#917602;&#917623;&#917612;&#917619;&#917631;#&#129335; ¡¢£¤ǌ†&#78284;&#78225;&#127988;&#917607;&#917602;&#917623;&#917612;&#917619;&#917631;`</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-011a" covers-40="PR2812"><ns3:description>Tests plus signs in a URI.</ns3:description><ns3:created by="Christian Gruen" on="2026-08-12"/><ns3:test>fn:build-uri(map {'scheme': 'http',
+                           "hierarchical": true(),
+                           'authority': 'example.com',
+                           'path-segments': ('','a+b')
+                         })</ns3:test><ns3:result><ns3:assert-eq>"http://example.com/a+b"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-011b" covers-40="PR2812"><ns3:description>Tests plus signs in a URI.</ns3:description><ns3:created by="Christian Gruen" on="2026-08-12"/><ns3:test>fn:build-uri(map {'scheme': 'http',
+                           "hierarchical": true(),
+                           'authority': 'example.com',
+                           'path-segments': ('',''),
+                           "query-parameters": map { "c": "d+e" }
+                         })</ns3:test><ns3:result><ns3:assert-eq>"http://example.com/?c=d%2Be"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-011c" covers-40="PR2812"><ns3:description>Tests plus signs in a URI.</ns3:description><ns3:created by="Christian Gruen" on="2026-08-12"/><ns3:test>fn:build-uri(map {'scheme': 'http',
+                           "hierarchical": true(),
+                           'authority': 'example.com',
+                           'path-segments': ('',''),
+                           "fragment": "f+g"
+                         })</ns3:test><ns3:result><ns3:assert-eq>"http://example.com/#f+g"</ns3:assert-eq></ns3:result></ns3:test-case><ns3:test-case name="fn-build-uri-011d" covers-40="PR2812"><ns3:description>Tests plus signs in a URI.</ns3:description><ns3:created by="Christian Gruen" on="2026-08-12"/><ns3:test>fn:parse-uri("a+b/c") =&gt; fn:build-uri()</ns3:test><ns3:result><ns3:assert-eq>"a+b/c"</ns3:assert-eq></ns3:result></ns3:test-case></ns3:test-set>

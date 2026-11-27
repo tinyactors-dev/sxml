@@ -35,3 +35,14 @@ endforeach()
 if(SXML_BUILD_FUZZERS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/fuzz/CMakeLists.txt")
     add_subdirectory(fuzz)
 endif()
+
+# The EXI golden test (tests/exi/README.md; D333): every case of
+# tests/exi/manifest.tsv, with the ratchet of tests/exi/passing.txt.
+add_executable(exi_golden exi/exi_golden.c)
+target_link_libraries(exi_golden PRIVATE sxml sxml_tree_sitter)
+if(TARGET sxml_mpdecimal)
+    target_link_libraries(exi_golden PRIVATE sxml_mpdecimal)
+endif()
+sxml_apply_project_flags(exi_golden)
+add_test(NAME exi/golden COMMAND exi_golden "${PROJECT_SOURCE_DIR}")
+add_test(NAME exi/golden-self-check COMMAND exi_golden "${PROJECT_SOURCE_DIR}" --self-check)

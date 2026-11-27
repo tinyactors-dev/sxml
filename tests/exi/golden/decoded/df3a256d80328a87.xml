@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8"?><root other:myAttr="test attribute" xsi:noNamespaceSchemaLocation="ctG047.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:other="http://tempuri.org/xmlschema"><myElement1>test data</myElement1></root>
