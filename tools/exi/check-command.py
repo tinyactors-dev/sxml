@@ -21,8 +21,11 @@ on standard error; an unknown option value is a usage error (exit 2).
 
 OPTIONS are the flags of the case's option specification
 (tests/exi/README.md, "Options"): --alignment=..., --preserve=...,
---fragment, --block-size=N, --value-max-length=N,
---value-partition-capacity=N.
+--fragment, --self-contained, --block-size=N, --value-max-length=N,
+--value-partition-capacity=N; sxml encode also takes --canonical,
+--self-contained-element=NAME, --include-cookie and --include-options.
+The cases EXIficient decodes wrongly (tests/exi/oracle-deviations.txt)
+are left out.
 """
 import argparse
 import os
@@ -33,11 +36,15 @@ import tempfile
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SETS = ["bit-packed", "bit-packed-full", "byte-alignment-full", "pre-compression", "pre-compression-full",
         "pre-compression-blocks", "compression", "compression-full", "compression-blocks", "string-limits",
-        "string-limits-zero", "fragment"]
+        "string-limits-zero", "fragment", "header-options", "canonical", "canonical-byte-alignment",
+        "canonical-compression", "self-contained", "self-contained-byte-alignment"]
 
 
 def flags(specification):
+    """The flags of both commands for an option specification, the flags
+    only sxml encode takes, and the options."""
     result = []
+    encode_only = []
     options = {}
     for part in specification.split(";"):
         if part:
@@ -47,7 +54,16 @@ def flags(specification):
                 result.append(f"--{key}={value}")
             elif key == "fragment":
                 result.append("--fragment")
-    return result, options
+            elif key == "self-contained":
+                result.append("--self-contained")
+                encode_only += ["--self-contained-element=" + ("Q" + name if name.startswith("{") else name)
+                                for name in value.split(",")]
+            elif key == "canonical":
+                encode_only.append("--canonical")
+            elif key == "header":
+                encode_only += [{"cookie": "--include-cookie", "options": "--include-options"}[item]
+                                for item in value.split(",")]
+    return result, encode_only, options
 
 
 def main():
@@ -76,17 +92,20 @@ def main():
         result = run("xquery", "--method=text", f"--expression=deep-equal(doc('{first}'), doc('{second}'), {comparison})")
         return result.stdout.decode().strip() == "true", result.stderr.decode()
 
+    deviations = {line.split()[0] for line in open(os.path.join(ROOT, "tests", "exi", "oracle-deviations.txt"))
+                  if line.strip() and not line.startswith("#")}
     rows = [line.rstrip("\n").split("\t") for line in open(os.path.join(ROOT, "tests", "exi", "manifest.tsv"))
             if not line.startswith("#")]
+    rows = [row for row in rows if f"{row[0]}/{row[1]}" not in deviations]
     with tempfile.TemporaryDirectory() as scratch:
         for name in SETS:
             for row in [row for row in rows if row[0] == name and row[4] == "ok"][:arguments.sample]:
-                case_flags, options = flags(row[3])
+                case_flags, encode_flags, options = flags(row[3])
                 golden = f"tests/exi/golden/{row[0]}/{row[1]}.exi"
                 with open(os.path.join(ROOT, golden), "rb") as handle:
                     expected = handle.read()
                 output = os.path.join(scratch, f"{row[0]}-{row[1]}.exi")
-                result = run("encode", *case_flags, f"--output={output}", row[2])
+                result = run("encode", *case_flags, *encode_flags, f"--output={output}", row[2])
                 written = open(output, "rb").read() if os.path.exists(output) else b""
                 if options.get("alignment") == "compression":
                     decoded = os.path.join(scratch, f"{row[0]}-{row[1]}.xml")
@@ -96,7 +115,7 @@ def main():
                 else:
                     record(f"{name}/{row[1]}/encode", result.returncode == 0 and written == expected,
                            result.stderr.decode() or f"{len(written)} bytes, expected {len(expected)}")
-                    piped = run("encode", *case_flags, row[2])
+                    piped = run("encode", *case_flags, *encode_flags, row[2])
                     record(f"{name}/{row[1]}/encode-stdout", piped.returncode == 0 and piped.stdout == expected,
                            piped.stderr.decode() or "bytes differ")
                 decoded = os.path.join(scratch, f"{row[0]}-{row[1]}.decoded.xml")

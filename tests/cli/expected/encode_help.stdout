@@ -1,6 +1,6 @@
 sxml encode - Write an XML document as an EXI stream
 
-Usage: sxml encode [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--include-cookie] [--include-options] [--output=FILE] [--force] INPUT
+Usage: sxml encode [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--self-contained] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--include-cookie] [--include-options] [--include-schema-id] [--canonical] [--omit-options-document] [--utc-time] [--self-contained-element=NAME]... [--output=FILE] [--force] INPUT
 
 Parses INPUT as XML and writes it as an EXI 1.0 stream (Efficient XML
 Interchange) to standard output: bytes, with no line feed after them.
@@ -16,7 +16,14 @@ schema-informed grammars of the XSD in FILE.
 
 A decoder needs the options the stream was written with: give it the
 same flags, or write them into the stream's header with
---include-options. --include-cookie begins the stream with "$EXI".
+--include-options (and the schemaId with --include-schema-id).
+--include-cookie begins the stream with "$EXI".
+
+--canonical writes Canonical EXI, one stream for one document and one
+set of options; --omit-options-document leaves its options document
+out of the header, --utc-time writes its date-times in UTC.
+--self-contained-element=NAME (repeatable, with --self-contained)
+writes each element NAME so that it can be read on its own.
 
 --output=FILE (-o FILE) writes the stream to FILE instead, and only
 when the command succeeds; a FILE that exists is replaced only with
@@ -27,19 +34,25 @@ options cannot represent it, 2 for a bad option value, 3 when a file
 cannot be read or written.
 
 Options:
-  -h, --help                        Show this help and exit
-      --alignment=ALIGNMENT         EXI alignment of the stream (one of: bit-packed, byte-alignment, pre-compression, compression; default: bit-packed)
-      --preserve=LIST               EXI fidelity: comments,pis,dtd,prefixes,lexical-values
-      --fragment                    The EXI stream is a fragment, not a document
-      --strict                      Strict schema-informed EXI grammars
-      --block-size=N                EXI values per compression block
-      --value-max-length=N          Longest EXI value kept in the string table
-      --value-partition-capacity=N  Most EXI values in the string table
-      --schema=FILE                 XSD of the stream's schema-informed grammars
-      --include-cookie              Begin the stream with the EXI cookie $EXI
-      --include-options             Write the EXI options into the stream's header
-  -o, --output=FILE                 Write the result to FILE instead of standard output
-      --force                       Replace files that exist instead of refusing
+  -h, --help                         Show this help and exit
+      --alignment=ALIGNMENT          EXI alignment of the stream (one of: bit-packed, byte-alignment, pre-compression, compression; default: bit-packed)
+      --preserve=LIST                EXI fidelity: comments,pis,dtd,prefixes,lexical-values
+      --fragment                     The EXI stream is a fragment, not a document
+      --strict                       Strict schema-informed EXI grammars
+      --self-contained               The EXI stream may hold self-contained elements
+      --block-size=N                 EXI values per compression block
+      --value-max-length=N           Longest EXI value kept in the string table
+      --value-partition-capacity=N   Most EXI values in the string table
+      --schema=FILE                  XSD of the stream's schema-informed grammars
+      --include-cookie               Begin the stream with the EXI cookie $EXI
+      --include-options              Write the EXI options into the stream's header
+      --include-schema-id            Write the schemaId into the header's options
+      --canonical                    Write Canonical EXI
+      --omit-options-document        Canonical EXI without the options document in the header
+      --utc-time                     Canonical EXI with date-times in UTC
+      --self-contained-element=NAME  An element to write self-contained, NCName or Q{uri}local (with --self-contained) (repeatable)
+  -o, --output=FILE                  Write the result to FILE instead of standard output
+      --force                        Replace files that exist instead of refusing
 
 Arguments:
   INPUT  XML document to encode; - reads standard input

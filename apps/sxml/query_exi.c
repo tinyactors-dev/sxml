@@ -218,6 +218,7 @@ sxml_cli_exit_code sxml_query_run_read_exi_options(sxml_query_run *run) {
     }
     options->is_fragment = sxml_query_has_option(run->invocation, SXML_TEXT("fragment"));
     options->is_strict = sxml_query_has_option(run->invocation, SXML_TEXT("strict"));
+    options->allows_self_contained = sxml_query_has_option(run->invocation, SXML_TEXT("self-contained"));
     sxml_cli_exit_code exit_code = sxml_query_exi_read_preserve(run, options);
     const sxml_query_exi_count counts[] = {
         {.long_name = SXML_TEXT("block-size"),

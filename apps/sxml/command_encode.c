@@ -1,5 +1,7 @@
 /*
  * sxml encode [EXI OPTIONS] [--include-cookie] [--include-options]
+ * [--include-schema-id] [--canonical [--omit-options-document] [--utc-time]]
+ * [--self-contained-element=NAME]...
  * [--output=FILE] INPUT: parses INPUT as XML and writes its EXI stream
  * (apps/sxml/README.md, "sxml encode"; include/sxml/exi.h; D333).
  *
@@ -31,6 +33,22 @@ static const sxml_cli_option sxml_encode_options[] = {
                            "Begin the stream with the EXI cookie $EXI"),
     SXML_QUERY_FLAG_OPTION("include-options",
                            "Write the EXI options into the stream's header"),
+    SXML_QUERY_FLAG_OPTION("include-schema-id",
+                           "Write the schemaId into the header's options"),
+    SXML_QUERY_FLAG_OPTION("canonical", "Write Canonical EXI"),
+    SXML_QUERY_FLAG_OPTION("omit-options-document",
+                           "Canonical EXI without the options document in the header"),
+    SXML_QUERY_FLAG_OPTION("utc-time", "Canonical EXI with date-times in UTC"),
+    {
+        .long_name = SXML_BYTE_VIEW_INITIALIZER("self-contained-element"), .short_name = 0,
+        .value_kind = SXML_CLI_VALUE_KIND_TEXT,
+        .value_name = SXML_BYTE_VIEW_INITIALIZER("NAME"),
+        .choices = {.texts = NULL, .text_count = 0},
+        .default_value = {.bytes = NULL, .byte_count = 0},
+        .multiplicity = SXML_CLI_OPTION_REPEATABLE,
+        .summary = SXML_BYTE_VIEW_INITIALIZER(
+            "An element to write self-contained, NCName or Q{uri}local (with --self-contained)"),
+    },
     SXML_QUERY_OUTPUT_OPTION,
     SXML_QUERY_FORCE_OPTION,
 };
@@ -60,9 +78,88 @@ static void sxml_encode_report(const sxml_query_run *run, sxml_byte_view file,
     sxml_cli_writer_write_line(error, description);
 }
 
+/* A name given on the command line: an NCName in no namespace or an EQName
+   Q{uri}local (golden: command_transform.c, sxml_transform_read_name).
+   False when it is neither. */
+static bool sxml_encode_read_name(const sxml_query_run *run, sxml_byte_view text,
+                                  sxml_name_identifier *name) {
+    sxml_byte_view namespace_uri = {.bytes = NULL, .byte_count = 0};
+    sxml_byte_view local_name = text;
+    if (text.byte_count > 2 && text.bytes[0] == 'Q' && text.bytes[1] == '{') {
+        const uint8_t *close = memchr(text.bytes + 2, '}', text.byte_count - 2);
+        if (close == NULL) {
+            return false;
+        }
+        namespace_uri = (sxml_byte_view){.bytes = text.bytes + 2,
+                                         .byte_count = (size_t)(close - text.bytes) - 2};
+        local_name = (sxml_byte_view){.bytes = close + 1,
+                                      .byte_count = text.byte_count -
+                                                    (size_t)(close - text.bytes) - 1};
+    }
+    if (local_name.byte_count == 0 || memchr(local_name.bytes, ':', local_name.byte_count) != NULL ||
+        memchr(local_name.bytes, '{', local_name.byte_count) != NULL) {
+        return false;
+    }
+    sxml_name_pool *name_pool = sxml_processor_get_name_pool(run->processor);
+    sxml_namespace_uri_identifier namespace_identifier = {.index = 0};
+    return sxml_name_pool_intern_namespace_uri(name_pool, namespace_uri,
+                                               &namespace_identifier) == SXML_STATUS_OK &&
+           sxml_name_pool_intern_name(
+               name_pool,
+               &(sxml_name_request){.namespace_uri = namespace_identifier,
+                                    .local_name = local_name},
+               name) == SXML_STATUS_OK;
+}
+
+/* The --self-contained-element names, in allocator memory (release
+   names->element_names). A name that is neither an NCName nor an EQName is
+   a usage error. */
+static sxml_cli_exit_code sxml_encode_read_self_contained(const sxml_query_run *run,
+                                                          sxml_element_name_view *names) {
+    const sxml_cli_invocation *invocation = run->invocation;
+    *names = (sxml_element_name_view){.element_names = NULL, .element_name_count = 0};
+    sxml_cli_option_match match = {.is_present = false, .occurrence_count = 0};
+    if (sxml_cli_arguments_find_option(
+            invocation->arguments,
+            (sxml_cli_option_lookup){.long_name = SXML_TEXT("self-contained-element"), .occurrence_index = 0},
+            &match) != SXML_STATUS_OK ||
+        !match.is_present) {
+        return SXML_CLI_EXIT_SUCCESS;
+    }
+    void *memory = NULL;
+    if (sxml_allocator_allocate(invocation->allocator,
+                                (sxml_allocation_request){
+                                    .byte_count = match.occurrence_count * sizeof(sxml_name_identifier),
+                                    .alignment = _Alignof(sxml_name_identifier)},
+                                &memory) != SXML_STATUS_OK) {
+        return SXML_CLI_EXIT_INTERNAL_ERROR;
+    }
+    sxml_name_identifier *identifiers = memory;
+    for (size_t occurrence = 0; occurrence < match.occurrence_count; occurrence += 1) {
+        sxml_cli_option_match value = {.is_present = false, .occurrence_count = 0};
+        if (sxml_cli_arguments_find_option(invocation->arguments,
+                                           (sxml_cli_option_lookup){.long_name = SXML_TEXT("self-contained-element"),
+                                                                    .occurrence_index = occurrence},
+                                           &value) != SXML_STATUS_OK ||
+            !sxml_encode_read_name(run, value.value, &identifiers[occurrence])) {
+            sxml_allocator_release(invocation->allocator, memory);
+            return sxml_cli_invocation_report_usage_error(
+                invocation, SXML_TEXT("--self-contained-element needs an NCName or Q{uri}local"));
+        }
+    }
+    *names = (sxml_element_name_view){.element_names = identifiers, .element_name_count = match.occurrence_count};
+    return SXML_CLI_EXIT_SUCCESS;
+}
+
 /* Encodes document to the run's result writer. */
-static sxml_status sxml_encode_document(sxml_query_run *run, sxml_item document,
+typedef struct sxml_encode_input {
+    sxml_item document;
+    sxml_element_name_view self_contained_elements;
+} sxml_encode_input;
+
+static sxml_status sxml_encode_document(sxml_query_run *run, sxml_encode_input input,
                                         sxml_diagnostic *diagnostic) {
+    const sxml_item document = input.document;
     const sxml_cli_invocation *invocation = run->invocation;
     sxml_node_reference root = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0};
     sxml_status status = sxml_item_get_node(document, &root);
@@ -84,11 +181,13 @@ static sxml_status sxml_encode_document(sxml_query_run *run, sxml_item document,
                          sxml_query_has_option(invocation, SXML_TEXT("include-cookie")),
                      .includes_options =
                          sxml_query_has_option(invocation, SXML_TEXT("include-options")),
-                     .includes_schema_identifier = false},
-                .canonicalization = {.is_canonical = false,
-                                     .omits_options_document = false,
-                                     .uses_utc_time = false},
-                .self_contained_elements = {.element_names = NULL, .element_name_count = 0},
+                     .includes_schema_identifier =
+                         sxml_query_has_option(invocation, SXML_TEXT("include-schema-id"))},
+                .canonicalization = {.is_canonical = sxml_query_has_option(invocation, SXML_TEXT("canonical")),
+                                     .omits_options_document =
+                                         sxml_query_has_option(invocation, SXML_TEXT("omit-options-document")),
+                                     .uses_utc_time = sxml_query_has_option(invocation, SXML_TEXT("utc-time"))},
+                .self_contained_elements = input.self_contained_elements,
                 .diagnostic = diagnostic},
             sxml_query_run_output_stream(run));
     }
@@ -108,7 +207,15 @@ static sxml_cli_exit_code sxml_encode_file(sxml_query_run *run, sxml_byte_view f
                                                .line_number = 0,
                                                .column_number = 0,
                                                .byte_offset = 0}};
-    const sxml_status status = sxml_encode_document(run, document, &diagnostic);
+    sxml_element_name_view self_contained = {.element_names = NULL, .element_name_count = 0};
+    const sxml_cli_exit_code names_exit_code = sxml_encode_read_self_contained(run, &self_contained);
+    if (names_exit_code != SXML_CLI_EXIT_SUCCESS) {
+        sxml_item_release(document);
+        return names_exit_code;
+    }
+    const sxml_status status = sxml_encode_document(
+        run, (sxml_encode_input){.document = document, .self_contained_elements = self_contained}, &diagnostic);
+    sxml_allocator_release(run->invocation->allocator, (void *)self_contained.element_names);
     sxml_item_release(document);
     if (status == SXML_STATUS_OK) {
         return SXML_CLI_EXIT_SUCCESS;
@@ -161,7 +268,14 @@ const sxml_cli_command sxml_encode_command = {
         "\n"
         "A decoder needs the options the stream was written with: give it the\n"
         "same flags, or write them into the stream's header with\n"
-        "--include-options. --include-cookie begins the stream with \"$EXI\".\n"
+        "--include-options (and the schemaId with --include-schema-id).\n"
+        "--include-cookie begins the stream with \"$EXI\".\n"
+        "\n"
+        "--canonical writes Canonical EXI, one stream for one document and one\n"
+        "set of options; --omit-options-document leaves its options document\n"
+        "out of the header, --utc-time writes its date-times in UTC.\n"
+        "--self-contained-element=NAME (repeatable, with --self-contained)\n"
+        "writes each element NAME so that it can be read on its own.\n"
         "\n"
         "--output=FILE (-o FILE) writes the stream to FILE instead, and only\n"
         "when the command succeeds; a FILE that exists is replaced only with\n"

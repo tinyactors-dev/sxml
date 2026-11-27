@@ -1,6 +1,6 @@
 sxml decode - Write an EXI stream as an XML document
 
-Usage: sxml decode [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--output=FILE] [--force] INPUT
+Usage: sxml decode [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--self-contained] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--output=FILE] [--force] INPUT
 
 Reads INPUT as an EXI 1.0 stream (Efficient XML Interchange) and
 writes the document to standard output as XML text, by the xml
@@ -32,6 +32,7 @@ Options:
       --preserve=LIST               EXI fidelity: comments,pis,dtd,prefixes,lexical-values
       --fragment                    The EXI stream is a fragment, not a document
       --strict                      Strict schema-informed EXI grammars
+      --self-contained              The EXI stream may hold self-contained elements
       --block-size=N                EXI values per compression block
       --value-max-length=N          Longest EXI value kept in the string table
       --value-partition-capacity=N  Most EXI values in the string table

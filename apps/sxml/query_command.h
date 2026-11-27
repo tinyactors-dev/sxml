@@ -151,6 +151,8 @@ extern const sxml_byte_view sxml_query_input_formats[SXML_QUERY_INPUT_FORMAT_COU
         SXML_QUERY_FLAG_OPTION("fragment",                                     \
                                "The EXI stream is a fragment, not a document"), \
         SXML_QUERY_FLAG_OPTION("strict", "Strict schema-informed EXI grammars"), \
+        SXML_QUERY_FLAG_OPTION("self-contained",                               \
+                               "The EXI stream may hold self-contained elements"), \
         SXML_QUERY_TEXT_OPTION("block-size", "N",                              \
                                "EXI values per compression block"),            \
         SXML_QUERY_TEXT_OPTION("value-max-length", "N",                        \

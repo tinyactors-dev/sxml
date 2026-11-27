@@ -1,6 +1,6 @@
 sxml xquery - Run an XQuery 4.0 query
 
-Usage: sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--input-format=FORMAT] [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--allow-file-access] [--collection=DIR] [--allow-put] [--code-language=LIBRARY]... [--output=FILE] [--force] [QUERY-FILE]
+Usage: sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--input-format=FORMAT] [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--self-contained] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--allow-file-access] [--collection=DIR] [--allow-put] [--code-language=LIBRARY]... [--output=FILE] [--force] [QUERY-FILE]
 
 Runs the XQuery 4.0 main module in QUERY-FILE, or the query that
 --expression gives, and writes the result to standard output. The
@@ -56,6 +56,7 @@ Options:
       --preserve=LIST               EXI fidelity: comments,pis,dtd,prefixes,lexical-values
       --fragment                    The EXI stream is a fragment, not a document
       --strict                      Strict schema-informed EXI grammars
+      --self-contained              The EXI stream may hold self-contained elements
       --block-size=N                EXI values per compression block
       --value-max-length=N          Longest EXI value kept in the string table
       --value-partition-capacity=N  Most EXI values in the string table

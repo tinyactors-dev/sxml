@@ -674,7 +674,7 @@ $ head -3 page-indented.xml
 Write an XML document as an EXI stream.
 
 ```
-sxml encode [EXI OPTIONS] [--include-cookie] [--include-options] [--output=FILE] [--force] INPUT
+sxml encode [EXI OPTIONS] [--include-cookie] [--include-options] [--include-schema-id] [--canonical] [--omit-options-document] [--utc-time] [--self-contained-element=NAME]... [--output=FILE] [--force] INPUT
 ```
 
 `sxml encode` parses INPUT as XML and writes it as an EXI 1.0 stream
@@ -688,7 +688,12 @@ flags, or write them into the stream's header with `--include-options`.
 | --- | --- |
 | EXI options | As in [EXI options](#exi-options) |
 | `--include-cookie` | Begin the stream with the EXI cookie `$EXI` |
-| `--include-options` | Write the EXI options into the stream's header (not written yet: the command then fails with exit status 1) |
+| `--include-options` | Write the EXI options into the stream's header, so that a decoder needs no flags |
+| `--include-schema-id` | Write the schemaId into the header's options |
+| `--canonical` | Write Canonical EXI (W3C Recommendation 2018): one stream for one document and one set of options |
+| `--omit-options-document` | Canonical EXI without the options document in the header |
+| `--utc-time` | Canonical EXI with its date-times in UTC |
+| `--self-contained-element=NAME` | Write each element NAME (an NCName or `Q{uri}local`; repeatable) self-contained, readable on its own; with `--self-contained` |
 | `--output=FILE`, `-o FILE` | Write the stream to FILE instead of standard output |
 | `--force` | Let `--output` replace a file that exists |
 
@@ -753,6 +758,7 @@ no options.
 | `--preserve=LIST` | What the stream keeps besides elements, attributes and text: a comma-separated list of `comments`, `pis`, `dtd`, `prefixes` and `lexical-values` |
 | `--fragment` | The stream is a fragment: elements, comments and processing instructions with no document around them |
 | `--strict` | Strict schema-informed grammars (with `--schema`) |
+| `--self-contained` | The stream may hold self-contained elements (EXI's selfContained option) |
 | `--block-size=N` | Values per compression block, 1 or more (default 1,000,000) |
 | `--value-max-length=N` | Longest value kept in the string table (default unbounded) |
 | `--value-partition-capacity=N` | Most values in the string table (default unbounded) |
@@ -1117,7 +1123,7 @@ Usage: sxml [--version] COMMAND [ARGUMENT...]
 Try 'sxml --help'.
 $ sxml xpath --contxt-item=books.xml 1
 sxml xpath: unknown option '--contxt-item'; did you mean '--context-item'?
-Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--input-format=FORMAT] [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--input-format=FORMAT] [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--self-contained] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 Try 'sxml xpath --help'.
 ```
 
@@ -1126,7 +1132,7 @@ An option of another command is named as such:
 ```console
 $ sxml xpath --expression=1
 sxml xpath: unknown option '--expression'; it is an option of 'sxml xquery'
-Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--input-format=FORMAT] [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--input-format=FORMAT] [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--self-contained] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 Try 'sxml xpath --help'.
 ```
 

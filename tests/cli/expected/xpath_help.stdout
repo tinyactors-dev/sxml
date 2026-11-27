@@ -1,6 +1,6 @@
 sxml xpath - Evaluate an XPath 4.0 expression
 
-Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--input-format=FORMAT] [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--input-format=FORMAT] [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--self-contained] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 
 Evaluates EXPRESSION as XPath 4.0 and writes the result to standard
 output, by the adaptive method with one item per line unless --method
@@ -47,6 +47,7 @@ Options:
       --preserve=LIST               EXI fidelity: comments,pis,dtd,prefixes,lexical-values
       --fragment                    The EXI stream is a fragment, not a document
       --strict                      Strict schema-informed EXI grammars
+      --self-contained              The EXI stream may hold self-contained elements
       --block-size=N                EXI values per compression block
       --value-max-length=N          Longest EXI value kept in the string table
       --value-partition-capacity=N  Most EXI values in the string table
