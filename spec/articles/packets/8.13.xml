@@ -2,7 +2,7 @@
   <title>EXI in the processor: functions, the output method, schemaId</title>
   <summary>The feature sxml_exi_feature, exi:serialize and exi:parse, the output method exi:exi with its parameters, sxml_processor_parse_exi_document, the schemaId resolver, and the options reader.</summary>
   <body>
-    <p>After 8.11.</p>
+    <p><status value="done" date="2026-11-27"/> After 8.11.</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: <code>src/function_library_exi.c</code> (as <code>src/function_library_binary.c</code>, <ref kind="decision" to="D198"/>), the method in <code>src/serialize.c</code>, its parameters in the serialization parameter reader, <code>fn:serialize</code> refusing the method with SEPM0016, the options reader of an exi:header element, the processor's cache of compiled schemas per schemaId.</p>

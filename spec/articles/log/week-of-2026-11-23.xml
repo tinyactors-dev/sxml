@@ -3,6 +3,9 @@
   <body>
     <list loose="true">
       <item>
+        <p>Packet 8.13 (EXI through the processor) landed: the exi feature, exi:serialize and exi:parse, the exi:exi output method from XQuery and XSLT, the options reader, the schemaId resolver; tools/exi/check-processor.py passes 151 of 151 checks (<ref kind="decision" to="D333"/>).</p>
+      </item>
+      <item>
         <p>8.6 and 8.8 done (<ref kind="decision" to="D333"/>): pre-compression and compression in both directions (blocks, the structure channel, value channels read and written in the order of EXI 9.3, our DEFLATE): every decode check of the six sets passes (720), pre-compression encodes byte for byte, and EXIficient decodes every compressed stream sxml writes to the same document as its own (tools/exi-oracle/cross-check.py: 480 of 480). The ratchet lists 2,880 checks.</p>
       </item>
       <item>

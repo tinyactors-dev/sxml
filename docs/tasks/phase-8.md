@@ -210,7 +210,7 @@ After 8.10. EXI 1.0, section 8.5.4.4.1 and the selfContained option.
 output method exi:exi with its parameters, sxml_processor_parse_exi_document,
 the schemaId resolver, and the options reader.
 
-After 8.11.
+**Done** 2026-11-27 After 8.11.
 
 - **Mechanism**: `src/function_library_exi.c` (as
   `src/function_library_binary.c`, D198), the method in `src/serialize.c`, its

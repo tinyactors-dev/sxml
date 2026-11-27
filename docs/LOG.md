@@ -7,6 +7,11 @@ blocked. Add an item to this week's entry with `tools/spec/spec log TEXT`.
 
 ## Week of 2026-11-23
 
+- Packet 8.13 (EXI through the processor) landed: the exi feature,
+  exi:serialize and exi:parse, the exi:exi output method from XQuery and XSLT,
+  the options reader, the schemaId resolver; tools/exi/check-processor.py
+  passes 151 of 151 checks (D333).
+
 - 8.6 and 8.8 done (D333): pre-compression and compression in both directions
   (blocks, the structure channel, value channels read and written in the order
   of EXI 9.3, our DEFLATE): every decode check of the six sets passes (720),
