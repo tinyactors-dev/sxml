@@ -10,6 +10,8 @@
 #   --build          the debug build directory (default: build/exi-debug)
 #   --allow-headers  for the design packets 8.1 and 8.2 only: changes under
 #                    include/sxml/ are allowed
+#   --tests=REGEX    the ctest tests of step 4 (default '^(exi|deflate|inflate)');
+#                    narrower only for a packet that does not touch the others
 #
 # Checks:
 #   1. No change under include/sxml/ (headers first: packet 8.2 wrote them).
@@ -29,11 +31,13 @@ cd "$root"
 base=HEAD
 build=$root/build/exi-debug
 allow_headers=no
+tests='^(exi|deflate|inflate)'
 for argument in "$@"; do
     case $argument in
         --base=*) base=${argument#--base=} ;;
         --build=*) build=${argument#--build=} ;;
         --allow-headers) allow_headers=yes ;;
+        --tests=*) tests=${argument#--tests=} ;;
         *) echo "check-packet: unknown argument '$argument'" >&2; exit 2 ;;
     esac
 done
@@ -68,7 +72,7 @@ ninja -C "$build" sxml exi_golden deflate_vectors sxml_cli $(cd "$build" && ninj
 echo ok
 
 step "4. EXI tests under the sanitizers"
-ctest --test-dir "$build" -R '^(exi|deflate|inflate)' --output-on-failure || fail "ctest -R '^(exi|deflate|inflate)'"
+ctest --test-dir "$build" -R "$tests" --output-on-failure || fail "ctest -R '$tests'"
 
 c_files=$(printf '%s\n' "$changed_files" | grep -E '^(src|tests|apps|bindings)/.*\.c$' | while read -r file; do [ -f "$file" ] && echo "$file"; done || true)
 

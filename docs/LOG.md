@@ -7,6 +7,11 @@ blocked. Add an item to this week's entry with `tools/spec/spec log TEXT`.
 
 ## Week of 2026-11-23
 
+- 8.4 decode (D333): the built-in grammars, string tables and bit streams;
+  every decode check of bit-packed, bit-packed-full, byte-alignment-full,
+  string-limits, string-limits-zero and fragment passes (720 of 720) and is in
+  the ratchet. Typed datatypes move to 8.9, where schemas need them.
+
 - 8.1 and 8.2 done (D333): include/sxml/exi.h and the additive serialize.h,
   name.h and processor.h changes; the EXIficient oracle, the golden corpus of
   tests/exi (every option set), the driver exi_golden with its ratchet, and

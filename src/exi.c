@@ -108,12 +108,10 @@ void sxml_exi_decoder_destroy(sxml_exi_decoder *decoder) {
 
 sxml_status sxml_exi_decoder_decode(sxml_exi_decoder *decoder, const sxml_exi_decode_request *request,
                                     sxml_tree_builder builder) {
-    (void)builder;
-    if (decoder == NULL || request == NULL) {
+    if (decoder == NULL || request == NULL || builder.operations == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    /* Packet 8.4 decodes. */
-    return SXML_STATUS_UNSUPPORTED_FEATURE;
+    return sxml_exi_decode_stream(decoder, request, builder);
 }
 
 /* ---------------------------------------------------------------- Encoder */

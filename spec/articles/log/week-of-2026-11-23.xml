@@ -3,6 +3,9 @@
   <body>
     <list loose="true">
       <item>
+        <p>8.4 decode (<ref kind="decision" to="D333"/>): the built-in grammars, string tables and bit streams; every decode check of bit-packed, bit-packed-full, byte-alignment-full, string-limits, string-limits-zero and fragment passes (720 of 720) and is in the ratchet. Typed datatypes move to 8.9, where schemas need them.</p>
+      </item>
+      <item>
         <p>8.1 and 8.2 done (<ref kind="decision" to="D333"/>): include/sxml/exi.h and the additive serialize.h, name.h and processor.h changes; the EXIficient oracle, the golden corpus of tests/exi (every option set), the driver exi_golden with its ratchet, and tools/exi/check-packet.sh.</p>
       </item>
       <item>
