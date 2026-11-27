@@ -238,18 +238,25 @@ sxml_status sxml_ast_add_node(sxml_ast *ast,
         return SXML_STATUS_CAPACITY_EXCEEDED;
     }
     const sxml_ast_node_index index = {.value = ast->node_count};
-    ast->nodes[index.value] = (sxml_ast_node){
-        .kind = request->kind,
-        .field = SXML_AST_FIELD_NONE,
-        .detail = request->detail,
-        .flags = request->flags,
-        .parent = {.value = 0},
-        .first_child = {.value = 0},
-        .last_child = {.value = 0},
-        .next_sibling = {.value = 0},
-        .source_span = request->source_span,
-        .payload = request->payload,
-    };
+    sxml_ast_node *added = &ast->nodes[index.value];
+    /* Every byte of the node is defined: zeroed first, then the fields and
+       only the payload member the kind uses. The request's payload is a
+       union a caller initialized through one member, whose other bytes are
+       indeterminate (C17 6.2.6.1); copied whole, they made two ASTs of the
+       same expression differ byte for byte in optimized builds. */
+    memset(added, 0, sizeof(*added));
+    added->kind = request->kind;
+    added->field = SXML_AST_FIELD_NONE;
+    added->detail = request->detail;
+    added->flags = request->flags;
+    added->source_span = request->source_span;
+    if (sxml_ast_kind_has_name_payload(request->kind)) {
+        added->payload.name = request->payload.name;
+    } else if (sxml_ast_kind_has_text_payload(request->kind)) {
+        added->payload.text = request->payload.text;
+    } else if (request->kind == SXML_AST_KIND_DIRECT_PROCESSING_INSTRUCTION_CONSTRUCTOR) {
+        added->payload.processing_instruction = request->payload.processing_instruction;
+    }
     ast->node_count += 1U;
     *node = index;
     return SXML_STATUS_OK;
