@@ -7,6 +7,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before
 decision record (`docs/DECISIONS.md`) always says so. The steps for a
 release are in `docs/RELEASE.md`.
 
+## [Unreleased]
+
+### Changed
+
+- **Clang is the compiler sxml is checked with** (D334): the `debug-gcc`
+  preset is removed and the `release` preset builds with Clang.
+
+### Fixed
+
+- Every byte of an XPath AST node is defined, so two ASTs of one
+  expression are equal in optimized builds too (`xslt_value_template`
+  failed in release).
+
 ## [0.3.0] - 2026-11-27
 
 EXI 1.0 and Canonical EXI (Phase 8, D333): every alignment, compression
@@ -393,5 +406,6 @@ installs with mise (`mise use -g github:tinyactors-dev/sxml`).
 - Conformance: the W3C QT4 test suite runs through `sxml-qt4`, and the
   latest results are in `docs/CONFORMANCE.md`.
 
+[Unreleased]: https://github.com/tinyactors-dev/sxml/compare/v0.3.0...HEAD
 [0.3.0]: https://github.com/tinyactors-dev/sxml/releases/tag/v0.3.0
 [0.2.0]: https://github.com/tinyactors-dev/sxml/releases/tag/v0.2.0
