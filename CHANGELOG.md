@@ -23,7 +23,7 @@ release are in `docs/RELEASE.md`.
   documents); `tests/exi` holds the golden streams. Schema-informed
   grammars come from a compiled XSD (`sxml_schema`): typed values,
   `xsi:type` and `xsi:nil`, strict and non-strict grammars, and the
-  built-in XSD types alone (a schemaId of `xsd-types-only`).
+  built-in XSD types alone (an empty schemaId, EXI 1.0, 5.4).
 - **EXI through the processor** (D333): the optional feature `exi`, in
   every build (D272); the functions `exi:serialize` and `exi:parse` in
   the namespace `urn:sxml:exi`, bound to the prefix `exi` in the `sxml`
