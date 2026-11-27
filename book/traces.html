@@ -1,0 +1,341 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Project: Comparing Traces Before and After a Change - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/traces.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="project-comparing-traces-before-and-after-a-change"><a class="header" href="#project-comparing-traces-before-and-after-a-change">Project: Comparing Traces Before and After a Change</a></h1>
+<!-- examples: traces -->
+<p>The Vane service of <a href="call-chains.html">Project: A Diff of Call Chains</a>
+changed: listing the flags used to read them from PostgreSQL with one
+query, and now it reads the flag keys and then each flag; the kill
+switch no longer reads the flag from Redis, and now writes an audit
+event and calls the owners' webhook. The diff of the call chains
+predicted what that does at run time. In this project we look at what
+the service actually did, before and after the change, from the traces
+it recorded.</p>
+<p>The examples are in <code>docs/book/examples/traces</code>. Run every command of
+this project from that directory.</p>
+<h2 id="traces-spans-resources-and-scopes"><a class="header" href="#traces-spans-resources-and-scopes">Traces, spans, resources and scopes</a></h2>
+<p>When a request goes through a system, each program on its way records
+what it did as <em>spans</em>. A span is one operation: it has a name, a start
+and an end, and a <em>kind</em>. A <em>server</em> span is a program handling a
+request; a <em>client</em> span is a program calling something else, another
+program, a database or a webhook; an <em>internal</em> span is work inside a
+program, such as one function of a module. Every span but the first
+names a <em>parent</em>, the span that caused it, and all the spans of one
+request share a <em>trace id</em>: together they are a <em>trace</em>, a tree of
+spans.</p>
+<p>OpenTelemetry is the common standard for recording traces, and OTLP,
+the OpenTelemetry Protocol, is how programs send their spans to a
+collector. OTLP has a JSON encoding, and collectors can write the
+spans they receive to files in it. Each file holds an
+<code>ExportTraceServiceRequest</code>: a list of <em>resources</em>, each the program
+that recorded the spans (OpenTelemetry calls it a service: its
+<code>service.name</code> and <code>service.version</code>), with a list of <em>scopes</em>, each
+the instrumentation library that made the spans (one for HTTP, one for
+PostgreSQL, one for Redis, one for the functions of the program
+itself), with the spans:</p>
+<p><code>before.json</code> (the start):</p>
+<pre><code class="language-json">{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "storefront" } },
+          { "key": "service.version", "value": { "stringValue": "5.2.0" } },
+          { "key": "deployment.environment.name", "value": { "stringValue": "staging" } }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": { "name": "@vane/node", "version": "1.4.0" },
+          "spans": [
+            {
+              "traceId": "48114dcf6840d1bd46460c4b1ce0d09d",
+              "spanId": "edba4075f74ba88f",
+              "name": "GET /api/getFlags",
+              "kind": 3,
+              "startTimeUnixNano": "1792573200000000000",
+              "endTimeUnixNano": "1792573200050000000",
+              "attributes": [
+                { "key": "http.request.method", "value": { "stringValue": "GET" } },
+                { "key": "server.address", "value": { "stringValue": "vane" } },
+                { "key": "server.port", "value": { "intValue": "8080" } },
+                { "key": "url.full", "value": { "stringValue": "http://vane:8080/api/getFlags?input=%7B%7D" } },
+                { "key": "url.template", "value": { "stringValue": "/api/getFlags" } },
+                { "key": "http.response.status_code", "value": { "intValue": "200" } }
+</code></pre>
+<p>The resource is <code>storefront</code>, an application that uses Vane's backend
+SDK, <code>@vane/node</code>, and this is the span the SDK recorded when it
+downloaded the flags: a call <code>GET /api/getFlags</code> to the Vane service,
+of kind 3 (client), from the time <code>startTimeUnixNano</code> to
+<code>endTimeUnixNano</code>, in nanoseconds since 1970. Its attributes follow
+OpenTelemetry's semantic conventions, the agreed names such as
+<code>http.request.method</code>, <code>server.address</code> and, on the database spans,
+<code>db.system.name</code> and <code>db.query.text</code>. The ids are hexadecimal strings,
+and the times and the integer attributes (<code>intValue</code>) are strings too;
+<a href="formats.html">JSON, CSV and HTML</a> says why.</p>
+<h2 id="the-two-files"><a class="header" href="#the-two-files">The two files</a></h2>
+<p><code>before.json</code> was recorded with the old version of the Vane service,
+2.3.0, <code>after.json</code> with the new one, 2.4.0. Each holds two traces,
+one of each remote function the change touched: the backend SDK
+listing the flags (<code>getFlags</code>), and an owner killing the flag
+<code>new-checkout</code> in the console (<code>killFlag</code>). A first look:</p>
+<pre><code class="language-console">$ sxml xpath '("before.json", "after.json") ! `{.}: {count(json-doc(.)?resourceSpans?*?scopeSpans?*?spans?*)} spans of {count(distinct-values(json-doc(.)?resourceSpans?*?scopeSpans?*?spans?*?traceId))} traces in {string-join(json-doc(.)?resourceSpans?*?resource?attributes?*[?key = "service.name"]?value?stringValue, ", ")}`'
+"before.json: 14 spans of 2 traces in storefront, vane, vane-console"
+"after.json: 23 spans of 2 traces in storefront, vane, vane-console"
+</code></pre>
+<p>Nine spans more, and the same three programs: the console, the
+storefront with its SDK, and the service. Which spans, and why?</p>
+<h2 id="the-plan"><a class="header" href="#the-plan">The plan</a></h2>
+<p>The project builds a small tool in XQuery and XSLT that answers that
+question for any two trace files:</p>
+<ul>
+<li><a href="traces-tree.html">Spans as a Tree</a> reads OTLP JSON into records,
+rebuilds each trace's tree from the parent ids, and writes it as XML:
+the normal form the rest of the project uses.</li>
+<li><a href="traces-cardinality.html">Who Calls Whom, and How Often</a> finds the
+participants of each call, counts the calls per request, and uses
+windows to find runs of the same call.</li>
+<li><a href="traces-diff.html">The Trace Diff</a> compares the counts of the two files,
+and the versions of the programs, as text and as JSON.</li>
+<li><a href="traces-rendering.html">Rendering the Diff</a> writes the diff as an HTML
+report and draws it as a diagram.</li>
+<li><a href="traces-streaming.html">Streaming Large Trace Files</a> handles a trace
+archive too large to load, with streaming XSLT.</li>
+</ul>
+<p>All the functions live in one library module, <code>trace.xqm</code>, whose parts
+each section explains.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="call-chains-diff.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="traces-tree.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="call-chains-diff.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="traces-tree.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

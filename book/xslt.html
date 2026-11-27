@@ -1,0 +1,361 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Transforming with XSLT - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xslt.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="transforming-with-xslt"><a class="header" href="#transforming-with-xslt">Transforming with XSLT</a></h1>
+<!-- examples: spec -->
+<p>XQuery describes a result by computing it: for each requirement, make
+this element. XSLT describes it by <em>rules</em>: when you meet a requirement,
+make this element. A stylesheet is a set of <em>template rules</em>, each with
+a <em>pattern</em> that says which nodes it applies to. The processor walks the
+input, finds the best rule for each node, and the rules decide whether
+and how to go on to the children.</p>
+<p>That way of working fits documents well, and the Vane draft is a
+document: paragraphs hold text, cross references, key words and notes
+in any order, and sections nest as deep as the authors like. Rules say
+what to do with each part without knowing the whole structure in
+advance. It is also what makes XSLT easy to extend: a new stylesheet
+can import an old one and override only the rules it wants to change.</p>
+<p>A stylesheet is itself an XML document, with its instructions in the
+XSLT namespace, <code>http://www.w3.org/1999/XSL/Transform</code>, usually with the
+prefix <code>xsl</code>. This chapter turns the draft, <code>vane.xml</code> in
+<code>docs/book/examples/spec</code>, into the things a specification needs: a
+copy for publication, an HTML page, a plain-text version in the style of
+an RFC, and indexes. Run the commands in that directory.</p>
+<h2 id="the-built-in-rules"><a class="header" href="#the-built-in-rules">The built-in rules</a></h2>
+<p>The smallest stylesheet has no rules at all:</p>
+<p><code>empty.xsl</code>:</p>
+<pre><code class="language-xml">&lt;xsl:stylesheet version="4.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"&gt;
+&lt;/xsl:stylesheet&gt;
+</code></pre>
+<p>Even so, it does something:</p>
+<pre><code class="language-console">$ sxml transform empty.xsl vane.xml | grep -v '^ *$' | head -12
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+    The Vane Protocol for Feature Flag Rollouts
+      Example Software
+      ada@example.com
+      Example Software
+      alan@example.com
+    Applications
+    feature flag
+    progressive delivery
+      This document specifies Vane, the protocol between the SDKs that
+      evaluate feature flags in applications and the Vane service that
+      holds the flags. It defines the states of a flag, the messages of the
+</code></pre>
+<p>When no rule matches a node, a <em>built-in rule</em> applies. For elements
+and the document node, it processes the children. For text, it copies
+the text. So an empty stylesheet writes all the text of a document,
+without the tags: the title, the authors' organizations and email
+addresses, the keywords, the abstract and then the rest of the draft.
+(<code>grep</code> leaves out the lines that hold only the spaces between
+elements; they are text too, and the empty stylesheet copies them.)
+The attributes are gone, <code>docName</code> and every <code>anchor</code>, because the
+built-in rules don't process attributes, and so is the comment at the
+top of the file: the built-in rule for comments and processing
+instructions makes nothing.</p>
+<h2 id="copying-with-changes"><a class="header" href="#copying-with-changes">Copying with changes</a></h2>
+<p>The built-in behaviour can be changed for a whole <em>mode</em>, the set of
+rules that are used together. With <code>on-no-match="shallow-copy"</code>, a node
+that no rule matches is copied, and its children are processed. Now the
+stylesheet copies the document as it is, and you only write rules for
+what should change. This is the most useful pattern in XSLT.</p>
+<p>Before an Internet-Draft is published, the editorial notes (<code>cref</code>)
+come out, and an IANA section that only says there is nothing to do is
+removed:</p>
+<p><code>publication.xsl</code>:</p>
+<pre><code class="language-xml">&lt;xsl:stylesheet version="4.0"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"&gt;
+  &lt;!-- Copy every node that no template matches. --&gt;
+  &lt;xsl:mode on-no-match="shallow-copy"/&gt;
+
+  &lt;!-- Editorial notes and the comment at the top are for the authors. --&gt;
+  &lt;xsl:template match="cref | /comment()"/&gt;
+
+  &lt;!-- An IANA section without actions is removed before publication. --&gt;
+  &lt;xsl:template match="section[@anchor = 'iana']
+                              [normalize-space(t) = 'This document has no IANA actions.']"/&gt;
+&lt;/xsl:stylesheet&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml transform publication.xsl vane.xml | head -4
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;rfc version="3" category="std" ipr="trust200902" submissionType="IETF" docName="draft-example-vane-protocol-01"&gt;
+  &lt;front&gt;
+    &lt;title abbrev="Vane"&gt;The Vane Protocol for Feature Flag Rollouts&lt;/title&gt;
+    &lt;seriesInfo name="Internet-Draft" value="draft-example-vane-protocol-01"/&gt;
+</code></pre>
+<p>The rules with an empty body make nothing, so the notes, the comment and
+the IANA section are gone; everything else is copied with its
+attributes. A pattern is not limited to a name: <code>/comment()</code> is a
+comment whose parent is the document node, and the predicates on
+<code>section</code> say which section. Save the result and compare:</p>
+<pre><code class="language-console">$ sxml transform --output=public.xml publication.xsl vane.xml
+$ sxml xpath --context-item=vane.xml 'count(//cref), count(//section)'
+2
+9
+$ sxml xpath --context-item=public.xml 'count(//cref), count(//section)'
+0
+8
+$ sxml xpath --context-item=public.xml '//t[@anchor = "req-8"]'
+&lt;t anchor="req-8"&gt;A pause &lt;bcp14&gt;SHOULD&lt;/bcp14&gt; last five minutes.
+      &lt;/t&gt;
+</code></pre>
+<p>The space before the note is still there: it is a text node of its own,
+and only the note's element was left out. A rule's body could just as
+well write a new element in the old one's place, as the next sections
+do for every element of the draft.</p>
+<p>The rest of this chapter goes through the parts of XSLT you'll use the
+most:</p>
+<ul>
+<li><a href="xslt-templates.html">Templates and Modes</a>: rules, patterns,
+priorities, parameters and modes, for an HTML page and a plain-text
+draft;</li>
+<li><a href="xslt-keys-grouping.html">Keys, Numbers and Grouping</a>: looking up the
+targets of cross references, numbering sections and requirements, an
+index of terms and the references;</li>
+<li><a href="xslt-packages.html">Many Outputs, Functions and Packages</a>: a page for
+each section, and the stylesheets organized as modules and a package;</li>
+<li><a href="xslt-project.html">Project: Publishing the Specification</a>: one script
+that checks the draft and writes HTML, text, JSON and a page of
+changes.</li>
+</ul>
+<p>XSLT also draws: <a href="svg-xslt.html">Drawing with XSLT</a> writes SVG with
+template rules, and <a href="svg-transform.html">Transforming SVG</a> changes
+drawings it did not make. <a href="codegen-printer.html">Printing the Tree with
+XSLT</a> prints a tree of TypeScript code as text with
+one rule for each kind of element, and <a href="codegen-pipeline.html">A Pipeline, a Second Target and
+a Changing Schema</a> writes an OpenAPI document from
+an XSD schema with template rules.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xquery-project.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xslt-templates.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xquery-project.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xslt-templates.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

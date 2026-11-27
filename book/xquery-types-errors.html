@@ -1,0 +1,540 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Conditions, Types and Errors - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xquery-types-errors.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="conditions-types-and-errors"><a class="header" href="#conditions-types-and-errors">Conditions, Types and Errors</a></h1>
+<!-- examples: spec -->
+<p>Real documents are untidy. A section holds paragraphs, lists and code
+in any order, a cross reference can point to an anchor that nobody
+defined, a value can be text where a number was expected. This section
+shows how a query chooses between cases, how it states the types it
+expects, and how it deals with errors.</p>
+<h2 id="choosing-by-value-switch"><a class="header" href="#choosing-by-value-switch">Choosing by value: switch</a></h2>
+<p><code>if</code> chooses between two branches; XPath's <code>if</code> was in
+<a href="xpath-functions.html">Functions and Operators</a>. <code>switch</code> chooses between
+many, by comparing one value with the values of its <code>case</code> clauses. A
+<code>case</code> can list several values, and <code>default</code> is required. BCP 14 has
+eleven keywords, of three strengths:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
+    for $keyword in distinct-values(//bcp14)
+    return $keyword || ": " || (switch ($keyword)
+      case "MUST" case "MUST NOT" case "REQUIRED" case "SHALL" case "SHALL NOT" return "absolute"
+      case "SHOULD" case "SHOULD NOT" case "RECOMMENDED" case "NOT RECOMMENDED" return "strong"
+      case "MAY" case "OPTIONAL" return "optional"
+      default return "not a BCP 14 keyword")'
+"MUST: absolute"
+"SHOULD: strong"
+"MUST NOT: absolute"
+"MAY: optional"
+"SHOULD NOT: strong"
+</code></pre>
+<p>The values are compared as <code>deep-equal</code> compares them, after an untyped
+value (the text of an element, here) has been made a string. So a
+string never matches a number: <code>switch ("3") case 3</code> takes the
+<code>default</code>. The parentheses around the <code>switch</code> are needed because it
+is the operand of <code>||</code>.</p>
+<p>In XQuery 4.0, the value in parentheses can be left out. Then each
+<code>case</code> is a condition, and the first one that is true wins:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
+    for $requirement in //t[@anchor]
+    let $words := count(tokenize(normalize-space($requirement)))
+    return `{$requirement/@anchor}: ` || (switch () {
+      case $words lt 15 return "short"
+      case $words lt 18 return "medium"
+      default return "long"
+    })'
+"req-1: short"
+"req-2: short"
+"req-3: medium"
+"req-4: long"
+"req-5: medium"
+"req-9: short"
+"req-6: long"
+"req-10: long"
+"req-7: medium"
+"req-8: medium"
+"req-11: medium"
+</code></pre>
+<p>The braces around the cases are optional; they help when a <code>switch</code>
+sits inside a larger expression.</p>
+<h2 id="choosing-by-type-typeswitch"><a class="header" href="#choosing-by-type-typeswitch">Choosing by type: typeswitch</a></h2>
+<p><code>typeswitch</code> chooses by the <em>type</em> of a value. Each <code>case</code> names a
+sequence type, and a variable in the <code>case</code> binds the value with that
+type. A section of the draft holds blocks of several kinds:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
+    for $block in //section[@anchor = ("messages", "terminology")]/*
+    return typeswitch ($block)
+      case element(name) return "heading: " || $block
+      case element(t) return "paragraph of " || count(tokenize(normalize-space($block))) || " words"
+      case $list as element(dl) return "definition list of " || count($list/dt) || " terms"
+      case $code as element(sourcecode) return "code in " || $code/@type || ", " || count(tokenize($code, "\n")[normalize-space()]) || " lines"
+      default return "a " || name($block)'
+"heading: Terminology"
+"paragraph of 43 words"
+"definition list of 4 terms"
+"heading: Messages"
+"paragraph of 27 words"
+"code in abnf, 6 lines"
+"a section"
+"a section"
+</code></pre>
+<p>The cases are tried in order, and the first that matches wins; here a
+<code>section</code> inside Messages matches none, and takes the default. Types
+are checked as <code>instance of</code> checks them, so derived types count: an
+<code>xs:integer</code> is also an <code>xs:decimal</code>, but an <code>xs:double</code> is neither:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    for $value in (42, 4.2, 4.2e0)
+    return typeswitch ($value)
+      case xs:integer return "integer"
+      case xs:decimal return "decimal"
+      default return "other"'
+"integer"
+"decimal"
+"other"
+</code></pre>
+<h2 id="saying-what-you-expect"><a class="header" href="#saying-what-you-expect">Saying what you expect</a></h2>
+<p>A sequence type after <code>as</code> states what a variable, a parameter or a
+function result must be. You can write one on <code>let</code> and <code>for</code> too:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='let $count as xs:integer := 11 return $count + 1'
+12
+$ sxml xquery --method=adaptive --expression='let $count as xs:integer := "11" return $count + 1'
+expression:1:5: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
+</code></pre>
+<p>The value must already have the type, or be convertible to it by the
+<em>coercion rules</em>, which are few: untyped values are cast to the
+required type, integers and decimals are promoted to doubles where a
+double is required, and nodes are atomized where an atomic value is
+required. A string is never turned into a number. Untyped values are
+what documents without a schema give you, so the year of a reference,
+an attribute, works where an integer is required:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
+    let $year as xs:integer := //reference[@anchor = "RFC2119"]//date/@year
+    return 2026 - $year'
+29
+</code></pre>
+<p><code>treat as</code> is a check without a conversion: it raises <code>err:XPDY0050</code>
+when the value doesn't have the type, and otherwise gives the value
+unchanged:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --expression='//t[@anchor = "req-1"]/bcp14 treat as element(bcp14)'
+&lt;bcp14&gt;MUST&lt;/bcp14&gt;
+$ sxml xquery --context-item=vane.xml --expression='//t[@anchor = "req-1"]/@anchor treat as element(bcp14)'
+expression:1:1: err:XPDY0050: The value of a treat expression does not match its type (XPath 4.0, section 4.16.6)
+</code></pre>
+<h2 id="naming-types"><a class="header" href="#naming-types">Naming types</a></h2>
+<p>When the same type appears in many signatures, give it a name.
+<code>declare type</code> names any item type, and <code>enum</code> is the type of a few
+fixed strings, which is just what the BCP 14 keywords are:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
+    declare type local:keyword as enum("MUST", "MUST NOT", "SHOULD", "SHOULD NOT", "MAY");
+    declare function local:is-absolute($keyword as local:keyword) as xs:boolean {
+      starts-with($keyword, "MUST")
+    };
+    local:is-absolute(//t[@anchor = "req-5"]/bcp14), local:is-absolute("MIGHT")'
+expression:6:54: err:XPTY0004: The value does not match the required type (XPath 4.0, section 3.4, coercion rules)
+</code></pre>
+<p>The first call is fine: the <code>bcp14</code> element is atomized, and its text
+"MUST NOT" is one of the strings of the enumeration. "MIGHT" is not, so
+the second call fails, and with it the whole query. The draft's schema
+makes the same rule for documents, in
+<a href="xsd-simple-types.html">Simple Types and Facets</a>; the type in the query
+makes it for the values a function is given.</p>
+<p><code>declare record</code> names a record type, and also declares a function of
+the same name that makes such records. Fields can have default values,
+and the function takes keyword arguments:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    declare record local:requirement(anchor as xs:string, keyword as xs:string, section as xs:string? := ());
+    local:requirement("req-12", "MUST"),
+    local:requirement("req-13", "MAY", section := "Status"),
+    { "anchor": "req-1" } instance of local:requirement'
+{"anchor":"req-12","keyword":"MUST","section":()}
+{"anchor":"req-13","keyword":"MAY","section":"Status"}
+false()
+</code></pre>
+<p>The last map has no <code>keyword</code>, so it is not a <code>local:requirement</code>.</p>
+<h2 id="kinds-of-errors"><a class="header" href="#kinds-of-errors">Kinds of errors</a></h2>
+<p>Errors come in three kinds, and the second letter pair of the code
+tells you which:</p>
+<ul>
+<li><strong>Static errors</strong> (<code>XPST</code>, <code>XQST</code>) are found when the query is
+compiled, before anything runs: a syntax error, an unknown function,
+an undeclared variable.</li>
+<li><strong>Type errors</strong> (<code>XPTY</code>, <code>XQTY</code>) mean a value has the wrong type for
+where it is used.</li>
+<li><strong>Dynamic errors</strong> (<code>XPDY</code>, <code>XQDY</code>, and the <code>FO</code> codes of the
+function library) happen while the query runs: division by zero, a
+missing document, a value that can't be cast.</li>
+</ul>
+<p>A query with a static error doesn't run at all, so a static error can't
+be caught. Here is one that surprises many people: a function body has
+no context item, so a path inside a function can't start from the
+document:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --expression='
+    declare function local:requirements() { //t[@anchor] };
+    count(local:requirements())'
+expression:2:45: err:XPDY0002: the focus is absent in a function body
+</code></pre>
+<p>Pass the document to the function as a parameter, or bind it to a
+global variable, whose value may use the context item.</p>
+<h2 id="catching-errors"><a class="header" href="#catching-errors">Catching errors</a></h2>
+<p><code>try</code> evaluates an expression, and when it raises a dynamic or type
+error, the first <code>catch</code> clause whose name matches the error code gives
+the value instead. <code>*</code> matches every error, <code>err:*</code> every error of the
+specifications, and <code>|</code> lists several codes. The number in an anchor
+such as <code>req-7</code> is easy to take out, but a term's anchor has none:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
+    for $anchor in ("req-7", "term-flag")
+    return try { xs:integer(substring-after($anchor, "req-")) } catch err:FORG0001 | err:XPTY0004 { -1 }'
+7
+-1
+</code></pre>
+<p>Inside a <code>catch</code>, variables describe the error: <code>$err:code</code> is its
+name as an <code>xs:QName</code>, <code>$err:description</code> its message, <code>$err:value</code> the
+value that came with it, and <code>$err:module</code>, <code>$err:line-number</code> and
+<code>$err:column-number</code> say where it happened. <code>$err:map</code> holds all of them
+in one map:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='try { xs:integer(substring-after("term-flag", "req-")) } catch * { $err:map }'
+{"code":#Q{http://www.w3.org/2005/xqt-errors}FORG0001,"description":"the value is not in the lexical space or value space of the target type","module":"expression","line-number":1,"column-number":7}
+</code></pre>
+<p><code>#Q{...}FORG0001</code> is how the adaptive method writes an <code>xs:QName</code>.</p>
+<h2 id="raising-your-own-errors"><a class="header" href="#raising-your-own-errors">Raising your own errors</a></h2>
+<p><code>error</code> raises an error with a code of your own, a description and,
+optionally, a value. Give your codes a namespace of your own, so they
+can't be confused with the standard ones; the specification project
+uses <code>urn:example:spec</code>. This query shows what each cross reference of
+the draft will say when it is rendered, and turns a reference to a
+missing anchor into a line of the report instead of a failure:</p>
+<p><code>resolve.xq</code>:</p>
+<pre><code class="language-xquery">declare namespace spec = "urn:example:spec";
+
+declare option output:method "text";
+declare option output:item-separator "&amp;#10;";
+
+declare variable $anchored := //*[@anchor];
+
+(:~ The text a cross reference to the anchor shows, or the error
+    spec:dangling when no element has the anchor. :)
+declare function local:xref-text($target as xs:string) as xs:string {
+  let $element := $anchored[@anchor = $target]
+    otherwise error(xs:QName("spec:dangling"), "No element has the anchor " || $target, $target)
+  return typeswitch ($element)
+    case $section as element(section) return `Section "{$section/name}"`
+    case element(reference) return `[{$target}]`
+    case $term as element(dt) return `the term "{$term}"`
+    default return $target
+};
+
+for $xref in //xref
+let $where := $xref/ancestor::*[@anchor][1]/@anchor
+return
+  try {
+    `{$where}: {local:xref-text($xref/@target)}`
+  } catch spec:dangling {
+    `{$where}: {$err:description}`
+  }
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml resolve.xq
+intro: the term "SDK"
+terminology: [RFC2119]
+terminology: [RFC8174]
+terminology: the term "Flag"
+req-1: the term "Flag"
+messages: [RFC5234]
+req-4: the term "Percentage"
+req-5: the term "Pause"
+req-5: Section "Pause"
+req-9: [RFC6238]
+req-7: the term "Pause"
+</code></pre>
+<p>Every reference of the draft resolves. To see the error at work, break a
+copy of the draft: <code>sed</code> renames one target to an anchor that nobody
+defines.</p>
+<pre><code class="language-console">$ sed 's/target="term-percentage"/target="term-share"/' vane.xml &gt; broken.xml
+$ sxml xquery --context-item=broken.xml resolve.xq | grep req-4
+req-4: No element has the anchor term-share
+</code></pre>
+<p>The query went on after the error, and reported every reference; the
+<code>catch</code> caught <code>spec:dangling</code> and nothing else, so a mistake in the
+query itself would still stop it. The third argument of <code>error</code>, the
+target, is <code>$err:value</code> in the <code>catch</code>, for a caller that wants the
+anchor rather than the message.</p>
+<p><code>otherwise</code> gives its right side when the left side is empty, which
+makes "this, or else fail" short to write. An error that nobody catches
+ends the query, and the <code>sxml</code> command reports it with its code and
+description, and exits with status 1:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --expression='
+    declare namespace spec = "urn:example:spec";
+    //*[@anchor = "req-12"] otherwise error(xs:QName("spec:dangling"), "No element has the anchor req-12")'; echo "exit status $?"
+expression:3:39: spec:dangling: No element has the anchor req-12
+exit status 1
+</code></pre>
+<h2 id="errors-on-purpose"><a class="header" href="#errors-on-purpose">Errors on purpose</a></h2>
+<p>Raising errors is the right thing to do much more often than you might
+think. A query that silently returns nothing for bad input is hard to
+debug; one that says "No element has the anchor term-share" is not. Some
+habits help:</p>
+<ul>
+<li>Declare the types of parameters and results. The error then happens
+at the call that is wrong, not three functions later.</li>
+<li>Use <code>exactly-one</code>, <code>one-or-more</code> and <code>zero-or-one</code> when a path must
+find a certain number of nodes; they raise an error otherwise.</li>
+<li>Catch only the errors you expect, by their codes, and let the others
+through.</li>
+</ul>
+<p><code>try</code> can end with a <code>finally</code> clause, which runs whether or not an
+error happened, for work that must be done either way, such as a
+message. Its value must be empty. The month of a reference is a name,
+so it isn't an integer:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
+    try { xs:integer(//reference[@anchor = "RFC2119"]//date/@month) }
+    catch err:FORG0001 { "the month is a name" }
+    finally { message("checked the month") }'
+"checked the month"
+"the month is a name"
+</code></pre>
+<p><code>fn:trace</code> and <code>fn:message</code> are for debugging output. <code>trace</code> returns
+its input unchanged and writes it, after its label, to standard error;
+<code>message</code> writes its input and returns nothing. The values are written
+as the adaptive method shows them, so strings are in quotes:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
+    let $total := trace(count(//t[@anchor]), "requirements")
+    return (message("halfway"), $total * 2)'
+requirements: 11
+"halfway"
+22
+</code></pre>
+<p>A program that embeds sxml receives the same output through a trace
+sink of its own.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xquery-constructors.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xquery-modules.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xquery-constructors.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xquery-modules.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

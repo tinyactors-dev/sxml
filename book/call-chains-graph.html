@@ -1,0 +1,640 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>A Call Graph from the Code - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/call-chains-graph.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="a-call-graph-from-the-code"><a class="header" href="#a-call-graph-from-the-code">A Call Graph from the Code</a></h1>
+<!-- examples: call-chains -->
+<p>A call graph has a node for each function of a program and an edge
+from a function to each function it calls. To build one from the trees
+that <code>tree-sitter:parse</code> makes, we need three things: the functions, the
+calls inside each function, and for each call, the function it calls.
+The first two are paths in the tree. The third is the interesting part:
+the code says <code>registry.getFlag(key)</code>, and the graph needs to say
+<code>registry.getFlag</code> of the module <code>registry.ts</code>, not a method of
+something named <code>registry</code>.</p>
+<p>This section builds the library module <code>graph.xqm</code> (namespace
+<code>urn:example:graph</code>) one function at a time, and ends with the call
+graph of both versions of the Vane service as XML.</p>
+<h2 id="functions"><a class="header" href="#functions">Functions</a></h2>
+<p>In TypeScript's grammar a function declared with <code>function</code> is a
+<code>function_declaration</code>, and its name is the child whose field is
+<code>name</code>. With the option <code>positions</code>, each element knows its line:</p>
+<pre><code class="language-console">$ sxml xpath 'tree-sitter:parse(unparsed-text("after/flags.ts"), "typescript", { "positions": true() })//function_declaration ! `{@line}: {identifier}`'
+"14: summarize"
+"18: listFlags"
+"27: isOwner"
+"31: killFlag"
+</code></pre>
+<p>The exported functions are inside an <code>export_statement</code>, the others
+are not; <code>//</code> finds both. A program has functions of other kinds too:
+methods of classes are <code>method_definition</code>s, and a function is often
+an arrow function assigned to a const,
+<code>const evaluateAll = (flags) =&gt; …</code>, which is an <code>arrow_function</code> inside a
+<code>variable_declarator</code>. An arrow function passed as an argument, as in
+<code>flags.map((flag) =&gt; flag.evaluate(user))</code>, has no name; its calls are
+calls of the function around it. <code>graph.xqm</code> says this in two
+functions:</p>
+<pre><code class="language-xquery">(: A function with a name of its own: a function declaration, a method,
+   or an arrow function or function expression assigned to a const. An
+   arrow function passed as an argument has no name, and its calls belong
+   to the function around it. :)
+declare function graph:is-function($node as element()) as xs:boolean {
+  exists($node[self::function_declaration or self::method_definition])
+  or exists($node[self::arrow_function or self::function_expression]
+                 [parent::variable_declarator])
+};
+
+(: The function a node is in. :)
+declare function graph:function-of($node as node()) as element()? {
+  $node/ancestor::*[graph:is-function(.)][1]
+};
+
+(: The name of a function; a method is named after its class. :)
+declare function graph:function-name($function as element()) as xs:string {
+  typeswitch ($function)
+    case element(function_declaration)
+      return string($function/*[@field = "name"])
+    case element(method_definition)
+      return $function/ancestor::class_declaration/type_identifier
+             || "." || $function/*[@field = "name"]
+    default
+      return string($function/parent::variable_declarator/*[@field = "name"])
+};
+</code></pre>
+<p><code>graph:function-of</code> is the nearest function above any node: the
+<code>ancestor</code> axis goes up from the node, and the predicate <code>[1]</code> on a
+reverse axis is the nearest one. The functions are named after their
+module, which is the file name without <code>.ts</code>: <code>flags.listFlags</code>,
+<code>registry.getFlag</code>, and a method after its module and class,
+<code>flag.Flag.evaluate</code>.</p>
+<h2 id="calls"><a class="header" href="#calls">Calls</a></h2>
+<p>A call is a <code>call_expression</code>, and what it calls is its child with the
+field <code>function</code>. Its text is the callee as the code writes it:</p>
+<pre><code class="language-console">$ sxml xpath 'tree-sitter:parse(unparsed-text("after/flags.ts"), "typescript", { "positions": true() })//call_expression ! `{@line}: {*[@field = "function"]}`'
+"19: registry.getFlagKeys"
+"22: flags.push"
+"22: registry.getFlag"
+"24: flags.map"
+"28: flag.owners.includes"
+"32: registry.getFlag"
+"33: isOwner"
+"36: registry.setPercentage"
+"37: audit.record"
+</code></pre>
+<p>Line 22 has two calls, one inside the other: <code>flags.push(await registry.getFlag(key))</code>. The callee is either an <code>identifier</code>
+(<code>isOwner</code>) or a <code>member_expression</code>, whose <code>object</code> and
+<code>property</code> fields are the two sides of the dot:</p>
+<pre><code class="language-console">$ sxml xpath --method=xml '(tree-sitter:parse(unparsed-text("after/flags.ts"), "typescript", { "highlights": false() })//call_expression)[1]'
+&lt;call_expression xmlns:sxml="urn:sxml"&gt;&lt;member_expression field="function"&gt;&lt;identifier field="object"&gt;registry&lt;/identifier&gt;.&lt;property_identifier field="property"&gt;getFlagKeys&lt;/property_identifier&gt;&lt;/member_expression&gt;&lt;arguments field="arguments"&gt;()&lt;/arguments&gt;&lt;/call_expression&gt;
+</code></pre>
+<p>The list shows the three kinds of calls a call graph has to tell
+apart. <code>registry.getFlag</code> and <code>audit.record</code> call functions of other
+modules of the program, and <code>isOwner</code> a function of the same
+module. <code>flags.push</code>, <code>flags.map</code> and <code>flag.owners.includes</code> call
+methods of local values, an array and a string array, which are not
+part of the program's structure. And other files have calls of
+functions outside the program: <code>fetch</code>, <code>JSON.parse</code>, <code>createServer</code>,
+and <code>pool.query</code>, the PostgreSQL pool's method that <code>db.ts</code> calls.</p>
+<h2 id="resolving-a-callee"><a class="header" href="#resolving-a-callee">Resolving a callee</a></h2>
+<p>What a name stands for in a module comes from the module's imports.
+In <code>flags.ts</code>:</p>
+<pre><code class="language-console">$ sxml xpath 'tree-sitter:parse(unparsed-text("after/flags.ts"), "typescript")//import_statement ! `{.//(namespace_import/identifier | import_specifier/*[@field = "name"])} from {string/string_fragment}`'
+"registry from ./registry.ts"
+"audit from ./audit.ts"
+"Flag from ./db.ts"
+</code></pre>
+<p>A <em>namespace import</em>, <code>import * as registry from "./registry.ts"</code>,
+makes <code>registry</code> stand for the module <code>registry</code>, so the call
+<code>registry.getFlag</code> is the function <code>registry.getFlag</code>. A <em>named
+import</em>, <code>import { listFlags } from "./flags.ts"</code> in <code>api.ts</code>, makes
+<code>listFlags</code> stand for the function <code>flags.listFlags</code>. <code>graph:imports</code>
+makes a map from each imported name to what it stands for. Imports
+from packages, <code>node:http</code>, <code>redis</code> and <code>pg</code>, are not modules of the
+program, so they are left out, and calls to them become external:</p>
+<pre><code class="language-xquery">(: What the imported names of a module stand for: a namespace import
+   names a module, a named import a function of a module. Imports from
+   packages (node:http, redis, pg) are left out: calls to them are
+   external. :)
+declare function graph:imports($program as element(program)) as map(*) {
+  map:merge(
+    for $import in $program/import_statement
+    let $source := string($import/string/string_fragment)
+    where starts-with($source, "./")
+    let $module := graph:module-name($source)
+    return (
+      $import//namespace_import/identifier ! { string(.): $module },
+      $import//import_specifier/*[@field = "name"]
+        ! { string(.): $module || "." || . }
+    )
+  )
+};
+</code></pre>
+<p>The other names a call can start with are the function's own: its
+parameters and variables. A call through one of them is a method of a
+local value. <code>graph:locals</code> lists them, and <code>graph:root</code> finds the name
+a callee starts with, going down the <code>object</code> fields of a chain of
+member expressions:</p>
+<pre><code class="language-xquery">(: The names a function declares: its parameters, variables and loop
+   variables, and those of the anonymous functions inside it. :)
+declare function graph:locals($function as element()) as xs:string* {
+  $function//(required_parameter | optional_parameter)/*[@field = "pattern"],
+  $function//variable_declarator/identifier[@field = "name"],
+  $function//shorthand_property_identifier_pattern,
+  $function//for_in_statement/identifier[@field = "left"]
+};
+
+(: The name a callee starts with: registry in registry.getFlag, flag in
+   flag.owners.includes, this in this.check; empty when it starts with a
+   value, as new Date().toISOString does. :)
+declare function graph:root($callee as element()) as element()? {
+  if ($callee instance of element(member_expression))
+  then graph:root($callee/*[@field = "object"])
+  else $callee[self::identifier or self::this]
+};
+</code></pre>
+<p><code>graph:callee</code> puts the rules together. It returns a record of the
+type <code>graph:target</code>, declared at the top of the module with
+<code>declare record graph:target(id as xs:string, external as xs:boolean)</code>,
+or nothing for a method of a local value:</p>
+<pre><code class="language-xquery">(: The function a call calls, or nothing for a method of a local value.
+   $module is the caller's module, $functions the ids of all functions
+   of the program. :)
+declare function graph:callee(
+  $call as element(call_expression),
+  $module as xs:string,
+  $functions as xs:string*
+) as graph:target? {
+  let $callee := $call/*[@field = "function"]
+  let $imports := graph:imports($call/ancestor::program)
+  let $locals := graph:locals(graph:function-of($call))
+  let $root := graph:root($callee)
+  return
+    if ($callee instance of element(identifier)) then (
+      if (map:contains($imports, $callee))
+      then graph:target($imports($callee), false())
+      else if ($functions = $module || "." || $callee)
+      then graph:target($module || "." || $callee, false())
+      else if ($locals = $callee) then ()
+      else graph:target($callee, true())
+    )
+    else if ($root instance of element(this))
+    then graph:target($module || "." || $callee/ancestor::class_declaration/type_identifier
+                      || "." || $callee/*[@field = "property"], false())
+    else if ($callee/*[@field = "object"] is $root
+             and map:contains($imports, $root))
+    then graph:target($imports($root) || "." || $callee/*[@field = "property"],
+                      false())
+    else if (empty($root) or $locals = $root) then ()
+    else graph:target($callee, true())
+};
+</code></pre>
+<p>In order:</p>
+<ol>
+<li>A plain name that was imported is the function it was imported as;
+one that names a function of the same module is that function; a
+local name is a value, not part of the graph; any other name is a
+function outside the program, such as <code>fetch</code>.</li>
+<li><code>this.check</code> in a method is the method <code>check</code> of the same class.</li>
+<li><code>registry.getFlag</code>, where <code>registry</code> is a namespace import, is the
+function <code>getFlag</code> of that module. The test that the object <em>is</em> the
+root (<code>is</code> compares the identity of nodes) keeps out a longer chain
+such as <code>registry.cache.get</code>.</li>
+<li>A callee that starts with a local name or with a value, as in
+<code>flag.owners.includes</code> or <code>new Date().toISOString</code>, is left out.
+Anything else, <code>JSON.parse</code>, or <code>client.get</code> and <code>pool.query</code> on a
+const of the module, is external.</li>
+</ol>
+<h2 id="functions-passed-as-values"><a class="header" href="#functions-passed-as-values">Functions passed as values</a></h2>
+<p><code>listFlags</code> ends with <code>flags.map(summarize)</code>. That is a call of
+<code>flags.map</code>, a method of a local array, but <code>summarize</code> is called too,
+by <code>map</code>, once per flag. A function of the module named as an argument
+is an edge of the graph as well; the graph marks it <code>passed</code>.</p>
+<h2 id="calls-in-loops"><a class="header" href="#calls-in-loops">Calls in loops</a></h2>
+<p>A call inside a loop of its function runs once per iteration. The new
+<code>listFlags</code> calls <code>registry.getFlag</code> in a <code>for … of</code> loop, which the
+grammar calls a <code>for_in_statement</code> (it has <code>for … in</code> and <code>for … of</code>
+both). A loop belongs to the call's function only when the nearest
+function above the loop is the call's function too; a loop in an
+outer function does not count:</p>
+<pre><code class="language-xquery">(: Whether a node is in a loop of its own function. :)
+declare function graph:in-loop($node as node()) as xs:boolean {
+  some $loop in $node/ancestor::*[self::for_statement or self::for_in_statement
+                                  or self::while_statement or self::do_statement]
+  satisfies graph:function-of($loop) is graph:function-of($node)
+};
+</code></pre>
+<p>The graph marks such a call <code>repeated</code>. A loop is not the only way to
+call something many times: the <code>summarize</code> passed to <code>map</code> runs once per
+flag as well. The graph says only what the code says in so many words.</p>
+<h2 id="the-graph-as-xml"><a class="header" href="#the-graph-as-xml">The graph as XML</a></h2>
+<p><code>graph:graph</code> takes the parsed modules of a program as a map from the
+module name to its <code>program</code> element, and returns the graph: a
+<code>function</code> element for each function, and a <code>call</code> element for each
+call that resolves to a function, with its line:</p>
+<pre><code class="language-xquery">(: The call graph of a program, given as its modules by name. :)
+declare function graph:graph(
+  $modules as map(xs:string, element(program))
+) as element(graph) {
+  let $functions :=
+    for $module in sort(map:keys($modules))
+    for $function in $modules($module)//*[graph:is-function(.)]
+    return { "module": $module, "element": $function,
+             "id": $module || "." || graph:function-name($function) }
+  return &lt;graph&gt;{
+    for $function in $functions
+    return &lt;function id="{ $function?id }" line="{ $function?element/@line }"/&gt;,
+    for $function in $functions
+    for $call in $function?element//call_expression
+    where graph:function-of($call) is $function?element
+    let $target := graph:callee($call, $function?module, $functions?id)
+    (: A function of the module passed as an argument is called from
+       here too, by the function it is passed to. :)
+    let $passed := $call/arguments/identifier
+                   [$functions?id = $function?module || "." || .]
+                   ! graph:target($function?module || "." || ., false())
+    for $to at $position in ($target, $passed)
+    return &lt;call from="{ $function?id }" to="{ $to?id }" line="{ $call/@line }"&gt;{
+      if (graph:in-loop($call)) { attribute repeated { "true" } },
+      if ($to?external) { attribute external { "true" } },
+      if ($position &gt; count($target)) { attribute passed { "true" } }
+    }&lt;/call&gt;
+  }&lt;/graph&gt;
+};
+</code></pre>
+<p>The <code>for $to at $position in ($target, $passed)</code> clause makes one
+<code>call</code> element for the callee and one for each function passed to it;
+the position tells them apart. The conditional attributes use the
+braced form of <code>if</code>, <code>if (C) { E }</code>, which needs no <code>else</code>.</p>
+<p><code>graph:read</code> reads a directory of TypeScript files into that map, with
+the EXPath File functions:</p>
+<pre><code class="language-xquery">(: The modules of a directory, parsed. :)
+declare function graph:read(
+  $directory as xs:string
+) as map(xs:string, element(program)) {
+  map:merge(
+    for $file in file:list($directory, false(), "*.ts")
+    return { graph:module-name($file):
+               tree-sitter:parse(file:read-text($directory || "/" || $file),
+                               "typescript", { "positions": true() })/program }
+  )
+};
+</code></pre>
+<p><code>graph.xq</code> prints the graph of a directory:</p>
+<pre><code class="language-xquery">(: The call graph of the TypeScript files in a directory, as XML: one
+   version of the Vane service, before or after. :)
+import module namespace graph = "urn:example:graph" at "graph.xqm";
+
+declare option output:indent "yes";
+
+declare variable $directory as xs:string external := "before";
+
+graph:graph(graph:read($directory))
+</code></pre>
+<p>The File functions need <code>--allow-file-access</code>, and the directory is an
+external variable:</p>
+<pre><code class="language-console">$ sxml xquery --allow-file-access --param=directory=after graph.xq
+&lt;graph&gt;
+  &lt;function id="api.route" line="6"/&gt;
+  &lt;function id="api.start" line="17"/&gt;
+  &lt;function id="audit.record" line="7"/&gt;
+  &lt;function id="db.query" line="21"/&gt;
+  &lt;function id="flags.summarize" line="14"/&gt;
+  &lt;function id="flags.listFlags" line="18"/&gt;
+  &lt;function id="flags.isOwner" line="27"/&gt;
+  &lt;function id="flags.killFlag" line="31"/&gt;
+  &lt;function id="registry.getFlagKeys" line="7"/&gt;
+  &lt;function id="registry.getFlag" line="12"/&gt;
+  &lt;function id="registry.setPercentage" line="17"/&gt;
+  &lt;call from="api.route" to="flags.listFlags" line="8"/&gt;
+  &lt;call from="api.route" to="JSON.parse" line="11" external="true"/&gt;
+  &lt;call from="api.route" to="flags.killFlag" line="12"/&gt;
+  &lt;call from="api.start" to="createServer" line="18" external="true"/&gt;
+  &lt;call from="api.start" to="api.route" line="23"/&gt;
+  &lt;call from="api.start" to="JSON.stringify" line="25" external="true"/&gt;
+  &lt;call from="audit.record" to="db.query" line="8"/&gt;
+  &lt;call from="audit.record" to="fetch" line="9" external="true"/&gt;
+  &lt;call from="audit.record" to="JSON.stringify" line="11" external="true"/&gt;
+  &lt;call from="db.query" to="pool.query" line="22" external="true"/&gt;
+  &lt;call from="flags.listFlags" to="registry.getFlagKeys" line="19"/&gt;
+  &lt;call from="flags.listFlags" to="registry.getFlag" line="22" repeated="true"/&gt;
+  &lt;call from="flags.listFlags" to="flags.summarize" line="24" passed="true"/&gt;
+  &lt;call from="flags.killFlag" to="registry.getFlag" line="32"/&gt;
+  &lt;call from="flags.killFlag" to="flags.isOwner" line="33"/&gt;
+  &lt;call from="flags.killFlag" to="registry.setPercentage" line="36"/&gt;
+  &lt;call from="flags.killFlag" to="audit.record" line="37"/&gt;
+  &lt;call from="registry.getFlagKeys" to="db.query" line="8"/&gt;
+  &lt;call from="registry.getFlag" to="db.query" line="13"/&gt;
+  &lt;call from="registry.setPercentage" to="db.query" line="18"/&gt;
+&lt;/graph&gt;
+</code></pre>
+<p><code>api.start</code> calls <code>api.route</code> from inside the arrow function it
+passes to <code>createServer</code>; the arrow function has no name, so the call
+belongs to <code>start</code>. The calls <code>flags.push</code>, <code>rows.map</code>,
+<code>response.end</code> and the others on local values are not there.
+<code>pool.query</code> is: <code>pool</code> is a const of the module <code>db</code>, not a local of
+<code>query</code>, and the pool belongs to the <code>pg</code> package, so the call is
+external. Every function that sends SQL calls <code>db.query</code>, and the
+audit module's <code>fetch</code> is the call to the owners' webhook.</p>
+<h2 id="asking-the-graph"><a class="header" href="#asking-the-graph">Asking the graph</a></h2>
+<p>Once the graph is a document, questions about the program are short
+XPath expressions. Save it first:</p>
+<pre><code class="language-console">$ sxml xquery --allow-file-access --param=directory=after graph.xq --output=after.xml
+</code></pre>
+<p>Who calls <code>registry.getFlag</code>, and where?</p>
+<pre><code class="language-console">$ sxml xpath --context-item=after.xml '//call[@to = "registry.getFlag"] ! `{@from}, line {@line}{if (@repeated) then ", in a loop" else ""}`'
+"flags.listFlags, line 22, in a loop"
+"flags.killFlag, line 32"
+</code></pre>
+<p>Which functions does no call reach? Those are where the program is
+entered:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=after.xml '//function[not(@id = //call/@to)]/@id/string()'
+"api.start"
+</code></pre>
+<p>Which functions outside the program does it use?</p>
+<pre><code class="language-console">$ sxml xpath --context-item=after.xml 'distinct-values(//call[@external]/@to)'
+"JSON.parse"
+"createServer"
+"JSON.stringify"
+"fetch"
+"pool.query"
+</code></pre>
+<h2 id="what-a-call-graph-from-the-code-cannot-see"><a class="header" href="#what-a-call-graph-from-the-code-cannot-see">What a call graph from the code cannot see</a></h2>
+<p><code>kinds/flag.ts</code> has the other kinds of functions: two methods, an
+arrow function assigned to a const, and an arrow function passed to
+<code>map</code>:</p>
+<pre><code class="language-typescript">// Three kinds of functions: methods, an arrow function assigned to a
+// const, and an arrow function passed as an argument.
+class Flag {
+  evaluate(user: string): boolean {
+    return this.check(user) &amp;&amp; log("evaluate");
+  }
+
+  check(user: string): boolean {
+    return /^beta-/.test(user);
+  }
+}
+
+const evaluateAll = (flags: Flag[], user: string): boolean[] =&gt;
+  flags.map((flag) =&gt; flag.evaluate(user));
+
+function log(text: string): boolean {
+  console.log(text);
+  return true;
+}
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --allow-file-access --param=directory=kinds graph.xq
+&lt;graph&gt;
+  &lt;function id="flag.Flag.evaluate" line="4"/&gt;
+  &lt;function id="flag.Flag.check" line="8"/&gt;
+  &lt;function id="flag.evaluateAll" line="13"/&gt;
+  &lt;function id="flag.log" line="16"/&gt;
+  &lt;call from="flag.Flag.evaluate" to="flag.Flag.check" line="5"/&gt;
+  &lt;call from="flag.Flag.evaluate" to="flag.log" line="5"/&gt;
+  &lt;call from="flag.log" to="console.log" line="17" external="true"/&gt;
+&lt;/graph&gt;
+</code></pre>
+<p>The methods, <code>this.check</code> and the call of <code>log</code> are found. But
+<code>evaluateAll</code> calls <code>Flag.evaluate</code> for each flag, and the graph does
+not say so: <code>flag.evaluate(user)</code> is a call on <code>flag</code>, a parameter of
+the arrow function, and the graph cannot know what <code>flag</code> is without
+the types. The code has them (<code>flags: Flag[]</code>), and a longer query could follow
+the type annotations to the class. Other calls no query of the code
+can resolve: a function chosen at run time, from a map of handlers or
+by a name in a string. A call graph from the code is a good
+approximation, and for this project it is exact: the Vane service
+calls its modules through namespace and named imports, and everything
+else is a local value or outside the program.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="call-chains.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="call-chains-diff.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="call-chains.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="call-chains-diff.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

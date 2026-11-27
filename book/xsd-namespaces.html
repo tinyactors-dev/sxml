@@ -1,0 +1,463 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Namespaces and Larger Schemas - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xsd-namespaces.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="namespaces-and-larger-schemas"><a class="header" href="#namespaces-and-larger-schemas">Namespaces and Larger Schemas</a></h1>
+<!-- examples: scxml -->
+<p>The draft's vocabulary has no namespace. Most real vocabularies have
+one: XHTML, SVG, Atom, and SCXML, the W3C's language for state
+machines. This section, and the rest of the chapter, works in the
+<code>scxml</code> directory, on the Vane feature flag written as an SCXML
+machine, <code>flag.scxml</code>. <a href="scxml.html">Project: Self-Describing State Machines</a> explains
+the machine itself; here it is a document with three namespaces in it:</p>
+<ul>
+<li>SCXML's, <code>http://www.w3.org/2005/07/scxml</code>, for the states and
+transitions;</li>
+<li><code>urn:example:vane</code>, with the prefix <code>vane</code>, for the annotations
+that describe the machine's events and data;</li>
+<li>XHTML's, <code>http://www.w3.org/1999/xhtml</code>, for the documentation of
+each state and event.</li>
+</ul>
+<p>Here is its start and one state:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:vane="urn:example:vane"
+       version="1.0" name="feature_flag" initial="stable" datamodel="ecmascript"&gt;
+
+  &lt;vane:events&gt;
+</code></pre>
+<pre><code class="language-xml">  &lt;state id="stable" vane:implements="req-2"&gt;
+    &lt;div xmlns="http://www.w3.org/1999/xhtml"&gt;
+      &lt;p&gt;The flag keeps its percentage. It waits for a rollout.&lt;/p&gt;
+    &lt;/div&gt;
+    &lt;transition event="rollout.request" target="checking"/&gt;
+    &lt;transition event="status.request" vane:implements="req-6"&gt;
+      &lt;send event="status.response"/&gt;
+    &lt;/transition&gt;
+  &lt;/state&gt;
+</code></pre>
+<p>Two schemas describe it: <code>scxml.xsd</code> for SCXML, and <code>vane-data.xsd</code>
+for the annotations. XHTML has no schema here, and the machine is
+valid all the same:</p>
+<pre><code class="language-console">$ sxml validate --schema=scxml.xsd flag.scxml; echo "exit status $?"
+exit status 0
+</code></pre>
+<p>This section shows how a schema describes a namespace, how two schemas
+for two namespaces work together, and how a schema leaves room for
+namespaces it doesn't know.</p>
+<h2 id="a-target-namespace"><a class="header" href="#a-target-namespace">A target namespace</a></h2>
+<p><code>targetNamespace</code> on <code>xs:schema</code> puts every global declaration and
+named type of the schema into that namespace. Here is the top of
+<code>scxml.xsd</code>:</p>
+<pre><code class="language-xml">&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning"
+           xmlns:sc="http://www.w3.org/2005/07/scxml"
+           targetNamespace="http://www.w3.org/2005/07/scxml"
+           elementFormDefault="qualified"
+           vc:minVersion="1.1"&gt;
+</code></pre>
+<p>Inside the schema, references to its own components are QNames in the
+target namespace. <code>scxml.xsd</code> binds the prefix <code>sc</code> to it, so a
+reference to its own group or type is written with the prefix:</p>
+<pre><code class="language-xml">  &lt;xs:complexType name="executable-block"&gt;
+    &lt;xs:group ref="sc:executable" minOccurs="0" maxOccurs="unbounded"/&gt;
+  &lt;/xs:complexType&gt;
+</code></pre>
+<p>The other way is to make the target namespace the schema's default
+namespace, with <code>xmlns="http://www.w3.org/2005/07/scxml"</code>; then
+<code>ref="executable"</code> finds it. Either way, a reference without the right
+namespace names nothing, and the schema doesn't compile. Built-in types
+keep their <code>xs:</code> prefix.</p>
+<p><code>elementFormDefault="qualified"</code> puts the <em>local</em> elements, such as
+<code>state</code> and <code>transition</code>, into the target namespace as well. Without
+it, only global elements are in the namespace, and local elements are
+in no namespace, which surprises almost everyone; most schemas say
+<code>qualified</code>. Attributes are different: unprefixed attributes such as
+<code>id</code> and <code>event</code> are in no namespace, and <code>attributeFormDefault</code> stays
+at its default, <code>unqualified</code>.</p>
+<h2 id="namespace-mistakes"><a class="header" href="#namespace-mistakes">Namespace mistakes</a></h2>
+<p>The same machine without its namespace has an element that the schema
+doesn't know at all:</p>
+<pre><code class="language-console">$ sed 's| xmlns="http://www.w3.org/2005/07/scxml"||' flag.scxml | sxml validate --schema=scxml.xsd -
+-:2:1: cvc-elt.1: no global declaration governs element 'scxml'
+</code></pre>
+<p>When <code>cvc-elt.1</code> says no declaration governs an element that you can
+see in the schema, check its namespace first.</p>
+<p>A namespace declaration that is missing lower down moves elements into
+the wrong namespace. Without its <code>xmlns</code>, the first state's <code>div</code> is in
+the default namespace of its parent, SCXML's, and SCXML has no <code>div</code>:</p>
+<pre><code class="language-console">$ sed '0,/&lt;div xmlns="http:\/\/www.w3.org\/1999\/xhtml"&gt;/s//&lt;div&gt;/' flag.scxml \
+  | sxml validate --schema=scxml.xsd -
+-:44:5: cvc-complex-type.2.4: element 'div' is not allowed here; expected 'onentry', 'onexit', 'transition', 'state', 'final', 'datamodel' or an element of another namespace
+</code></pre>
+<p>An element's namespace comes from the namespace declarations in scope
+where it is written, never from what it means.</p>
+<h2 id="import"><a class="header" href="#import">Import</a></h2>
+<p>A schema can be split into several documents.</p>
+<ul>
+<li><code>xs:include</code> brings in a schema document with the <em>same</em> target
+namespace (or none, in which case its components take the including
+schema's namespace). The draft's <code>levels.xsd</code> includes <code>vane.xsd</code>
+this way.</li>
+<li><code>xs:import</code> makes the components of <em>another</em> namespace available.
+The vane annotations have their own schema, <code>vane-data.xsd</code>, with
+the target namespace <code>urn:example:vane</code>, and <code>scxml.xsd</code> imports it:</li>
+</ul>
+<pre><code class="language-xml">  &lt;xs:import namespace="urn:example:vane" schemaLocation="vane-data.xsd"/&gt;
+</code></pre>
+<p><code>vane-data.xsd</code> declares the annotation attributes as <em>global</em>
+attributes, so that they can be used on elements of other namespaces:</p>
+<pre><code class="language-xml">  &lt;xs:attribute name="type" type="xs:QName"/&gt;
+  &lt;xs:attribute name="payload" type="xs:QName"/&gt;
+  &lt;!-- The anchors of the requirements a state or transition carries out. --&gt;
+  &lt;xs:attribute name="implements"&gt;
+    &lt;xs:simpleType&gt;
+      &lt;xs:list itemType="xs:NCName"/&gt;
+    &lt;/xs:simpleType&gt;
+  &lt;/xs:attribute&gt;
+</code></pre>
+<p><code>schemaLocation</code> is relative to the document that contains it. It's
+only a hint on <code>xs:import</code>: the components can also come from another
+schema document given on the command line.</p>
+<h2 id="wildcards-and-lax-processing"><a class="header" href="#wildcards-and-lax-processing">Wildcards and lax processing</a></h2>
+<p>Nothing in <code>scxml.xsd</code> mentions XHTML or the vane attributes by name.
+Instead, almost every type has wildcards:</p>
+<pre><code class="language-xml">&lt;xs:any namespace="##other" processContents="lax"/&gt;
+&lt;xs:anyAttribute namespace="##other" processContents="lax"/&gt;
+</code></pre>
+<p><code>xs:any</code> allows an element, and <code>xs:anyAttribute</code> an attribute, of the
+namespaces it names. <code>##other</code> means every namespace except the target
+namespace (and except no namespace); others are <code>##any</code>, <code>##local</code>,
+<code>##targetNamespace</code>, or a list of namespace names. <code>processContents</code>
+says what happens to what the wildcard lets in:</p>
+<ul>
+<li><code>strict</code>: it must have a declaration, and be valid by it;</li>
+<li><code>lax</code>: it is validated when the schema has a declaration for it, and
+let through when not;</li>
+<li><code>skip</code>: it is not validated at all.</li>
+</ul>
+<p>So the vane attributes, which <code>vane-data.xsd</code> declares, are
+validated, and the XHTML, which no schema declares, is let through. A
+machine with an anchor that is not a name, a type given without its
+prefix, and an XHTML element that XHTML doesn't have, shows the
+difference:</p>
+<pre><code class="language-console">$ sed -e 's/vane:implements="req-5 req-8"/vane:implements="req-5 8"/' \
+      -e 's/vane:type="vane:seconds"/vane:type="seconds"/' \
+      -e 's|&lt;p&gt;The flag is archived.|&lt;p&gt;&lt;blink&gt;The flag&lt;/blink&gt; is archived.|' flag.scxml \
+  | sxml validate --schema=scxml.xsd -
+-:80:22: cvc-datatype-valid.1.2.1: attribute 'vane:implements' has the value 'req-5 8', which is not valid for an anonymous type derived from 'xs:anySimpleType'
+</code></pre>
+<p>Only the anchor is reported. <code>8</code> is not an <code>xs:NCName</code>, so it can't be
+an item of the list. <code>seconds</code> is a valid <code>xs:QName</code>, the name <code>seconds</code>
+in the default namespace, SCXML's; that it names no type is a mistake
+the schema can't see, and <a href="scxml-checks.html">Checking What the Schema
+Cannot</a> finds it. <code>blink</code> is not checked at all.</p>
+<p>Lax processing has a price: when a declaration is missing, nothing is
+validated and nothing is said. Without the <code>schemaLocation</code> of the
+import, <code>scxml.xsd</code> doesn't find <code>vane-data.xsd</code>, and the broken
+anchor goes through:</p>
+<pre><code class="language-console">$ sed 's| schemaLocation="vane-data.xsd"||' scxml.xsd &gt; scxml-alone.xsd
+$ sed 's/vane:implements="req-5 req-8"/vane:implements="req-5 8"/' flag.scxml &gt; broken.scxml
+$ sxml validate --schema=scxml-alone.xsd broken.scxml; echo "exit status $?"
+exit status 0
+$ sxml validate --schema=scxml-alone.xsd --schema=vane-data.xsd broken.scxml
+broken.scxml:80:22: cvc-datatype-valid.1.2.1: attribute 'vane:implements' has the value 'req-5 8', which is not valid for an anonymous type derived from 'xs:anySimpleType'
+</code></pre>
+<p>Every <code>--schema</code> adds documents to one schema, which is how you combine
+vocabularies that don't import each other.</p>
+<h2 id="schema-hints-in-documents"><a class="header" href="#schema-hints-in-documents">Schema hints in documents</a></h2>
+<p>Documents often name their schema with <code>xsi:schemaLocation</code> (pairs of a
+namespace and a location) or <code>xsi:noNamespaceSchemaLocation</code> (a location
+for names in no namespace). Here is the broken machine with such a hint
+on its document element:</p>
+<pre><code class="language-console">$ sed 's|&lt;scxml xmlns="http://www.w3.org/2005/07/scxml"|&amp; xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2005/07/scxml scxml.xsd"|' broken.scxml &gt; hinted.scxml
+$ head -2 hinted.scxml
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2005/07/scxml scxml.xsd"
+</code></pre>
+<p>By default <code>sxml validate</code> doesn't follow these hints: a document
+doesn't get to choose the schema it's checked against, so you name the
+schema with <code>--schema</code>. Without one, there is nothing to validate
+against:</p>
+<pre><code class="language-console">$ sxml validate hinted.scxml
+sxml validate: missing option '--schema' (or give --use-schema-location or --schematron)
+Usage: sxml validate [--schema=SCHEMA]... [--schematron=SCH] [--phase=PHASE] [--schematron-param=NAME=VALUE]... [--use-schema-location] [--mode=MODE] [--format=FORMAT] FILE...
+Try 'sxml validate --help'.
+</code></pre>
+<p><code>--use-schema-location</code> asks for the hints to be followed. The hinted
+documents are local files, relative to the document that names them,
+and they join the <code>--schema</code> documents, if you give any, in one schema
+for that document:</p>
+<pre><code class="language-console">$ sxml validate --use-schema-location hinted.scxml
+hinted.scxml:80:22: cvc-datatype-valid.1.2.1: attribute 'vane:implements' has the value 'req-5 8', which is not valid for an anonymous type derived from 'xs:anySimpleType'
+$ sxml validate --use-schema-location --schema=scxml.xsd hinted.scxml
+hinted.scxml:80:22: cvc-datatype-valid.1.2.1: attribute 'vane:implements' has the value 'req-5 8', which is not valid for an anonymous type derived from 'xs:anySimpleType'
+</code></pre>
+<p>The hinted copy is the broken machine, so both runs find its anchor;
+the second takes SCXML's schema from <code>--schema</code>. A hint only adds a
+namespace the schema doesn't have yet: with
+<code>--schema=scxml.xsd</code>, the hint for SCXML's namespace is ignored, so a
+document can't swap the schema you chose for one of its own. A hinted
+file that doesn't exist isn't an error by itself (XSD 1.1 Part 1,
+4.3.2); the elements it would have declared are then simply undeclared.</p>
+<h2 id="namespaces-in-queries"><a class="header" href="#namespaces-in-queries">Namespaces in queries</a></h2>
+<p>In XQuery, <code>import schema</code> binds a prefix to the schema's namespace, or
+makes it the default element namespace. Then element names and type
+names work as in the schema. The imported <code>vane-data.xsd</code> comes along
+with <code>scxml.xsd</code>, so its declarations are known; <code>declare namespace</code>
+only binds the prefix:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=flag.scxml --expression='
+    import schema namespace sc = "http://www.w3.org/2005/07/scxml" at "scxml.xsd";
+    declare namespace vane = "urn:example:vane";
+    let $machine := validate { / }
+    return (
+      count($machine//sc:state[. instance of element(*, sc:state)]),
+      $machine//sc:state ! `{@id}: {count(data(@vane:implements))}`
+    )'
+5
+"stable: 1"
+"checking: 1"
+"rolling-out: 1"
+"paused: 2"
+"archived: 0"
+</code></pre>
+<p><code>data(@vane:implements)</code> is a sequence of names, because the
+attribute's type is a list. Without a prefix, a name in a path means no
+namespace, and finds nothing in this document:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=flag.scxml --expression='count(//state)'
+0
+</code></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xsd-derivation.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xsd-identity.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xsd-derivation.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xsd-identity.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

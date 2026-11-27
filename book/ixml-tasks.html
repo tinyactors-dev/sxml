@@ -1,0 +1,677 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Real Tasks - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/ixml-tasks.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="real-tasks"><a class="header" href="#real-tasks">Real Tasks</a></h1>
+<!-- examples: ixml -->
+<p>This chapter solves six everyday problems with a grammar each: a log
+file, semicolon-separated values, dates written in several ways, a small
+programming language, Markdown-like text, and the grammar inside a
+specification. Every solution has two
+parts, a grammar that turns the text into XML and a query that uses the
+XML.</p>
+<h2 id="log-files"><a class="header" href="#log-files">Log files</a></h2>
+<p><code>log.ixml</code>:</p>
+<pre><code>log: line++-#a, -#a?.
+line: date, -" ", time, -" ", level, -" ", message.
+@date: digit, digit, digit, digit, "-", digit, digit, "-", digit, digit.
+@time: digit, digit, ":", digit, digit, ":", digit, digit.
+@level: "INFO"; "WARN"; "ERROR".
+message: ~[#a]*.
+-digit: ["0"-"9"].
+</code></pre>
+<p>A <code>log</code> is lines separated by line feeds, with an optional line feed at
+the end (<code>-#a?</code>). The date, time and level become attributes of their
+line, and <code>message</code> takes everything up to the end of the line,
+<code>~[#a]*</code>. The grammar describes this log:</p>
+<p><code>app.log</code>:</p>
+<pre><code>2026-10-20 09:15:02 INFO server started
+2026-10-20 09:17:45 WARN disk 91% full
+2026-10-20 09:21:13 ERROR disk full
+2026-10-20 09:21:14 INFO cleanup started
+2026-10-20 09:24:50 INFO cleanup done
+2026-10-20 10:02:31 ERROR connection refused
+</code></pre>
+<p>Once the log is a document, grouping and filtering are ordinary XQuery:</p>
+<p><code>levels.xq</code>:</p>
+<pre><code class="language-xquery">(: Counts the lines of each level in app.log and lists the errors. :)
+let $parse := invisible-xml(unparsed-text("log.ixml"))
+let $log := $parse(unparsed-text("app.log"))
+return string-join((
+  for $line in $log//line
+  group by $level := $line/@level
+  order by count($line) descending, $level
+  return `{$level}: {count($line)}`,
+  $log//line[@level = "ERROR"] ! `{@time} {message}`
+), "&amp;#10;")
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --method=text levels.xq
+INFO: 3
+ERROR: 2
+WARN: 1
+09:21:13 disk full
+10:02:31 connection refused
+</code></pre>
+<p>Real logs are rarely this tidy. Two habits keep the grammar useful: make
+the part you care about precise (the date, the level) and let the rest
+be "anything up to the end of the line", and test the grammar on the
+oddest lines first.</p>
+<h2 id="semicolon-separated-values"><a class="header" href="#semicolon-separated-values">Semicolon-separated values</a></h2>
+<p>For plain CSV, <code>parse-csv</code> (<a href="formats.html#csv">JSON, CSV, HTML and Invisible
+XML</a>) is quicker. A grammar earns its place when the
+format is a variant that a CSV parser does not know. This one separates
+fields with semicolons and lets a quoted field hold semicolons and
+doubled quotes:</p>
+<p><code>prices.ixml</code>:</p>
+<pre><code>{Semicolon-separated values: a header line, then rows. A field in
+ double quotes may hold semicolons; "" in it is one quote.}
+table: header, -#a, (row, -#a)+.
+header: field++-";".
+row: field++-";".
+field: quoted; plain.
+-plain: ~[";"; '"'; #a]*.
+-quoted: -'"', (~['"']; -'"', '"')*, -'"'.
+</code></pre>
+<p><code>prices.txt</code>:</p>
+<pre><code>item;price;note
+Coffee;3.50;"hot; large"
+Tea;2.10;
+"Juice ""fresh""";4.20;cold
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --param=grammar=prices.ixml --param=input=prices.txt ixml.xq
+&lt;table&gt;
+  &lt;header&gt;
+    &lt;field&gt;item&lt;/field&gt;
+    &lt;field&gt;price&lt;/field&gt;
+    &lt;field&gt;note&lt;/field&gt;
+  &lt;/header&gt;
+  &lt;row&gt;
+    &lt;field&gt;Coffee&lt;/field&gt;
+    &lt;field&gt;3.50&lt;/field&gt;
+    &lt;field&gt;hot; large&lt;/field&gt;
+  &lt;/row&gt;
+  &lt;row&gt;
+    &lt;field&gt;Tea&lt;/field&gt;
+    &lt;field&gt;2.10&lt;/field&gt;
+    &lt;field/&gt;
+  &lt;/row&gt;
+  &lt;row&gt;
+    &lt;field&gt;Juice "fresh"&lt;/field&gt;
+    &lt;field&gt;4.20&lt;/field&gt;
+    &lt;field&gt;cold&lt;/field&gt;
+  &lt;/row&gt;
+&lt;/table&gt;
+</code></pre>
+<p>Note the first rule: every row ends with a line feed, <code>(row, -#a)+</code>. A
+first try, <code>row++-#a, -#a?</code>, reads the last line feed in two ways, as the
+end of the file or as a separator before a row with one empty field, and
+the result is ambiguous. Saying exactly where each line feed belongs
+removes the doubt.</p>
+<p>From the table to JSON is one query, with the header naming the fields:</p>
+<p><code>prices-json.xq</code>:</p>
+<pre><code class="language-xquery">(: Turns prices.txt into JSON: one object per row, keyed by the header. :)
+declare option output:method "json";
+declare option output:indent "yes";
+let $table := invisible-xml(unparsed-text("prices.ixml"))(unparsed-text("prices.txt"))
+let $names := $table//header/field ! string()
+return array {
+  for $row in $table//row
+  return map:merge(
+    for $field at $position in $row/field
+    return map:entry($names[$position],
+      if ($field castable as xs:decimal) then xs:decimal($field) else string($field)))
+}
+</code></pre>
+<pre><code class="language-console">$ sxml xquery prices-json.xq
+[
+  {
+    "item": "Coffee",
+    "price": 3.5,
+    "note": "hot; large"
+  },
+  {
+    "item": "Tea",
+    "price": 2.1,
+    "note": ""
+  },
+  {
+    "item": "Juice \"fresh\"",
+    "price": 4.2,
+    "note": "cold"
+  }
+]
+</code></pre>
+<h2 id="dates"><a class="header" href="#dates">Dates</a></h2>
+<p>People write dates in many ways. One grammar can read several forms and
+give them all the same XML, so the query after it sees one form only:</p>
+<p><code>dates.ixml</code>:</p>
+<pre><code>ixml version "1.1".
+{Dates in three forms, one per line, all made into year, month and day.}
+dates: (date, -#a)+.
+date: iso; written; american.
+-iso: year, -"-", month, -"-", day.
+-written: day, -" ", month-name, -" ", year.
+-american: month, -"/", day, -"/", year.
+year: digit, digit, digit, digit.
+month: digit, digit; +"0", digit.
+day: digit, digit; +"0", digit.
+month-name&gt;month:
+    -"January", +"01"; -"February", +"02"; -"March", +"03";
+    -"April", +"04"; -"May", +"05"; -"June", +"06";
+    -"July", +"07"; -"August", +"08"; -"September", +"09";
+    -"October", +"10"; -"November", +"11"; -"December", +"12".
+-digit: ["0"-"9"].
+</code></pre>
+<p><code>dates.txt</code>:</p>
+<pre><code>2026-10-20
+20 October 2026
+7/4/1976
+1 May 1886
+</code></pre>
+<p>Three features do the work. The three forms are hidden alternatives of
+<code>date</code>, so each gives <code>year</code>, <code>month</code> and <code>day</code> directly. The month names
+are hidden strings with an insertion of the month's number, and <code>&gt;month</code>
+renames <code>month-name</code> to <code>month</code>, so a written month and a numbered one
+are the same element. And <code>+"0", digit</code> pads a one-digit day or month.
+The result is in <a href="ixml.html#running-a-grammar-from-the-command-line">the first chapter</a>;
+here a query sorts the dates:</p>
+<p><code>sort-dates.xq</code>:</p>
+<pre><code class="language-xquery">(: Reads dates.txt as xs:date values and lists them in order. :)
+let $dates := invisible-xml(unparsed-text("dates.ixml"))(unparsed-text("dates.txt"))
+for $date in $dates//date
+let $value := xs:date(`{$date/year}-{$date/month}-{$date/day}`)
+order by $value
+return format-date($value, "[D] [MNn] [Y], a [FNn]")
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --method=adaptive sort-dates.xq
+"1 May 1886, a Saturday"
+"4 July 1976, a Sunday"
+"20 October 2026, a Tuesday"
+"20 October 2026, a Tuesday"
+</code></pre>
+<p>The first and second lines of <code>dates.txt</code> were the same day in two forms.</p>
+<h2 id="a-small-programming-language"><a class="header" href="#a-small-programming-language">A small programming language</a></h2>
+<p>A grammar can describe a language with statements, names and
+expressions. In this one, <code>let</code> names a value, <code>print</code> prints one, and
+<code>*</code> and <code>/</code> bind tighter than <code>+</code> and <code>-</code>:</p>
+<p><code>calc.ixml</code>:</p>
+<pre><code>ixml version "1.1".
+{A small language: statements end with ";", "let" names a value,
+ "print" prints one. Products bind tighter than sums.}
+program: s, (statement, s, -";", s)*.
+-statement: let; print.
+let: -"let", S, @name, s, -"=", s, expression.
+print: -"print", S, expression.
+-expression: sum; -term.
+sum: expression, s, @add&gt;op, s, term.
+-term: product; -factor.
+product: term, s, @multiply&gt;op, s, factor.
+-factor: number; variable; -"(", s, expression, s, -")".
+number: ["0"-"9"]+.
+variable: @name.
+@name: ["a"-"z"]+.
+add: ["+-"].
+multiply: ["*/"].
+-s: -[" "; #a]*.
+-S: -[" "; #a]+.
+</code></pre>
+<p>Precedence comes from the shape of the rules: a <code>sum</code> adds <code>term</code>s, a
+<code>term</code> is a <code>product</code> or a <code>factor</code>, and a <code>product</code> multiplies
+<code>factor</code>s, so <code>1 + 2 * 3</code> can only be read with the product inside the
+sum. Because <code>sum</code> begins with <code>expression</code> and <code>product</code> with <code>term</code>,
+both are <em>left-recursive</em>, and <code>8 - 2 - 1</code> groups as <code>(8 - 2) - 1</code>.
+<code>@add&gt;op</code> and <code>@multiply&gt;op</code> make both kinds of operator an attribute
+<code>op</code>. <code>s</code> is optional space and <code>S</code> required space.</p>
+<p><code>area.calc</code>:</p>
+<pre><code>let width = 6;
+let height = 7;
+print width * height;
+print (width + height) * 2;
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --param=grammar=calc.ixml --param=input=area.calc ixml.xq
+&lt;program&gt;
+  &lt;let name="width"&gt;
+    &lt;number&gt;6&lt;/number&gt;
+  &lt;/let&gt;
+  &lt;let name="height"&gt;
+    &lt;number&gt;7&lt;/number&gt;
+  &lt;/let&gt;
+  &lt;print&gt;
+    &lt;product op="*"&gt;
+      &lt;variable name="width"/&gt;
+      &lt;variable name="height"/&gt;
+    &lt;/product&gt;
+  &lt;/print&gt;
+  &lt;print&gt;
+    &lt;product op="*"&gt;
+      &lt;sum op="+"&gt;
+        &lt;variable name="width"/&gt;
+        &lt;variable name="height"/&gt;
+      &lt;/sum&gt;
+      &lt;number&gt;2&lt;/number&gt;
+    &lt;/product&gt;
+  &lt;/print&gt;
+&lt;/program&gt;
+</code></pre>
+<p>The XML is the program's syntax tree, and an interpreter is a recursive
+function over it:</p>
+<p><code>run.xq</code>:</p>
+<pre><code class="language-xquery">(: Runs a program of the small language of calc.ixml, in the file $file:
+   each print statement gives one integer. :)
+declare variable $file external;
+
+declare function local:value($node as element(), $names as map(*)) as xs:integer {
+  typeswitch ($node)
+    case element(number) return xs:integer($node)
+    case element(variable) return $names(string($node/@name))
+    default return
+      let $left := local:value($node/*[1], $names)
+      let $right := local:value($node/*[2], $names)
+      return switch (string($node/@op))
+        case "+" return $left + $right
+        case "-" return $left - $right
+        case "*" return $left * $right
+        default return $left idiv $right
+};
+
+declare function local:run($statements as element()*, $names as map(*)) as xs:integer* {
+  if (empty($statements)) then () else
+  let $statement := head($statements)
+  return
+    if ($statement instance of element(let)) then
+      local:run(tail($statements),
+        map:put($names, string($statement/@name), local:value($statement/*, $names)))
+    else (
+      local:value($statement/*, $names),
+      local:run(tail($statements), $names)
+    )
+};
+
+let $program := invisible-xml(unparsed-text("calc.ixml"))(unparsed-text($file))
+return local:run($program/program/*, {})
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --param=file=area.calc run.xq
+42
+26
+</code></pre>
+<p>The same tree could be checked for names used before they are set,
+pretty-printed, or translated into another language with XSLT.</p>
+<h2 id="markdown-like-text"><a class="header" href="#markdown-like-text">Markdown-like text</a></h2>
+<p>The last grammar reads a little of Markdown: headings, lists and
+paragraphs separated by blank lines, with emphasis and code inside. Its
+names are HTML's, so the XML it makes <em>is</em> HTML:</p>
+<p><code>markdown.ixml</code>:</p>
+<pre><code>ixml version "1.1".
+{A little Markdown: headings, lists and paragraphs, separated by blank
+ lines, with *emphasis* and `code` inside. The names are HTML's.}
+document&gt;body: block++(-#a, -#a+), -#a*.
+-block: h1; h2; ul; p.
+h1: -"# ", inline.
+h2: -"## ", inline.
+ul: li++-#a.
+li: -"- ", inline.
+p: line++(-#a, +" ").
+-line: ~["#-*`"; #a], inline?.
+-inline: (char; em; code)+.
+-char: ~["*`"; #a].
+em: -"*", ~["*"; #a]+, -"*".
+code: -"`", ~["`"; #a]+, -"`".
+</code></pre>
+<p><code>notes.md</code>:</p>
+<pre><code># Release notes
+
+Version 2 reads *Invisible XML* grammars
+and parses `CSV` files.
+
+## Changes
+
+- faster parsing
+- better *error* messages
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --param=grammar=markdown.ixml --param=input=notes.md ixml.xq
+&lt;body&gt;
+  &lt;h1&gt;Release notes&lt;/h1&gt;
+  &lt;p&gt;Version 2 reads &lt;em&gt;Invisible XML&lt;/em&gt; grammars and parses &lt;code&gt;CSV&lt;/code&gt; files.&lt;/p&gt;
+  &lt;h2&gt;Changes&lt;/h2&gt;
+  &lt;ul&gt;
+    &lt;li&gt;faster parsing&lt;/li&gt;
+    &lt;li&gt;better &lt;em&gt;error&lt;/em&gt; messages&lt;/li&gt;
+  &lt;/ul&gt;
+&lt;/body&gt;
+</code></pre>
+<p>Two details make this grammar unambiguous. The characters of a line are
+single hidden characters, <code>-char</code>, so a run of them is one text node and
+there is only one way to split it. And a paragraph line may not start
+with <code>#</code> or <code>-</code>, so a heading or a list item can never also be read as a
+paragraph. The line feed inside a paragraph becomes a space with
+<code>-#a, +" "</code>.</p>
+<h2 id="the-grammar-in-a-specification"><a class="header" href="#the-grammar-in-a-specification">The grammar in a specification</a></h2>
+<p>Specifications define their syntax in ABNF (RFC 5234), and the grammar
+sits in the document as text. The Vane draft
+(<a href="xslt.html">Transforming with XSLT</a> and the chapters before it use it) has
+the syntax of its messages in a <code>sourcecode</code> element; <code>vane.xml</code> here is
+a link to the draft:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml --method=text '//sourcecode[@type = "abnf"]'
+
+message        = rollout-update / kill-update / status-request
+rollout-update = "ROLLOUT" SP flag-key SP percentage CRLF
+kill-update    = "KILL" SP flag-key CRLF
+status-request = "STATUS" SP flag-key CRLF
+flag-key       = 1*32(ALPHA / DIGIT / "-")
+percentage     = 1*3DIGIT
+</code></pre>
+<p>To a program, those lines are one string. A small grammar for ABNF
+rules turns them into XML: rule names, alternatives separated by <code>/</code>,
+sequences of elements, repetitions such as <code>1*32</code> and <code>1*3</code>, quoted
+strings and groups in parentheses:</p>
+<p><code>abnf.ixml</code>:</p>
+<pre><code>ixml version "1.1".
+{The rules of ABNF (RFC 5234): one rule on each line, a name, "=" and
+ alternatives separated by "/", each a sequence of elements, each
+ element with an optional repetition.}
+rules: -#a*, rule++(-#a+), -#a*.
+rule: @name, s, -"=", s, alternatives.
+-alternatives: alternative++(s, -"/", s).
+alternative: element++S.
+-element: repeat; -item.
+repeat: (@min, -"*", @max?; -"*", @max; @min), -item.
+-item: ref; string; group.
+ref: @name.
+string: -'"', ~['"']*, -'"'.
+group: -"(", s, alternatives, s, -")".
+@name: ["A"-"Z"; "a"-"z"], ["A"-"Z"; "a"-"z"; "0"-"9"; "-"]*.
+@min: ["0"-"9"]+.
+@max: ["0"-"9"]+.
+-s: -" "*.
+-S: -" "+.
+</code></pre>
+<p><code>rule++(-#a+)</code> is one or more rules separated by line feeds, and
+<code>element++S</code> one or more elements separated by spaces. A repetition
+has a minimum, a maximum or both around the <code>*</code>, or just a number,
+which ABNF reads as an exact count. XPath extracts the text, and the
+grammar parses it:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --expression='declare option output:indent "yes"; invisible-xml(unparsed-text("abnf.ixml"))(string(//sourcecode[@type = "abnf"]))/rules/rule[@name = ("flag-key", "percentage")]'
+&lt;rule name="flag-key"&gt;
+  &lt;alternative&gt;
+    &lt;repeat min="1" max="32"&gt;
+      &lt;group&gt;
+        &lt;alternative&gt;
+          &lt;ref name="ALPHA"/&gt;
+        &lt;/alternative&gt;
+        &lt;alternative&gt;
+          &lt;ref name="DIGIT"/&gt;
+        &lt;/alternative&gt;
+        &lt;alternative&gt;
+          &lt;string&gt;-&lt;/string&gt;
+        &lt;/alternative&gt;
+      &lt;/group&gt;
+    &lt;/repeat&gt;
+  &lt;/alternative&gt;
+&lt;/rule&gt;
+&lt;rule name="percentage"&gt;
+  &lt;alternative&gt;
+    &lt;repeat min="1" max="3"&gt;
+      &lt;ref name="DIGIT"/&gt;
+    &lt;/repeat&gt;
+  &lt;/alternative&gt;
+&lt;/rule&gt;
+</code></pre>
+<p>Once the grammar is XML, questions about it are paths. Which rules does
+each rule use, and which names does the draft use without defining
+them?</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
+    let $rules := invisible-xml(unparsed-text("abnf.ixml"))(string(//sourcecode[@type = "abnf"]))//rule
+    return (
+      for $rule in $rules
+      return `{$rule/@name} uses {string-join(distinct-values($rule//ref/@name), ", ")}`,
+      `undefined: {string-join(distinct-values($rules//ref/@name[not(. = $rules/@name)]), ", ")}`
+    )'
+"message uses rollout-update, kill-update, status-request"
+"rollout-update uses SP, flag-key, percentage, CRLF"
+"kill-update uses SP, flag-key, CRLF"
+"status-request uses SP, flag-key, CRLF"
+"flag-key uses ALPHA, DIGIT"
+"percentage uses DIGIT"
+"undefined: SP, CRLF, ALPHA, DIGIT"
+</code></pre>
+<p>The four undefined names are the <em>core rules</em> of RFC 5234 (Appendix B.1),
+which every ABNF grammar may use, so the draft is complete. A misspelled
+rule name, <code>flag_key</code> for <code>flag-key</code>, would show up in the same list, and
+a broken rule fails to parse with the line and column of the mistake:</p>
+<pre><code class="language-console">$ sxml xpath 'invisible-xml(unparsed-text("abnf.ixml"))("limit = percentage / ")'
+&lt;failed xmlns:ixml="http://invisiblexml.org/NS" ixml:state="failed"&gt;&lt;line&gt;1&lt;/line&gt;&lt;column&gt;22&lt;/column&gt;&lt;position&gt;22&lt;/position&gt;&lt;end-of-input/&gt;&lt;expected&gt;"("&lt;/expected&gt;&lt;expected&gt;"*"&lt;/expected&gt;&lt;expected&gt;#20&lt;/expected&gt;&lt;expected&gt;'"'&lt;/expected&gt;&lt;expected&gt;["0"-"9"]&lt;/expected&gt;&lt;expected&gt;["A"-"Z"; "a"-"z"]&lt;/expected&gt;&lt;/failed&gt;
+</code></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="ixml-grammars.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="ixml-errors.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="ixml-grammars.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="ixml-errors.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

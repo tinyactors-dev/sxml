@@ -1,0 +1,600 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Templates and Modes - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xslt-templates.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="templates-and-modes"><a class="header" href="#templates-and-modes">Templates and Modes</a></h1>
+<!-- examples: spec -->
+<h2 id="template-rules"><a class="header" href="#template-rules">Template rules</a></h2>
+<p>A template rule has a <code>match</code> pattern and a body. The body is a
+<em>sequence constructor</em>: literal result elements (any element that is
+not in the XSLT namespace, such as <code>&lt;p&gt;</code>), text, and instructions. This
+stylesheet makes an HTML page of the draft, with one rule for each kind
+of element:</p>
+<p><code>draft.xsl</code>:</p>
+<pre><code class="language-xml">&lt;xsl:stylesheet version="4.0" expand-text="yes"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    exclude-result-prefixes="xs"&gt;
+  &lt;xsl:output method="html" indent="yes"/&gt;
+
+  &lt;!-- "show" writes the editorial notes into the page. --&gt;
+  &lt;xsl:param name="notes" select="'hide'"/&gt;
+
+  &lt;xsl:template match="/"&gt;
+    &lt;html&gt;
+      &lt;head&gt;
+        &lt;title&gt;{rfc/front/title}&lt;/title&gt;
+      &lt;/head&gt;
+      &lt;body&gt;
+        &lt;h1&gt;{rfc/front/title}&lt;/h1&gt;
+        &lt;!-- The same sections, processed twice in two modes. --&gt;
+        &lt;xsl:apply-templates select="." mode="toc"/&gt;
+        &lt;xsl:apply-templates select="rfc/middle/section"/&gt;
+      &lt;/body&gt;
+    &lt;/html&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;!-- The page: one rule for each kind of element. --&gt;
+  &lt;xsl:template match="section"&gt;
+    &lt;section id="{@anchor}"&gt;
+      &lt;h2&gt;{name}&lt;/h2&gt;
+      &lt;xsl:apply-templates select="* except name"/&gt;
+    &lt;/section&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="t"&gt;
+    &lt;p&gt;&lt;xsl:apply-templates/&gt;&lt;/p&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="t[@anchor]" priority="1"&gt;
+    &lt;p id="{@anchor}" class="requirement"&gt;&lt;xsl:apply-templates/&gt;&lt;/p&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="xref"&gt;
+    &lt;a href="#{@target}"&gt;{if (node()) then . else @target}&lt;/a&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="bcp14"&gt;
+    &lt;span&gt;
+      &lt;xsl:attribute name="class"&gt;
+        &lt;xsl:call-template name="strength"&gt;
+          &lt;xsl:with-param name="keyword" select="normalize-space()"/&gt;
+        &lt;/xsl:call-template&gt;
+      &lt;/xsl:attribute&gt;
+      &lt;xsl:value-of select="."/&gt;
+    &lt;/span&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="cref"&gt;
+    &lt;xsl:if test="$notes = 'show'"&gt;
+      &lt;span class="note"&gt;[{@source}: {normalize-space()}]&lt;/span&gt;
+    &lt;/xsl:if&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="dl | dd"&gt;
+    &lt;xsl:copy&gt;&lt;xsl:apply-templates/&gt;&lt;/xsl:copy&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="dt"&gt;
+    &lt;dt id="{@anchor}"&gt;&lt;xsl:apply-templates/&gt;&lt;/dt&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="sourcecode"&gt;
+    &lt;pre&gt;{.}&lt;/pre&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;!-- A named template, called with a typed parameter. --&gt;
+  &lt;xsl:template name="strength"&gt;
+    &lt;xsl:param name="keyword" as="xs:string"/&gt;
+    &lt;xsl:choose&gt;
+      &lt;xsl:when test="$keyword = ('MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT')"&gt;bcp14 absolute&lt;/xsl:when&gt;
+      &lt;xsl:when test="starts-with($keyword, 'SHOULD') or contains($keyword, 'RECOMMENDED')"&gt;bcp14 recommended&lt;/xsl:when&gt;
+      &lt;xsl:otherwise&gt;bcp14 optional&lt;/xsl:otherwise&gt;
+    &lt;/xsl:choose&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;!-- The table of contents: the mode "toc". --&gt;
+  &lt;xsl:template match="/" mode="toc"&gt;
+    &lt;ol class="toc"&gt;
+      &lt;xsl:apply-templates select="rfc/middle/section" mode="toc"/&gt;
+    &lt;/ol&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="section" mode="toc"&gt;
+    &lt;li&gt;
+      &lt;a href="#{@anchor}"&gt;{name}&lt;/a&gt;
+      &lt;xsl:if test="section"&gt;
+        &lt;ol&gt;
+          &lt;xsl:apply-templates select="section" mode="toc"/&gt;
+        &lt;/ol&gt;
+      &lt;/xsl:if&gt;
+    &lt;/li&gt;
+  &lt;/xsl:template&gt;
+
+</code></pre>
+<p>(The file goes on with the rules of a second mode, shown later in this
+chapter.) Run it, and look at the first part of the page:</p>
+<pre><code class="language-console">$ sxml transform draft.xsl vane.xml | head -31
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+  &lt;head&gt;
+    &lt;meta charset="UTF-8"&gt;
+    &lt;title&gt;The Vane Protocol for Feature Flag Rollouts&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    &lt;h1&gt;The Vane Protocol for Feature Flag Rollouts&lt;/h1&gt;
+    &lt;ol class="toc"&gt;
+      &lt;li&gt;&lt;a href="#intro"&gt;Introduction&lt;/a&gt;&lt;ol&gt;&lt;li&gt;&lt;a href="#terminology"&gt;Terminology&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href="#states"&gt;Flag States&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href="#messages"&gt;Messages&lt;/a&gt;&lt;ol&gt;&lt;li&gt;&lt;a href="#rollout"&gt;Rollout&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="#status"&gt;Status&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href="#pause"&gt;Pause&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href="#security"&gt;Security Considerations&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href="#iana"&gt;IANA Considerations&lt;/a&gt;&lt;/li&gt;
+    &lt;/ol&gt;
+    &lt;section id="intro"&gt;
+      &lt;h2&gt;Introduction&lt;/h2&gt;
+      &lt;p&gt;An application has many features, and each feature has a flag. An
+      &lt;a href="#term-sdk"&gt;SDK&lt;/a&gt; in the application keeps the flags
+      in a cache and evaluates them for each user. It holds an update stream
+      open to the Vane service, which sends a message on it whenever a flag
+      changes, and it asks the service for the status of a flag.&lt;/p&gt;
+      &lt;section id="terminology"&gt;
+        &lt;h2&gt;Terminology&lt;/h2&gt;
+        &lt;p&gt;The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+        NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED",
+        "MAY", and "OPTIONAL" in this document are to be interpreted as
+        described in BCP 14 &lt;a href="#RFC2119"&gt;RFC2119&lt;/a&gt; &lt;a href="#RFC8174"&gt;RFC8174&lt;/a&gt;
+        when, and only when, they appear in all capitals, as shown here.&lt;/p&gt;
+        &lt;dl&gt;
+</code></pre>
+<p>Let's read it rule by rule:</p>
+<ul>
+<li><code>match="/"</code> matches the document node, where every transformation
+starts. It writes the page, and <code>xsl:apply-templates</code> processes the
+draft's sections where the page's body goes.</li>
+<li><code>match="section"</code> writes a <code>section</code> with a heading, and processes
+the section's children except its <code>name</code>. A nested section matches
+the same rule, so sections nest in the page as deep as in the draft.</li>
+<li><code>match="t"</code> writes a paragraph, and <code>match="xref"</code> a link. An <code>xref</code>
+with no content shows its target's anchor for now; <a href="xslt-keys-grouping.html">Keys, Numbers and
+Grouping</a> makes "Section 4" of it.</li>
+<li><code>match="dl | dd"</code> uses <code>xsl:copy</code>, which copies the element without
+its attributes or children: the content comes from the rules again.
+A pattern with <code>|</code> matches either kind of node.</li>
+<li>The text in between is copied by the built-in rule, so the words of a
+paragraph pass through with the elements inside them turned into HTML.</li>
+</ul>
+<p><code>xsl:apply-templates</code> is the engine of XSLT. It selects nodes (with
+<code>select</code>, or the children by default), and for each one it finds the
+best matching rule. The <code>xsl:output</code> element says how to write the
+result: here as HTML, indented. The <code>html</code> method writes the
+<code>&lt;!DOCTYPE html&gt;</code> and the <code>meta</code> element for the encoding itself.</p>
+<h2 id="text-value-templates"><a class="header" href="#text-value-templates">Text value templates</a></h2>
+<p>With <code>expand-text="yes"</code> on the stylesheet, curly braces in text work as
+they do in XQuery: <code>{name}</code> is replaced by the value of the expression
+<code>name</code>, the section's title. In attributes of literal result elements,
+curly braces always work; they are <em>attribute value templates</em>:
+<code>id="{@anchor}"</code> gives the HTML element the draft's anchor, so the links
+work. Without <code>expand-text</code>, you write <code>&lt;xsl:value-of select="name"/&gt;</code>
+instead, as older stylesheets do and as the <code>bcp14</code> rule does once.</p>
+<h2 id="priorities"><a class="header" href="#priorities">Priorities</a></h2>
+<p>Two rules match a requirement: <code>t</code> and <code>t[@anchor]</code>. When several rules
+match, the one with the highest <em>priority</em> wins. A rule can state its
+priority, as the second one does. Otherwise, the priority comes from the
+pattern: a pattern with a predicate or several steps is more specific
+than a plain name, and gets a higher default priority (0.5 against 0).
+So the <code>priority="1"</code> above isn't even needed; it just makes the intent
+clear. The requirements get an <code>id</code> and a class:</p>
+<pre><code class="language-console">$ sxml transform draft.xsl vane.xml | grep -A2 'id="req-1"'
+      &lt;p id="req-1" class="requirement"&gt;A &lt;a href="#term-flag"&gt;flag&lt;/a&gt;
+      &lt;span class="bcp14 absolute"&gt;MUST&lt;/span&gt; be in exactly one of the states "stable",
+      "rolling-out" and "paused".&lt;/p&gt;
+</code></pre>
+<p>Patterns are not expressions that are evaluated from the top: a pattern
+tests a node. <code>t</code> matches any <code>t</code> element anywhere, <code>section/t</code> a
+paragraph whose parent is a section (not one in the abstract), and
+<code>section[1]</code> a section that is the first section child of its parent.</p>
+<h2 id="named-templates-and-parameters"><a class="header" href="#named-templates-and-parameters">Named templates and parameters</a></h2>
+<p>The <code>bcp14</code> rule shows several more things:</p>
+<ul>
+<li>A template with a <code>name</code> instead of a <code>match</code> is a <em>named template</em>.
+<code>xsl:call-template</code> calls it, and <code>xsl:with-param</code> passes its
+parameters, which can have types: <code>strength</code> takes an <code>xs:string</code>.</li>
+<li><code>xsl:attribute</code> makes an attribute from a sequence constructor, here
+the text the named template writes.</li>
+<li><code>xsl:choose</code> picks the first <code>xsl:when</code> whose test is true, or
+<code>xsl:otherwise</code>. There is also <code>xsl:if</code> for a single test, as in the
+<code>cref</code> rule.</li>
+<li>A stylesheet declares every prefix it uses, <code>xs</code> too: here
+<code>xmlns:xs="http://www.w3.org/2001/XMLSchema"</code> on <code>xsl:stylesheet</code>
+makes <code>xs:string</code> a type, and <code>exclude-result-prefixes="xs"</code> keeps
+the declaration out of the result. Unlike XPath and XQuery, XSLT
+predeclares no prefix but <code>xml</code>; an undeclared one is an error
+(XPST0081 in an expression or a type such as <code>as</code>, XTSE0280 in a name
+such as <code>mode</code>).</li>
+</ul>
+<p><code>xsl:param</code> at the top level declares a <em>stylesheet parameter</em>, with a
+default. <code>notes</code> decides whether the editorial notes show, and
+<code>--param</code> sets it from the command line:</p>
+<pre><code class="language-console">$ sxml transform --param=notes=show draft.xsl vane.xml | grep 'class="note"'
+      &lt;span class="note"&gt;[AM: Should an owner be able to change the duration?]&lt;/span&gt;&lt;/p&gt;
+      &lt;span class="note"&gt;[AB: This needs a requirement anchor of its own.]&lt;/span&gt;&lt;/p&gt;
+</code></pre>
+<h2 id="modes"><a class="header" href="#modes">Modes</a></h2>
+<p>The page processes the same sections twice: once for the table of
+contents and once for the content. A <em>mode</em> is a named set of rules.
+<code>xsl:apply-templates mode="toc"</code> uses only the rules of the <code>toc</code> mode,
+so a section there makes a list item with a link, not a <code>section</code>
+element. Each mode has its own built-in rules, too, which is why the
+<code>toc</code> mode has a rule for the document node: without it, the built-in
+rule would copy all the text of the draft into the table of contents.</p>
+<p>A mode can do more than a part of the page. The rest of <code>draft.xsl</code> is
+a second rendering of the whole draft, as plain text in the style of an
+RFC: section numbers, paragraphs indented by three spaces and wrapped
+at 72 columns, and a reference written as <code>[RFC2119]</code>:</p>
+<pre><code class="language-xml">  &lt;!-- Plain text in the style of an RFC: the mode "text". --&gt;
+  &lt;xsl:template match="/" mode="text"&gt;
+    &lt;xsl:apply-templates select="rfc/front/title, rfc/middle/section" mode="text"/&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="title" mode="text"&gt;
+    &lt;xsl:text&gt;{.}&amp;#10;&amp;#10;&lt;/xsl:text&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="section" mode="text"&gt;
+    &lt;xsl:variable name="number" select="
+        string-join(ancestor-or-self::section ! (count(preceding-sibling::section) + 1), '.')"/&gt;
+    &lt;xsl:text&gt;{$number}.  {name}&amp;#10;&amp;#10;&lt;/xsl:text&gt;
+    &lt;xsl:apply-templates select="* except name" mode="text"/&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="t | dd" mode="text"&gt;
+    &lt;xsl:variable name="text"&gt;
+      &lt;xsl:apply-templates mode="text"/&gt;
+    &lt;/xsl:variable&gt;
+    &lt;xsl:variable name="indent" select="if (self::dd) then '      ' else '   '"/&gt;
+    &lt;!-- Lines of at most 72 characters, indented. --&gt;
+    &lt;xsl:value-of select="replace(normalize-space($text),
+                                  '(.{1,' || 72 - string-length($indent) || '})( |$)',
+                                  $indent || '$1&amp;#10;')"/&gt;
+    &lt;xsl:text&gt;&amp;#10;&lt;/xsl:text&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="dl" mode="text"&gt;
+    &lt;xsl:apply-templates select="*" mode="text"/&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="dt" mode="text"&gt;
+    &lt;xsl:text&gt;   {.}&amp;#10;&lt;/xsl:text&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="sourcecode" mode="text"&gt;
+    &lt;xsl:value-of select="tokenize(., '&amp;#10;')[normalize-space()] ! ('     ' || . || '&amp;#10;')"
+                  separator=""/&gt;
+    &lt;xsl:text&gt;&amp;#10;&lt;/xsl:text&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="xref[empty(node())]" mode="text"&gt;[{@target}]&lt;/xsl:template&gt;
+
+  &lt;xsl:template match="cref" mode="text"/&gt;
+</code></pre>
+<p>The <code>t</code> rule applies the rules of the mode to the paragraph's children
+inside an <code>xsl:variable</code>, so the variable holds the paragraph's text
+with every <code>xref</code> and <code>bcp14</code> already turned into text. <code>normalize-space</code>
+joins its lines, and one <code>replace</code> breaks it again into lines of at
+most 69 characters plus the indent: <code>(.{1,69})( |$)</code> takes as many
+characters as fit before a space or the end. The section number is the
+position of each enclosing section among its siblings, joined with
+dots.</p>
+<p><code>xsl:value-of</code> with <code>separator=""</code> joins the lines of the ABNF without
+a space between them, and <code>xsl:text</code> writes text exactly, which keeps
+the whitespace of the stylesheet out of the result: <code>&amp;#10;</code> is a line
+feed.</p>
+<h2 id="starting-somewhere-else"><a class="header" href="#starting-somewhere-else">Starting somewhere else</a></h2>
+<p>A transformation normally starts by applying templates to the document
+node in the default mode. <code>--initial-mode</code> starts in another mode. The
+<code>toc</code> mode alone is a table of contents:</p>
+<pre><code class="language-console">$ sxml transform --initial-mode=toc draft.xsl vane.xml
+&lt;ol class="toc"&gt;
+  &lt;li&gt;&lt;a href="#intro"&gt;Introduction&lt;/a&gt;&lt;ol&gt;&lt;li&gt;&lt;a href="#terminology"&gt;Terminology&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href="#states"&gt;Flag States&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href="#messages"&gt;Messages&lt;/a&gt;&lt;ol&gt;&lt;li&gt;&lt;a href="#rollout"&gt;Rollout&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="#status"&gt;Status&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href="#pause"&gt;Pause&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href="#security"&gt;Security Considerations&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href="#iana"&gt;IANA Considerations&lt;/a&gt;&lt;/li&gt;
+&lt;/ol&gt;
+</code></pre>
+<p>And the <code>text</code> mode is the plain-text draft. Its result is text, not
+HTML, so <code>--method=text</code> replaces the stylesheet's output method:</p>
+<pre><code class="language-console">$ sxml transform --initial-mode=text --method=text draft.xsl vane.xml | head -30
+The Vane Protocol for Feature Flag Rollouts
+
+1.  Introduction
+
+   An application has many features, and each feature has a flag. An SDK
+   in the application keeps the flags in a cache and evaluates them for
+   each user. It holds an update stream open to the Vane service, which
+   sends a message on it whenever a flag changes, and it asks the
+   service for the status of a flag.
+
+1.1.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in BCP
+   14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+   Flag
+      A named switch in an application that turns a feature on for a
+      share of its users.
+
+   SDK
+      The library in an application that evaluates flags from its cache
+      and keeps the cache current with Vane messages.
+
+   Percentage
+      A whole number from 0 to 100 that an owner gives to roll a flag
+      out to that share of users. An SDK puts a user in the share by a
+      hash of the flag and the user, so the user stays in it while the
+$ sxml transform --initial-mode=text --method=text draft.xsl vane.xml | grep 'in a pause ('
+   A service MUST NOT roll out a flag while it is in a pause ([pause]).
+</code></pre>
+<p>The reference to Section 4 still shows as <code>[pause]</code>: an <code>xref</code>
+without text needs a lookup of its target, the subject of the next
+section.</p>
+<p><code>--initial-template</code> calls a named template instead of applying
+templates. A stylesheet that needs no input names its starting template
+<code>xsl:initial-template</code>, and runs without a document:</p>
+<p><code>bcp14.xsl</code>:</p>
+<pre><code class="language-xml">&lt;xsl:stylesheet version="4.0" expand-text="yes"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"&gt;
+  &lt;xsl:output method="text"/&gt;
+
+  &lt;!-- The key words of BCP 14, from strongest to weakest. --&gt;
+  &lt;xsl:variable name="keywords" select="'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+      'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+      'MAY', 'OPTIONAL'"/&gt;
+
+  &lt;xsl:template name="xsl:initial-template"&gt;
+    &lt;xsl:text&gt;BCP 14 has {count($keywords)} key words: {string-join($keywords, ', ')}.&amp;#10;&lt;/xsl:text&gt;
+  &lt;/xsl:template&gt;
+&lt;/xsl:stylesheet&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml transform bcp14.xsl
+BCP 14 has 11 key words: MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED, MAY, OPTIONAL.
+</code></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xslt.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xslt-keys-grouping.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xslt.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xslt-keys-grouping.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

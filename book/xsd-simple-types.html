@@ -1,0 +1,528 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Simple Types and Facets - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xsd-simple-types.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="simple-types-and-facets"><a class="header" href="#simple-types-and-facets">Simple Types and Facets</a></h1>
+<!-- examples: spec -->
+<p>A <em>simple type</em> describes text: the value of an attribute, or the
+content of an element that has no children and no attributes. XSD has
+many simple types built in, and you make your own by restricting them,
+by making lists of them, and by joining them in unions.</p>
+<h2 id="built-in-types"><a class="header" href="#built-in-types">Built-in types</a></h2>
+<p>These are the built-in types you'll use most. All of them are in the
+namespace <code>http://www.w3.org/2001/XMLSchema</code>, usually with the prefix
+<code>xs</code>. The examples come from the draft where it has them:</p>
+<div class="table-wrapper"><table><thead><tr><th>Type</th><th>Values</th><th>Examples</th></tr></thead><tbody>
+<tr><td><code>xs:string</code></td><td>any text</td><td><code>Flag States</code></td></tr>
+<tr><td><code>xs:token</code></td><td>text without leading, trailing or double spaces; these are removed</td><td><code>trust200902</code></td></tr>
+<tr><td><code>xs:boolean</code></td><td><code>true</code>, <code>false</code>, <code>1</code>, <code>0</code></td><td><code>true</code></td></tr>
+<tr><td><code>xs:decimal</code></td><td>exact decimal numbers</td><td><code>1.0</code></td></tr>
+<tr><td><code>xs:integer</code></td><td>whole numbers</td><td><code>3</code>, <code>-3</code></td></tr>
+<tr><td><code>xs:positiveInteger</code>, <code>xs:nonNegativeInteger</code></td><td>whole numbers above zero, or from zero</td><td><code>21</code></td></tr>
+<tr><td><code>xs:double</code></td><td>floating-point numbers</td><td><code>1.5E3</code>, <code>INF</code></td></tr>
+<tr><td><code>xs:date</code>, <code>xs:time</code>, <code>xs:dateTime</code></td><td>dates and times of ISO 8601</td><td><code>2026-10-21</code>, <code>09:30:00</code></td></tr>
+<tr><td><code>xs:gYear</code>, <code>xs:gYearMonth</code></td><td>a year, a month of a year</td><td><code>1997</code>, <code>2026-10</code></td></tr>
+<tr><td><code>xs:duration</code></td><td>a length of time</td><td><code>PT5M</code>, <code>PT10M</code></td></tr>
+<tr><td><code>xs:anyURI</code></td><td>a URI</td><td><code>https://www.rfc-editor.org/info/rfc2119</code></td></tr>
+<tr><td><code>xs:NCName</code></td><td>an XML name without a colon</td><td><code>req-7</code></td></tr>
+<tr><td><code>xs:ID</code>, <code>xs:IDREF</code></td><td>a name unique in the document, and a reference to one</td><td><code>term-flag</code></td></tr>
+<tr><td><code>xs:language</code></td><td>a language tag</td><td><code>en-GB</code></td></tr>
+</tbody></table>
+</div>
+<p><code>vane.xsd</code> uses several of them directly: the <code>year</code> of a <code>date</code> is an
+<code>xs:gYear</code>, the <code>version</code> of <code>rfc</code> an <code>xs:integer</code>, the <code>target</code> of a
+<code>reference</code> an <code>xs:anyURI</code>.</p>
+<p>Each type has a <em>lexical space</em>, the texts that are allowed, and a
+<em>value space</em>, the values they stand for. <code>21</code>, <code>021</code> and <code>+21</code> are
+three texts for one <code>xs:positiveInteger</code>. That matters when values are
+compared, as XPath compares typed values, not their texts.</p>
+<h2 id="restricting-a-type"><a class="header" href="#restricting-a-type">Restricting a type</a></h2>
+<p>Most simple types you write are restrictions: a built-in type, with
+<em>facets</em> that narrow down its values. These are the first simple types
+of <code>vane.xsd</code>:</p>
+<pre><code class="language-xml">  &lt;!-- Simple types --&gt;
+
+  &lt;xs:simpleType name="anchor"&gt;
+    &lt;xs:restriction base="xs:NCName"/&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;xs:simpleType name="draft-name"&gt;
+    &lt;xs:restriction base="xs:string"&gt;
+      &lt;xs:pattern value="draft-[a-z0-9]+(-[a-z0-9]+)*-[0-9]{2}"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;xs:simpleType name="keyword"&gt;
+    &lt;xs:annotation&gt;
+      &lt;xs:documentation&gt;The requirement levels of BCP 14 (RFC 2119, RFC 8174).&lt;/xs:documentation&gt;
+    &lt;/xs:annotation&gt;
+    &lt;xs:restriction base="xs:string"&gt;
+      &lt;xs:enumeration value="MUST"/&gt;
+      &lt;xs:enumeration value="MUST NOT"/&gt;
+      &lt;xs:enumeration value="REQUIRED"/&gt;
+      &lt;xs:enumeration value="SHALL"/&gt;
+      &lt;xs:enumeration value="SHALL NOT"/&gt;
+      &lt;xs:enumeration value="SHOULD"/&gt;
+      &lt;xs:enumeration value="SHOULD NOT"/&gt;
+      &lt;xs:enumeration value="RECOMMENDED"/&gt;
+      &lt;xs:enumeration value="NOT RECOMMENDED"/&gt;
+      &lt;xs:enumeration value="MAY"/&gt;
+      &lt;xs:enumeration value="OPTIONAL"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;xs:simpleType name="month"&gt;
+    &lt;xs:restriction base="xs:string"&gt;
+      &lt;xs:enumeration value="January"/&gt;
+      &lt;xs:enumeration value="February"/&gt;
+      &lt;xs:enumeration value="March"/&gt;
+      &lt;xs:enumeration value="April"/&gt;
+      &lt;xs:enumeration value="May"/&gt;
+      &lt;xs:enumeration value="June"/&gt;
+      &lt;xs:enumeration value="July"/&gt;
+      &lt;xs:enumeration value="August"/&gt;
+      &lt;xs:enumeration value="September"/&gt;
+      &lt;xs:enumeration value="October"/&gt;
+      &lt;xs:enumeration value="November"/&gt;
+      &lt;xs:enumeration value="December"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;xs:simpleType name="day"&gt;
+    &lt;xs:restriction base="xs:positiveInteger"&gt;
+      &lt;xs:maxInclusive value="31"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+</code></pre>
+<p>The facets in them, and the others XSD has:</p>
+<ul>
+<li><code>pattern</code> is a regular expression that the whole text must match. The
+syntax is the one of XPath's <code>matches</code>, without <code>^</code> and <code>$</code>: a pattern
+always matches the whole value. <code>draft-[a-z0-9]+(-[a-z0-9]+)*-[0-9]{2}</code>
+is <code>draft-</code>, words of small letters and digits joined by hyphens, and
+a two-digit version.</li>
+<li><code>enumeration</code> lists the allowed values, one facet for each value. A
+<code>keyword</code> is one of the eleven key words of BCP 14, and a <code>month</code> one
+of the twelve names xml2rfc writes.</li>
+<li><code>minInclusive</code>, <code>maxInclusive</code>, <code>minExclusive</code> and <code>maxExclusive</code>
+limit ordered values: numbers, dates, durations. A <code>day</code> is a positive
+integer up to 31.</li>
+<li><code>minLength</code>, <code>maxLength</code> and <code>length</code> limit the length: the number of
+characters of a string, or the number of items of a list.</li>
+<li><code>totalDigits</code> and <code>fractionDigits</code> limit the digits of decimals.</li>
+<li><code>whiteSpace</code> says what happens to spaces: <code>preserve</code> keeps them,
+<code>replace</code> turns tabs and line ends into spaces, and <code>collapse</code> also
+removes leading, trailing and double spaces. <code>xs:token</code> is
+<code>xs:string</code> with <code>whiteSpace</code> set to <code>collapse</code>.</li>
+</ul>
+<p><code>anchor</code> restricts <code>xs:NCName</code> with no facets at all. That is still
+worth a name: the schema says what an anchor is once, and every
+attribute that holds one says <code>type="anchor"</code>.</p>
+<p><code>xs:annotation</code> and <code>xs:documentation</code> hold text for people. They
+change nothing about validation, but tools can read them; the state
+machine's documentation in <a href="scxml-xhtml.html">Documenting the Machine in
+XHTML</a> does.</p>
+<p>A draft with a mistake for three of the types:</p>
+<pre><code class="language-console">$ sed -e 's/vane-protocol-01"/vane-protocol-1"/' \
+      -e 's/month="October" day="21"/month="Oct" day="32"/' vane.xml \
+  | sxml validate --schema=vane.xsd -
+-:8:6: cvc-pattern-valid: attribute 'docName' has the value 'draft-example-vane-protocol-1', which is not valid for type 'draft-name': the value matches no pattern facet (XSD 1.1 Part 2, 4.3.4.4); the pattern facet is 'draft-[a-z0-9]+(-[a-z0-9]+)*-[0-9]{2}'
+-:20:23: cvc-enumeration-valid: attribute 'month' has the value 'Oct', which is not valid for type 'month': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', ...
+-:20:35: cvc-maxInclusive-valid: attribute 'day' has the value '32', which is not valid for type 'day': the value is above the maxInclusive facet (XSD 1.1 Part 2, 4.3.7.4); the maxInclusive facet is '31'
+-:7:1: cvc-assertion: element 'rfc' breaks the assertion 'not(@docName) or                        @docName = front/ser...' of an anonymous type derived from 'xs:anyType'
+</code></pre>
+<p>Each message names the facet that failed and the facet's value. When
+the text isn't even a value of the base type, as <code>26</code> isn't an
+<code>xs:gYear</code> in the chapter's first example, the message is
+<code>cvc-datatype-valid.1.2.1</code> instead. The last message is a consequence
+of the first edit: the <code>seriesInfo</code> still says <code>-01</code>, so the two names
+no longer agree.</p>
+<p>A restriction can restrict a type of your own, and the facets add up:
+a restriction of <code>day</code> with <code>maxInclusive</code> 29 allows 1 to 29. It can
+only narrow, never widen: a <code>maxInclusive</code> of 40 on a type whose
+maximum is 31 is an error in the schema.</p>
+<pre><code class="language-console">$ echo '&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"&gt;
+  &lt;xs:simpleType name="day"&gt;
+    &lt;xs:restriction base="xs:positiveInteger"&gt;&lt;xs:maxInclusive value="31"/&gt;&lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+  &lt;xs:simpleType name="long-day"&gt;
+    &lt;xs:restriction base="day"&gt;&lt;xs:maxInclusive value="40"/&gt;&lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+&lt;/xs:schema&gt;' | sxml validate --schema=- vane.xml
+-:6:32: maxInclusive-valid-restriction: a maxInclusive facet must lie within the base type's bounds (XSD 1.1 Part 2, 4.3.7.4)
+</code></pre>
+<h2 id="lists"><a class="header" href="#lists">Lists</a></h2>
+<p>A <em>list type</em> holds several values in one text, separated by spaces.
+<code>levels.xsd</code> adds two types to the draft's, for a summary that names
+the key words a draft uses and the day of its next meeting:</p>
+<p><code>levels.xsd</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- Lists and unions over the simple types of vane.xsd. A summary of a
+     draft names the key words it uses and the day of its next meeting:
+       &lt;summary levels="MUST SHOULD MAY" meeting="21"/&gt; --&gt;
+&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"&gt;
+
+  &lt;xs:include schemaLocation="vane.xsd"/&gt;
+
+  &lt;!-- A list: key words separated by spaces, at most four of them. --&gt;
+  &lt;xs:simpleType name="levels"&gt;
+    &lt;xs:restriction&gt;
+      &lt;xs:simpleType&gt;
+        &lt;xs:list itemType="keyword"/&gt;
+      &lt;/xs:simpleType&gt;
+      &lt;xs:maxLength value="4"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;!-- A union: a day of the month, or the word "open". --&gt;
+  &lt;xs:simpleType name="meeting-day"&gt;
+    &lt;xs:union memberTypes="day"&gt;
+      &lt;xs:simpleType&gt;
+        &lt;xs:restriction base="xs:token"&gt;
+          &lt;xs:enumeration value="open"/&gt;
+        &lt;/xs:restriction&gt;
+      &lt;/xs:simpleType&gt;
+    &lt;/xs:union&gt;
+  &lt;/xs:simpleType&gt;
+
+  &lt;xs:element name="summary"&gt;
+    &lt;xs:complexType&gt;
+      &lt;xs:attribute name="levels" type="levels" use="required"/&gt;
+      &lt;xs:attribute name="meeting" type="meeting-day"/&gt;
+    &lt;/xs:complexType&gt;
+  &lt;/xs:element&gt;
+&lt;/xs:schema&gt;
+</code></pre>
+<p><code>xs:include</code> brings in the components of <code>vane.xsd</code>, so <code>keyword</code> and
+<code>day</code> can be used here; <a href="xsd-namespaces.html">Namespaces and Larger
+Schemas</a> says more about combining schema documents.</p>
+<p><code>levels</code> is a list of <code>keyword</code>, so <code>MUST SHOULD MAY</code> is three values,
+each a keyword. The list type is written inside a restriction, which
+adds a facet: on a list, <code>length</code>, <code>minLength</code> and <code>maxLength</code> count
+the items, so a summary names at most four levels.</p>
+<pre><code class="language-console">$ echo '&lt;summary levels="MUST SHOULD MAY" meeting="21"/&gt;' | sxml validate --schema=levels.xsd -
+$ echo '&lt;summary levels="MUST SHOULD MAY MUST OPTIONAL"/&gt;' | sxml validate --schema=levels.xsd -
+-:1:10: cvc-maxLength-valid: attribute 'levels' has the value 'MUST SHOULD MAY MUST OPTIONAL', which is not valid for type 'levels': the value is longer than the maxLength facet (XSD 1.1 Part 2, 4.3.3.4); the maxLength facet is '4'
+</code></pre>
+<p>The items of a list are separated by whitespace, always. Two of the key
+words have a space inside, so a list of keywords can't hold them:
+<code>MUST NOT</code> is the two items <code>MUST</code> and <code>NOT</code>, and <code>NOT</code> is not a
+keyword:</p>
+<pre><code class="language-console">$ echo '&lt;summary levels="MUST NOT"/&gt;' | sxml validate --schema=levels.xsd -
+-:1:10: cvc-enumeration-valid: attribute 'levels' has the value 'MUST NOT', which is not valid for type 'levels': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4)
+</code></pre>
+<p>A list type is the right choice for names and numbers, which never
+contain spaces. Lists are handy in attributes, where you can't repeat
+an element. XSD's own <code>xs:IDREFS</code> and <code>xs:NMTOKENS</code> are lists.</p>
+<h2 id="unions"><a class="header" href="#unions">Unions</a></h2>
+<p>A <em>union type</em> allows the values of any of its member types. A
+<code>meeting-day</code> is a <code>day</code>, or the word <code>open</code>. The member types are
+tried in order, and the first that accepts the text gives the value its
+type. <code>32</code> is not a day, and <code>soon</code> is not <code>open</code>, so neither is a
+<code>meeting-day</code>:</p>
+<pre><code class="language-console">$ echo '&lt;summary levels="MAY" meeting="open"/&gt;' | sxml validate --schema=levels.xsd -
+$ echo '&lt;summary levels="MAY" meeting="32"/&gt;' | sxml validate --schema=levels.xsd -
+-:1:23: cvc-datatype-valid.1.2.1: attribute 'meeting' has the value '32', which is not valid for type 'meeting-day'
+</code></pre>
+<p>The members can be named, with <code>memberTypes="day"</code>, or written inside
+the <code>xs:union</code>, as the token is in <code>levels.xsd</code>, or both.</p>
+<h2 id="what-validation-does-to-values"><a class="header" href="#what-validation-does-to-values">What validation does to values</a></h2>
+<p>A validated element or attribute has the value its type says, not the
+text it was written with. <code>import schema</code> gives a query the schema's
+declarations and <code>validate</code> validates a node and returns a typed copy
+(<a href="xsd-typed-data.html">Typed Data and Schema-Aware Queries</a> explains
+both). Then the values show what the schema did:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import schema default element namespace "" at "levels.xsd";
+    for $summary in (&lt;summary levels=" MUST  MAY " meeting="07"/&gt;,
+                     &lt;summary levels="MAY" meeting="open"/&gt;)
+    let $valid := validate { $summary }
+    return (count(data($valid/@levels)), data($valid/@meeting),
+            type-of(data($valid/@meeting)))'
+2
+7
+"Q{}day"
+1
+"open"
+"xs:token"
+</code></pre>
+<p>The levels are two values, because their type is a list, and the extra
+spaces are gone. <code>07</code> is the number 7, and its type is <code>day</code>, the member
+of the union that accepted it; <code>open</code> is a token. <code>Q{}day</code> is the type
+<code>day</code> in no namespace, written as an <em>expanded name</em>.</p>
+<p>The same works on the draft. Its <code>year</code> is a year, so it compares with
+<code>xs:gYear("2010")</code>, and its <code>day</code> is a number:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=vane.xml --expression='
+    import schema default element namespace "" at "vane.xsd";
+    let $draft := validate { / }
+    return (
+      data($draft/rfc/front/date/@day) + 1,
+      $draft//reference[front/date/@year lt xs:gYear("2010")]/@anchor/string()
+    )'
+22
+"RFC2119"
+"RFC5234"
+</code></pre>
+<p>Whitespace is part of the value too. <code>keyword</code> restricts <code>xs:string</code>,
+whose <code>whiteSpace</code> is <code>preserve</code>, so a line break inside a <code>bcp14</code>, as
+an editor might make when it wraps a long line, makes the key word
+invalid (the message writes the line break as a space, so that each
+message stays on one line):</p>
+<pre><code class="language-console">$ sed 's/&lt;bcp14&gt;MUST NOT&lt;/&lt;bcp14&gt;MUST\n        NOT&lt;/' vane.xml | sxml validate --schema=vane.xsd -
+-:94:37: cvc-enumeration-valid: element 'bcp14' has the value 'MUST         NOT', which is not valid for type 'keyword': the value is not one of the enumeration facets (XSD 1.1 Part 2, 4.3.5.4); the enumeration facets are 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', ...
+</code></pre>
+<p>Had <code>keyword</code> restricted <code>xs:token</code>, the line break and the spaces
+would have collapsed to one space, and the text would be <code>MUST NOT</code>.
+Choose <code>xs:token</code> for words and names that people type, and
+<code>xs:string</code> when every space counts.</p>
+<h2 id="facets-that-dont-fit"><a class="header" href="#facets-that-dont-fit">Facets that don't fit</a></h2>
+<p>Not every facet applies to every type: <code>fractionDigits</code> makes sense for
+decimals, not for strings, and a minimum above the maximum allows
+nothing. Such mistakes are errors in the schema, and sxml reports them
+before it reads any document:</p>
+<pre><code class="language-console">$ echo '&lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"&gt;
+  &lt;xs:simpleType name="anchor"&gt;
+    &lt;xs:restriction base="xs:NCName"&gt;
+      &lt;xs:fractionDigits value="2"/&gt;
+    &lt;/xs:restriction&gt;
+  &lt;/xs:simpleType&gt;
+&lt;/xs:schema&gt;' | sxml validate --schema=- vane.xml
+-:4:7: cos-applicable-facets: the facet does not apply to the base type's variety and primitive type (XSD 1.1 Part 2, 4.1.5)
+</code></pre>
+<p>XSD 1.1 adds two facets: <code>assertion</code>, an XPath condition on the
+value, and <code>explicitTimezone</code>, which requires or forbids a timezone on
+dates and times. <a href="xsd-11.html">XSD 1.1 Features</a> shows both.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xsd.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xsd-complex-types.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xsd.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xsd-complex-types.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

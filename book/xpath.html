@@ -1,0 +1,523 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Finding Things with XPath - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xpath.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="finding-things-with-xpath"><a class="header" href="#finding-things-with-xpath">Finding Things with XPath</a></h1>
+<!-- examples: spec -->
+<p>XPath is the language at the heart of everything else in this book.
+XQuery is XPath with more around it, and XSLT uses XPath to select what
+its templates process. Time spent learning XPath pays off three times.</p>
+<p>This chapter and the next two work on one document: the specification
+of the Vane protocol. The Vane service holds the feature flags of
+applications, and an SDK in each application keeps a cache of them. The
+protocol is how the service tells the SDKs, on an update stream, that a
+flag rolled out or was killed, and how an SDK asks for the status of a
+flag. The draft is written the way the IETF writes its specifications: as an Internet-Draft in XML, in the vocabulary of the
+xml2rfc tool (RFC 7991), which turns such a file into the HTML and the
+plain text you know from RFCs. Keeping a specification in XML means a
+program can answer questions about it: which requirements there are,
+which terms are used and where, what changed between two versions. By
+the end of the chapters on XPath, XQuery and XSLT, we'll have the tools
+to do all of that.</p>
+<p>The examples run in <code>docs/book/examples/spec</code>, the directory of the
+specification project, and give the draft as the context item. Here is
+the file, <code>vane.xml</code>:</p>
+<p><code>vane.xml</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- An Internet-Draft in the xml2rfc version 3 vocabulary (RFC 7991).
+     A requirement is a paragraph with an anchor. Anchors are names given
+     once, in the order the requirements were written, and never changed,
+     so that other documents (flag.scxml) can refer to them; the renderer
+     numbers sections and requirements in document order. --&gt;
+&lt;rfc version="3" category="std" ipr="trust200902" submissionType="IETF"
+     docName="draft-example-vane-protocol-01"&gt;
+  &lt;front&gt;
+    &lt;title abbrev="Vane"&gt;The Vane Protocol for Feature Flag Rollouts&lt;/title&gt;
+    &lt;seriesInfo name="Internet-Draft" value="draft-example-vane-protocol-01"/&gt;
+    &lt;author fullname="Ada Byron" initials="A." surname="Byron"&gt;
+      &lt;organization&gt;Example Software&lt;/organization&gt;
+      &lt;address&gt;&lt;email&gt;ada@example.com&lt;/email&gt;&lt;/address&gt;
+    &lt;/author&gt;
+    &lt;author fullname="Alan Mathison" initials="A." surname="Mathison"&gt;
+      &lt;organization&gt;Example Software&lt;/organization&gt;
+      &lt;address&gt;&lt;email&gt;alan@example.com&lt;/email&gt;&lt;/address&gt;
+    &lt;/author&gt;
+    &lt;date year="2026" month="October" day="21"/&gt;
+    &lt;area&gt;Applications&lt;/area&gt;
+    &lt;keyword&gt;feature flag&lt;/keyword&gt;
+    &lt;keyword&gt;progressive delivery&lt;/keyword&gt;
+    &lt;abstract&gt;
+      &lt;t&gt;This document specifies Vane, the protocol between the SDKs that
+      evaluate feature flags in applications and the Vane service that
+      holds the flags. It defines the states of a flag, the messages of the
+      update stream that keeps the cache of each SDK current, and the pause
+      that protects users from a rollout that fails its checks.&lt;/t&gt;
+    &lt;/abstract&gt;
+  &lt;/front&gt;
+  &lt;middle&gt;
+    &lt;section anchor="intro"&gt;
+      &lt;name&gt;Introduction&lt;/name&gt;
+      &lt;t&gt;An application has many features, and each feature has a flag. An
+      &lt;xref target="term-sdk"&gt;SDK&lt;/xref&gt; in the application keeps the flags
+      in a cache and evaluates them for each user. It holds an update stream
+      open to the Vane service, which sends a message on it whenever a flag
+      changes, and it asks the service for the status of a flag.&lt;/t&gt;
+      &lt;section anchor="terminology"&gt;
+        &lt;name&gt;Terminology&lt;/name&gt;
+        &lt;t&gt;The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+        NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED",
+        "MAY", and "OPTIONAL" in this document are to be interpreted as
+        described in BCP 14 &lt;xref target="RFC2119"/&gt; &lt;xref target="RFC8174"/&gt;
+        when, and only when, they appear in all capitals, as shown here.&lt;/t&gt;
+        &lt;dl&gt;
+          &lt;dt anchor="term-flag"&gt;Flag&lt;/dt&gt;
+          &lt;dd&gt;A named switch in an application that turns a feature on for a
+          share of its users.&lt;/dd&gt;
+          &lt;dt anchor="term-sdk"&gt;SDK&lt;/dt&gt;
+          &lt;dd&gt;The library in an application that evaluates flags from its
+          cache and keeps the cache current with Vane messages.&lt;/dd&gt;
+          &lt;dt anchor="term-percentage"&gt;Percentage&lt;/dt&gt;
+          &lt;dd&gt;A whole number from 0 to 100 that an owner gives to roll a
+          flag out to that share of users. An SDK puts a user in the share by
+          a hash of the flag and the user, so the user stays in it while the
+          percentage grows.&lt;/dd&gt;
+          &lt;dt anchor="term-pause"&gt;Pause&lt;/dt&gt;
+          &lt;dd&gt;A state in which a &lt;xref target="term-flag"&gt;flag&lt;/xref&gt;
+          refuses every rollout for a time.&lt;/dd&gt;
+        &lt;/dl&gt;
+      &lt;/section&gt;
+    &lt;/section&gt;
+    &lt;section anchor="states"&gt;
+      &lt;name&gt;Flag States&lt;/name&gt;
+      &lt;t anchor="req-1"&gt;A &lt;xref target="term-flag"&gt;flag&lt;/xref&gt;
+      &lt;bcp14&gt;MUST&lt;/bcp14&gt; be in exactly one of the states "stable",
+      "rolling-out" and "paused".&lt;/t&gt;
+      &lt;t anchor="req-2"&gt;A flag &lt;bcp14&gt;MUST&lt;/bcp14&gt; start in the state
+      "stable" when it is created.&lt;/t&gt;
+      &lt;t anchor="req-3"&gt;A rolling-out flag &lt;bcp14&gt;SHOULD&lt;/bcp14&gt; return to the
+      state "stable" ten minutes after its rollout step began.&lt;/t&gt;
+    &lt;/section&gt;
+    &lt;section anchor="messages"&gt;
+      &lt;name&gt;Messages&lt;/name&gt;
+      &lt;t&gt;Each message is one line of ASCII text on the update stream: the
+      service sends ROLLOUT and KILL, an SDK sends STATUS. The syntax uses
+      ABNF &lt;xref target="RFC5234"/&gt;.&lt;/t&gt;
+      &lt;sourcecode type="abnf" name="vane.abnf"&gt;&lt;![CDATA[
+message        = rollout-update / kill-update / status-request
+rollout-update = "ROLLOUT" SP flag-key SP percentage CRLF
+kill-update    = "KILL" SP flag-key CRLF
+status-request = "STATUS" SP flag-key CRLF
+flag-key       = 1*32(ALPHA / DIGIT / "-")
+percentage     = 1*3DIGIT
+]]&gt;&lt;/sourcecode&gt;
+      &lt;section anchor="rollout"&gt;
+        &lt;name&gt;Rollout&lt;/name&gt;
+        &lt;t anchor="req-4"&gt;A service &lt;bcp14&gt;MUST&lt;/bcp14&gt; check the guardrail
+        metrics of a flag before it applies the
+        &lt;xref target="term-percentage"&gt;percentage&lt;/xref&gt; of a rollout
+        request.&lt;/t&gt;
+        &lt;t anchor="req-5"&gt;A service &lt;bcp14&gt;MUST NOT&lt;/bcp14&gt; roll out a flag
+        while it is in a &lt;xref target="term-pause"&gt;pause&lt;/xref&gt;
+        (&lt;xref target="pause"/&gt;).&lt;/t&gt;
+        &lt;t anchor="req-9"&gt;A service &lt;bcp14&gt;MAY&lt;/bcp14&gt; ask an owner for a
+        time-based one-time password &lt;xref target="RFC6238"/&gt; before a
+        rollout.&lt;/t&gt;
+      &lt;/section&gt;
+      &lt;section anchor="status"&gt;
+        &lt;name&gt;Status&lt;/name&gt;
+        &lt;t anchor="req-6"&gt;A service &lt;bcp14&gt;MUST&lt;/bcp14&gt; answer a status request
+        with the state of the flag and the number of failed checks since its
+        last rollout step.&lt;/t&gt;
+        &lt;t anchor="req-10"&gt;An SDK &lt;bcp14&gt;SHOULD NOT&lt;/bcp14&gt; send more
+        than one status request per second for a flag; it uses its cached
+        answer in between.&lt;/t&gt;
+      &lt;/section&gt;
+    &lt;/section&gt;
+    &lt;section anchor="pause"&gt;
+      &lt;name&gt;Pause&lt;/name&gt;
+      &lt;t anchor="req-7"&gt;After three failed checks in a row, a service
+      &lt;bcp14&gt;MUST&lt;/bcp14&gt; put the flag in a &lt;xref target="term-pause"&gt;pause&lt;/xref&gt;.&lt;/t&gt;
+      &lt;t anchor="req-8"&gt;A pause &lt;bcp14&gt;SHOULD&lt;/bcp14&gt; last five minutes.
+      &lt;cref anchor="issue-1" source="AM"&gt;Should an owner be able to
+      change the duration?&lt;/cref&gt;&lt;/t&gt;
+      &lt;t anchor="req-11"&gt;A service &lt;bcp14&gt;MAY&lt;/bcp14&gt; report a pause to the
+      owners of the flag as soon as it begins.&lt;/t&gt;
+    &lt;/section&gt;
+    &lt;section anchor="security"&gt;
+      &lt;name&gt;Security Considerations&lt;/name&gt;
+      &lt;t&gt;Vane messages travel in clear text on the network. Deployments
+      &lt;bcp14&gt;SHOULD&lt;/bcp14&gt; carry Vane over an encrypted link.
+      &lt;cref anchor="issue-2" source="AB"&gt;This needs a requirement anchor of
+      its own.&lt;/cref&gt;&lt;/t&gt;
+    &lt;/section&gt;
+    &lt;section anchor="iana"&gt;
+      &lt;name&gt;IANA Considerations&lt;/name&gt;
+      &lt;t&gt;This document has no IANA actions.&lt;/t&gt;
+    &lt;/section&gt;
+  &lt;/middle&gt;
+  &lt;back&gt;
+    &lt;references anchor="references"&gt;
+      &lt;name&gt;References&lt;/name&gt;
+      &lt;references anchor="normative"&gt;
+        &lt;name&gt;Normative References&lt;/name&gt;
+        &lt;reference anchor="RFC2119" target="https://www.rfc-editor.org/info/rfc2119"&gt;
+          &lt;front&gt;
+            &lt;title&gt;Key words for use in RFCs to Indicate Requirement Levels&lt;/title&gt;
+            &lt;author fullname="S. Bradner" initials="S." surname="Bradner"/&gt;
+            &lt;date year="1997" month="March"/&gt;
+          &lt;/front&gt;
+          &lt;seriesInfo name="BCP" value="14"/&gt;
+          &lt;seriesInfo name="RFC" value="2119"/&gt;
+        &lt;/reference&gt;
+        &lt;reference anchor="RFC5234" target="https://www.rfc-editor.org/info/rfc5234"&gt;
+          &lt;front&gt;
+            &lt;title&gt;Augmented BNF for Syntax Specifications: ABNF&lt;/title&gt;
+            &lt;author fullname="D. Crocker" initials="D." surname="Crocker" role="editor"/&gt;
+            &lt;author fullname="P. Overell" initials="P." surname="Overell"/&gt;
+            &lt;date year="2008" month="January"/&gt;
+          &lt;/front&gt;
+          &lt;seriesInfo name="STD" value="68"/&gt;
+          &lt;seriesInfo name="RFC" value="5234"/&gt;
+        &lt;/reference&gt;
+        &lt;reference anchor="RFC8174" target="https://www.rfc-editor.org/info/rfc8174"&gt;
+          &lt;front&gt;
+            &lt;title&gt;Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words&lt;/title&gt;
+            &lt;author fullname="B. Leiba" initials="B." surname="Leiba"/&gt;
+            &lt;date year="2017" month="May"/&gt;
+          &lt;/front&gt;
+          &lt;seriesInfo name="BCP" value="14"/&gt;
+          &lt;seriesInfo name="RFC" value="8174"/&gt;
+        &lt;/reference&gt;
+      &lt;/references&gt;
+      &lt;references anchor="informative"&gt;
+        &lt;name&gt;Informative References&lt;/name&gt;
+        &lt;reference anchor="RFC6238" target="https://www.rfc-editor.org/info/rfc6238"&gt;
+          &lt;front&gt;
+            &lt;title&gt;TOTP: Time-Based One-Time Password Algorithm&lt;/title&gt;
+            &lt;author fullname="D. M'Raihi" initials="D." surname="M'Raihi"/&gt;
+            &lt;author fullname="S. Machani" initials="S." surname="Machani"/&gt;
+            &lt;author fullname="M. Pei" initials="M." surname="Pei"/&gt;
+            &lt;author fullname="J. Rydell" initials="J." surname="Rydell"/&gt;
+            &lt;date year="2011" month="May"/&gt;
+          &lt;/front&gt;
+          &lt;seriesInfo name="RFC" value="6238"/&gt;
+        &lt;/reference&gt;
+      &lt;/references&gt;
+    &lt;/references&gt;
+  &lt;/back&gt;
+&lt;/rfc&gt;
+</code></pre>
+<p>It is long, but its shape is simple. The <code>front</code> has the title, the
+authors and the date; the <code>middle</code> has the sections, each with a <code>name</code>
+and paragraphs <code>t</code>; the <code>back</code> has the references. A <em>requirement</em> is a
+paragraph with an <code>anchor</code>, and it says how strong it is with one of
+the key words of BCP 14 (MUST, SHOULD, MAY and their negations) in a
+<code>bcp14</code> element. <code>xref</code> elements refer to other parts of the draft by
+their anchors: to the terms of section 1.1, to sections, and to
+references. The same directory holds <code>vane-00.xml</code>, the draft's
+previous version.</p>
+<h2 id="what-an-xpath-expression-is"><a class="header" href="#what-an-xpath-expression-is">What an XPath expression is</a></h2>
+<p>An XPath expression is a formula. It never changes anything: it looks at
+its input and computes a value. Every value is a <em>sequence</em>: zero, one or
+more <em>items</em> in order. An item is one of three things:</p>
+<ul>
+<li>a <strong>node</strong>: a part of a document, such as an element, an attribute or
+a piece of text;</li>
+<li>an <strong>atomic value</strong>: a string, a number, a date, a boolean and so on,
+each with a <em>type</em> such as <code>xs:string</code> or <code>xs:integer</code>;</li>
+<li>a <strong>function</strong>, which includes <em>maps</em> and <em>arrays</em>, as we'll see later
+in this chapter.</li>
+</ul>
+<p>A single item and a sequence of one item are the same thing, and
+sequences never nest: <code>(1, (2, 3))</code> is the sequence <code>1, 2, 3</code>.</p>
+<pre><code class="language-console">$ sxml xpath '(1, (2, 3), ())'
+1
+2
+3
+</code></pre>
+<p><code>()</code> is the empty sequence. It is how XPath says "nothing", and you'll
+meet it often: a path that finds nothing gives <code>()</code>, not an error.</p>
+<h2 id="the-document-as-a-tree"><a class="header" href="#the-document-as-a-tree">The document as a tree</a></h2>
+<p>XPath sees a document as a tree of nodes. At the top is the <em>document
+node</em>, which stands for the whole file. Its children are the comment at
+the start of the file and the outermost element, <code>rfc</code>:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml '/node() ! (if (self::comment()) then "comment" else name())'
+"comment"
+"rfc"
+</code></pre>
+<p>Each element has its attributes, and its children: more elements, and
+text nodes for the text between the tags, including the line breaks and
+spaces that indent the file. Count them:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'count(//*), count(//@*), count(//text()), count(//comment())'
+126
+116
+219
+1
+</code></pre>
+<p>A hundred and twenty-six elements, a hundred and sixteen attributes,
+two hundred and nineteen text nodes (most of them the whitespace between
+the tags) and one comment.</p>
+<p>Sections nest: a <code>section</code> can contain sections. The draft has six
+sections at the top of <code>middle</code> and nine in all:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'count(/rfc/middle/section), count(//section)'
+6
+9
+</code></pre>
+<p>A paragraph has <em>mixed content</em>: text with elements in it. Requirement
+req-7 is a text node, the <code>bcp14</code> element, another text node, an <code>xref</code>
+and a last text node with the full stop:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml '//t[@anchor = "req-7"]/node() ! (if (self::text()) then "text" else "element " || name())'
+"text"
+"element bcp14"
+"text"
+"element xref"
+"text"
+</code></pre>
+<p>Keep this picture in mind: most of the surprises in XPath come from
+forgetting that text is made of nodes too.</p>
+<p>The rest of this chapter has five parts:</p>
+<ul>
+<li><a href="xpath-paths.html">Paths, Steps and Predicates</a>: finding nodes;</li>
+<li><a href="xpath-values.html">Values and Types</a>: numbers, strings, dates and
+comparisons;</li>
+<li><a href="xpath-functions.html">Functions and Operators</a>: the function library,
+conditions and loops;</li>
+<li><a href="xpath-maps-arrays.html">Maps, Arrays and Records</a>: structured data
+beyond XML;</li>
+<li><a href="xpath-higher-order.html">Functions as Values</a>: passing functions to
+functions.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="the-sxml-command.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xpath-paths.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="the-sxml-command.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xpath-paths.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

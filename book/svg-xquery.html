@@ -1,0 +1,592 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Writing SVG with XQuery - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/svg-xquery.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="writing-svg-with-xquery"><a class="header" href="#writing-svg-with-xquery">Writing SVG with XQuery</a></h1>
+<!-- examples: svg -->
+<p>With the layout computed, drawing is a matter of building elements:
+a group, a box and a label for each node, a path and a label for each
+edge. XQuery's constructors build them, as they build any XML, and the
+one thing to get right is the namespace.</p>
+<h2 id="elements-in-the-svg-namespace"><a class="header" href="#elements-in-the-svg-namespace">Elements in the SVG namespace</a></h2>
+<p>An element constructor written in a query is an element in the result,
+and an <code>xmlns</code> attribute on it puts it, and the elements inside it, in
+a namespace:</p>
+<pre><code class="language-console">$ sxml xquery --expression='&lt;svg xmlns="http://www.w3.org/2000/svg" width="180" height="60"&gt;&lt;rect x="20" y="10" width="140" height="40"/&gt;&lt;/svg&gt;'
+&lt;svg xmlns="http://www.w3.org/2000/svg" width="180" height="60"&gt;&lt;rect x="20" y="10" width="140" height="40"/&gt;&lt;/svg&gt;
+$ sxml xquery --method=adaptive --expression='namespace-uri(&lt;svg&gt;&lt;rect/&gt;&lt;/svg&gt;), namespace-uri(&lt;svg xmlns="http://www.w3.org/2000/svg"&gt;&lt;rect/&gt;&lt;/svg&gt;/*)'
+""
+"http://www.w3.org/2000/svg"
+</code></pre>
+<p>Without the namespace, the result looks right and draws nothing: to a
+browser, <code>rect</code> in no namespace is not an SVG rectangle.</p>
+<p>A query that writes only SVG can say the namespace once, in its prolog:
+<code>declare default element namespace</code> puts every unprefixed element name
+in the query into it. <em>Every</em> name: the names in constructors, and the
+names in paths too. That is a trap when the input has no namespace:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=diagram.xml --expression='declare default element namespace "http://www.w3.org/2000/svg"; count(//node), count(//Q{}node)'
+0 8
+</code></pre>
+<p><code>//node</code> now looks for SVG <code>node</code> elements and finds none. <code>Q{}node</code>
+names an element in no namespace explicitly, whatever the default is.
+Here is a first drawing, one box per node in a column, with the
+namespace declared once:</p>
+<p><code>boxes.xq</code>:</p>
+<pre><code class="language-xquery">xquery version "4.0";
+(: One box per node of a diagram (the context item), in a column. :)
+declare default element namespace "http://www.w3.org/2000/svg";
+declare option output:indent "yes";
+
+let $nodes := //Q{}node
+return &lt;svg width="180" height="{ count($nodes) * 60 + 20 }"&gt;{
+  for $node at $position in $nodes
+  let $y := $position * 60 - 40
+  return (
+    &lt;rect x="20" y="{ $y }" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/&gt;,
+    &lt;text x="90" y="{ $y + 25 }" text-anchor="middle"&gt;{ string($node/@label) }&lt;/text&gt;
+  )
+}&lt;/svg&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --context-item=diagram.xml boxes.xq
+&lt;svg xmlns="http://www.w3.org/2000/svg" width="180" height="500"&gt;
+  &lt;rect x="20" y="20" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/&gt;
+  &lt;text x="90" y="45" text-anchor="middle"&gt;@vane/browser&lt;/text&gt;
+  &lt;rect x="20" y="80" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/&gt;
+  &lt;text x="90" y="105" text-anchor="middle"&gt;@vane/node&lt;/text&gt;
+  &lt;rect x="20" y="140" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/&gt;
+  &lt;text x="90" y="165" text-anchor="middle"&gt;vane/api&lt;/text&gt;
+  &lt;rect x="20" y="200" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/&gt;
+  &lt;text x="90" y="225" text-anchor="middle"&gt;vane/flags&lt;/text&gt;
+  &lt;rect x="20" y="260" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/&gt;
+  &lt;text x="90" y="285" text-anchor="middle"&gt;vane/registry&lt;/text&gt;
+  &lt;rect x="20" y="320" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/&gt;
+  &lt;text x="90" y="345" text-anchor="middle"&gt;vane/cache&lt;/text&gt;
+  &lt;rect x="20" y="380" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/&gt;
+  &lt;text x="90" y="405" text-anchor="middle"&gt;postgresql&lt;/text&gt;
+  &lt;rect x="20" y="440" width="140" height="40" fill="#eef3fb" stroke="#3b5b92"/&gt;
+  &lt;text x="90" y="465" text-anchor="middle"&gt;redis&lt;/text&gt;
+&lt;/svg&gt;
+</code></pre>
+<p>The default namespace does not touch attributes: an unprefixed attribute
+name is always in no namespace, so <code>$node/@label</code> works as before.</p>
+<h2 id="attributes-from-expressions"><a class="header" href="#attributes-from-expressions">Attributes from expressions</a></h2>
+<p>Curly braces in an attribute value hold an expression, and literal text
+around them stays. When the expression gives several values they are
+joined with spaces, and an empty sequence adds nothing, which is just
+what the <code>class</code> attribute of SVG needs:</p>
+<pre><code class="language-console">$ sxml xquery --expression='&lt;g class="{ "node", "store", () }" id="node-{ "cache" }"/&gt;'
+&lt;g class="node store" id="node-cache"/&gt;
+</code></pre>
+<h2 id="curly-braces-in-text"><a class="header" href="#curly-braces-in-text">Curly braces in text</a></h2>
+<p>CSS uses curly braces too. In the content of a direct constructor a
+single brace starts an expression, so a style rule written as it is
+fails to parse; doubled, <code>{{</code> and <code>}}</code> are one brace each:</p>
+<pre><code class="language-console">$ sxml xquery --expression='&lt;style&gt;rect { fill: blue }&lt;/style&gt;'
+expression:1:15: err:XPST0003: The text is not valid XQuery 4.0 syntax (XQuery 4.0, Appendix A)
+$ sxml xquery --expression='&lt;style&gt;rect {{ fill: blue }}&lt;/style&gt;'
+&lt;style&gt;rect { fill: blue }&lt;/style&gt;
+</code></pre>
+<p>String templates, the strings between backticks, follow the same rule.
+The module keeps its five style rules in one:</p>
+<pre><code class="language-xquery">(: The style rules every drawing has. :)
+declare variable $draw:style := `
+    .node rect {{ fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }}
+    .store rect {{ fill: #f6efe3; stroke: #8a6a2f }}
+    .node text {{ font: 14px sans-serif; fill: #1b1b1b }}
+    .edge path {{ fill: none; stroke: #555555; stroke-width: 1.5 }}
+    .edge text {{ font: 12px sans-serif; fill: #555555 }}`;
+
+(: Rules a drawing has only when it uses the class. :)
+declare variable $draw:class-rules := {
+  "added": ".added rect, .added path { stroke: #2e7d32; stroke-width: 3 }",
+  "removed": ".removed rect, .removed path { stroke: #c62828; stroke-dasharray: 6 4 }",
+  "changed": ".changed rect, .changed path { stroke: #b26a00; stroke-width: 3 }"
+};
+</code></pre>
+<p>The second variable holds rules that a drawing gets only when it needs
+them: one for each of the classes <code>added</code>, <code>removed</code> and <code>changed</code>,
+which the later projects use to draw differences. These are ordinary
+string literals, where a brace is just a brace.</p>
+<h2 id="computed-constructors"><a class="header" href="#computed-constructors">Computed constructors</a></h2>
+<p>When the name of an element depends on the data, a <em>computed
+constructor</em> gives it as an expression: <code>element { $name } { content }</code>.
+Its attributes can be computed as well, with <code>attribute name { value }</code>,
+and the content of the braces decides which ones there are. This
+variant of the drawing puts each box at its place from <code>draw:layout</code>,
+and draws stores as ellipses:</p>
+<p><code>shapes.xq</code>:</p>
+<pre><code class="language-xquery">xquery version "4.0";
+(: The boxes of diagram.xml (the context item) at their places, with
+   stores drawn as ellipses: the element's name is computed. :)
+import module namespace draw = "urn:example:draw" at "draw.xqm";
+declare default element namespace "http://www.w3.org/2000/svg";
+declare option output:indent "yes";
+
+let $diagram := /Q{}diagram
+let $layout := draw:layout($diagram)
+return &lt;svg width="{ $layout?width }" height="{ $layout?height }"&gt;{
+  for $node in $diagram/Q{}node
+  let $box := $layout?boxes($node/@id)
+  let $shape := if ($node/@kind = "store") then "ellipse" else "rect"
+  return element { $shape } {
+    if ($shape = "ellipse") then (
+      attribute cx { $box?x + $box?width idiv 2 },
+      attribute cy { $box?y + $box?height idiv 2 },
+      attribute rx { $box?width idiv 2 }, attribute ry { $box?height idiv 2 }
+    ) else (
+      attribute x { $box?x }, attribute y { $box?y },
+      attribute width { $box?width }, attribute height { $box?height }
+    ),
+    attribute fill { "none" },
+    attribute stroke { "black" }
+  }
+}&lt;/svg&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --context-item=diagram.xml shapes.xq
+&lt;svg xmlns="http://www.w3.org/2000/svg" width="299" height="416"&gt;
+  &lt;rect x="20" y="20" width="126" height="40" fill="none" stroke="black"/&gt;
+  &lt;rect x="176" y="20" width="102" height="40" fill="none" stroke="black"/&gt;
+  &lt;rect x="105" y="124" width="100" height="40" fill="none" stroke="black"/&gt;
+  &lt;rect x="104" y="188" width="102" height="40" fill="none" stroke="black"/&gt;
+  &lt;rect x="20" y="252" width="126" height="40" fill="none" stroke="black"/&gt;
+  &lt;rect x="176" y="252" width="102" height="40" fill="none" stroke="black"/&gt;
+  &lt;ellipse cx="83" cy="376" rx="51" ry="20" fill="none" stroke="black"/&gt;
+  &lt;ellipse cx="227" cy="376" rx="50" ry="20" fill="none" stroke="black"/&gt;
+&lt;/svg&gt;
+</code></pre>
+<p>A computed name without a prefix is in the default element namespace,
+like a direct one, so the ellipses are SVG ellipses. The description is
+read as <code>/Q{}diagram</code>, because of the trap above.</p>
+<h2 id="the-drawing-module"><a class="header" href="#the-drawing-module">The drawing module</a></h2>
+<p><code>draw.xqm</code> does not declare a default element namespace. It reads the
+description with plain names, and puts the <code>xmlns</code> attribute on the
+outermost constructor of each function that writes SVG instead. Inside
+such a constructor the default namespace is SVG as well, for paths too,
+so each function reads what it needs from the description <em>before</em> its
+constructor, in <code>let</code> clauses, and inside uses only variables and
+attributes. A node is a group with a box and a label:</p>
+<pre><code class="language-xquery">(:~ One node: a group with a box and its label. :)
+declare function draw:node($node as element(node), $box as draw:box) as element() {
+  let $kind := ($node/@kind, "service")[1]
+  return &lt;g xmlns="http://www.w3.org/2000/svg"
+            class="{ "node", $kind, $node/@class }" id="node-{ $node/@id }"&gt;
+    &lt;rect x="{ $box?x }" y="{ $box?y }" width="{ $box?width }" height="{ $box?height }"
+          rx="{ if ($kind = "store") then 20 else 6 }"/&gt;
+    &lt;text x="{ $box?x + $box?width idiv 2 }" y="{ $box?y + 25 }"
+          text-anchor="middle"&gt;{ $node/@label/string() }&lt;/text&gt;
+  &lt;/g&gt;
+};
+</code></pre>
+<p>An edge is a group with the path of its route and its label, at the
+place the layout gave the label:</p>
+<pre><code class="language-xquery">(:~ One edge: a group with its path and its label. :)
+declare function draw:edge($edge as element(edge), $route as draw:route) as element() {
+  &lt;g xmlns="http://www.w3.org/2000/svg"
+     class="{ "edge", $edge/@class }" id="edge-{ $edge/@from }-{ $edge/@to }"&gt;
+    &lt;path d="{ $route?path }" marker-end="url(#arrow)"/&gt;
+    { $route?label ! &lt;text x="{ ?x }" y="{ ?y }"&gt;{ $edge/@label/string() }&lt;/text&gt; }
+  &lt;/g&gt;
+};
+</code></pre>
+<p><code>$label ! &lt;text …&gt;{ . }&lt;/text&gt;</code> makes a <code>text</code> only when there is a
+label: <code>!</code> over an empty sequence gives an empty sequence. And
+<code>draw:svg</code> puts it all together:</p>
+<pre><code class="language-xquery">(:~ The drawing of a diagram: edges first, so that boxes cover their ends. :)
+declare function draw:svg($diagram as element(diagram)) as element() {
+  let $layout := draw:layout($diagram)
+  let $title := $diagram/@title/string()
+  let $nodes := $diagram/node
+  let $edges := $diagram/edge
+  let $features := distinct-values(($nodes, $edges)/@class ! tokenize(.))
+  return &lt;svg xmlns="http://www.w3.org/2000/svg" width="{ $layout?width }"
+              height="{ $layout?height }" viewBox="0 0 { $layout?width } { $layout?height }"&gt;
+    &lt;title&gt;{ $title }&lt;/title&gt;
+    &lt;style&gt;{
+      string-join(($draw:style, $features ! $draw:class-rules(.)), "&amp;#10;    ") || "&amp;#10;  "
+    }&lt;/style&gt;
+    &lt;defs&gt;
+      &lt;marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5"
+              markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"&gt;
+        &lt;path d="M 0 0 L 10 5 L 0 10 z" fill="#555555"/&gt;
+      &lt;/marker&gt;
+    &lt;/defs&gt;
+    { for $edge at $e in $edges return draw:edge($edge, $layout?routes($e)) }
+    { $nodes ! draw:node(., $layout?boxes(@id)) }
+  &lt;/svg&gt;
+};
+</code></pre>
+<p>The edges come before the nodes, because SVG draws in document order:
+a box is drawn over anything drawn before it. Inside the constructor,
+<code>node</code> and <code>edge</code> would name SVG elements, so the description's nodes
+and edges are read into <code>$nodes</code> and <code>$edges</code> first. The style is the
+five rules plus the ones for the classes the diagram uses, one rule per
+line.</p>
+<h2 id="writing-the-file"><a class="header" href="#writing-the-file">Writing the file</a></h2>
+<p>The main query that draws a diagram is short. It imports the module and
+declares how to serialize the result:</p>
+<p><code>draw.xq</code>:</p>
+<pre><code class="language-xquery">xquery version "4.0";
+(: Draws diagram.xml (the context item) as SVG. :)
+import module namespace draw = "urn:example:draw" at "draw.xqm";
+declare option output:indent "yes";
+
+draw:svg(/diagram)
+</code></pre>
+<p><code>declare option output:indent "yes"</code> asks for indentation, one element
+per line. Without it the only line breaks are the ones in the style
+text; a browser draws the result the same way, but it is hard to read
+and to compare:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=diagram.xml --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:svg(/diagram)' | wc -l
+7
+$ sxml xquery --context-item=diagram.xml draw.xq | wc -l
+72
+</code></pre>
+<p><code>--output</code> writes the result to a file, and only when the query
+succeeds. The drawing it writes is the committed <code>diagram.svg</code>, byte for
+byte:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=diagram.xml --output=drawn.svg draw.xq
+$ diff drawn.svg diagram.svg &amp;&amp; echo same
+same
+</code></pre>
+<p><img src="figures/svg/diagram.svg" alt="The Vane system: the two SDKs call vane/api, which calls vane/flags; flags calls vane/registry and vane/cache, which keep their data in PostgreSQL and Redis" /></p>
+<p><code>--output</code> won't replace a file that exists unless <code>--force</code> is given,
+so an old drawing is never lost by accident:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=diagram.xml --output=drawn.svg draw.xq
+sxml xquery: 'drawn.svg' exists; give --force to replace it
+</code></pre>
+<h2 id="drawing-a-change"><a class="header" href="#drawing-a-change">Drawing a change</a></h2>
+<p>The optional <code>class</code> attribute of a node or an edge is copied to its
+group, and the three classes <code>added</code>, <code>removed</code> and <code>changed</code> get their
+own style rules. <code>change.xml</code> is the Vane system after a change to the
+<code>flags</code> module: a kill no longer reads its flag from the <code>cache</code> module,
+each kill is recorded by a new <code>audit</code> module, which writes to
+PostgreSQL and posts to the owners' webhook at hooks.example.com, and
+the way <code>flags</code> calls the registry changed. The cache module stays, and
+Redis with it, because other modules still use it; only the edge from
+<code>flags</code> goes. The nodes are listed in the order they should stand in,
+left to right: <code>cache</code> before <code>registry</code> before <code>audit</code>, and their
+stores in the same order. The layout keeps the order of the
+description wherever it costs no crossing, so the author decides that
+much.</p>
+<p><code>change.xml</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- The Vane system after the change to vane 2.4.0: the flags module no
+     longer reads a kill's flag from the cache module (which stays, with
+     Redis: other modules use it), it records each kill with the new audit
+     module, which writes to PostgreSQL and posts to the owners' webhook,
+     and its calls to the registry module changed. The nodes of a row are
+     in an order that keeps the lines from crossing. --&gt;
+&lt;diagram title="Vane after the change"&gt;
+  &lt;node id="browser" label="@vane/browser"/&gt;
+  &lt;node id="node" label="@vane/node"/&gt;
+  &lt;node id="api" label="vane/api"/&gt;
+  &lt;node id="flags" label="vane/flags" class="changed"/&gt;
+  &lt;node id="cache" label="vane/cache"/&gt;
+  &lt;node id="registry" label="vane/registry"/&gt;
+  &lt;node id="audit" label="vane/audit" class="added"/&gt;
+  &lt;node id="redis" label="redis" kind="store"/&gt;
+  &lt;node id="postgresql" label="postgresql" kind="store"/&gt;
+  &lt;node id="hooks" label="hooks.example.com" class="added"/&gt;
+  &lt;edge from="browser" to="api" label="HTTP"/&gt;
+  &lt;edge from="node" to="api" label="HTTP"/&gt;
+  &lt;edge from="api" to="flags"/&gt;
+  &lt;edge from="flags" to="cache" class="removed"/&gt;
+  &lt;edge from="flags" to="registry" class="changed"/&gt;
+  &lt;edge from="flags" to="audit" class="added"/&gt;
+  &lt;edge from="cache" to="redis" label="Redis"/&gt;
+  &lt;edge from="registry" to="postgresql" label="SQL"/&gt;
+  &lt;edge from="audit" to="postgresql" label="SQL" class="added"/&gt;
+  &lt;edge from="audit" to="hooks" label="HTTP" class="added"/&gt;
+&lt;/diagram&gt;
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --context-item=change.xml --output=change.svg draw.xq
+$ sxml xpath --context-item=change.svg '//*:style/string()'
+"
+    .node rect { fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }
+    .store rect { fill: #f6efe3; stroke: #8a6a2f }
+    .node text { font: 14px sans-serif; fill: #1b1b1b }
+    .edge path { fill: none; stroke: #555555; stroke-width: 1.5 }
+    .edge text { font: 12px sans-serif; fill: #555555 }
+    .changed rect, .changed path { stroke: #b26a00; stroke-width: 3 }
+    .added rect, .added path { stroke: #2e7d32; stroke-width: 3 }
+    .removed rect, .removed path { stroke: #c62828; stroke-dasharray: 6 4 }
+  "
+$ sxml xpath --context-item=change.svg '//*:g[tokenize(@class) = ("added", "removed", "changed")] ! `{@id}: {@class}`'
+"edge-flags-cache: edge removed"
+"edge-flags-registry: edge changed"
+"edge-flags-audit: edge added"
+"edge-audit-postgresql: edge added"
+"edge-audit-hooks: edge added"
+"node-flags: node service changed"
+"node-audit: node service added"
+"node-hooks: node service added"
+</code></pre>
+<p><img src="figures/svg/change.svg" alt="The Vane system after the change: vane/flags in amber, the new vane/audit module, hooks.example.com and their edges in green, and the edge from flags to cache dashed in red" /></p>
+<p>The added module and the webhook, and the three edges to and from the
+audit module, are drawn with a thick green line, the removed edge with a
+dashed red one, and the changed module and edge in amber. Each class
+rule is in the style once, in the order the classes first appear in the
+description: <code>changed</code> on <code>flags</code>, <code>added</code> on <code>audit</code>, <code>removed</code> on the
+first edge. A rule written
+later in the style wins over an earlier one of the same weight, which is
+why the class rules come last.</p>
+<h2 id="using-the-module-elsewhere"><a class="header" href="#using-the-module-elsewhere">Using the module elsewhere</a></h2>
+<p>Any query can draw a diagram by importing the module; all it needs is a
+<code>diagram</code> element, from a file or built on the spot. The state machine,
+call-chain and trace projects each keep a link to <code>svg/draw.xqm</code> in
+their own directory and import it there. The module's functions are its
+interface:</p>
+<div class="table-wrapper"><table><thead><tr><th>Function</th><th>Result</th></tr></thead><tbody>
+<tr><td><code>draw:svg($diagram)</code></td><td>the drawing, an SVG <code>svg</code> element</td></tr>
+<tr><td><code>draw:layout($diagram)</code></td><td>a <code>draw:layout</code> record: <code>width</code>, <code>height</code>, <code>boxes</code>, <code>routes</code></td></tr>
+<tr><td><code>draw:reversed($diagram)</code></td><td>the positions of the edges that phase 1 turns round</td></tr>
+<tr><td><code>draw:graph($diagram)</code></td><td>the graph to lay out: <code>vertices</code> and <code>links</code></td></tr>
+<tr><td><code>draw:layers($graph)</code>, <code>draw:proper($graph, $layers)</code></td><td>phase 2: the layers, and the graph with bend vertices</td></tr>
+<tr><td><code>draw:orders($proper)</code></td><td>phase 3: one array of vertex ids per layer</td></tr>
+<tr><td><code>draw:xs($proper, $orders)</code></td><td>phase 4: the x of every vertex</td></tr>
+<tr><td><code>draw:path($points, $straight)</code>, <code>draw:loop($box)</code></td><td>phase 5: an edge's SVG path, a loop's route</td></tr>
+<tr><td><code>draw:node($node, $box)</code>, <code>draw:edge($edge, $route)</code></td><td>one group</td></tr>
+</tbody></table>
+</div>
+<p>A diagram built in the query itself is drawn the same way. Here the loop
+shows up on the right of its box, with its label beside it:</p>
+<pre><code class="language-console">$ sxml xquery --expression='import module namespace draw = "urn:example:draw" at "draw.xqm"; draw:svg(&lt;diagram title="Polling"&gt;&lt;node id="flag" label="flag"/&gt;&lt;edge from="flag" to="flag" label="status.request"/&gt;&lt;/diagram&gt;)' --output=loop.svg
+$ sxml xpath --context-item=loop.svg '//*:g[@id = "edge-flag-flag"]/*/(@d, @x) ! string()'
+"M 120 32 L 136 32 L 136 48 L 120 48"
+"142"
+</code></pre>
+<p><img src="figures/svg/loop.svg" alt="One box, flag, with a loop on its right labelled status.request" /></p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="svg-layout.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="svg-xslt.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="svg-layout.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="svg-xslt.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

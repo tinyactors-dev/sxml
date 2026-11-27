@@ -1,0 +1,397 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Writing Grammars - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/ixml-grammars.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="writing-grammars"><a class="header" href="#writing-grammars">Writing Grammars</a></h1>
+<!-- examples: ixml -->
+<p>A grammar is a list of rules. This chapter goes through everything a
+rule can say, with a small grammar for each feature. All the grammars
+are files in <code>docs/book/examples/ixml</code>.</p>
+<h2 id="rules-and-alternatives"><a class="header" href="#rules-and-alternatives">Rules and alternatives</a></h2>
+<p>A rule is a name, a colon (or <code>=</code>), one or more <em>alternatives</em> and a full
+stop. Alternatives are separated by <code>;</code> (or <code>|</code>), and the parts of an
+alternative by commas:</p>
+<p><code>greeting.ixml</code>:</p>
+<pre><code>greeting: hello, -", ", name, -"!".
+hello: "Hello"; "Hi".
+name: letter+.
+-letter: ["A"-"Z"; "a"-"z"].
+</code></pre>
+<pre><code class="language-console">$ sxml xpath --method=xml 'invisible-xml(unparsed-text("greeting.ixml"))("Hello, World!")'
+&lt;greeting&gt;&lt;hello&gt;Hello&lt;/hello&gt;&lt;name&gt;World&lt;/name&gt;&lt;/greeting&gt;
+$ sxml xpath --method=xml 'invisible-xml(unparsed-text("greeting.ixml"))("Hi, Ada!")'
+&lt;greeting&gt;&lt;hello&gt;Hi&lt;/hello&gt;&lt;name&gt;Ada&lt;/name&gt;&lt;/greeting&gt;
+</code></pre>
+<p>Spaces and line breaks between the parts of a rule do not matter, and
+text in braces, <code>{like this}</code>, is a comment. An alternative may be
+empty: <code>sign: "-"; .</code> is a minus sign or nothing.</p>
+<h2 id="characters"><a class="header" href="#characters">Characters</a></h2>
+<p>The smallest parts of a grammar match single characters:</p>
+<div class="table-wrapper"><table><thead><tr><th>Notation</th><th>Matches</th></tr></thead><tbody>
+<tr><td><code>"abc"</code> or <code>'abc'</code></td><td>the characters a, b and c, in that order; <code>""</code> inside <code>"..."</code> is one quote</td></tr>
+<tr><td><code>#a</code>, <code>#20AC</code></td><td>the one character with that hexadecimal code point: line feed, the euro sign</td></tr>
+<tr><td><code>["a"-"z"; "_"; #9]</code></td><td>one character of a set: here a letter from a to z, an underscore or a tab</td></tr>
+<tr><td><code>~["0"-"9"]</code></td><td>one character that is <em>not</em> in the set</td></tr>
+<tr><td><code>[L]</code>, <code>[Nd]</code>, <code>[Lu; Ll]</code></td><td>one character of a Unicode general category: any letter, a decimal digit, an upper- or lowercase letter</td></tr>
+</tbody></table>
+</div>
+<p><code>fields.ixml</code> reads a word in any script, a number with an optional
+fraction, and a quoted text, separated by tabs:</p>
+<p><code>fields.ixml</code>:</p>
+<pre><code>{A word, a number and a quoted text, separated by tabs.}
+fields: word, -#9, number, -#9, quoted.
+word: [L]+.
+number: ["0"-"9"]+, (".", ["0"-"9"]+)?.
+quoted: -'"', ~['"']*, -'"'.
+</code></pre>
+<pre><code class="language-console">$ sxml xpath --method=xml 'invisible-xml(unparsed-text("fields.ixml"))(unparsed-text("fields.txt"))'
+&lt;fields&gt;&lt;word&gt;Zürich&lt;/word&gt;&lt;number&gt;42.5&lt;/number&gt;&lt;quoted&gt;two words&lt;/quoted&gt;&lt;/fields&gt;
+</code></pre>
+<p>sxml's categories are those of Unicode 16.0, the version its regular
+expressions use.</p>
+<h2 id="repetition-and-options"><a class="header" href="#repetition-and-options">Repetition and options</a></h2>
+<p>After any part:</p>
+<ul>
+<li><code>?</code> makes it optional;</li>
+<li><code>*</code> repeats it zero or more times, <code>+</code> one or more times;</li>
+<li><code>**sep</code> and <code>++sep</code> repeat it with <code>sep</code> between the repetitions, so
+<code>item++","</code> is one or more items separated by commas.</li>
+</ul>
+<p>Parentheses group parts into one: <code>("+"; "-")?</code> is an optional sign.</p>
+<p><code>list.ixml</code>:</p>
+<pre><code>list: -"[", s, item**(-",", s), s, -"]".
+item: ["0"-"9"]+.
+-s: -" "*.
+</code></pre>
+<pre><code class="language-console">$ sxml xpath --method=xml 'invisible-xml(unparsed-text("list.ixml"))("[1, 22,333 ]")'
+&lt;list&gt;&lt;item&gt;1&lt;/item&gt;&lt;item&gt;22&lt;/item&gt;&lt;item&gt;333&lt;/item&gt;&lt;/list&gt;
+$ sxml xpath --method=xml 'invisible-xml(unparsed-text("list.ixml"))("[]")'
+&lt;list/&gt;
+</code></pre>
+<h2 id="elements-attributes-and-hidden-parts"><a class="header" href="#elements-attributes-and-hidden-parts">Elements, attributes and hidden parts</a></h2>
+<p>A <em>mark</em> before a name says what the part becomes in the XML:</p>
+<ul>
+<li><code>^</code> (the default): an element;</li>
+<li><code>@</code>: an attribute, which goes on the nearest element around it;</li>
+<li><code>-</code>: nothing of its own; its content goes into the element around it.</li>
+</ul>
+<p>A mark on a rule applies wherever the rule is used. A mark where a name
+is used applies there only and wins over the rule's. Strings and
+character sets take <code>-</code> too, which drops their characters, as the
+hyphens of the date did.</p>
+<p><code>person.ixml</code>:</p>
+<pre><code>person: name, -", ", age, -", ", city.
+name: first, -" ", last.
+@first: [L]+.
+@last: [L]+.
+@age: ["0"-"9"]+.
+-city: [L]+.
+</code></pre>
+<pre><code class="language-console">$ sxml xpath --method=xml 'invisible-xml(unparsed-text("person.ixml"))("Ada Lovelace, 36, London")'
+&lt;person age="36"&gt;&lt;name first="Ada" last="Lovelace"/&gt;London&lt;/person&gt;
+</code></pre>
+<p><code>first</code> and <code>last</code> are attributes of <code>name</code>, the element they are in;
+<code>age</code> is an attribute of <code>person</code>. <code>city</code> is hidden, so its text is part
+of <code>person</code>'s content. An attribute's value is all the text inside it:
+marks inside an attribute only drop characters.</p>
+<h2 id="insertions"><a class="header" href="#insertions">Insertions</a></h2>
+<p><code>+"text"</code> adds text to the XML that is not in the input. An insertion
+matches nothing, so it can go anywhere in an alternative:</p>
+<p><code>temperature.ixml</code>:</p>
+<pre><code>temperature: number, unit.
+number: ["0"-"9"]+.
+unit: -"C", +"celsius"; -"F", +"fahrenheit".
+</code></pre>
+<pre><code class="language-console">$ sxml xpath --method=xml 'invisible-xml(unparsed-text("temperature.ixml"))("21C")'
+&lt;temperature&gt;&lt;number&gt;21&lt;/number&gt;&lt;unit&gt;celsius&lt;/unit&gt;&lt;/temperature&gt;
+</code></pre>
+<p>The input says <code>C</code>; the XML says <code>celsius</code>. Insertions are how a grammar
+fills in what the text leaves out, such as the leading zero of a month
+in the <a href="ixml-tasks.html#dates">dates task</a>.</p>
+<h2 id="renaming"><a class="header" href="#renaming">Renaming</a></h2>
+<p>A rule describes one form of text, and its name is the element's name.
+Sometimes one form appears in two roles: the two numbers of a range are
+both numbers, but one is the low end and one the high end. <code>&gt;</code> gives a
+part another name in the XML:</p>
+<p><code>range.ixml</code>:</p>
+<pre><code>ixml version "1.1".
+range: number&gt;low, -"..", number&gt;high.
+number: ["0"-"9"]+.
+</code></pre>
+<pre><code class="language-console">$ sxml xpath --method=xml 'invisible-xml(unparsed-text("range.ixml"))("1..10")'
+&lt;range&gt;&lt;low&gt;1&lt;/low&gt;&lt;high&gt;10&lt;/high&gt;&lt;/range&gt;
+</code></pre>
+<p><code>&gt;</code> can also follow a rule's name, to rename it everywhere. Renaming is
+part of version 1.1 of the specification, so the grammar starts with
+<code>ixml version "1.1".</code>; sxml reads the rest of a 1.0 grammar the same
+way.</p>
+<h2 id="ambiguous-grammars"><a class="header" href="#ambiguous-grammars">Ambiguous grammars</a></h2>
+<p>A grammar is <em>ambiguous</em> when it describes a text in more than one way.
+This grammar reads a name as a first and a last part, but either part
+may contain spaces:</p>
+<p><code>name.ixml</code>:</p>
+<pre><code>name: first, -" ", last.
+first: [L; " "]+.
+last: [L; " "]+.
+</code></pre>
+<pre><code class="language-console">$ sxml xpath --method=xml 'invisible-xml(unparsed-text("name.ixml"))("Mary Ann Smith")'
+&lt;name xmlns:ixml="http://invisiblexml.org/NS" ixml:state="ambiguous"&gt;&lt;first&gt;Mary&lt;/first&gt;&lt;last&gt;Ann Smith&lt;/last&gt;&lt;/name&gt;
+</code></pre>
+<p>"Mary" and "Ann Smith" is one way to read the text; "Mary Ann" and
+"Smith" is another. An ambiguous parse is not an error: the parser
+returns one of the ways and marks the document element with
+<code>ixml:state="ambiguous"</code>. Which way it picks is not specified, so a
+query must not depend on it. The attribute is in the namespace
+<code>http://invisiblexml.org/NS</code>, so a query tests it as
+<code>@Q{http://invisiblexml.org/NS}state</code> or <code>@*:state</code>.</p>
+<p>Ambiguity is almost always a mistake in the grammar. Ask where a part
+can end: here, at any space. The fix is to say which part may contain
+spaces. If the last name is one word, the reading is unique:</p>
+<pre><code class="language-console">$ sxml xpath --method=xml 'invisible-xml(replace(unparsed-text("name.ixml"), "last: \[L; "" ""\]\+", "last: [L]+"))("Mary Ann Smith")'
+&lt;name&gt;&lt;first&gt;Mary Ann&lt;/first&gt;&lt;last&gt;Smith&lt;/last&gt;&lt;/name&gt;
+</code></pre>
+<p>(The expression changes the grammar's text before compiling it, a quick
+way to try a fix.) Three more causes of ambiguity are common: two
+repetitions next to each other that can both take the same character
+(<code>"x"*, "x"*</code>); an optional part next to a repetition that can stand for
+it; and a separator that a field may also contain. The
+<a href="ixml-tasks.html">tasks</a> and <a href="ixml-errors.html">errors</a> chapters show each.</p>
+<h2 id="the-prolog"><a class="header" href="#the-prolog">The prolog</a></h2>
+<p>A grammar may start with <code>ixml version "1.0".</code> or <code>ixml version "1.1".</code>.
+sxml reads both versions. For any other version it parses with its own
+and marks the result with <code>ixml:state="version-mismatch"</code>, as the
+specification asks.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="ixml.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="ixml-tasks.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="ixml.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="ixml-tasks.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

@@ -1,0 +1,528 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Drawing with XSLT - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/svg-xslt.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="drawing-with-xslt"><a class="header" href="#drawing-with-xslt">Drawing with XSLT</a></h1>
+<!-- examples: svg -->
+<p>XQuery computed the layout and wrote the drawing in one go. The drawing
+half is also a natural job for XSLT: each kind of element in the input
+becomes a piece of SVG, which is exactly what template rules say. In
+this section a stylesheet draws the diagram from the layout that
+<code>layout.xq</code> writes, and it draws the edge labels last, on top of
+everything, which the XQuery drawing doesn't do.</p>
+<h2 id="the-input-a-laid-out-diagram"><a class="header" href="#the-input-a-laid-out-diagram">The input: a laid-out diagram</a></h2>
+<p>The stylesheet does no layout of its own. It reads the description
+with the layout added, which
+<a href="svg-layout.html">Computing a Layout</a> made with <code>layout.xq</code>:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=diagram.xml --output=laid-out.xml layout.xq
+$ sxml xpath --context-item=laid-out.xml '/diagram/@width/string(), //node[@id = "redis"]/@*!string()'
+"299"
+"redis"
+"redis"
+"store"
+"177"
+"356"
+"100"
+"40"
+</code></pre>
+<h2 id="the-stylesheet"><a class="header" href="#the-stylesheet">The stylesheet</a></h2>
+<p><code>draw.xsl</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- Draws a laid-out diagram (the output of layout.xq) as SVG, in three
+     layers: the edges, the nodes, and the edges' labels on top. --&gt;
+&lt;xsl:stylesheet version="4.0"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns="http://www.w3.org/2000/svg"
+    expand-text="yes"&gt;
+
+  &lt;xsl:output method="xml" indent="yes"/&gt;
+
+  &lt;xsl:template match="/diagram"&gt;
+    &lt;svg width="{@width}" height="{@height}" viewBox="0 0 {@width} {@height}"&gt;
+      &lt;title&gt;{@title}&lt;/title&gt;
+      &lt;style&gt;
+        .nodes rect {{ fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }}
+        .nodes .store rect {{ fill: #f6efe3; stroke: #8a6a2f }}
+        .nodes text {{ font: 14px sans-serif; fill: #1b1b1b }}
+        .edges path {{ fill: none; stroke: #555555; stroke-width: 1.5 }}
+        .labels text {{ font: 12px sans-serif; fill: #555555 }}
+      &lt;/style&gt;
+      &lt;defs&gt;
+        &lt;marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5"
+                markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"&gt;
+          &lt;path d="M 0 0 L 10 5 L 0 10 z" fill="#555555"/&gt;
+        &lt;/marker&gt;
+      &lt;/defs&gt;
+      &lt;g class="edges"&gt;
+        &lt;xsl:apply-templates select="edge" mode="edges"/&gt;
+      &lt;/g&gt;
+      &lt;g class="nodes"&gt;
+        &lt;xsl:apply-templates select="node" mode="nodes"/&gt;
+      &lt;/g&gt;
+      &lt;g class="labels"&gt;
+        &lt;xsl:apply-templates select="edge" mode="labels"/&gt;
+      &lt;/g&gt;
+    &lt;/svg&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;!-- A description without a layout: stop, and say what to do. --&gt;
+  &lt;xsl:template match="/diagram[not(@width)]" priority="1"&gt;
+    &lt;xsl:message terminate="yes"&gt;{@title}: no layout; run layout.xq first&lt;/xsl:message&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;!-- The edges layer: the path of each edge. --&gt;
+  &lt;xsl:template match="edge" mode="edges"&gt;
+    &lt;path id="edge-{@from}-{@to}" d="{@d}" marker-end="url(#arrow)"/&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;!-- The nodes layer: a box and its label. Stores have rounder corners. --&gt;
+  &lt;xsl:template match="node" mode="nodes"&gt;
+    &lt;xsl:param name="corner" select="6"/&gt;
+    &lt;g id="node-{@id}" class="{(@kind, 'service')[1], @class}"&gt;
+      &lt;rect x="{@x}" y="{@y}" width="{@width}" height="{@height}" rx="{$corner}"/&gt;
+      &lt;text x="{@x + @width idiv 2}" y="{@y + 25}" text-anchor="middle"&gt;{@label}&lt;/text&gt;
+    &lt;/g&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="node[@kind = 'store']" mode="nodes"&gt;
+    &lt;xsl:next-match&gt;
+      &lt;xsl:with-param name="corner" select="20"/&gt;
+    &lt;/xsl:next-match&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;!-- The labels layer: a label where the layout put it. An edge
+       without a label falls to the second rule, which writes nothing. --&gt;
+  &lt;xsl:template match="edge[@label]" mode="labels"&gt;
+    &lt;text x="{@label-x}" y="{@label-y}"&gt;{@label}&lt;/text&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="edge" mode="labels"/&gt;
+
+&lt;/xsl:stylesheet&gt;
+</code></pre>
+<p>Read it from the top.</p>
+<ul>
+<li><code>xmlns="http://www.w3.org/2000/svg"</code> on the stylesheet makes it the
+default namespace of the <em>literal result elements</em>: <code>svg</code>, <code>g</code>, <code>rect</code>
+and the others are written in the SVG namespace. It does not change
+what the patterns and paths mean: <code>match="node"</code> and <code>select="edge"</code>
+still name elements in no namespace, as in the input. (XSLT keeps the
+two apart; XQuery's <code>declare default element namespace</code> changes both.)</li>
+<li><code>expand-text="yes"</code> turns on <em>text value templates</em>: curly braces in
+text hold expressions, as <code>{@title}</code> and <code>{@label}</code> do. Braces in
+attributes are <em>attribute value templates</em>, which XSLT always has. In
+the style rules a brace that is CSS is doubled, the same rule as in
+XQuery. The text of <code>style</code> is copied as it is written, indentation
+included; CSS doesn't mind.</li>
+<li><code>xsl:output indent="yes"</code> asks for one element per line.</li>
+</ul>
+<h2 id="one-mode-per-layer"><a class="header" href="#one-mode-per-layer">One mode per layer</a></h2>
+<p>The template for <code>/diagram</code> writes the frame (title, style, the arrow
+marker) and three groups, and it fills each group by applying templates
+in a different <em>mode</em>: <code>edges</code>, <code>nodes</code> and <code>labels</code>. A mode is a
+separate set of template rules, so the same <code>edge</code> elements are
+processed twice, once to draw their paths and once to write their
+labels, by different rules. The order of the groups is the order of
+drawing: paths first, then the boxes, then the labels over both, where
+no box can hide them.</p>
+<p>Within a mode the most specific rule wins. In the <code>labels</code> mode,
+<code>edge[@label]</code> has a predicate, which gives it the default priority 0.5,
+and <code>edge</code> alone has priority 0; so an edge with a label is written by
+the first rule, and one without falls to the second, which is empty and
+writes nothing.</p>
+<h2 id="xslnext-match-for-stores"><a class="header" href="#xslnext-match-for-stores"><code>xsl:next-match</code> for stores</a></h2>
+<p>A store is a node with rounder corners. Instead of a second copy of the
+node rule, the store rule hands the work back: <code>xsl:next-match</code> applies
+the next rule that matches, here the general <code>node</code> rule, and
+<code>xsl:with-param</code> gives it the corner radius. The general rule declares
+the parameter with its default, 6:</p>
+<pre><code class="language-console">$ sxml transform draw.xsl laid-out.xml --output=drawn.svg
+$ sxml xpath --context-item=drawn.svg '//*:g[@id = ("node-cache", "node-redis")] ! `{@id}: {@class}, rx {*:rect/@rx}`'
+"node-cache: service, rx 6"
+"node-redis: store, rx 20"
+</code></pre>
+<p><img src="figures/svg/drawn.svg" alt="The Vane system as the stylesheet draws it: the modules as boxes, PostgreSQL and Redis as rounded stores" /></p>
+<p>The cache module is a box like the other modules; Redis, where it keeps
+its data, is the store.</p>
+<p>The class is an attribute value template with a sequence in it,
+<code>{(@kind, 'service')[1], @class}</code>: the values are joined with spaces, and
+a missing <code>class</code> adds nothing.</p>
+<h2 id="the-result"><a class="header" href="#the-result">The result</a></h2>
+<pre><code class="language-console">$ sxml transform draw.xsl laid-out.xml
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;svg xmlns="http://www.w3.org/2000/svg" width="299" height="416" viewBox="0 0 299 416"&gt;
+  &lt;title&gt;Vane&lt;/title&gt;
+  &lt;style&gt;
+        .nodes rect { fill: #eef3fb; stroke: #3b5b92; stroke-width: 1.5 }
+        .nodes .store rect { fill: #f6efe3; stroke: #8a6a2f }
+        .nodes text { font: 14px sans-serif; fill: #1b1b1b }
+        .edges path { fill: none; stroke: #555555; stroke-width: 1.5 }
+        .labels text { font: 12px sans-serif; fill: #555555 }
+      &lt;/style&gt;
+  &lt;defs&gt;
+    &lt;marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"&gt;
+      &lt;path d="M 0 0 L 10 5 L 0 10 z" fill="#555555"/&gt;
+    &lt;/marker&gt;
+  &lt;/defs&gt;
+  &lt;g class="edges"&gt;
+    &lt;path id="edge-browser-api" d="M 83 60 L 83 70 L 123 70 L 123 110 L 138 110 L 138 124" marker-end="url(#arrow)"/&gt;
+    &lt;path id="edge-node-api" d="M 227 60 L 227 70 L 187 70 L 187 110 L 171 110 L 171 124" marker-end="url(#arrow)"/&gt;
+    &lt;path id="edge-api-flags" d="M 155 164 L 155 188" marker-end="url(#arrow)"/&gt;
+    &lt;path id="edge-flags-registry" d="M 138 228 L 138 238 L 83 238 L 83 252" marker-end="url(#arrow)"/&gt;
+    &lt;path id="edge-flags-cache" d="M 172 228 L 172 238 L 227 238 L 227 252" marker-end="url(#arrow)"/&gt;
+    &lt;path id="edge-registry-postgresql" d="M 83 292 L 83 356" marker-end="url(#arrow)"/&gt;
+    &lt;path id="edge-cache-redis" d="M 227 292 L 227 356" marker-end="url(#arrow)"/&gt;
+  &lt;/g&gt;
+  &lt;g class="nodes"&gt;
+    &lt;g id="node-browser" class="service"&gt;
+      &lt;rect x="20" y="20" width="126" height="40" rx="6"/&gt;
+      &lt;text x="83" y="45" text-anchor="middle"&gt;@vane/browser&lt;/text&gt;
+    &lt;/g&gt;
+    &lt;g id="node-node" class="service"&gt;
+      &lt;rect x="176" y="20" width="102" height="40" rx="6"/&gt;
+      &lt;text x="227" y="45" text-anchor="middle"&gt;@vane/node&lt;/text&gt;
+    &lt;/g&gt;
+    &lt;g id="node-api" class="service"&gt;
+      &lt;rect x="105" y="124" width="100" height="40" rx="6"/&gt;
+      &lt;text x="155" y="149" text-anchor="middle"&gt;vane/api&lt;/text&gt;
+    &lt;/g&gt;
+    &lt;g id="node-flags" class="service"&gt;
+      &lt;rect x="104" y="188" width="102" height="40" rx="6"/&gt;
+      &lt;text x="155" y="213" text-anchor="middle"&gt;vane/flags&lt;/text&gt;
+    &lt;/g&gt;
+    &lt;g id="node-registry" class="service"&gt;
+      &lt;rect x="20" y="252" width="126" height="40" rx="6"/&gt;
+      &lt;text x="83" y="277" text-anchor="middle"&gt;vane/registry&lt;/text&gt;
+    &lt;/g&gt;
+    &lt;g id="node-cache" class="service"&gt;
+      &lt;rect x="176" y="252" width="102" height="40" rx="6"/&gt;
+      &lt;text x="227" y="277" text-anchor="middle"&gt;vane/cache&lt;/text&gt;
+    &lt;/g&gt;
+    &lt;g id="node-postgresql" class="store"&gt;
+      &lt;rect x="32" y="356" width="102" height="40" rx="20"/&gt;
+      &lt;text x="83" y="381" text-anchor="middle"&gt;postgresql&lt;/text&gt;
+    &lt;/g&gt;
+    &lt;g id="node-redis" class="store"&gt;
+      &lt;rect x="177" y="356" width="100" height="40" rx="20"/&gt;
+      &lt;text x="227" y="381" text-anchor="middle"&gt;redis&lt;/text&gt;
+    &lt;/g&gt;
+  &lt;/g&gt;
+  &lt;g class="labels"&gt;
+    &lt;text x="128" y="96"&gt;HTTP&lt;/text&gt;
+    &lt;text x="192" y="96"&gt;HTTP&lt;/text&gt;
+    &lt;text x="88" y="328"&gt;SQL&lt;/text&gt;
+    &lt;text x="232" y="328"&gt;Redis&lt;/text&gt;
+  &lt;/g&gt;
+&lt;/svg&gt;
+</code></pre>
+<p>The labels layer has four texts, not seven: the three edges between
+modules have no label, and the empty rule writes nothing for them. The
+boxes, paths and labels are where the XQuery drawing has them; only the
+grouping and the style differ. Arithmetic on attributes works because
+an attribute of an untyped document is untyped: <code>@x + @width idiv 2</code>
+converts both to numbers. The two steps also run as one pipeline, the layout's output
+read by the stylesheet from standard input (<code>-</code>):</p>
+<pre><code class="language-console">$ sxml xquery --context-item=states.xml layout.xq | sxml transform draw.xsl - --output=states.svg
+$ sxml xpath --context-item=states.svg '//*:g[@class = "labels"]/*:text ! `{.} at {@x},{@y}`'
+"rollout.request at 26,200"
+"check.passed at 118,304"
+"check.failed at 157,200"
+"step.done at 282,200"
+"kill.request at 157,96"
+</code></pre>
+<p><img src="figures/svg/states.svg" alt="The states of states.xml in layers: archived on top, stable below it, then checking and rolling-out, each transition with its label beside it and the transitions back to stable running up into it" /></p>
+<h2 id="a-rule-for-input-that-is-wrong"><a class="header" href="#a-rule-for-input-that-is-wrong">A rule for input that is wrong</a></h2>
+<p>Given the description itself, without the layout, the rules above would
+write a drawing with empty sizes and no places, and say nothing. One
+more rule catches that: <code>/diagram[not(@width)]</code> matches a diagram
+without a layout, and <code>xsl:message terminate="yes"</code> stops the
+transformation with the message. Both patterns, <code>/diagram</code> and
+<code>/diagram[not(@width)]</code>, have the default priority 0.5, so the rule
+gives itself <code>priority="1"</code> to win:</p>
+<pre><code class="language-console">$ sxml transform draw.xsl diagram.xml
+Vane: no layout; run layout.xq first
+draw.xsl:41:5: err:XTMM9000: Vane: no layout; run layout.xq first
+</code></pre>
+<h2 id="matching-svg"><a class="header" href="#matching-svg">Matching SVG</a></h2>
+<p>So far the stylesheet <em>wrote</em> SVG and <em>read</em> elements in no namespace.
+A stylesheet that reads SVG must match SVG names, and the attribute
+<code>xpath-default-namespace</code> says which namespace unprefixed names in
+patterns and paths are in. This one lists the boxes of any drawing:</p>
+<p><code>boxes.xsl</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- Lists the boxes of an SVG drawing: where each one is, and its text. --&gt;
+&lt;xsl:stylesheet version="4.0"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xpath-default-namespace="http://www.w3.org/2000/svg"
+    expand-text="yes"&gt;
+
+  &lt;xsl:output method="text"/&gt;
+
+  &lt;xsl:template match="/"&gt;
+    &lt;xsl:apply-templates select="//rect"/&gt;
+  &lt;/xsl:template&gt;
+
+  &lt;xsl:template match="rect"&gt;
+    &lt;xsl:text&gt;{@x},{@y} {../text}&amp;#10;&lt;/xsl:text&gt;
+  &lt;/xsl:template&gt;
+
+&lt;/xsl:stylesheet&gt;
+</code></pre>
+<p>Run on both drawings, it shows that they agree:</p>
+<pre><code class="language-console">$ sxml transform boxes.xsl diagram.svg
+20,20 @vane/browser
+176,20 @vane/node
+105,124 vane/api
+104,188 vane/flags
+20,252 vane/registry
+176,252 vane/cache
+32,356 postgresql
+177,356 redis
+$ sxml transform boxes.xsl drawn.svg
+20,20 @vane/browser
+176,20 @vane/node
+105,124 vane/api
+104,188 vane/flags
+20,252 vane/registry
+176,252 vane/cache
+32,356 postgresql
+177,356 redis
+</code></pre>
+<p>Without <code>xpath-default-namespace</code>, <code>//rect</code> would look for <code>rect</code> in no
+namespace, find nothing, and the output would be empty. The next
+section is all about stylesheets like this one, which read drawings and
+write changed ones.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="svg-xquery.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="svg-transform.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="svg-xquery.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="svg-transform.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

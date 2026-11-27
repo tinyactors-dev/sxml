@@ -1,0 +1,363 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Hello, XPath - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/hello-xpath.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="hello-xpath"><a class="header" href="#hello-xpath">Hello, XPath</a></h1>
+<!-- examples: getting-started -->
+<p>Now that you have sxml, it's traditional to say hello. XPath is an
+expression language: you give it an expression, and it gives you back a
+value. A string in quotes is an expression whose value is that string:</p>
+<pre><code class="language-console">$ sxml xpath '"Hello, XPath!"'
+"Hello, XPath!"
+</code></pre>
+<p><code>sxml xpath</code> evaluated the expression and wrote the result. The result is
+written with quotes because sxml shows you <em>what kind</em> of value you got:
+<code>"Hello, XPath!"</code> is a string, while <code>42</code> would be a number. Single
+quotes around the expression are for your shell; the double quotes belong
+to XPath.</p>
+<p>Expressions can compute:</p>
+<pre><code class="language-console">$ sxml xpath 'upper-case("hello") || ", " || 6 * 7'
+"HELLO, 42"
+</code></pre>
+<p><code>upper-case</code> is one of the more than two hundred functions that come with
+XPath, and <code>||</code> joins strings together.</p>
+<h2 id="a-first-document"><a class="header" href="#a-first-document">A first document</a></h2>
+<p>XPath is made for finding things in documents. The documents of this
+book belong to Vane, a small, made-up service for feature flags, and the
+first is a short cut of the specification of its protocol. Like the specifications of
+the IETF, it is written in XML: sections with a <code>name</code>, paragraphs <code>t</code>,
+and <em>requirements</em>, the paragraphs with an <code>anchor</code> and a key word such
+as MUST or SHOULD in a <code>bcp14</code> element. Here it is, the file <code>draft.xml</code>
+in the examples:</p>
+<p><code>draft.xml</code>:</p>
+<pre><code class="language-xml">&lt;rfc docName="draft-example-vane-protocol-01"&gt;
+  &lt;front&gt;
+    &lt;title&gt;The Vane Protocol for Feature Flag Rollouts&lt;/title&gt;
+  &lt;/front&gt;
+  &lt;middle&gt;
+    &lt;section anchor="states"&gt;
+      &lt;name&gt;Flag States&lt;/name&gt;
+      &lt;t anchor="req-2"&gt;A flag &lt;bcp14&gt;MUST&lt;/bcp14&gt; be stable when it is created.&lt;/t&gt;
+      &lt;t anchor="req-3"&gt;A rolling-out flag &lt;bcp14&gt;SHOULD&lt;/bcp14&gt; be stable again after ten minutes.&lt;/t&gt;
+    &lt;/section&gt;
+    &lt;section anchor="pause"&gt;
+      &lt;name&gt;Pause&lt;/name&gt;
+      &lt;t&gt;A pause protects users from a rollout that fails its checks.&lt;/t&gt;
+      &lt;t anchor="req-7"&gt;After three failed checks, a service &lt;bcp14&gt;MUST&lt;/bcp14&gt; pause the flag.&lt;/t&gt;
+    &lt;/section&gt;
+  &lt;/middle&gt;
+&lt;/rfc&gt;
+</code></pre>
+<p>Give the document to <code>sxml xpath</code> with <code>--context-item</code>. The document
+becomes the <em>context item</em>: the thing the expression starts from. Now ask
+for every <code>name</code> element:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=draft.xml '//name'
+&lt;name&gt;Flag States&lt;/name&gt;
+&lt;name&gt;Pause&lt;/name&gt;
+</code></pre>
+<p><code>//name</code> is a <em>path expression</em>. It reads as "from the top of the
+document, go down any number of levels, and find elements named
+<code>name</code>". The result is a <em>sequence</em> of two elements, and sxml writes
+one item of the sequence on each line.</p>
+<p>Most of the time you want what is inside the elements, not the elements
+themselves. A path can end with a function call that is applied to each
+element it finds:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=draft.xml '//name/string()'
+"Flag States"
+"Pause"
+</code></pre>
+<h2 id="asking-questions"><a class="header" href="#asking-questions">Asking questions</a></h2>
+<p>Square brackets after a step filter it. They hold a <em>predicate</em>: a
+condition each item must meet. Which paragraphs say MUST?</p>
+<pre><code class="language-console">$ sxml xpath --context-item=draft.xml '//t[bcp14 = "MUST"]/string()'
+"A flag MUST be stable when it is created."
+"After three failed checks, a service MUST pause the flag."
+</code></pre>
+<p>The predicate <code>[bcp14 = "MUST"]</code> keeps each <code>t</code> that has a <code>bcp14</code>
+child whose text is <code>MUST</code>. The string of a paragraph is all the text
+inside it, so the key word is part of it, although it sits in an element
+of its own.</p>
+<p>How many paragraphs are there, and how many of them are requirements?</p>
+<pre><code class="language-console">$ sxml xpath --context-item=draft.xml 'count(//t), count(//t[@anchor])'
+4
+3
+</code></pre>
+<p>The comma makes a sequence of two values. The <code>@</code> in <code>@anchor</code> selects
+an <em>attribute</em> instead of an element, and <code>t[@anchor]</code> is a paragraph
+that has one. Asked for the attributes themselves, sxml writes them as
+they look in XML:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=draft.xml '//t/@anchor'
+anchor="req-2"
+anchor="req-3"
+anchor="req-7"
+</code></pre>
+<p>The <code>!</code> operator applies the expression on its right to each item on its
+left, and inside it, names and <code>.</code> refer to that item. Here it makes one
+line of the index of requirements for each anchored paragraph:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=draft.xml '//t[@anchor] ! (@anchor || ": " || bcp14)'
+"req-2: MUST"
+"req-3: SHOULD"
+"req-7: MUST"
+</code></pre>
+<p>The anchors are names, not numbers: <code>req-1</code> is not in this cut of the
+draft, and the full draft adds requirements in the middle. You'll learn
+much more about paths in the next chapter.</p>
+<h2 id="when-something-goes-wrong"><a class="header" href="#when-something-goes-wrong">When something goes wrong</a></h2>
+<p>If an expression has a mistake in it, sxml tells you where it is and what
+the problem is:</p>
+<pre><code class="language-console">$ sxml xpath '1 +'
+expression:1:3: err:XPST0003: The text is not valid XPath 4.0 syntax (XPath 4.0, Appendix A)
+</code></pre>
+<p>The message has the line and column (<code>1:3</code>), an <em>error code</em>
+(<code>err:XPST0003</code>), and a description that names the part of the
+specification that decides it. Every error in XPath, XQuery and XSLT
+has a code like this one; the same code means the same problem in every
+processor. Here is another common one:</p>
+<pre><code class="language-console">$ sxml xpath '//t'
+expression:1:1: err:XPDY0002: The focus or a variable of the dynamic context is absent (XPath 4.0, section 2.2.2)
+</code></pre>
+<p><code>//t</code> needs a document to start from, and we forgot to give one.</p>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>You have run your first XPath expressions:</p>
+<ul>
+<li><code>sxml xpath EXPRESSION</code> evaluates an expression and writes the result;</li>
+<li><code>--context-item=FILE</code> gives the expression a document to start from;</li>
+<li>paths such as <code>//section/name</code> find nodes, predicates such as
+<code>[bcp14 = "MUST"]</code> filter them, <code>@anchor</code> selects an attribute, and
+functions such as <code>string()</code> and <code>count()</code> compute with them.</li>
+</ul>
+<p>Next, let's look at the other things the <code>sxml</code> command can do.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="installation.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="the-sxml-command.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="installation.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="the-sxml-command.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

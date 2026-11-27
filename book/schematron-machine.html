@@ -1,0 +1,503 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Checking the State Machine - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/schematron-machine.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="checking-the-state-machine"><a class="header" href="#checking-the-state-machine">Checking the State Machine</a></h1>
+<!-- examples: scxml -->
+<p><a href="scxml-checks.html">Checking What the Schema Cannot</a> checked the flag's
+state machine with a query: every state can be reached, every event the
+machine handles is declared and every declared event is used, payloads
+and types name something in <code>vane-data.xsd</code>, data values fit their
+types, and the requirements the machine names exist in the draft. This
+chapter writes the same checks as a Schematron schema, in the <code>scxml</code>
+directory, and compares the two.</p>
+<h2 id="the-schema"><a class="header" href="#the-schema">The schema</a></h2>
+<p><code>flag.sch</code>:</p>
+<pre><code class="language-xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!-- Rules of a Vane machine that its schemas cannot say. The context of
+     every rule is a node of the machine; vane.xml is the draft it
+     implements, vane-data.xsd the schema of its data. --&gt;
+&lt;schema xmlns="http://purl.oclc.org/dsdl/schematron"
+        xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+        queryBinding="xslt3" schematronEdition="2025"&gt;
+  &lt;title&gt;Rules of a Vane machine&lt;/title&gt;
+  &lt;ns prefix="sc" uri="http://www.w3.org/2005/07/scxml"/&gt;
+  &lt;ns prefix="vane" uri="urn:example:vane"/&gt;
+  &lt;ns prefix="xs" uri="http://www.w3.org/2001/XMLSchema"/&gt;
+  &lt;ns prefix="check" uri="urn:example:check"/&gt;
+
+  &lt;let name="declared" value="//vane:event/@name ! string()"/&gt;
+  &lt;let name="implemented" value="//@vane:implements ! tokenize(.)"/&gt;
+
+  &lt;!-- The machine alone, for a sketch that names no requirement yet. --&gt;
+  &lt;phase id="machine" when="empty(//@vane:implements)"&gt;
+    &lt;active pattern="states"/&gt;
+    &lt;active pattern="events"/&gt;
+    &lt;active pattern="data"/&gt;
+  &lt;/phase&gt;
+
+  &lt;pattern id="states"&gt;
+    &lt;!-- Every state a path of transitions leads to from the initial one. --&gt;
+    &lt;let name="reachable" value="
+      let $states := //(sc:state | sc:final)
+      return fold-left(1 to count($states), string(/sc:scxml/@initial),
+        fn($reached, $pass) {
+          distinct-values(($reached,
+            $states[@id = $reached]//sc:transition/@target ! tokenize(.)))
+        })"/&gt;
+    &lt;rule context="sc:state"&gt;
+      &lt;assert id="reachable" test="@id = $reachable"&gt;No transition leads
+        to the state &lt;value-of select="@id"/&gt;.&lt;/assert&gt;
+    &lt;/rule&gt;
+  &lt;/pattern&gt;
+
+  &lt;pattern id="events"&gt;
+    &lt;rule context="sc:transition[@event]" visit-each="tokenize(@event)"&gt;
+      &lt;assert id="declared" test=". = $declared"&gt;The event
+        &lt;value-of select="."/&gt; is not declared in vane:events.&lt;/assert&gt;
+    &lt;/rule&gt;
+    &lt;rule context="vane:event"&gt;
+      &lt;assert id="used" severity="warning"
+              test="@name = (//sc:transition/@event ! tokenize(.),
+                             //(sc:send | sc:raise)/@event)"&gt;Nothing
+        handles, sends or raises the event &lt;value-of select="@name"/&gt;.&lt;/assert&gt;
+    &lt;/rule&gt;
+  &lt;/pattern&gt;
+
+  &lt;!-- The simple types of vane-data.xsd: each has a constructor function. --&gt;
+  &lt;xsl:import-schema namespace="urn:example:vane" schema-location="vane-data.xsd"/&gt;
+
+  &lt;!-- Whether a value is one of a type: a cast that fails is false. --&gt;
+  &lt;xsl:function name="check:fits" as="xs:boolean"&gt;
+    &lt;xsl:param name="value" as="xs:string"/&gt;
+    &lt;xsl:param name="type" as="xs:QName"/&gt;
+    &lt;xsl:try select="exists(function-lookup($type, 1)($value))"&gt;
+      &lt;xsl:catch select="false()"/&gt;
+    &lt;/xsl:try&gt;
+  &lt;/xsl:function&gt;
+
+  &lt;pattern id="data"&gt;
+    &lt;let name="schema" value="doc('vane-data.xsd')/xs:schema"/&gt;
+    &lt;rule context="vane:event[@vane:payload]"&gt;
+      &lt;assert id="payload"
+              test="resolve-QName(@vane:payload, .)
+                    = $schema/xs:element/@name ! QName($schema/@targetNamespace, .)"&gt;The
+        payload &lt;value-of select="@vane:payload"/&gt; of &lt;value-of select="@name"/&gt;
+        is no element of vane-data.xsd.&lt;/assert&gt;
+    &lt;/rule&gt;
+    &lt;rule context="sc:data[@vane:type]"&gt;
+      &lt;let name="type" value="resolve-QName(@vane:type, .)"/&gt;
+      &lt;assert id="type" test="exists(function-lookup($type, 1))"&gt;The
+        type &lt;value-of select="@vane:type"/&gt; of &lt;value-of select="@id"/&gt;
+        is no simple type of vane-data.xsd.&lt;/assert&gt;
+      &lt;assert id="value" test="empty(function-lookup($type, 1))
+                               or check:fits(@expr, $type)"&gt;The value
+        &lt;value-of select="@expr"/&gt; of &lt;value-of select="@id"/&gt; is not a
+        &lt;value-of select="@vane:type"/&gt;.&lt;/assert&gt;
+    &lt;/rule&gt;
+  &lt;/pattern&gt;
+
+  &lt;pattern id="requirements"&gt;
+    &lt;let name="anchors" value="doc('vane.xml')//t/@anchor ! string()"/&gt;
+    &lt;rule context="*[@vane:implements]" visit-each="tokenize(@vane:implements)"&gt;
+      &lt;assert id="known-requirement" test=". = $anchors"&gt;The draft has
+        no requirement &lt;value-of select="."/&gt;.&lt;/assert&gt;
+    &lt;/rule&gt;
+  &lt;/pattern&gt;
+
+  &lt;pattern id="draft"&gt;
+    &lt;rule context="/sc:scxml"
+          visit-each="doc('vane.xml')//t[bcp14 = ('MUST', 'MUST NOT')]/@anchor ! string()"&gt;
+      &lt;assert id="implemented" severity="warning" test=". = $implemented"&gt;Nothing
+        in the machine implements the draft's &lt;value-of select="."/&gt;.&lt;/assert&gt;
+    &lt;/rule&gt;
+  &lt;/pattern&gt;
+&lt;/schema&gt;
+</code></pre>
+<p>It finds the four flaws that <code>check.xq</code> found:</p>
+<pre><code class="language-console">$ sxml validate --schematron=flag.sch flag.scxml; echo "exit status $?"
+flag.scxml:92:3: reachable: No transition leads to the state archived. (flag.sch:34:7)
+flag.scxml:31:5: used warning: Nothing handles, sends or raises the event flag.archived. (flag.sch:45:7)
+flag.scxml:75:5: declared: The event flag.evaluated is not declared in vane:events. (flag.sch:41:7)
+flag.scxml:2:1: implemented warning: Nothing in the machine implements the draft's req-1. (flag.sch:96:7)
+exit status 1
+</code></pre>
+<p>and the five mistakes of the copy that <a href="scxml-checks.html">Checking What the Schema
+Cannot</a> made, which the XSD schemas do not see:</p>
+<pre><code class="language-console">$ sed -e 's/expr="3"/expr="30"/' \
+      -e 's/vane:type="vane:seconds"/vane:type="seconds"/' \
+      -e 's/vane:payload="vane:rollout"/vane:payload="vane:rolout"/' \
+      -e 's/req-5 req-8/req-5 req-12/' flag.scxml &gt; worse.scxml
+$ sxml validate --schematron=flag.sch worse.scxml
+worse.scxml:92:3: reachable: No transition leads to the state archived. (flag.sch:34:7)
+worse.scxml:31:5: used warning: Nothing handles, sends or raises the event flag.archived. (flag.sch:45:7)
+worse.scxml:75:5: declared: The event flag.evaluated is not declared in vane:events. (flag.sch:41:7)
+worse.scxml:7:5: payload: The payload vane:rolout of rollout.request is no element of vane-data.xsd. (flag.sch:67:7)
+worse.scxml:38:5: value: The value 30 of maxFailures is not a vane:failure-limit. (flag.sch:78:7)
+worse.scxml:39:5: type: The type seconds of stepSeconds is no simple type of vane-data.xsd. (flag.sch:75:7)
+worse.scxml:40:5: type: The type seconds of pauseSeconds is no simple type of vane-data.xsd. (flag.sch:75:7)
+worse.scxml:80:3: known-requirement: The draft has no requirement req-12. (flag.sch:88:7)
+worse.scxml:2:1: implemented warning: Nothing in the machine implements the draft's req-1. (flag.sch:96:7)
+</code></pre>
+<p>The fixed machine of <a href="scxml-checks.html">Checking What the Schema Cannot</a>
+passes:</p>
+<pre><code class="language-console">$ sxml validate --schematron=flag.sch flag-fixed.scxml; echo "exit status $?"
+exit status 0
+</code></pre>
+<h2 id="reading-the-schema"><a class="header" href="#reading-the-schema">Reading the schema</a></h2>
+<p>Two prefixes, <code>sc</code> for SCXML and <code>vane</code> for Vane's own attributes and
+elements, are declared with <code>ns</code>, as the machine declares them with
+<code>xmlns</code>; the names in the rules use them.</p>
+<p><strong>States.</strong> The pattern's variable <code>$reachable</code> is the computation of
+<code>local:reachable</code> in <code>check.xq</code>, written as one XPath expression: a
+<code>let</code>, then <code>fold-left</code> over as many passes as there are states, each
+adding the targets of the states reached so far. <code>tokenize</code> splits each
+<code>target</code>, which SCXML allows to be a list of states (see <a href="xsd-11.html">XSD 1.1
+Features</a>). A pattern's variable
+is evaluated once, for the whole machine, and then each state is only
+compared with it.</p>
+<p><strong>Events.</strong> A transition's <code>event</code> attribute holds a list of event
+names, so the rule visits each name (<code>visit-each</code>, from <a href="schematron-rules.html">Patterns,
+Rules and Assertions</a>) and asserts that it is
+declared. The finding points at the transition that waits for the
+undeclared event, where the query could only name the event. An unused
+event is a warning: it is harmless, and an owner may be about to use it.</p>
+<p><strong>Data.</strong> <code>$schema</code> reads <code>vane-data.xsd</code> as a document, as the query
+did, and the payload rule compares QNames. <code>resolve-QName</code> turns the
+attribute's text, <code>vane:rollout</code>, into a QName with the namespace the
+prefix <code>vane</code> has <em>in the machine</em>, so the machine could use another
+prefix and still pass. For types, the schema needs XSLT itself, which
+the next section explains.</p>
+<p><strong>Requirements.</strong> <code>doc('vane.xml')</code> reads the draft. A relative URI in a
+rule resolves against the schema's own location, so the draft is found
+next to <code>flag.sch</code>, wherever the machine is. The first rule checks the
+anchors the machine names; the last one goes the other way. Its context
+is the machine's root, and it visits each anchor of a MUST or MUST NOT
+requirement <em>of the draft</em>: the items are strings from another
+document, and each finding is reported at the machine's root element,
+line 2, which is what it is about.</p>
+<h2 id="xslt-inside-a-schema"><a class="header" href="#xslt-inside-a-schema">XSLT inside a schema</a></h2>
+<p><code>queryBinding="xslt3"</code> says more than which language the tests are in:
+under an XSLT binding, a schema can hold XSLT declarations, and sxml
+compiles them into the stylesheet it makes of the schema. <code>flag.sch</code>
+uses two:</p>
+<ul>
+<li><code>xsl:import-schema</code> imports <code>vane-data.xsd</code>, so its simple types are
+known, and each has a constructor function. <code>function-lookup($type, 1)</code> finds the constructor of a type by its name, as <code>check.xq</code> did;
+it is empty when the type does not exist, which is the <code>type</code> check.</li>
+<li><code>xsl:function</code> declares <code>check:fits</code>, which calls the constructor
+with a value and says whether that works. A constructor raises an
+error for a value that is not one of its type, and an XPath
+expression cannot catch errors; <code>xsl:try</code> can, so the function
+returns <code>false()</code> instead. The query did the same with XQuery's
+<code>validate</code> and <code>try</code>.</li>
+</ul>
+<p>A test that raised the error itself would stop the validation, so the
+assertion <code>value</code> calls the function only for types that exist.</p>
+<h2 id="what-schematron-does-better"><a class="header" href="#what-schematron-does-better">What Schematron does better</a></h2>
+<p>The checks are the same, and so are their answers. What changed is
+everything around them:</p>
+<ul>
+<li><strong>Places.</strong> Each finding has its line and column in the machine, and
+the place of the rule in the schema. <code>check.xq</code> printed names and left
+the reader to search for them.</li>
+<li><strong>Messages.</strong> Each assertion has its own message, written as a
+sentence, next to its test. The query built its lines in the
+expressions that computed them.</li>
+<li><strong>Levels.</strong> An unused event and a requirement nothing implements yet
+are warnings; the rest are errors. The query had one level: every line
+was a problem.</li>
+<li><strong>Exit status.</strong> <code>sxml validate</code> exits with 1 when there is an error,
+and 0 when there are only warnings, so a build runs it as it is. The
+query needed a shell test around its output.</li>
+<li><strong>Reports for programs.</strong> The same findings are available as JSON and
+as SVRL, the report format of the standard (<a href="schematron-reports.html">Reports, Errors and Exit
+Statuses</a>).</li>
+</ul>
+<h2 id="phases"><a class="header" href="#phases">Phases</a></h2>
+<p>Not every check fits every moment. While an owner sketches a new
+machine, it names no requirements yet, and comparing it with the draft
+gives nothing but warnings. A <em>phase</em> names a set of patterns to run:
+<code>machine</code> runs <code>states</code>, <code>events</code> and <code>data</code>, and leaves the draft
+alone. <code>--phase</code> chooses it:</p>
+<pre><code class="language-console">$ sxml validate --schematron=flag.sch --phase=machine flag.scxml
+flag.scxml:92:3: reachable: No transition leads to the state archived. (flag.sch:34:7)
+flag.scxml:31:5: used warning: Nothing handles, sends or raises the event flag.archived. (flag.sch:45:7)
+flag.scxml:75:5: declared: The event flag.evaluated is not declared in vane:events. (flag.sch:41:7)
+</code></pre>
+<p>Without <code>--phase</code>, the schema's <code>defaultPhase</code> attribute chooses, and
+without that, every pattern runs (<code>#ALL</code>). The 2025 edition adds a
+third way: with <code>--phase='#ANY'</code>, each document chooses for itself. The
+first phase, in the order of the schema, whose <code>when</code> expression is
+true for the document is used; if none is, every pattern runs.
+<code>machine</code>'s <code>when</code> is true for a machine that names no requirement.
+Remove the <code>vane:implements</code> attributes, and the sketch gets the
+machine's checks, while the full machine gets all of them:</p>
+<pre><code class="language-console">$ sed 's/ vane:implements="[^"]*"//' flag.scxml &gt; sketch.scxml
+$ sxml validate --schematron=flag.sch --phase='#ANY' sketch.scxml flag.scxml
+sketch.scxml:92:3: reachable: No transition leads to the state archived. (flag.sch:34:7)
+sketch.scxml:31:5: used warning: Nothing handles, sends or raises the event flag.archived. (flag.sch:45:7)
+sketch.scxml:75:5: declared: The event flag.evaluated is not declared in vane:events. (flag.sch:41:7)
+flag.scxml:92:3: reachable: No transition leads to the state archived. (flag.sch:34:7)
+flag.scxml:31:5: used warning: Nothing handles, sends or raises the event flag.archived. (flag.sch:45:7)
+flag.scxml:75:5: declared: The event flag.evaluated is not declared in vane:events. (flag.sch:41:7)
+flag.scxml:2:1: implemented warning: Nothing in the machine implements the draft's req-1. (flag.sch:96:7)
+</code></pre>
+<p>A phase can also have variables of its own, and a <code>from</code> expression
+that selects the nodes its patterns start from instead of the whole
+document. A phase that the schema does not have is an error:</p>
+<pre><code class="language-console">$ sxml validate --schematron=flag.sch --phase=quick flag.scxml
+flag.sch:5:1: schematron:phase: the schema has no phase of this id (5.4.13): quick
+</code></pre>
+<h2 id="what-still-needs-xquery"><a class="header" href="#what-still-needs-xquery">What still needs XQuery</a></h2>
+<p>Schematron reports; it never changes a document or makes a new one. Two
+parts of the state-machine project stay queries and stylesheets:</p>
+<ul>
+<li><strong>Fixing.</strong> <code>fix.xq</code> makes the fixed machine with an update, and
+Schematron's findings say where to look but not what to write.
+Running <code>flag.sch</code> after the fix, as above, is how a build knows the
+fix worked.</li>
+<li><strong>Making things from the machine.</strong> The documentation of <a href="scxml-xhtml.html">Documenting
+the Machine in XHTML</a> and the drawing of <a href="scxml-drawing.html">Drawing the
+Machine</a> are outputs, not findings.</li>
+</ul>
+<p>A check whose answer is a list of problems belongs in Schematron. A
+check that is part of a larger computation, such as the generator's
+own check of the types in <a href="codegen-typescript.html#the-rule-the-schema-couldnt-check">The rule the schema couldn't
+check</a>, may
+stay in the program that needs it; <a href="schematron-documents.html">Rules Across
+Documents</a> writes that one as a rule too.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="schematron-rules.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="schematron-documents.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="schematron-rules.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="schematron-documents.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

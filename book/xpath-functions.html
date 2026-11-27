@@ -1,0 +1,463 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Functions and Operators - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/xpath-functions.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="functions-and-operators"><a class="header" href="#functions-and-operators">Functions and Operators</a></h1>
+<!-- examples: spec -->
+<p>XPath comes with a large library of functions, defined in a companion
+specification, <em>XPath and XQuery Functions and Operators 4.0</em>. This
+section shows the ones you'll use every day, and the expressions that
+make XPath feel like a small programming language: conditions,
+variables and loops.</p>
+<h2 id="strings"><a class="header" href="#strings">Strings</a></h2>
+<p>The draft's name, its <code>docName</code>, says which version it is:
+<code>draft-example-vane-protocol-01</code> is version 01. The string functions
+take it apart:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'contains(/rfc/@docName, "vane"), starts-with(/rfc/@docName, "draft-"), substring(/rfc/@docName, 15, 4)'
+true()
+true()
+"vane"
+$ sxml xpath --context-item=vane.xml 'substring-after(/rfc/@docName, "draft-"), tokenize(/rfc/@docName, "-")[last()]'
+"example-vane-protocol-01"
+"01"
+</code></pre>
+<p><code>substring</code> counts characters from 1. <code>tokenize</code> splits a string at a
+separator, here <code>-</code>, and <code>[last()]</code> keeps the last part: the version.</p>
+<p>Paragraphs in XML are full of line breaks and indentation.
+<code>normalize-space</code> turns every run of whitespace into one space and
+removes it at both ends, which is what you want before you compare or
+print a paragraph:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'normalize-space(//t[@anchor = "req-3"])'
+"A rolling-out flag SHOULD return to the state ""stable"" ten minutes after its rollout step began."
+</code></pre>
+<p>The quotes from the paragraph are doubled: that is how a string literal
+in XPath writes a quote, and sxml writes strings so that you could paste
+them back into an expression.</p>
+<p><code>string-join</code> joins a sequence with a separator, and <code>||</code> joins two
+strings. A <em>string template</em>, written between backticks, puts the values
+of expressions in curly braces into a string:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'string-join(//section[@anchor = "pause"]/t/@anchor, ", ")'
+"req-7, req-8, req-11"
+$ sxml xpath --context-item=vane.xml '/rfc/middle/section ! `{name}: {count(.//t[@anchor])} requirements`'
+"Introduction: 0 requirements"
+"Flag States: 3 requirements"
+"Messages: 5 requirements"
+"Pause: 3 requirements"
+"Security Considerations: 0 requirements"
+"IANA Considerations: 0 requirements"
+</code></pre>
+<p>Messages has five because <code>.//t</code> also finds the requirements of its two
+subsections. Other string functions include <code>upper-case</code>, <code>lower-case</code>,
+<code>string-length</code>, <code>substring-before</code>, <code>translate</code> and <code>char</code>.</p>
+<h2 id="regular-expressions"><a class="header" href="#regular-expressions">Regular expressions</a></h2>
+<p><code>matches</code>, <code>replace</code> and <code>tokenize</code> take regular expressions, in the
+syntax of XML Schema with the usual extensions (<code>\d</code>, <code>\s</code>, <code>\w</code>, <code>\b</code>
+for a word boundary, groups, and <code>$1</code> in replacements):</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'replace(/rfc/@docName, "-(\d+)$", "-02")'
+"draft-example-vane-protocol-02"
+$ sxml xpath 'tokenize("feature flag, progressive delivery", ",\s*")'
+"feature flag"
+"progressive delivery"
+$ sxml xpath --context-item=vane.xml '//author ! tokenize(@fullname)[last()]'
+"Byron"
+"Mathison"
+"Bradner"
+"Crocker"
+"Overell"
+"Leiba"
+"M'Raihi"
+"Machani"
+"Pei"
+"Rydell"
+</code></pre>
+<p>The first gives the name of the next version: <code>-(\d+)$</code> matches a dash
+and the digits at the end. With one argument, <code>tokenize</code> splits at
+whitespace.</p>
+<p>Regular expressions find a classic mistake in drafts: a key word that is
+written in capitals but not marked up. BCP 14 says the words have their
+special meaning only "when, and only when, they appear in all capitals",
+so a tool that lists requirements by their <code>bcp14</code> elements misses a
+MUST that is plain text. <code>\b</code> matches at the edges of words, so
+<code>\b(MUST|SHOULD|MAY)\b</code> finds the words but not "MUSTER". Look for them
+in the text nodes that are not inside a <code>bcp14</code>:</p>
+<pre><code class="language-console">$ sxml xpath 'matches("Deployments SHOULD carry Vane over an encrypted link.", "\b(MUST|SHOULD|MAY)\b"), matches("A flag should roll out.", "\b(MUST|SHOULD|MAY)\b")'
+true()
+false()
+$ sxml xpath --context-item=vane.xml '//text()[not(parent::bcp14)][matches(., "\b(MUST|SHOULD|MAY)\b")] ! normalize-space()'
+"The key words ""MUST"", ""MUST NOT"", ""REQUIRED"", ""SHALL"", ""SHALL NOT"", ""SHOULD"", ""SHOULD NOT"", ""RECOMMENDED"", ""NOT RECOMMENDED"", ""MAY"", and ""OPTIONAL"" in this document are to be interpreted as described in BCP 14"
+</code></pre>
+<p>The one match is the paragraph of Terminology that lists the key words,
+where they are meant as words, not as requirements. Leave that section
+out, and nothing is left: the draft marks up every key word it uses.</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'count(//text()[not(parent::bcp14)][not(ancestor::section[@anchor = "terminology"])][matches(., "\b(MUST|SHOULD|MAY)\b")])'
+0
+</code></pre>
+<h2 id="numbers"><a class="header" href="#numbers">Numbers</a></h2>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'count(//t[@anchor]), sum((1, 2, 3)), avg((1, 2))'
+11
+6
+1.5
+$ sxml xpath 'abs(-3), floor(2.7), ceiling(2.1), round(2.5), round-half-to-even(2.5)'
+3
+2
+3
+3
+2
+$ sxml xpath 'format-number(5 div 11, "0%"), format-number(5 div 11, "0.0%"), format-number(1234.5, "#,##0.00"), format-integer(3, "w"), format-integer(11, "I")'
+"45%"
+"45.5%"
+"1,234.50"
+"three"
+"XI"
+</code></pre>
+<p><code>format-number</code> writes a number with a picture string; with <code>%</code> in the
+picture it multiplies by a hundred first. <code>format-integer</code> writes
+integers as words, roman numerals or letters. "After three failed
+checks" in req-7 is the number 3 in words. <a href="text.html">Working with Text</a>
+shows both in other languages.</p>
+<h2 id="sequences"><a class="header" href="#sequences">Sequences</a></h2>
+<p>Many functions work on whole sequences:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'distinct-values(//bcp14)'
+"MUST"
+"SHOULD"
+"MUST NOT"
+"MAY"
+"SHOULD NOT"
+$ sxml xpath --context-item=vane.xml 'index-of(//t[@anchor]/@anchor ! string(), "req-9")'
+6
+$ sxml xpath --context-item=vane.xml 'sort(//dt/string())'
+"Flag"
+"Pause"
+"Percentage"
+"SDK"
+$ sxml xpath --context-item=vane.xml 'head(//t[@anchor]/@anchor ! string()), tail(//section[@anchor = "pause"]/t/@anchor ! string())'
+"req-1"
+"req-8"
+"req-11"
+$ sxml xpath 'reverse(1 to 4)'
+4
+3
+2
+1
+</code></pre>
+<p>The draft uses five of BCP 14's key words. <code>index-of</code> gives the
+positions of a value in a sequence: req-9 is the sixth requirement in
+the document, although it was the ninth to be written. <code>head</code> is the
+first item and <code>tail</code> all the others. <code>1 to 4</code> is the sequence of
+integers from 1 to 4.</p>
+<p><code>empty</code> and <code>exists</code> test whether a sequence has items, and <code>otherwise</code>
+gives a fallback when the left side is empty:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'empty(//t[bcp14 = "SHALL"]), exists(//cref)'
+true()
+true()
+$ sxml xpath --context-item=vane.xml '//t[bcp14 = "SHALL"]/@anchor otherwise "no SHALL"'
+"no SHALL"
+</code></pre>
+<h2 id="the-arrow-operator"><a class="header" href="#the-arrow-operator">The arrow operator</a></h2>
+<p>Function calls nest inside out, which can be hard to read. The arrow
+operator <code>=&gt;</code> passes the value on its left as the first argument of the
+function on its right, so you can write a pipeline from left to right:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml '/rfc/@docName =&gt; tokenize("-") =&gt; reverse() =&gt; head()'
+"01"
+</code></pre>
+<p><code>=&gt;</code> passes the whole sequence. <code>=!&gt;</code> passes each item separately, as
+<code>!</code> does:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml '//dt =!&gt; upper-case()'
+"FLAG"
+"SDK"
+"PERCENTAGE"
+"PAUSE"
+</code></pre>
+<h2 id="conditions"><a class="header" href="#conditions">Conditions</a></h2>
+<p><code>if</code> chooses between two values. A section with requirements of its own
+is normative; the others only explain:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml '//section ! `{@anchor}: {if (t[@anchor]) then "normative" else "informative"}`'
+"intro: informative"
+"terminology: informative"
+"states: normative"
+"messages: informative"
+"rollout: normative"
+"status: normative"
+"pause: normative"
+"security: informative"
+"iana: informative"
+</code></pre>
+<p><code>some</code> and <code>every</code> test a condition over a sequence. Is there a
+paragraph with a key word but no anchor, and does every requirement
+have a key word?</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'some $t in //t[bcp14] satisfies empty($t/@anchor), every $t in //t[@anchor] satisfies $t/bcp14'
+true()
+true()
+</code></pre>
+<p>The first is the paragraph in Security Considerations again: a
+requirement that other documents cannot refer to, because it has no
+anchor.</p>
+<h2 id="variables-and-loops"><a class="header" href="#variables-and-loops">Variables and loops</a></h2>
+<p><code>let</code> binds a name to a value, and <code>for</code> evaluates an expression once
+for each item of a sequence. Variable names start with <code>$</code>. Here is the
+share of each key word among the requirements:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'let $requirements := //t[@anchor] for $keyword in distinct-values($requirements/bcp14) return `{$keyword}: {format-number(count($requirements[bcp14 = $keyword]) div count($requirements), "0%")}`'
+"MUST: 45%"
+"SHOULD: 18%"
+"MUST NOT: 9%"
+"MAY: 18%"
+"SHOULD NOT: 9%"
+</code></pre>
+<p>A variable can also come from outside. <code>--param</code> binds one from the
+command line, as an untyped value:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml --param=keyword=SHOULD '//t[bcp14 = $keyword]/@anchor/string()'
+"req-3"
+"req-8"
+</code></pre>
+<p>XQuery builds on <code>for</code> and <code>let</code> with a much richer form, the FLWOR
+expression, in <a href="xquery.html">Writing Programs with XQuery</a>.</p>
+<h2 id="namespaces-of-functions"><a class="header" href="#namespaces-of-functions">Namespaces of functions</a></h2>
+<p>Every function has a namespace. The standard functions are in the <code>fn</code>
+namespace, which is the default, so <code>count</code> is <code>fn:count</code>. Functions on
+maps and arrays are in <code>map</code> and <code>array</code>, mathematical functions in
+<code>math</code>, and the constructor functions of types in <code>xs</code>:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'fn:count(//t[@anchor]), xs:integer("11"), math:pow(2, 10), math:sqrt(2)'
+11
+11
+1.024e3
+1.4142135623730951e0
+</code></pre>
+<p>A name the processor doesn't know is a static error, raised before
+anything runs:</p>
+<pre><code class="language-console">$ sxml xpath 'square-root(2)'
+expression:1:1: err:XPST0017: no function with this name and arity is known
+</code></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="xpath-values.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="xpath-maps-arrays.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="xpath-values.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="xpath-maps-arrays.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

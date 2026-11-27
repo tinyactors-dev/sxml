@@ -1,0 +1,538 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Who Calls Whom, and How Often - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/traces-cardinality.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="who-calls-whom-and-how-often"><a class="header" href="#who-calls-whom-and-how-often">Who Calls Whom, and How Often</a></h1>
+<!-- examples: traces -->
+<p>A trace diagram shows every span, but a change is easier to see one
+level up: which programs and servers take part in a request, which
+calls which, and how many times. That is the <em>cardinality</em> of each call. This
+section computes it from the normal form of <a href="traces-tree.html">Spans as a
+Tree</a>, and then looks at the order of the calls with
+windows.</p>
+<p>The examples use both files in the normal form:</p>
+<pre><code class="language-console">$ sxml xquery --param=file=before.json --output=before.xml normalize.xq
+$ sxml xquery --param=file=after.json --output=after.xml normalize.xq
+</code></pre>
+<h2 id="participants"><a class="header" href="#participants">Participants</a></h2>
+<p>Every call is a client span. The caller is the program that recorded
+it. The callee is harder: when the called program is traced too, the
+client span's child is the server span that program recorded, and its
+<code>service</code> names it. PostgreSQL, Redis and the owners' webhook record no
+spans, so for them the client span's <code>peer</code>, the <code>server.address</code>
+attribute, has to do. The internal spans are not calls: they are the
+service's own functions, and a call from one module to another happens
+inside the one program. The <em>participants</em> of a request are the
+callers and callees of its calls.</p>
+<p><code>trace.xqm</code> (the calls):</p>
+<pre><code class="language-xquery">(: A call from a service to another participant, made in a trace of
+   one route. :)
+declare record trace:call(route as xs:string, caller as xs:string, callee as xs:string);
+
+(: Who a client span calls: the service of the server span it caused,
+   else the server it names (a database or a webhook records no spans
+   of its own). :)
+declare function trace:callee($client as element(span)) as xs:string {
+  string(($client/span[@kind = "server"]/@service, $client/@peer)[1])
+};
+
+(: Every call of the traces, one for each client span. :)
+declare function trace:calls($traces as element(traces)) as trace:call* {
+  for $client in $traces//span[@kind = "client"]
+  return trace:call(
+    route := string($client/ancestor::trace/@route),
+    caller := string($client/@service),
+    callee := trace:callee($client)
+  )
+};
+</code></pre>
+<p><code>($client/span[@kind = "server"]/@service, $client/@peer)[1]</code> takes the
+first of the two that exists. For the console's call that matters: its
+<code>peer</code> is <code>vane.example.com</code>, the address it called, and the server
+span below it names the program that answered, <code>vane</code>. The calls of the
+old version:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import module namespace trace = "urn:example:trace" at "trace.xqm";
+    trace:calls(trace:load("before.json"))'
+{"route":"GET /api/getFlags","caller":"storefront","callee":"vane"}
+{"route":"GET /api/getFlags","caller":"vane","callee":"postgresql"}
+{"route":"POST /api/killFlag","caller":"vane-console","callee":"vane"}
+{"route":"POST /api/killFlag","caller":"vane","callee":"redis"}
+{"route":"POST /api/killFlag","caller":"vane","callee":"postgresql"}
+{"route":"POST /api/killFlag","caller":"vane","callee":"postgresql"}
+</code></pre>
+<p>The route comes from the trace the call belongs to: the same call
+between the same participants can happen for different requests, and a
+change can affect one route and not another.</p>
+<h2 id="counting-with-group-by"><a class="header" href="#counting-with-group-by">Counting with group by</a></h2>
+<p>Grouping the calls by all three fields makes one group for each pair
+of participants in each route, and <code>count</code> tells how many calls the
+group has:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import module namespace trace = "urn:example:trace" at "trace.xqm";
+    for $call in trace:calls(trace:load("after.json"))
+    group by $route := $call?route, $caller := $call?caller, $callee := $call?callee
+    where $route = "GET /api/getFlags"
+    return `{ $caller } -&gt; { $callee }: { count($call) }`'
+"storefront -&gt; vane: 1"
+"vane -&gt; postgresql: 5"
+</code></pre>
+<p>A file can hold many traces of the same route, so the module divides by
+the number of requests and keeps the result in a map, with a readable
+key for each call and a record as its value:</p>
+<p><code>trace.xqm</code> (the cardinality):</p>
+<pre><code class="language-xquery">(: How often each service calls a participant in one request of a
+   route: a map from "route: caller -&gt; callee" to the call and its
+   count. :)
+declare record trace:edge(
+  route as xs:string, caller as xs:string, callee as xs:string,
+  count as xs:decimal
+);
+
+declare function trace:cardinality($traces as element(traces)) as map(xs:string, trace:edge) {
+  map:merge(
+    for $call in trace:calls($traces)
+    group by $route := $call?route, $caller := $call?caller, $callee := $call?callee
+    let $requests := count($traces/trace[@route = $route])
+    return {
+      `{ $route }: { $caller } -&gt; { $callee }`:
+        trace:edge($route, $caller, $callee, count($call) div $requests)
+    }
+  )
+};
+</code></pre>
+<p>A map makes the next step, comparing two files, a matter of looking up
+the same key in both:</p>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --expression='
+    import module namespace trace = "urn:example:trace" at "trace.xqm";
+    ("before.json", "after.json")
+      ! trace:cardinality(trace:load(.))?("GET /api/getFlags: vane -&gt; postgresql")?count'
+1
+5
+</code></pre>
+<p><code>cardinality.xq</code> lists the whole map of one file:</p>
+<pre><code class="language-xquery">(: How often each service calls another, per request of each route. :)
+import module namespace trace = "urn:example:trace" at "trace.xqm";
+declare option output:method "text";
+declare option output:item-separator "&amp;#10;";
+
+declare variable $file external := "before.json";
+
+let $cardinality := trace:cardinality(trace:load($file))
+for $key in map:keys($cardinality)
+order by $key
+return `{ $key }  { $cardinality($key)?count }`
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --param=file=before.json cardinality.xq
+GET /api/getFlags: storefront -&gt; vane  1
+GET /api/getFlags: vane -&gt; postgresql  1
+POST /api/killFlag: vane -&gt; postgresql  2
+POST /api/killFlag: vane -&gt; redis  1
+POST /api/killFlag: vane-console -&gt; vane  1
+$ sxml xquery --param=file=after.json cardinality.xq
+GET /api/getFlags: storefront -&gt; vane  1
+GET /api/getFlags: vane -&gt; postgresql  5
+POST /api/killFlag: vane -&gt; hooks.example.com  1
+POST /api/killFlag: vane -&gt; postgresql  3
+POST /api/killFlag: vane-console -&gt; vane  1
+</code></pre>
+<p>Listing the flags now makes five queries instead of one; killing a
+flag no longer reads Redis, makes one query more, and calls a new
+participant, the owners' webhook at <code>hooks.example.com</code>. The counts
+say <em>how many</em>.
+The order of the calls, which the windows below look at, says more
+about <em>why</em>.</p>
+<h2 id="tumbling-windows"><a class="header" href="#tumbling-windows">Tumbling windows</a></h2>
+<p><code>group by</code> doesn't care where the members of a group are. Sometimes
+position is the whole point. The children of a span are in the order
+they started, and a run of the same call one after the other is the
+mark of a loop in the code.</p>
+<p>A <em>tumbling window</em> cuts a sequence into runs that don't overlap. The
+<code>start</code> condition says where a new run begins. Here a run begins at
+each call whose name differs from the call before it:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=after.xml --method=adaptive --expression='
+    for $function in //span[@kind = "server"]/span
+    for tumbling window $run in $function/span
+        start $first previous $before when not($first/@name = $before/@name)
+    return `{ $function/@name }: { count($run) } x { $first/@name }`'
+"flags.listFlags: 1 x registry.getFlagKeys"
+"flags.listFlags: 4 x registry.getFlag"
+"flags.killFlag: 1 x registry.getFlag"
+"flags.killFlag: 1 x registry.setPercentage"
+"flags.killFlag: 1 x audit.record"
+</code></pre>
+<p>The windows run over the children of each module function that a
+server span called: <code>flags.listFlags</code> and <code>flags.killFlag</code>.
+<code>$run</code> is bound to the items of each window in turn, and <code>$first</code> to
+the item that starts it. <code>previous $before</code> binds the item before the
+start, which for the first item is the empty sequence; <code>not($first/@name = $before/@name)</code> is then true, so the first item starts a window too.
+Without an <code>end</code> condition, a window ends just before the next one
+starts. The run of four <code>registry.getFlag</code> is the loop the change
+added: one call, and one query, per flag, the pattern known as N+1,
+where one query for all the flags would do.</p>
+<p>Start and end can be bound to more variables: the item itself, its
+position (<code>at $p</code>), and the items before it and after it (<code>previous</code>,
+<code>next</code>). An exporter sends spans to the collector in batches; this
+tumbling window makes batches of at most eight spans, using positions:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=after.xml --method=adaptive --expression='
+    for tumbling window $batch in //span
+        start at $start when true()
+        end at $end when $end - $start = 7
+    return `{ count($batch) } spans, the first { $batch[1]/@id }`'
+"8 spans, the first 6a06eb67c8c7b1df"
+"8 spans, the first 57dd62522e2c9584"
+"7 spans, the first bd4a79a18936f02a"
+</code></pre>
+<p>Each window ends seven items after it starts. The last window is
+shorter: the sequence ran out before its end condition was met.</p>
+<h2 id="windows-with-an-end"><a class="header" href="#windows-with-an-end">Windows with an end</a></h2>
+<p>A collector receives each span when it ends, and a live view of a
+system sees requests start before it knows how they finish.
+<code>timeline.xq</code> turns a file in the normal form into that view: an event
+for the start and one for the end of every span, in the order they
+happened, up to a moment <code>$until</code>:</p>
+<p><code>timeline.xq</code>:</p>
+<pre><code class="language-xquery">(: The starts and ends of the spans of a file in the normal form, in
+   the order they happened, up to the moment $until. :)
+declare option output:indent "yes";
+declare variable $until external := "9999-12-31T00:00:00Z";
+
+&lt;timeline&gt;{
+  for $span in //span
+  let $start := xs:dateTime($span/ancestor::trace/@start)
+                + xs:dayTimeDuration("PT0.001S") * xs:decimal($span/@start)
+  let $end := $start + xs:dayTimeDuration("PT0.001S") * xs:decimal($span/@duration)
+  for $event in (
+    &lt;start at="{ $start }" span="{ $span/@id }" name="{ $span/@name }"
+           root="{ empty($span/parent::span) }"/&gt;,
+    &lt;end at="{ $end }" span="{ $span/@id }"/&gt;
+  )
+  where xs:dateTime($event/@at) le xs:dateTime($until)
+  stable order by xs:dateTime($event/@at)
+  return $event
+}&lt;/timeline&gt;
+</code></pre>
+<p>At 20 milliseconds past 09:00:02, the kill request is still running:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=after.xml --param=until=2026-10-21T09:00:02.020Z --output=live.xml timeline.xq
+</code></pre>
+<p>A window from the start of each request, a root span, to the end of the
+same span is one request. When the end condition is never met, the
+window ends at the last item, and the end variable is bound to that
+last item, so test what it is:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=live.xml --method=adaptive --expression='
+    for tumbling window $request in /timeline/*
+        start $open when $open[self::start]/@root = "true"
+        end $close when $close[self::end]/@span = $open/@span
+    return `{ $open/@name } at { $open/@at }: { count($request[self::start]) } spans, {
+      if ($close/@span = $open/@span) then "ended at " || $close/@at else "still running" }`'
+"GET /api/getFlags at 2026-10-21T09:00:00Z: 13 spans, ended at 2026-10-21T09:00:00.11Z"
+"POST /api/killFlag at 2026-10-21T09:00:02Z: 7 spans, still running"
+</code></pre>
+<p>The end condition refers to <code>$open</code>, the start of its own window: a
+window can end at an item that depends on how it began.</p>
+<p><code>only end</code> instead of <code>end</code> drops a window whose end condition is never
+met. That's what you want to compute how long the requests took:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=live.xml --method=adaptive --expression='
+    for tumbling window $request in /timeline/*
+        start $open when $open[self::start]/@root = "true"
+        only end $close when $close[self::end]/@span = $open/@span
+    let $took := (xs:dateTime($close/@at) - xs:dateTime($open/@at))
+                 div xs:dayTimeDuration("PT0.001S")
+    return `{ $open/@name }: { $took } ms`'
+"GET /api/getFlags: 110 ms"
+</code></pre>
+<p>Subtracting two <code>xs:dateTime</code> values gives a duration, and dividing a
+duration by a duration gives a number.</p>
+<h2 id="sliding-windows"><a class="header" href="#sliding-windows">Sliding windows</a></h2>
+<p>A <em>sliding window</em> starts a window at every item where the start
+condition holds, so its windows can overlap. How many queries did the
+service send to PostgreSQL within 50 milliseconds of each other, while
+it listed the flags? A window starts at each query and ends before the
+first query that starts 50 milliseconds or more after it:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=after.xml --method=adaptive --expression='
+    let $calls := //trace[@route = "GET /api/getFlags"]//span[@db = "postgresql"]
+    for sliding window $burst in $calls
+        start $first when true()
+        end next $after when xs:decimal($after/@start) - xs:decimal($first/@start) ge 50
+    return array { $burst/@start ! xs:decimal(.) }'
+[5,18,40]
+[18,40,62]
+[40,62,84]
+[62,84]
+[84]
+</code></pre>
+<p>The windows overlap: 18 and 40 are in three of them. The last three
+windows end because the queries ran out, not because a query came 50
+milliseconds later; <code>only end</code> drops them, and keeps only the bursts
+that are known to be complete:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=after.xml --method=adaptive --expression='
+    let $calls := //trace[@route = "GET /api/getFlags"]//span[@db = "postgresql"]
+    for sliding window $burst in $calls
+        start $first when true()
+        only end next $after when xs:decimal($after/@start) - xs:decimal($first/@start) ge 50
+    return array { $burst/@start ! xs:decimal(.) }'
+[5,18,40]
+[18,40,62]
+</code></pre>
+<p><code>next</code> makes it easy to compare an item with the one after it. Which
+functions of the registry module ran twice in a row, called from the
+same function?</p>
+<pre><code class="language-console">$ sxml xquery --context-item=after.xml --method=adaptive --expression='
+    for sliding window $pair in //span[starts-with(@name, "registry.")]
+        start $first next $second
+            when $second/@name = $first/@name and $second/.. is $first/..
+        end when true()
+    return `{ $first/@name } at { $first/@start } ms, again at { $second/@start } ms`'
+"registry.getFlag at 16 ms, again at 38 ms"
+"registry.getFlag at 38 ms, again at 60 ms"
+"registry.getFlag at 60 ms, again at 82 ms"
+</code></pre>
+<p><code>end when true()</code> ends each window at the item that starts it: the
+windows are only a way to look at each item together with its
+neighbour. <code>$second/.. is $first/..</code> keeps neighbours that belong to
+different requests apart; without it, the last <code>registry.getFlag</code> of
+the listing and the one of the kill request would make a pair.</p>
+<h2 id="choosing-between-them"><a class="header" href="#choosing-between-them">Choosing between them</a></h2>
+<ul>
+<li>Use <code>group by</code> when the members of a group can be anywhere, and the
+group is named by a value: a route, a pair of participants, a status.</li>
+<li>Use a tumbling window when the groups are runs of neighbours: the
+same call repeated, a request from its start to its end, batches of
+eight.</li>
+<li>Use a sliding window to look at each item with the items around it:
+bursts within a time, gaps, repeated values.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="traces-tree.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="traces-diff.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="traces-tree.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="traces-diff.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

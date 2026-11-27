@@ -1,0 +1,488 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Working with Text - The sxml Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Learn XPath 4.0, XQuery 4.0, XSLT 4.0 and XSD 1.1 with sxml, the small XML toolchain in portable C.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="style/sxml.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The sxml Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/tinyactors-dev/sxml/edit/main/docs/book/src/text.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="working-with-text"><a class="header" href="#working-with-text">Working with Text</a></h1>
+<!-- examples: spec -->
+<p>Text is where software meets people, and people write in many languages.
+This chapter covers three things sxml does with text beyond plain
+strings: sorting and comparing it the way a language expects, searching
+it by words instead of characters, and writing dates and numbers in
+other languages. The examples run on the Vane draft, in
+<code>docs/book/examples/spec</code>.</p>
+<h2 id="collations"><a class="header" href="#collations">Collations</a></h2>
+<p>By default, strings sort by their Unicode code points. That puts every
+capital letter before every small letter, so the terms of the draft and
+the words that refer to them sort into two runs:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'sort(distinct-values((//dt, //xref[starts-with(@target, "term-")]) ! string()))'
+"Flag"
+"Pause"
+"Percentage"
+"SDK"
+"flag"
+"pause"
+"percentage"
+</code></pre>
+<p>A <em>collation</em> is a set of rules for comparing strings. Every function and
+instruction that compares strings (<code>sort</code>, <code>compare</code>, <code>distinct-values</code>,
+<code>order by</code>, <code>xsl:sort</code>, <code>index-of</code> and more) can take one, named by a
+URI. The Unicode Collation Algorithm (UCA) gives the order people
+expect:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'sort(distinct-values((//dt, //xref[starts-with(@target, "term-")]) ! string()), "http://www.w3.org/2013/collation/UCA")'
+"flag"
+"Flag"
+"pause"
+"Pause"
+"percentage"
+"Percentage"
+"SDK"
+</code></pre>
+<p>Parameters in the URI tailor the order. <code>strength</code> says which
+differences count: <code>primary</code> ignores accents and case, <code>secondary</code>
+ignores only case. With it, <code>distinct-values</code> finds that the draft has
+four terms, however a sentence capitalizes them:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'distinct-values((//dt, //xref[starts-with(@target, "term-")]) ! string(), "http://www.w3.org/2013/collation/UCA?strength=secondary")'
+"Flag"
+"SDK"
+"Percentage"
+"Pause"
+$ sxml xpath 'compare("Strasse", "Straße", "http://www.w3.org/2013/collation/UCA?strength=primary")'
+0
+</code></pre>
+<p><code>numeric=yes</code> sorts digits by their numeric value. The anchors of the
+requirements end in numbers, and by code points <code>req-10</code> comes before
+<code>req-2</code>:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'string-join(sort(//t/@anchor ! string()), " ")'
+"req-1 req-10 req-11 req-2 req-3 req-4 req-5 req-6 req-7 req-8 req-9"
+$ sxml xpath --context-item=vane.xml 'string-join(sort(//t/@anchor ! string(), "http://www.w3.org/2013/collation/UCA?numeric=yes"), " ")'
+"req-1 req-2 req-3 req-4 req-5 req-6 req-7 req-8 req-9 req-10 req-11"
+</code></pre>
+<p>Punctuation counts, too. The authors of the references include
+<code>M'Raihi</code>, and by default the apostrophe sorts before every letter, so
+<code>M'Raihi</code> comes before <code>Machani</code>. <code>alternate=shifted</code> makes punctuation
+and spaces count only when everything else is equal, as a reference
+list or a phone book expects:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'string-join(sort(distinct-values(//reference//author/@surname), "http://www.w3.org/2013/collation/UCA"), ", ")'
+"Bradner, Crocker, Leiba, M'Raihi, Machani, Overell, Pei, Rydell"
+$ sxml xpath --context-item=vane.xml 'string-join(sort(distinct-values(//reference//author/@surname), "http://www.w3.org/2013/collation/UCA?alternate=shifted"), ", ")'
+"Bradner, Crocker, Leiba, Machani, M'Raihi, Overell, Pei, Rydell"
+</code></pre>
+<p><code>lang</code> uses the rules of a language. The draft is in English, but a
+translation of its terms would not be. In Spanish, <code>ñ</code> is a letter of
+its own, after <code>n</code>:</p>
+<pre><code class="language-console">$ sxml xpath 'sort(("llamada", "luz", "bandera", "función", "ñu", "nube"), "http://www.w3.org/2013/collation/UCA?lang=es")'
+"bandera"
+"función"
+"llamada"
+"luz"
+"nube"
+"ñu"
+</code></pre>
+<p>German has two orders. In the phone book order, <code>ü</code> sorts as <code>ue</code>:</p>
+<pre><code class="language-console">$ sxml xpath 'sort(("Müller", "Mueller", "Muller"), "http://www.w3.org/2013/collation/UCA?lang=de")'
+"Mueller"
+"Muller"
+"Müller"
+$ sxml xpath 'sort(("Müller", "Mueller", "Muller"), "http://www.w3.org/2013/collation/UCA?lang=de-u-co-phonebk")'
+"Mueller"
+"Müller"
+"Muller"
+</code></pre>
+<p>sxml carries the root collation of the Unicode CLDR, and the tailorings
+for English, German, French, Italian, Spanish and Dutch with their
+regional variants. Other languages use the root order.</p>
+<h2 id="full-text-search"><a class="header" href="#full-text-search">Full-text search</a></h2>
+<p><code>contains</code> finds characters. Searching for <em>words</em> is a different
+problem: "pause" should find "paused", a phrase should match its words
+in order, and two words should be near each other. <em>XQuery and XPath
+Full Text</em> adds the <code>contains text</code> expression for this:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor][. contains text "pause"]/@anchor, " ")'
+"req-5 req-7 req-8 req-11"
+</code></pre>
+<p>The search is by words and ignores case, so it found "pause" in "in a
+pause" and in "A pause SHOULD last", but not "paused", the state that
+req-1 names: that is another word. Options after <code>using</code> change that.
+With <code>stemming</code>, words match by their stem:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor][. contains text "pause" using stemming]/@anchor, " ")'
+"req-1 req-5 req-7 req-8 req-11"
+</code></pre>
+<p>Now req-1 matches too. A phrase in quotes matches its words in order,
+and <code>ftand</code>, <code>ftor</code> and <code>ftnot</code> combine searches:</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml '//t[@anchor][. contains text "status request"]/@anchor/string()'
+"req-6"
+"req-10"
+$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor][. contains text "flag" ftand "pause"]/@anchor, " ")'
+"req-5 req-7 req-11"
+$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor][. contains text "pause" ftand ftnot "flag"]/@anchor, " ")'
+"req-8"
+</code></pre>
+<p><code>distance</code> and <code>window</code> say how close words must be, and <code>wildcards</code>
+makes a <code>.*</code> in a word match any characters, so <code>roll.*</code> finds
+"rollout" and "rolling-out" as well as "roll":</p>
+<pre><code class="language-console">$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor][. contains text "flag" ftand "pause" distance at most 3 words]/@anchor, " ")'
+"req-7"
+$ sxml xpath --context-item=vane.xml 'string-join(//t[@anchor][. contains text "roll.*" using wildcards]/@anchor, " ")'
+"req-1 req-3 req-4 req-5 req-9 req-6"
+</code></pre>
+<p>Only req-7, "put the flag in a pause", has the two words close
+together; req-5 and req-11 have them further apart. The wildcard finds
+"rolling-out" in req-1, "rollout" in req-4, req-6 and req-9, both in
+req-3, and "roll out" in req-5.</p>
+<p>A <code>score</code> variable in a <code>for</code> clause gives each result a relevance
+between 0 and 1, to rank the results:</p>
+<pre><code class="language-console">$ sxml xquery --context-item=vane.xml --method=adaptive --expression='
+    for $t score $score in //t[@anchor][. contains text "rollout" ftor "status"]
+    order by $score descending
+    return $t/@anchor || " " || round($score, 2)'
+"req-6 0.26"
+"req-9 0.16"
+"req-3 0.16"
+"req-4 0.16"
+"req-10 0.15"
+</code></pre>
+<p>req-6 has both words, "status request" and "rollout step", and comes
+first. The others have one of the words once each, and then the length
+of the paragraph decides: req-10 has "status" in 22 words, more than
+any of the other three, and comes last. <code>using language "de"</code> selects
+the language of the words, for stemming and stop words. sxml has
+stemmers for English, German, French, Italian, Spanish and Dutch, and
+reads lists of stop words and thesauri from files. <code>contains text</code>
+works in XQuery as in XPath, as the last example shows.</p>
+<h2 id="dates-in-other-languages"><a class="header" href="#dates-in-other-languages">Dates in other languages</a></h2>
+<p><code>format-date</code>, <code>format-time</code> and <code>format-dateTime</code> write dates with a
+<em>picture string</em>. Each part in square brackets is a component: <code>[D]</code> the
+day, <code>[MNn]</code> the month's name, <code>[FNn]</code> the day of the week, <code>[Y]</code> the
+year:</p>
+<pre><code class="language-console">$ sxml xpath "format-date(xs:date('2026-10-21'), '[FNn], [D] [MNn] [Y]')"
+"Wednesday, 21 October 2026"
+$ sxml xpath "format-date(xs:date('2026-10-21'), '[D1o] [MNn], [Y]')"
+"21st October, 2026"
+$ sxml xpath "format-date(xs:date('2026-10-21'), '[Y0001]-[M01]-[D01], week [W]')"
+"2026-10-21, week 43"
+</code></pre>
+<p>The draft writes its date as three attributes, with the month as an
+English name. A query makes an <code>xs:date</code> of it, and then writes it in
+three languages: the third argument of <code>format-date</code> is a language, and
+<code>n</code> instead of <code>Nn</code> writes a name in small letters, as French does:</p>
+<p><code>text-date.xq</code>:</p>
+<pre><code class="language-xquery">(: The date of the draft, written in English, German and French. The
+   date element has the year, the month's name and the day. :)
+let $date := /rfc/front/date
+let $months := ("January", "February", "March", "April", "May", "June", "July",
+                "August", "September", "October", "November", "December")
+let $month := index-of($months, $date/@month)
+let $value := xs:date(`{$date/@year}-{format-integer($month, "01")}-{format-integer($date/@day, "01")}`)
+return (
+  format-date($value, "[D] [MNn] [Y]", "en", (), ()),
+  format-date($value, "[FNn], [D]. [MNn] [Y]", "de", (), ()),
+  format-date($value, "[Fn] [D] [Mn] [Y]", "fr", (), ())
+)
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=vane.xml text-date.xq
+"21 October 2026"
+"Mittwoch, 21. Oktober 2026"
+"mercredi 21 octobre 2026"
+$ sxml xquery --method=adaptive --context-item=vane-00.xml text-date.xq
+"6 July 2026"
+"Montag, 6. Juli 2026"
+"lundi 6 juillet 2026"
+</code></pre>
+<p>The language can have a region, and the fourth argument is a calendar.
+In Austria, January is "Jänner", as in the month of RFC 5234; <code>JE</code> is
+the calendar of Japanese eras:</p>
+<pre><code class="language-console">$ sxml xpath "format-date(xs:date('2008-01-01'), '[MNn] [Y]', 'de-AT', (), ())"
+"Jänner 2008"
+$ sxml xpath "format-date(xs:date('2026-10-21'), '[E] [Y] [MNn] [D]', 'en', 'JE', ())"
+"Reiwa 8 October 21"
+</code></pre>
+<p>The fifth argument is a <em>place</em>: a time zone name from the IANA Time
+Zone Database, which sxml reads from <code>/usr/share/zoneinfo</code>. A pause
+that begins at 14:30 UTC begins at 10:30 for an owner of the flag in
+New York:</p>
+<pre><code class="language-console">$ sxml xpath "format-dateTime(xs:dateTime('2026-10-21T14:30:00Z'), '[H01]:[m01] [ZN]', 'en', (), 'America/New_York')"
+"10:30 EDT"
+$ sxml xpath "civil-timezone(xs:dateTime('2026-07-06T12:00:00'), 'Europe/Lisbon')"
+xs:dayTimeDuration("PT1H")
+</code></pre>
+<p><code>civil-timezone</code> gives the offset of a place at a moment, summer time
+included.</p>
+<h2 id="numbers-in-words"><a class="header" href="#numbers-in-words">Numbers in words</a></h2>
+<p><code>format-integer</code> writes numbers as words, by the rules of the Unicode
+CLDR for each language, and ordinals with <code>o</code>:</p>
+<pre><code class="language-console">$ sxml xpath "format-integer(11, 'w'), format-integer(11, 'w', 'de'), format-integer(11, 'Ww;o', 'fr')"
+"eleven"
+"elf"
+"Onzième"
+</code></pre>
+<p>The draft writes its numbers in words: ten minutes, three failed
+checks, five minutes. The Vane service, which implements it, has them
+as numbers in its rollout module. A query can check that each
+requirement says the number the service uses, with
+<code>format-integer</code> making the word and <code>contains text</code> finding it (an
+expression in braces is searched for):</p>
+<p><code>text-numbers.xq</code>:</p>
+<pre><code class="language-xquery">(: The flag's numbers, and the requirement that states each of them in
+   words: ten minutes, three failed checks, five minutes. :)
+let $numbers := { "req-3": 10, "req-7": 3, "req-8": 5 }
+for $anchor in map:keys($numbers)
+let $words := format-integer($numbers($anchor), "w")
+let $requirement := //t[@anchor = $anchor]
+return `{$anchor} states {$words}: {$requirement contains text { $words }}`
+</code></pre>
+<pre><code class="language-console">$ sxml xquery --method=adaptive --context-item=vane.xml text-numbers.xq
+"req-3 states ten: true"
+"req-7 states three: true"
+"req-8 states five: true"
+$ sxml xquery --method=adaptive --context-item=vane-00.xml text-numbers.xq
+"req-3 states ten: true"
+"req-7 states three: false"
+"req-8 states five: false"
+</code></pre>
+<p>The first draft said "five" failed checks and "one minute"; the
+second agrees with the service.</p>
+<p><code>format-number</code> writes decimals with grouping and a fixed number of
+places. Its options choose the separators:</p>
+<pre><code class="language-console">$ sxml xpath "format-number(5 div 11, '0.0%')"
+"45.5%"
+$ sxml xpath "format-number(300000, '#,##0'), format-number(300000, '#.##0', { 'decimal-separator': ',', 'grouping-separator': '.' })"
+"300,000"
+"300.000"
+</code></pre>
+<p>Five of the eleven requirements are MUSTs, and a pause of five
+minutes is 300,000 milliseconds, or 300.000 in German. In XSLT,
+<code>xsl:number</code> and <code>xsl:sort</code> take a <code>lang</code> attribute and use the same
+data.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="traces-streaming.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="files.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="traces-streaming.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="files.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="style/sxml.js"></script>
+
+
+
+    </div>
+    </body>
+</html>
