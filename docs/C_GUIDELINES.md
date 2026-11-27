@@ -273,7 +273,8 @@ typedef struct sxml_memory_view {
 ## Types and expressions
 
 Target C17, with C23 features behind portability macros. Code must build with
-Clang, GCC, MSVC, the WASI SDK and the Android NDK.
+Clang, the compiler sxml is checked with (D334), MSVC, the WASI SDK and the
+Android NDK.
 
 - **Platform branches** are few, each beside the existing `_WIN32` one, and
   each says why in a comment. Android (D238, D251): the NDK presets build for
@@ -315,10 +316,10 @@ thread safety.
 
 ## Enforcement
 
-Compiler, then linter, then structural search, then review. CI runs all of
-them.
+Compiler, then linter, then structural search, then review. CI builds with the
+compiler and runs the tests; the rest runs before a release (D334).
 
-**Compiler flags** (Clang and GCC): `-std=c17 -Wall -Wextra -Wpedantic -Werror
+**Compiler flags** (Clang, D334): `-std=c17 -Wall -Wextra -Wpedantic -Werror
 -Wconversion -Wsign-conversion -Wshadow -Wstrict-prototypes
 -Wmissing-prototypes -Wvla -Wswitch-enum -Wimplicit-fallthrough`.
 

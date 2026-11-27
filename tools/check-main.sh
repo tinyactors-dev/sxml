@@ -6,7 +6,7 @@
 # if any step failed.
 #
 # Usage: tools/check-main.sh SNAPSHOT-DIRECTORY [PRESET]...
-#   Default presets: debug debug-gcc release wasm. Logs go to
+#   Default presets: debug release wasm. Logs go to
 #   SNAPSHOT-DIRECTORY/logs/<step>.log. Rerunning reuses build/ so rebuilds
 #   are incremental.
 
@@ -15,7 +15,7 @@ set -u
 repository_root=$(cd "$(dirname "$0")/.." && pwd)
 snapshot=${1:?snapshot directory required}
 shift
-presets=${*:-"debug debug-gcc release wasm"}
+presets=${*:-"debug release wasm"}
 
 mkdir -p "$snapshot"
 find "$snapshot" -mindepth 1 -maxdepth 1 ! -name build -exec rm -rf {} +

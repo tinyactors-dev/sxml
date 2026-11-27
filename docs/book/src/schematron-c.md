@@ -54,7 +54,7 @@ texts are valid only during the call: copy what you keep.
 Build it as the other examples:
 
 ```console
-$ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSXML_SOURCE="$SXML" > /dev/null
+$ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DSXML_SOURCE="$SXML" > /dev/null
 $ cmake --build build > /dev/null
 $ ./build/schematron; echo "exit status $?"
 116:7 note open-issue: Open issue issue-1 of AM: Should an owner be able to change the duration?

@@ -19114,6 +19114,30 @@ out; release 0.3.0 ships it.
   byte against EXIficient's stream (DEFLATE output aside, which may differ and
   is checked by decoding).
 
+### D334. Clang is the compiler sxml is checked with; GCC is not
+
+**Summary**: The definition of done, the packet gate, the release checklist and
+CI build with Clang only; the debug-gcc preset is removed, and a warning only
+GCC gives is not a defect.
+
+Recorded 2026-11-27, after D333.
+
+The owner (2026-11-27): Clang is the blessed compiler. Building every change
+with GCC as well doubled the verification time for no defect a user had
+reported; packet 8.17 had added a GCC step to the EXI gate after GCC's
+-Wmissing-braces refused a {0} initializer that Clang accepts.
+
+- The definition of done (CLAUDE.md) asks for -Werror under Clang. The packet
+  gate (tools/exi/check-packet.sh), the release checklist (RELEASE),
+  tools/check-main.sh and tools/private-build.sh build with Clang presets only,
+  and the debug-gcc preset is removed.
+- The book's C chapters build with clang, so their examples do not depend on
+  the reader's cc.
+- The WASI SDK and the Android NDK are Clang; MSVC stays as it is.
+- CI (.github/workflows/ci.yml) is a short check on Clang, as the owner asked,
+  to spend few Actions minutes; the CPU-heavy verification (sanitizers,
+  conformance, fuzzing) runs elsewhere.
+
 ## Proposed
 
 - **Cheaper atomic string cells** (D322, perf-11; for a later perf packet

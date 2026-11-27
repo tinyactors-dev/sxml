@@ -48,7 +48,7 @@ do.
    must hold:
 
    ```sh
-   for preset in debug debug-gcc wasm release; do
+   for preset in debug wasm release; do
        cmake --preset $preset && cmake --build --preset $preset && ctest --preset $preset
    done
    tools/lint.sh

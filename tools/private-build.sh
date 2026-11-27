@@ -8,7 +8,7 @@
 # working tree, and runs configure, build and ctest for each preset there.
 #
 # Usage: tools/private-build.sh SNAPSHOT-DIRECTORY [--preset NAME]... [--lint] -- FILE...
-#   Default presets: debug debug-gcc wasm. FILE paths are relative to the
+#   Default presets: debug wasm. FILE paths are relative to the
 #   repository root; deleted files may be named too (they are removed).
 #   Example:
 #     tools/private-build.sh "$SCRATCH/build-1.6" -- src/types.c tests/types_test.c
@@ -28,7 +28,7 @@ while [ $# -gt 0 ]; do
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
-[ -n "$presets" ] || presets="debug debug-gcc wasm"
+[ -n "$presets" ] || presets="debug wasm"
 
 mkdir -p "$snapshot"
 # Assemble HEAD plus the named files in a staging directory, then copy into

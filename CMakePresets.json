@@ -22,18 +22,11 @@
       }
     },
     {
-      "name": "debug-gcc",
-      "displayName": "Debug, GCC, AddressSanitizer and UndefinedBehaviorSanitizer",
-      "inherits": "debug",
-      "cacheVariables": {
-        "CMAKE_C_COMPILER": "gcc"
-      }
-    },
-    {
       "name": "release",
-      "displayName": "Release, default compiler",
+      "displayName": "Release, Clang (D334)",
       "inherits": "base",
       "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
         "CMAKE_BUILD_TYPE": "Release"
       }
     },
@@ -103,7 +96,6 @@
   ],
   "buildPresets": [
     { "name": "debug", "configurePreset": "debug" },
-    { "name": "debug-gcc", "configurePreset": "debug-gcc" },
     { "name": "release", "configurePreset": "release" },
     { "name": "msvc", "configurePreset": "msvc", "configuration": "Debug" },
     { "name": "wasm", "configurePreset": "wasm" },
@@ -126,7 +118,6 @@
       }
     },
     { "name": "debug", "inherits": "base", "configurePreset": "debug" },
-    { "name": "debug-gcc", "inherits": "base", "configurePreset": "debug-gcc" },
     { "name": "release", "inherits": "base", "configurePreset": "release" },
     { "name": "msvc", "inherits": "base", "configurePreset": "msvc", "configuration": "Debug" },
     { "name": "wasm", "inherits": "base", "configurePreset": "wasm" },

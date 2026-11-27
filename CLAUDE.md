@@ -28,7 +28,7 @@ refuses text tools on both.
 **Phase 6 planning and conformance sweeps.** Phases 0 to 5 and 7 were closed
 by agent review, as the owner chose (D11, D161, D169, D182, D237); gate boxes
 that need long fuzzing or the full lint of all presets wait for the owner's
-machine (D181). CI is disabled for now (D123). Verification is in
+machine (D181). CI is a short Clang build and test run (D334). Verification is in
 proportion (D181). The substrate headers are frozen (D99); all public APIs
 are stable. Every shipped build has every language and feature (D272).
 Priorities (D255): conformance, CLI builds for every platform, the book
@@ -72,7 +72,7 @@ change, stop and write the reason as a proposal (`tools/spec/spec add proposal`)
 
 ## Definition of done for any change
 
-- Builds with `-Werror` under Clang and GCC (flags in `docs/C_GUIDELINES.md`).
+- Builds with `-Werror` under Clang, the compiler sxml is checked with (D334; flags in `docs/C_GUIDELINES.md`).
 - `clang-tidy` reports nothing (configuration in `.clang-tidy`).
 - All tests pass under AddressSanitizer and UndefinedBehaviorSanitizer.
 - The change matches the golden files named in the task.

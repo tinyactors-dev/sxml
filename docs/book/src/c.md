@@ -29,10 +29,11 @@ header in `include/sxml/`. A program links only what it uses: one that
 uses only XPath doesn't link XQuery, XSLT or XSD.
 
 The examples' `CMakeLists.txt` takes the location of the sxml source as
-`SXML_SOURCE`. Here `$SXML` is the root of an sxml checkout:
+`SXML_SOURCE`. Here `$SXML` is the root of an sxml checkout, and the
+compiler is Clang, the one sxml is built and checked with:
 
 ```console
-$ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSXML_SOURCE="$SXML" > /dev/null
+$ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DSXML_SOURCE="$SXML" > /dev/null
 $ cmake --build build > /dev/null
 ```
 

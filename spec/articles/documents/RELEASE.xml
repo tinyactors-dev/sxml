@@ -48,7 +48,7 @@
       </item>
       <item>
         <p><strong>Build and test</strong> from a clean tree. The definition of done (CLAUDE.md) must hold:</p>
-        <pre language="sh">for preset in debug debug-gcc wasm release; do
+        <pre language="sh">for preset in debug wasm release; do
     cmake --preset $preset &amp;&amp; cmake --build --preset $preset &amp;&amp; ctest --preset $preset
 done
 tools/lint.sh

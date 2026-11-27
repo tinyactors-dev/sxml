@@ -282,7 +282,7 @@ typedef struct sxml_memory_view {
   </section>
   <section id="types-and-expressions">
     <title>Types and expressions</title>
-    <p>Target C17, with C23 features behind portability macros. Code must build with Clang, GCC, MSVC, the WASI SDK and the Android NDK.</p>
+    <p>Target C17, with C23 features behind portability macros. Code must build with Clang, the compiler sxml is checked with (<ref kind="decision" to="D334"/>), MSVC, the WASI SDK and the Android NDK.</p>
     <list loose="true">
       <item>
         <p><strong>Platform branches</strong> are few, each beside the existing <code>_WIN32</code> one, and each says why in a comment. Android (<ref kind="decision" to="D238"/>, <ref kind="decision" to="D251"/>): the NDK presets build for API level 24 (<code>minSdk</code>), where bionic lacks two C17 functions. <code>src/allocator.c</code> uses <code>posix_memalign</code> for <code>aligned_alloc</code> (API 28) and <code>src/processor.c</code> uses <code>clock_gettime(CLOCK_REALTIME)</code> for <code>timespec_get</code> (API 29), both when <code>__ANDROID_API__</code> is lower. Any other C17 function the library calls must be in bionic at API 24; <code>tools/build-android.sh</code> checks that by building all four ABIs with <code>-Werror</code>.</p>
@@ -330,8 +330,8 @@ typedef struct sxml_memory_view {
   </section>
   <section id="enforcement">
     <title>Enforcement</title>
-    <p>Compiler, then linter, then structural search, then review. CI runs all of them.</p>
-    <p><strong>Compiler flags</strong> (Clang and GCC): <code>-std=c17 -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wvla -Wswitch-enum -Wimplicit-fallthrough</code>.</p>
+    <p>Compiler, then linter, then structural search, then review. CI builds with the compiler and runs the tests; the rest runs before a release (<ref kind="decision" to="D334"/>).</p>
+    <p><strong>Compiler flags</strong> (Clang, <ref kind="decision" to="D334"/>): <code>-std=c17 -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wvla -Wswitch-enum -Wimplicit-fallthrough</code>.</p>
     <p><strong>clang-tidy:</strong> see <code>.clang-tidy</code>.</p>
     <p><strong>ast-grep rules</strong> for banned abbreviations, <code>malloc</code>/<code>free</code> outside the allocator module, pointer parameters without a length, and bare <code>bool</code> parameters.</p>
     <p><strong>Runtime checks:</strong> AddressSanitizer and UndefinedBehaviorSanitizer on every test run; fuzzing of every parser entry point.</p>
