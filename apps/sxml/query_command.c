@@ -501,9 +501,12 @@ sxml_status sxml_query_run_write(const sxml_query_run *run, const sxml_query_out
         (sxml_output_stream){.state = writer, .operations = &sxml_query_output_operations});
     uint64_t item_count = 0;
     /* The CSV method ends every record with a line feed already
-       (Serialization 4.0, CSV output method). */
+       (Serialization 4.0, CSV output method); the exi method writes
+       bytes, to which a line feed does not belong (D333). */
     const bool ends_lines = output->serialization_parameters.serialization_method ==
-                            SXML_SERIALIZATION_METHOD_CSV;
+                                SXML_SERIALIZATION_METHOD_CSV ||
+                            output->serialization_parameters.serialization_method ==
+                                SXML_SERIALIZATION_METHOD_EXI;
     if (status == SXML_STATUS_OK && !ends_lines &&
         sxml_sequence_count(output->result, NULL, &item_count) == SXML_STATUS_OK &&
         item_count > 0) {
@@ -1110,7 +1113,8 @@ static bool sxml_query_allows_file_access(const sxml_cli_invocation *invocation)
    tree-sitter, the namespace of tree-sitter:parse and
    tree-sitter:languages, and sxml, the namespace of the sxml:token and
    sxml:node elements of its documents (packets 7.22 and 7.26, D285,
-   D307). */
+   D307); and exi, the namespace of exi:serialize, exi:parse and the
+   output method exi:exi (D333). */
 static sxml_status sxml_query_bind_feature_namespaces(sxml_query_run *run) {
     sxml_name_pool *name_pool = sxml_processor_get_name_pool(run->processor);
     run->feature_namespace_count = 0;
@@ -1149,6 +1153,15 @@ static sxml_status sxml_query_bind_feature_namespaces(sxml_query_run *run) {
                 .namespace_prefix = prefix,
                 .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_TREE_SITTER)};
             run->feature_namespace_count = 4;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_namespace_prefix(name_pool, SXML_TEXT("exi"), &prefix);
+        if (status == SXML_STATUS_OK) {
+            run->feature_namespaces[4] = (sxml_namespace_binding){
+                .namespace_prefix = prefix,
+                .namespace_uri = sxml_well_known_namespace_identifier(SXML_NAMESPACE_EXI)};
+            run->feature_namespace_count = 5;
         }
     }
     return status;

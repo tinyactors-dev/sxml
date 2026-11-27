@@ -762,7 +762,13 @@ static sxml_cli_exit_code sxml_transform_run(sxml_query_run *run, sxml_transform
         sxml_xslt_stylesheet_destroy(stylesheet);
         return input_exit_code;
     }
-    if (status == SXML_STATUS_OK && output.has_written && !output.ends_with_line_feed) {
+    /* The exi method writes bytes, to which a line feed does not belong
+       (D333). */
+    const bool writes_bytes = definition.has_serialization_method &&
+                              definition.serialization_parameters.serialization_method ==
+                                  SXML_SERIALIZATION_METHOD_EXI;
+    if (status == SXML_STATUS_OK && output.has_written && !output.ends_with_line_feed &&
+        !writes_bytes) {
         sxml_cli_writer_write_byte(run->result_writer, '\n');
         if (run->result_writer->status != SXML_STATUS_OK) {
             status = SXML_STATUS_INPUT_OUTPUT_FAILED;

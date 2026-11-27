@@ -2035,7 +2035,8 @@ sxml_status sxml_xslt_result_builds_tree(sxml_item_heap *item_heap,
         choice->builds_tree = definition->build_tree == SXML_SERIALIZATION_FLAG_YES;
         return SXML_STATUS_OK;
     }
-    /* 26.1: yes for xml, xhtml, html and text, given or chosen. */
+    /* 26.1: yes for xml, xhtml, html and text, given or chosen; and for
+       sxml's exi method, which writes a document (D333). */
     sxml_serialization_method method = definition->serialization_parameters.serialization_method;
     if (!definition->has_serialization_method) {
         const sxml_status status = choose_method(item_heap, request, &method);
@@ -2046,7 +2047,8 @@ sxml_status sxml_xslt_result_builds_tree(sxml_item_heap *item_heap,
     choice->builds_tree = method == SXML_SERIALIZATION_METHOD_XML ||
                    method == SXML_SERIALIZATION_METHOD_XHTML ||
                    method == SXML_SERIALIZATION_METHOD_HTML ||
-                   method == SXML_SERIALIZATION_METHOD_TEXT;
+                   method == SXML_SERIALIZATION_METHOD_TEXT ||
+                   method == SXML_SERIALIZATION_METHOD_EXI;
     return SXML_STATUS_OK;
 }
 

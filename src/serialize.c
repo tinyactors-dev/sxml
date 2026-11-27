@@ -962,7 +962,7 @@ static bool sxml_parameters_are_expressible(const sxml_serialization_parameters 
         parameters->indent_attributes,     parameters->json_lines,
         parameters->omit_xml_declaration,  parameters->undeclare_prefixes,
     };
-    bool is_valid = parameters->serialization_method <= SXML_SERIALIZATION_METHOD_CSV &&
+    bool is_valid = parameters->serialization_method <= SXML_SERIALIZATION_METHOD_EXI &&
                     parameters->character_encoding <= SXML_CHARACTER_ENCODING_ISO_8859_1 &&
                     parameters->json_node_output_method <= SXML_JSON_NODE_OUTPUT_METHOD_TEXT &&
                     parameters->line_ending <= SXML_LINE_ENDING_CARRIAGE_RETURN &&
@@ -2201,8 +2201,10 @@ static void sxml_serializer_resolve_pipeline(sxml_serializer *serializer) {
 /* Writes the byte order mark when byte-order-mark is yes (Serialization
    4.0, section 3; the Unicode Standard 16.0, section 23.8). */
 static sxml_status sxml_serializer_write_byte_order_mark(sxml_serializer *serializer) {
+    /* The exi method writes bytes, not characters (D333). */
     if (serializer->parameters->byte_order_mark != SXML_SERIALIZATION_FLAG_YES ||
-        serializer->escape_style == SXML_ESCAPE_STYLE_CANONICAL || serializer->is_canonical_json) {
+        serializer->escape_style == SXML_ESCAPE_STYLE_CANONICAL || serializer->is_canonical_json ||
+        serializer->parameters->serialization_method == SXML_SERIALIZATION_METHOD_EXI) {
         return SXML_STATUS_OK;
     }
     if (serializer->character_encoding == SXML_CHARACTER_ENCODING_UTF_8) {
@@ -2365,9 +2367,7 @@ sxml_status sxml_serialize_sequence(sxml_item_heap *item_heap,
             status = sxml_serialize_csv_method(&serializer, request->value);
             break;
         case SXML_SERIALIZATION_METHOD_EXI:
-            /* Packet 8.10 writes the method; until then, the status the
-               header gives a method sxml does not implement yet. */
-            status = SXML_STATUS_UNSUPPORTED_FEATURE;
+            status = sxml_serialize_exi_method(&serializer, request->value);
             break;
         }
     }

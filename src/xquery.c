@@ -21,7 +21,9 @@
  * the processor's resolver at compile time (kind XML_DOCUMENT; XQST0119
  * when it is not available, XQST0115 when it is not a valid parameter
  * document); a value a parameter does not permit is SEPM0016, reported as
- * a static error at its declaration.
+ * a static error at its declaration. Option declarations in urn:sxml:exi
+ * are the parameters of the exi output method (exi:include-cookie, ...;
+ * D333) and are read the same way.
  *
  * Section numbers are of XQuery 4.0 unless another specification is
  * named.
@@ -184,11 +186,15 @@ static sxml_status sxml_output_declarations_find(const sxml_output_reading *read
                                            .static_context = &static_context,
                                            .error_record = reading->error_record},
                 &name);
+            /* The parameters of the exi method are options in urn:sxml:exi
+               (D333), read as output declarations. */
+            const bool is_exi_parameter = name.namespace_uri.index == SXML_NAMESPACE_EXI;
             if (status != SXML_STATUS_OK ||
-                name.namespace_uri.index != SXML_NAMESPACE_SERIALIZATION) {
+                (name.namespace_uri.index != SXML_NAMESPACE_SERIALIZATION && !is_exi_parameter)) {
                 continue;
             }
-            if (sxml_byte_view_equals(name.local_name,
+            if (!is_exi_parameter &&
+                sxml_byte_view_equals(name.local_name,
                                       SXML_BYTE_VIEW_FROM_LITERAL("parameter-document"))) {
                 declarations->parameter_document = declaration;
                 continue;
@@ -198,8 +204,8 @@ static sxml_status sxml_output_declarations_find(const sxml_output_reading *read
                 const sxml_ast_node_index value = child_of(ast, declaration, SXML_AST_FIELD_VALUE);
                 declarations->parameter_texts[filled] = (sxml_serialization_parameter_text){
                     .parameter_name = name.local_name,
-                    .parameter_value =
-                        sxml_ast_get_text(ast, node_of(ast, value)->payload.text)};
+                    .parameter_value = sxml_ast_get_text(ast, node_of(ast, value)->payload.text),
+                    .is_exi_parameter = is_exi_parameter};
                 declarations->declarations[filled] = declaration;
             }
             filled += 1;

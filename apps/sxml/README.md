@@ -286,6 +286,13 @@ adaptive output method writes the result, one item on each line.
   `line` and `column` attributes. The prefix `tree-sitter` is bound to
   `urn:sxml:tree-sitter`, the functions' namespace, and `sxml` to
   `urn:sxml`, the namespace of the `sxml:token` elements.
+- `exi:serialize(INPUT, OPTIONS)` writes INPUT as an EXI stream (an
+  `xs:base64Binary`) and `exi:parse(STREAM, OPTIONS)` reads one into a
+  document; the EXI options are the `options` entry, an EXI options
+  document (`<header xmlns="http://www.w3.org/2009/exi">...</header>`).
+  The output method `exi:exi` writes the result as EXI to `--output`
+  (`declare option output:method 'exi:exi';`, `<xsl:output
+  method="exi:exi"/>`). The prefix `exi` is bound to `urn:sxml:exi`.
 - `fn:invisible-xml` compiles an Invisible XML grammar (ixml notation,
   or its XML form as an `ixml` element) and returns a function that
   parses strings with it into documents; a string the grammar does not

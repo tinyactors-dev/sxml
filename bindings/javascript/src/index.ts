@@ -648,12 +648,14 @@ interface Held {
  *  for XPath and XQuery wherever the feature is present, as the sxml
  *  command binds them (EXPath Binary 4.0, 1.5; EXPath File 4.0, 1.7;
  *  D235; tree-sitter for tree-sitter:parse and sxml for the elements of
- *  its documents, D307): feature name, prefix, namespace URI. */
+ *  its documents, D307; exi for exi:serialize, exi:parse and the output
+ *  method exi:exi, D333): feature name, prefix, namespace URI. */
 const featurePrefixes: readonly (readonly [string, string, string])[] = [
   ['expath-binary', 'bin', 'http://expath.org/ns/binary'],
   ['source-code', 'sxml', 'urn:sxml'],
   ['source-code', 'tree-sitter', 'urn:sxml:tree-sitter'],
   ['expath-file', 'file', 'http://expath.org/ns/file'],
+  ['exi', 'exi', 'urn:sxml:exi'],
 ];
 
 class ProcessorState {

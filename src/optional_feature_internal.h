@@ -110,6 +110,11 @@ typedef enum sxml_optional_feature_kind {
        src/function_library_source_code.c, packet 7.22, D285); operations
        is that view. */
     SXML_OPTIONAL_FEATURE_KIND_SOURCE_CODE,
+    /* sxml_exi_feature: exi:serialize and exi:parse as library_functions
+       (src/function_library_exi.c, packet 8.13, D333), with the compiled
+       schemas of sxml_processor_exi_schema_resolver as its state;
+       operations is that view. */
+    SXML_OPTIONAL_FEATURE_KIND_EXI,
     SXML_OPTIONAL_FEATURE_KIND_COUNT,
 } sxml_optional_feature_kind;
 
@@ -282,3 +287,5 @@ extern const sxml_optional_feature_definition sxml_localization_feature_definiti
 extern const sxml_optional_feature_definition sxml_builtin_schemas_feature_definition;
 /* Source code as XML (src/function_library_source_code.c). */
 extern const sxml_optional_feature_definition sxml_source_code_feature_definition;
+/* EXI (src/function_library_exi.c). */
+extern const sxml_optional_feature_definition sxml_exi_feature_definition;

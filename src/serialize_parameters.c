@@ -19,6 +19,7 @@
 #include "sxml/serialize.h"
 
 #include "serialize_internal.h"
+#include "sxml/exi.h"
 #include "sxml/name.h"
 #include "sxml/string.h"
 #include "sxml/tree.h"
@@ -256,8 +257,10 @@ typedef struct sxml_parameter_value {
     /* TEXT, DECIMAL and METHOD (for a method name given as a string). */
     sxml_byte_view text;
     /* METHOD given as a QName in a namespace: an implementation-defined
-       method, which sxml has none of. */
+       method, named qualified_method; sxml has one, Q{urn:sxml:exi}exi
+       (D333). */
     bool is_qualified_method;
+    sxml_name_identifier qualified_method;
     /* NAMES, in the reading arena. */
     sxml_element_name_view names;
     /* CHARACTER_MAP, in the reading arena. */
@@ -272,6 +275,11 @@ typedef struct sxml_parameter_reading {
     sxml_serialization_parameters parameters;
     /* Element form: the codes of 3.1 instead of XPTY0004 and SEPM0016. */
     bool is_document;
+    /* The parameters of the exi method (include/sxml/exi.h, D333), and
+       whether any was given; parameters.exi_parameters points to a copy in
+       the arena when the method is exi or one was. */
+    sxml_exi_serialization_parameters exi_parameters;
+    bool has_exi_parameters;
 } sxml_parameter_reading;
 
 /* An error to raise: a code of the err namespace and a description, both
@@ -435,10 +443,26 @@ static sxml_status sxml_parameter_assign_method(sxml_parameter_reading *reading,
                                                 const sxml_parameter_value *value) {
     sxml_serialization_method method = SXML_SERIALIZATION_METHOD_XML;
     if (value->is_qualified_method) {
-        return sxml_parameter_raise_invalid(
-            reading, (sxml_invalid_value){.description = "sxml defines no implementation-defined "
-                                                         "output method",
-                                          .is_schema_invalid = false});
+        /* Serialization 4.0, section 3: a method name in a namespace is an
+           implementation-defined method; sxml's is Q{urn:sxml:exi}exi
+           (D333), and only for method itself. */
+        sxml_name_parts parts = {.namespace_uri = {.index = SXML_NAMESPACE_NONE},
+                                 .local_name = {.bytes = NULL, .byte_count = 0}};
+        const sxml_status status = sxml_name_pool_get_name_parts(
+            sxml_item_heap_get_name_pool(reading->reader->item_heap), value->qualified_method, &parts);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        if (name != SXML_PARAMETER_METHOD || parts.namespace_uri.index != SXML_NAMESPACE_EXI ||
+            !sxml_byte_view_equals(parts.local_name, SXML_BYTE_VIEW_FROM_LITERAL("exi"))) {
+            return sxml_parameter_raise_invalid(
+                reading,
+                (sxml_invalid_value){.description = "the only implementation-defined output method "
+                                                    "sxml defines is Q{urn:sxml:exi}exi",
+                                     .is_schema_invalid = false});
+        }
+        reading->parameters.serialization_method = SXML_SERIALIZATION_METHOD_EXI;
+        return SXML_STATUS_OK;
     }
     if (!sxml_parameter_find_method(value->text, &method) ||
         (name == SXML_PARAMETER_JSON_NODE_OUTPUT_METHOD &&
@@ -738,6 +762,15 @@ static sxml_status sxml_parameter_assign(sxml_parameter_reading *reading,
 }
 /* ------------------------------------------------------------ The map form */
 
+/* An entry of the map whose key is a QName in urn:sxml:exi (below, "The
+   exi method's parameters"). */
+typedef struct sxml_exi_map_entry {
+    sxml_byte_view local_name;
+    sxml_sequence value;
+} sxml_exi_map_entry;
+static sxml_status sxml_parameter_read_exi_entry(sxml_parameter_reading *reading,
+                                                 const sxml_exi_map_entry *entry);
+
 /* The text of a string-like atomic item (xs:string, xs:anyURI by
    promotion, xs:untypedAtomic by coercion), or false. */
 static bool sxml_parameter_item_text(sxml_item item, sxml_byte_view *text) {
@@ -972,14 +1005,14 @@ static sxml_status sxml_parameter_read_character_map(sxml_parameter_reading *rea
 /* Decodes the value of a map entry for one parameter (F&O 4.0, 17.2.3,
    the table of required types). */
 typedef struct sxml_map_option {
-    sxml_parameter_name name;
+    sxml_parameter_kind kind;
     sxml_sequence value;
 } sxml_map_option;
 
 static sxml_status sxml_parameter_decode_option(sxml_parameter_reading *reading,
                                                 const sxml_map_option *option,
                                                 sxml_parameter_value *value) {
-    const sxml_parameter_kind kind = sxml_parameter_definitions[option->name].kind;
+    const sxml_parameter_kind kind = option->kind;
     if (kind == SXML_PARAMETER_KIND_NAMES) {
         return sxml_parameter_collect_names(
             reading, &(sxml_name_collection){.sequence = option->value, .names = &value->names});
@@ -1036,6 +1069,7 @@ static sxml_status sxml_parameter_decode_option(sxml_parameter_reading *reading,
     case SXML_PARAMETER_KIND_METHOD:
         if (primitive == SXML_TYPE_XS_QNAME) {
             value->is_qualified_method = true;
+            value->qualified_method = datum.datum_details.qname.expanded_name;
             return SXML_STATUS_OK;
         }
         return sxml_parameter_item_text(item, &value->text) ? SXML_STATUS_OK
@@ -1108,6 +1142,11 @@ static sxml_status sxml_parameter_read_map(sxml_parameter_reading *reading, sxml
             if (status == SXML_STATUS_OK && parts.namespace_uri.index == SXML_NAMESPACE_NONE) {
                 status = sxml_parameter_raise_type(reading);
             }
+            if (status == SXML_STATUS_OK && parts.namespace_uri.index == SXML_NAMESPACE_EXI) {
+                status = sxml_parameter_read_exi_entry(
+                    reading,
+                    &(sxml_exi_map_entry){.local_name = parts.local_name, .value = entry.value});
+            }
             continue;
         }
         if (!sxml_parameter_item_text(entry.key, &key)) {
@@ -1121,7 +1160,9 @@ static sxml_status sxml_parameter_read_map(sxml_parameter_reading *reading, sxml
         sxml_parameter_value value;
         memset(&value, 0, sizeof(value));
         status = sxml_parameter_decode_option(
-            reading, &(sxml_map_option){.name = name, .value = entry.value}, &value);
+            reading,
+            &(sxml_map_option){.kind = sxml_parameter_definitions[name].kind, .value = entry.value},
+            &value);
         if (status == SXML_STATUS_OK) {
             status = sxml_parameter_assign(reading, name, &value);
         }
@@ -1441,7 +1482,7 @@ static sxml_status sxml_parameter_read_character_map_element(
    XQuery output declaration (XQuery 4.0, 5.22). QNames resolve with
    namespace_bindings. */
 typedef struct sxml_parameter_text_decoding {
-    sxml_parameter_name name;
+    sxml_parameter_kind kind;
     sxml_byte_view text;
     sxml_namespace_binding_view namespace_bindings;
 } sxml_parameter_text_decoding;
@@ -1449,7 +1490,7 @@ typedef struct sxml_parameter_text_decoding {
 static sxml_status sxml_parameter_decode_text(sxml_parameter_reading *reading,
                                               const sxml_parameter_text_decoding *decoding,
                                               sxml_parameter_value *value) {
-    const sxml_parameter_kind kind = sxml_parameter_definitions[decoding->name].kind;
+    const sxml_parameter_kind kind = decoding->kind;
     const sxml_byte_view text = decoding->text;
     const sxml_byte_view trimmed = sxml_xml_text_trim_whitespace(text);
     switch (kind) {
@@ -1505,13 +1546,12 @@ static sxml_status sxml_parameter_decode_text(sxml_parameter_reading *reading,
         if (!has_colon) {
             return sxml_parameter_raise_form(reading);
         }
-        sxml_name_identifier unused_name;
         const sxml_status status = sxml_parameter_resolve_qname(
             reading,
             &(sxml_lexical_qname){.namespace_bindings = decoding->namespace_bindings,
                                   .text = trimmed,
                                   .uses_default_namespace = false},
-            &unused_name);
+            &value->qualified_method);
         value->is_qualified_method = true;
         return status;
     }
@@ -1532,7 +1572,7 @@ static sxml_status sxml_parameter_decode_text(sxml_parameter_reading *reading,
 /* Decodes a parameter element: its value attribute, or for
    use-character-maps its output:character-map children. */
 typedef struct sxml_parameter_element {
-    sxml_parameter_name name;
+    sxml_parameter_kind kind;
     sxml_node_reference element;
 } sxml_parameter_element;
 
@@ -1551,7 +1591,7 @@ static sxml_status sxml_parameter_decode_element(sxml_parameter_reading *reading
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    if (sxml_parameter_definitions[parameter->name].kind == SXML_PARAMETER_KIND_CHARACTER_MAP) {
+    if (parameter->kind == SXML_PARAMETER_KIND_CHARACTER_MAP) {
         return has_value ? sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017)
                          : sxml_parameter_read_character_map_element(reading, parameter->element,
                                                                      &value->character_map);
@@ -1566,9 +1606,336 @@ static sxml_status sxml_parameter_decode_element(sxml_parameter_reading *reading
                ? sxml_parameter_decode_text(
                      reading,
                      &(sxml_parameter_text_decoding){
-                         .name = parameter->name, .text = text, .namespace_bindings = bindings},
+                         .kind = parameter->kind, .text = text, .namespace_bindings = bindings},
                      value)
                : status;
+}
+
+/* ------------------------------------------- The exi method's parameters */
+
+/* The parameters of Q{urn:sxml:exi}exi (include/sxml/exi.h,
+   sxml_exi_serialization_parameters; D333), in urn:sxml:exi. */
+typedef enum sxml_exi_parameter_name {
+    SXML_EXI_PARAMETER_OPTIONS,
+    SXML_EXI_PARAMETER_INCLUDE_COOKIE,
+    SXML_EXI_PARAMETER_INCLUDE_OPTIONS,
+    SXML_EXI_PARAMETER_INCLUDE_SCHEMA_ID,
+    SXML_EXI_PARAMETER_OMIT_OPTIONS_DOCUMENT,
+    SXML_EXI_PARAMETER_UTC_TIME,
+    SXML_EXI_PARAMETER_SELF_CONTAINED_ELEMENTS,
+    SXML_EXI_PARAMETER_COUNT,
+} sxml_exi_parameter_name;
+
+static const sxml_byte_view sxml_exi_parameter_names[SXML_EXI_PARAMETER_COUNT] = {
+    SXML_BYTE_VIEW_INITIALIZER("options"),
+    SXML_BYTE_VIEW_INITIALIZER("include-cookie"),
+    SXML_BYTE_VIEW_INITIALIZER("include-options"),
+    SXML_BYTE_VIEW_INITIALIZER("include-schema-id"),
+    SXML_BYTE_VIEW_INITIALIZER("omit-options-document"),
+    SXML_BYTE_VIEW_INITIALIZER("utc-time"),
+    SXML_BYTE_VIEW_INITIALIZER("self-contained-elements"),
+};
+
+/* The parameter named local_name in urn:sxml:exi; COUNT for none. */
+static sxml_exi_parameter_name sxml_exi_parameter_find(sxml_byte_view local_name) {
+    for (size_t parameter_index = 0; parameter_index < SXML_EXI_PARAMETER_COUNT; parameter_index += 1) {
+        if (sxml_byte_view_equals(sxml_exi_parameter_names[parameter_index], local_name)) {
+            return (sxml_exi_parameter_name)parameter_index;
+        }
+    }
+    return SXML_EXI_PARAMETER_COUNT;
+}
+
+/* The kind of a parameter's value: yes-no flags and a list of element
+   names; exi:options, an element, has no value of these kinds. */
+static sxml_parameter_kind sxml_exi_parameter_kind(sxml_exi_parameter_name name) {
+    return name == SXML_EXI_PARAMETER_SELF_CONTAINED_ELEMENTS ? SXML_PARAMETER_KIND_NAMES
+                                                              : SXML_PARAMETER_KIND_FLAG;
+}
+
+/* Stores one decoded value of a flag or the name list. */
+typedef struct sxml_exi_assignment {
+    sxml_exi_parameter_name name;
+    const sxml_parameter_value *value;
+} sxml_exi_assignment;
+
+static void sxml_parameter_assign_exi(sxml_parameter_reading *reading, sxml_exi_assignment assignment) {
+    const sxml_parameter_value *value = assignment.value;
+    if (value->is_absent) {
+        return;
+    }
+    sxml_exi_serialization_parameters *exi = &reading->exi_parameters;
+    reading->has_exi_parameters = true;
+    switch (assignment.name) {
+    case SXML_EXI_PARAMETER_INCLUDE_COOKIE:
+        exi->header_options.includes_cookie = value->flag;
+        break;
+    case SXML_EXI_PARAMETER_INCLUDE_OPTIONS:
+        exi->header_options.includes_options = value->flag;
+        break;
+    case SXML_EXI_PARAMETER_INCLUDE_SCHEMA_ID:
+        exi->header_options.includes_schema_identifier = value->flag;
+        break;
+    case SXML_EXI_PARAMETER_OMIT_OPTIONS_DOCUMENT:
+        exi->canonicalization.omits_options_document = value->flag;
+        break;
+    case SXML_EXI_PARAMETER_UTC_TIME:
+        exi->canonicalization.uses_utc_time = value->flag;
+        break;
+    case SXML_EXI_PARAMETER_SELF_CONTAINED_ELEMENTS:
+        exi->self_contained_elements = value->names;
+        break;
+    case SXML_EXI_PARAMETER_OPTIONS:
+    case SXML_EXI_PARAMETER_COUNT:
+        break;
+    }
+}
+
+/* Copies the views of options the options reader wrote into the reading
+   arena: the reader keeps them only until its next read. */
+static sxml_status sxml_parameter_keep_exi_options(sxml_parameter_reading *reading,
+                                                   const sxml_exi_options *options) {
+    sxml_exi_options kept = *options;
+    sxml_status status = SXML_STATUS_OK;
+    if (options->schema_identifier.schema_identifier_kind == SXML_EXI_SCHEMA_IDENTIFIER_TEXT) {
+        status = sxml_parameter_copy_text(reading, options->schema_identifier.text,
+                                          &kept.schema_identifier.text);
+    }
+    const sxml_exi_datatype_representation_view map = options->datatype_representation_map;
+    if (status == SXML_STATUS_OK && map.datatype_representation_count > 0) {
+        size_t byte_count = 0;
+        void *memory = NULL;
+        status = sxml_size_multiply(map.datatype_representation_count,
+                                    sizeof(sxml_exi_datatype_representation), &byte_count);
+        if (status == SXML_STATUS_OK) {
+            status = sxml_arena_allocate(
+                reading->arena,
+                (sxml_allocation_request){.byte_count = byte_count,
+                                          .alignment = alignof(sxml_exi_datatype_representation)},
+                &memory);
+        }
+        if (status == SXML_STATUS_OK) {
+            memcpy(memory, map.datatype_representations, byte_count);
+            kept.datatype_representation_map.datatype_representations = memory;
+        }
+    }
+    if (status == SXML_STATUS_OK) {
+        reading->exi_parameters.options = kept;
+        reading->has_exi_parameters = true;
+    }
+    return status;
+}
+
+/* Reads exi:options, an exi:header element of the EXI options schema
+   (EXI 1.0, Appendix C), with an options reader. An invalid one is
+   SEPM0016 (SEPM0017 in a parameter document). */
+static sxml_status sxml_parameter_read_exi_header(sxml_parameter_reading *reading,
+                                                  sxml_node_reference header) {
+    sxml_exi_options_reader *options_reader = NULL;
+    sxml_status status = sxml_exi_options_reader_create(
+        reading->reader->allocator,
+        &(sxml_exi_options_reader_configuration){
+            .allocator = reading->reader->allocator,
+            .name_pool = sxml_item_heap_get_name_pool(reading->reader->item_heap)},
+        &options_reader);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_diagnostic diagnostic = {.description = {.bytes = NULL, .byte_count = 0},
+                                  .location = {.line_number = 0}};
+    sxml_exi_options options;
+    memset(&options, 0, sizeof(options));
+    status = sxml_exi_options_reader_read(
+        options_reader,
+        &(sxml_exi_options_read_request){.header_element = header, .diagnostic = &diagnostic},
+        &options);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_parameter_keep_exi_options(reading, &options);
+    }
+    sxml_exi_options_reader_destroy(options_reader);
+    if (status == SXML_STATUS_MALFORMED_INPUT) {
+        /* The diagnostic's description is static text. */
+        return reading->is_document
+                   ? sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017)
+                   : sxml_parameter_raise_invalid(
+                         reading, (sxml_invalid_value){.description = "exi:options is not a valid EXI "
+                                                                      "options document (EXI 1.0, "
+                                                                      "Appendix C)",
+                                                       .is_schema_invalid = false});
+    }
+    return status;
+}
+
+/* An entry of the options map with an xs:QName key in urn:sxml:exi:
+   exi:options an element, the flags xs:boolean, exi:self-contained-elements
+   xs:QName*; another name is XPTY0004, as a string key that names no
+   parameter is. */
+static sxml_status sxml_parameter_read_exi_entry(sxml_parameter_reading *reading,
+                                                 const sxml_exi_map_entry *entry) {
+    const sxml_exi_parameter_name name = sxml_exi_parameter_find(entry->local_name);
+    if (name == SXML_EXI_PARAMETER_COUNT) {
+        return sxml_parameter_raise_type(reading);
+    }
+    if (name != SXML_EXI_PARAMETER_OPTIONS) {
+        sxml_parameter_value value;
+        memset(&value, 0, sizeof(value));
+        const sxml_status status = sxml_parameter_decode_option(
+            reading, &(sxml_map_option){.kind = sxml_exi_parameter_kind(name), .value = entry->value},
+            &value);
+        if (status == SXML_STATUS_OK) {
+            sxml_parameter_assign_exi(reading, (sxml_exi_assignment){.name = name, .value = &value});
+        }
+        return status;
+    }
+    uint64_t item_count = 0;
+    sxml_status status = sxml_sequence_count(entry->value, reading->error_record, &item_count);
+    if (status != SXML_STATUS_OK || item_count == 0) {
+        return status;
+    }
+    sxml_item item = {.representation = 0};
+    if (item_count == 1) {
+        status = sxml_sequence_get_item(
+            entry->value, (sxml_item_request){.item_index = 0, .error_record = reading->error_record},
+            &item);
+    }
+    sxml_node_reference node = {.tree = NULL, .node_index = {.index = 0}, .namespace_number = 0};
+    if (status == SXML_STATUS_OK && item_count == 1 && sxml_item_get_kind(item) == SXML_ITEM_KIND_NODE) {
+        status = sxml_item_get_node(item, &node);
+    }
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    if (node.tree == NULL) {
+        return sxml_parameter_raise_type(reading);
+    }
+    sxml_node_description description;
+    status = sxml_node_describe(node, &description);
+    if (status == SXML_STATUS_OK && description.node_kind != SXML_NODE_KIND_ELEMENT) {
+        return sxml_parameter_raise_type(reading);
+    }
+    return status == SXML_STATUS_OK ? sxml_parameter_read_exi_header(reading, node) : status;
+}
+
+/* The element of an exi:options parameter element: its one element
+   child; SEPM0017 for none, more, or text. */
+static sxml_status sxml_parameter_find_exi_header(sxml_parameter_reading *reading,
+                                                  sxml_node_reference element,
+                                                  sxml_node_reference *header) {
+    sxml_node_description description;
+    sxml_status status = sxml_node_describe(element, &description);
+    size_t element_count = 0;
+    bool has_child = status == SXML_STATUS_OK && description.has_children;
+    sxml_node_index child = description.first_child;
+    while (status == SXML_STATUS_OK && has_child) {
+        const sxml_node_reference child_node = {
+            .tree = element.tree, .node_index = child, .namespace_number = 0};
+        sxml_node_description child_description;
+        status = sxml_node_describe(child_node, &child_description);
+        if (status != SXML_STATUS_OK) {
+            break;
+        }
+        has_child = child_description.has_next_sibling;
+        child = child_description.next_sibling;
+        if (child_description.node_kind == SXML_NODE_KIND_ELEMENT) {
+            *header = child_node;
+            element_count += 1;
+        } else if (child_description.node_kind == SXML_NODE_KIND_TEXT) {
+            sxml_byte_view content = {.bytes = NULL, .byte_count = 0};
+            status = sxml_node_get_content(child_node, &content);
+            if (status == SXML_STATUS_OK && sxml_xml_text_trim_whitespace(content).byte_count > 0) {
+                return sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
+            }
+        }
+    }
+    if (status == SXML_STATUS_OK && element_count != 1) {
+        return sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
+    }
+    return status;
+}
+
+/* A child of a parameter document in urn:sxml:exi: exi:options holds the
+   exi:header element, the others a value attribute (SEPM0017 for an
+   unknown name, as for one in the serialization namespace). */
+static sxml_status sxml_parameter_read_exi_element(sxml_parameter_reading *reading,
+                                                   sxml_byte_view local_name,
+                                                   sxml_node_reference element) {
+    const sxml_exi_parameter_name name = sxml_exi_parameter_find(local_name);
+    if (name == SXML_EXI_PARAMETER_COUNT) {
+        return sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
+    }
+    if (name == SXML_EXI_PARAMETER_OPTIONS) {
+        sxml_node_reference header = element;
+        sxml_status status = sxml_parameter_read_attributes(
+            reading, &(sxml_attribute_lookup){.element = element,
+                                              .names = NULL,
+                                              .values = NULL,
+                                              .presences = NULL,
+                                              .name_count = 0});
+        if (status == SXML_STATUS_OK) {
+            status = sxml_parameter_find_exi_header(reading, element, &header);
+        }
+        return status == SXML_STATUS_OK ? sxml_parameter_read_exi_header(reading, header) : status;
+    }
+    sxml_parameter_value value;
+    memset(&value, 0, sizeof(value));
+    const sxml_status status = sxml_parameter_decode_element(
+        reading, &(sxml_parameter_element){.kind = sxml_exi_parameter_kind(name), .element = element},
+        &value);
+    if (status == SXML_STATUS_OK) {
+        sxml_parameter_assign_exi(reading, (sxml_exi_assignment){.name = name, .value = &value});
+    }
+    return status;
+}
+
+/* A parameter text in urn:sxml:exi (an XQuery option declaration, an
+   attribute of xsl:output): exi:options needs an element, so as text it
+   is SEPM0016, as an unknown name is. */
+typedef struct sxml_exi_parameter_text {
+    const sxml_serialization_parameter_text *text;
+    sxml_namespace_binding_view namespace_bindings;
+} sxml_exi_parameter_text;
+
+static sxml_status sxml_parameter_read_exi_text(sxml_parameter_reading *reading,
+                                                const sxml_exi_parameter_text *parameter) {
+    const sxml_exi_parameter_name name = sxml_exi_parameter_find(parameter->text->parameter_name);
+    if (name == SXML_EXI_PARAMETER_COUNT || name == SXML_EXI_PARAMETER_OPTIONS) {
+        return sxml_parameter_raise_form(reading);
+    }
+    sxml_parameter_value value;
+    memset(&value, 0, sizeof(value));
+    const sxml_status status = sxml_parameter_decode_text(
+        reading,
+        &(sxml_parameter_text_decoding){.kind = sxml_exi_parameter_kind(name),
+                                        .text = parameter->text->parameter_value,
+                                        .namespace_bindings = parameter->namespace_bindings},
+        &value);
+    if (status == SXML_STATUS_OK) {
+        sxml_parameter_assign_exi(reading, (sxml_exi_assignment){.name = name, .value = &value});
+    }
+    return status;
+}
+
+/* Points parameters.exi_parameters at a copy of the exi parameters in the
+   arena when the method is exi or an exi parameter was given; NULL, their
+   defaults, otherwise. */
+static sxml_status sxml_parameter_finish_exi(sxml_parameter_reading *reading) {
+    reading->parameters.exi_parameters = NULL;
+    if (!reading->has_exi_parameters &&
+        reading->parameters.serialization_method != SXML_SERIALIZATION_METHOD_EXI) {
+        return SXML_STATUS_OK;
+    }
+    void *memory = NULL;
+    const sxml_status status = sxml_arena_allocate(
+        reading->arena,
+        (sxml_allocation_request){.byte_count = sizeof(sxml_exi_serialization_parameters),
+                                  .alignment = alignof(sxml_exi_serialization_parameters)},
+        &memory);
+    if (status == SXML_STATUS_OK) {
+        sxml_exi_serialization_parameters *copy = memory;
+        *copy = reading->exi_parameters;
+        reading->parameters.exi_parameters = copy;
+    }
+    return status;
 }
 
 /* Reads a parameter document (Serialization 4.0, 3.1). */
@@ -1641,6 +2008,10 @@ static sxml_status sxml_parameter_read_document(sxml_parameter_reading *reading,
             status = sxml_parameter_raise_document(reading, SXML_DOCUMENT_ERROR_SEPM0017);
             break;
         }
+        if (parts.namespace_uri.index == SXML_NAMESPACE_EXI) {
+            status = sxml_parameter_read_exi_element(reading, parts.local_name, child_node);
+            continue;
+        }
         if (parts.namespace_uri.index != SXML_NAMESPACE_SERIALIZATION) {
             continue;
         }
@@ -1652,7 +2023,10 @@ static sxml_status sxml_parameter_read_document(sxml_parameter_reading *reading,
         sxml_parameter_value value;
         memset(&value, 0, sizeof(value));
         status = sxml_parameter_decode_element(
-            reading, &(sxml_parameter_element){.name = name, .element = child_node}, &value);
+            reading,
+            &(sxml_parameter_element){.kind = sxml_parameter_definitions[name].kind,
+                                      .element = child_node},
+            &value);
         if (status == SXML_STATUS_OK) {
             status = sxml_parameter_assign(reading, name, &value);
         }
@@ -1750,6 +2124,9 @@ sxml_status sxml_serialization_parameter_reader_read(
             status = sxml_parameter_raise_type(&reading);
         }
     }
+    if (status == SXML_STATUS_OK) {
+        status = sxml_parameter_finish_exi(&reading);
+    }
     if (status != SXML_STATUS_OK) {
         sxml_arena_reset(parameter_reader->spare_arena);
         return status;
@@ -1791,6 +2168,15 @@ static sxml_status sxml_parameter_read_texts(sxml_parameter_reading *reading,
     for (size_t text_index = 0; status == SXML_STATUS_OK && text_index < texts.parameter_text_count;
          text_index += 1) {
         const sxml_serialization_parameter_text *text = &texts.parameter_texts[text_index];
+        if (text->is_exi_parameter) {
+            status = sxml_parameter_read_exi_text(
+                reading, &(sxml_exi_parameter_text){.text = text,
+                                                    .namespace_bindings = request->namespace_bindings});
+            if (status != SXML_STATUS_OK && request->failed_text_index != NULL) {
+                *request->failed_text_index = text_index;
+            }
+            continue;
+        }
         const sxml_parameter_name name = sxml_parameter_find(text->parameter_name);
         sxml_parameter_value value;
         memset(&value, 0, sizeof(value));
@@ -1799,7 +2185,7 @@ static sxml_status sxml_parameter_read_texts(sxml_parameter_reading *reading,
                      : sxml_parameter_decode_text(
                            reading,
                            &(sxml_parameter_text_decoding){
-                               .name = name,
+                               .kind = sxml_parameter_definitions[name].kind,
                                .text = text->parameter_value,
                                .namespace_bindings = request->namespace_bindings},
                            &value);
@@ -1840,6 +2226,9 @@ sxml_status sxml_serialization_parameter_reader_read_texts(
         .is_document = false,
     };
     status = sxml_parameter_read_texts(&reading, request);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_parameter_finish_exi(&reading);
+    }
     if (status != SXML_STATUS_OK) {
         sxml_arena_reset(parameter_reader->spare_arena);
         return status;

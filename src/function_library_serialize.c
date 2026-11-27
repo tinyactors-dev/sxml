@@ -72,6 +72,12 @@ static sxml_status serialize_decode_latin1(serialize_latin1_text text, uint8_t *
     return SXML_STATUS_OK;
 }
 
+static const sxml_static_error serialize_exi_method_error = {
+    .error_status = SXML_STATUS_DYNAMIC_ERROR,
+    .code_local_name = SXML_BYTE_VIEW_INITIALIZER("SEPM0016"),
+    .description = SXML_BYTE_VIEW_INITIALIZER(
+        "fn:serialize returns a string; the exi method writes bytes: use exi:serialize")};
+
 /* fn:serialize($input as item()*, $options as
    (element(output:serialization-parameters) | map(*))? := {}) as xs:string
    (F&O 4.0, 17.2.3). The choice type of $options is checked by the
@@ -92,6 +98,13 @@ static sxml_status call_serialize(const sxml_function_call *call, sxml_sequence 
             &(sxml_serialization_parameter_read_request){.options = serialize_argument(call, 1),
                                                          .error_record = call->error_record},
             &parameters);
+    }
+    /* F&O 4.0, 17.2.3: fn:serialize returns a string and skips the
+       encoding phase, so a method that writes bytes, exi:exi, is not one
+       it can use (D333). */
+    if (status == SXML_STATUS_OK &&
+        parameters.serialization_method == SXML_SERIALIZATION_METHOD_EXI) {
+        status = sxml_error_record_report(call->error_record, &serialize_exi_method_error);
     }
     /* The encoding phase is skipped: UTF-16 has every character, so the
        string is made as UTF-8; no byte order mark. */

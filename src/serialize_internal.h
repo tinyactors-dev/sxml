@@ -466,6 +466,14 @@ SXML_NODISCARD sxml_status sxml_serialize_csv_method(sxml_serializer *serializer
 
 /* Serializes value with the JSON method (Serialization 4.0, section 9);
    raises SERE0020, SERE0021, SERE0022 and SERE0023. */
+/* The exi method, Q{urn:sxml:exi}exi (src/serialize_exi.c, D333): the
+   normalized sequence as a document, written by the EXI encoder with the
+   parameters' exi_parameters to the output stream, unstaged. Raises the
+   encoder's refusals as errors in urn:sxml:exi (exi:unrepresentable,
+   exi:invalid-options, exi:unsupported). */
+SXML_NODISCARD sxml_status sxml_serialize_exi_method(sxml_serializer *serializer,
+                                                     sxml_sequence value);
+
 SXML_NODISCARD sxml_status sxml_serialize_json_method(sxml_serializer *serializer,
                                                       sxml_sequence value);
 
@@ -492,6 +500,10 @@ SXML_NODISCARD sxml_status sxml_serializer_write_node_as_string(sxml_serializer 
 typedef struct sxml_serialization_parameter_text {
     sxml_byte_view parameter_name;
     sxml_byte_view parameter_value;
+    /* The name is a local name in urn:sxml:exi: a parameter of the exi
+       method (include/sxml/exi.h, D333), not of the serialization
+       namespace. */
+    bool is_exi_parameter;
 } sxml_serialization_parameter_text;
 
 typedef struct sxml_serialization_parameter_text_view {
