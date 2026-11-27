@@ -11,6 +11,7 @@
 #include <stdalign.h>
 #include <string.h>
 
+#include "deflate_internal.h"
 #include "exi_internal.h"
 #include "memory_internal.h"
 #include "sxml/tree.h"
@@ -23,11 +24,56 @@ typedef struct sxml_exi_scoped_binding {
     uint32_t depth;
 } sxml_exi_scoped_binding;
 
+/* A builder event of the body, sent at once or, with pre-compression and
+   compression, recorded until its block's values are read (EXI 9). */
+typedef enum sxml_exi_emitted_kind {
+    SXML_EXI_EMITTED_START_ELEMENT,
+    SXML_EXI_EMITTED_BINDING,
+    SXML_EXI_EMITTED_ATTRIBUTE,
+    SXML_EXI_EMITTED_END_ELEMENT,
+    SXML_EXI_EMITTED_TEXT,
+    SXML_EXI_EMITTED_COMMENT,
+    SXML_EXI_EMITTED_PROCESSING_INSTRUCTION,
+} sxml_exi_emitted_kind;
+
+/* A value of the body: text in the decoder's store, or a slot of the
+   block's value channels not read yet. */
+typedef struct sxml_exi_value_handle {
+    bool is_slot;
+    uint32_t slot;
+    sxml_exi_text text;
+} sxml_exi_value_handle;
+
+typedef struct sxml_exi_emitted {
+    sxml_exi_emitted_kind emitted_kind;
+    sxml_name_identifier name;
+    sxml_namespace_prefix_identifier prefix;
+    sxml_namespace_uri_identifier uri;
+    sxml_exi_value_handle text;
+    sxml_exi_text data;
+} sxml_exi_emitted;
+
+/* A value channel of the current block (9.2.2): its qname, its values in
+   order and the slots they fill. */
+typedef struct sxml_exi_channel {
+    uint32_t uri;
+    uint32_t local_name;
+    uint32_t value_count;
+    /* The slots of its values, in order: an index into channel_slots. */
+    size_t first_slot_entry;
+} sxml_exi_channel;
+
+/* A value slot: its channel, and its text once read. */
+typedef struct sxml_exi_slot {
+    uint32_t channel;
+    sxml_exi_text text;
+} sxml_exi_slot;
+
 /* An attribute of the start tag being read. */
 typedef struct sxml_exi_pending_attribute {
     sxml_name_identifier name;
     sxml_namespace_prefix_identifier prefix;
-    sxml_exi_text value;
+    sxml_exi_value_handle value;
 } sxml_exi_pending_attribute;
 
 /* A namespace declaration of the start tag being read. */
@@ -95,6 +141,32 @@ typedef struct sxml_exi_decoding {
     /* The header had options; the body reached ED. */
     bool has_header_options;
     bool is_finished;
+    /* Pre-compression or compression (EXI 9): events recorded per block,
+       values read per channel after the block's structure. */
+    bool is_channelized;
+    bool is_compressed;
+    uint64_t block_size;
+    uint64_t block_value_count;
+    /* The block being read, from 0. */
+    uint64_t block_number;
+    sxml_exi_emitted *emitted;
+    size_t emitted_count;
+    size_t emitted_capacity;
+    sxml_exi_slot *slots;
+    size_t slot_count;
+    size_t slot_capacity;
+    sxml_exi_channel *channels;
+    size_t channel_count;
+    size_t channel_capacity;
+    /* Per channel, its slots in order (filled when the block ends). */
+    uint32_t *channel_slots;
+    size_t channel_slot_capacity;
+    /* With compression: the raw stream position of the next compressed
+       stream, and the inflated stream being read. */
+    sxml_byte_view raw_input;
+    size_t raw_position;
+    uint8_t *inflated;
+    size_t inflated_byte_count;
 } sxml_exi_decoding;
 
 #define SXML_EXI_TEXT(literal) SXML_BYTE_VIEW_FROM_LITERAL(literal)
@@ -300,7 +372,9 @@ typedef struct sxml_exi_qname {
     uint32_t local_name;
 } sxml_exi_qname;
 
-static sxml_status sxml_exi_read_value(sxml_exi_decoding *decoding, sxml_exi_qname qname, sxml_byte_view *value) {
+/* Reads a value (7.3.3) of the qname (uri, local_name) into the decoder's
+   store. */
+static sxml_status sxml_exi_read_value_text(sxml_exi_decoding *decoding, sxml_exi_qname qname, sxml_exi_text *value) {
     uint64_t length = 0;
     sxml_status status = sxml_exi_read_unsigned(&decoding->reader, &length);
     if (status != SXML_STATUS_OK) {
@@ -330,21 +404,64 @@ static sxml_status sxml_exi_read_value(sxml_exi_decoding *decoding, sxml_exi_qna
         if (entry == SXML_EXI_NONE) {
             return SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT, "a value compact identifier with no value");
         }
-        *value = sxml_exi_string_table_view(&decoding->table, decoding->table.values[entry].text);
-        decoding->content_byte_count += value->byte_count;
-        if (decoding->content_byte_count > decoding->limits.maximum_content_byte_count) {
-            return SXML_EXI_FAIL(decoding, SXML_STATUS_LIMIT_EXCEEDED, "the stream decodes to more content than the limit");
-        }
-        return SXML_STATUS_OK;
+        const sxml_byte_view hit = sxml_exi_string_table_view(&decoding->table, decoding->table.values[entry].text);
+        const size_t start = decoding->text_byte_count;
+        status = sxml_exi_append_text(decoding, hit);
+        *value = (sxml_exi_text){.offset = start, .byte_count = (uint32_t)hit.byte_count};
+        return status;
     }
-    sxml_exi_text text = {0};
-    status = sxml_exi_read_characters(decoding, length - 2, &text);
+    status = sxml_exi_read_characters(decoding, length - 2, value);
     if (status != SXML_STATUS_OK) {
         return status;
     }
-    *value = sxml_exi_decoded_view(decoding, text);
-    return sxml_exi_add_value(&decoding->table, &(sxml_exi_string_key){
-                                                    .text = *value, .uri = qname.uri, .local_name = qname.local_name});
+    return sxml_exi_add_value(&decoding->table,
+                              &(sxml_exi_string_key){.text = sxml_exi_decoded_view(decoding, *value),
+                                                     .uri = qname.uri,
+                                                     .local_name = qname.local_name});
+}
+
+/* A value of an AT or CH event: read now, or, with pre-compression and
+   compression, a slot of its qname's channel, read when the block ends
+   (9.2.2). */
+static sxml_status sxml_exi_take_value(sxml_exi_decoding *decoding, sxml_exi_qname qname, sxml_exi_value_handle *value) {
+    if (!decoding->is_channelized) {
+        *value = (sxml_exi_value_handle){.is_slot = false};
+        return sxml_exi_read_value_text(decoding, qname, &value->text);
+    }
+    sxml_exi_local_name *owner = &decoding->table.uris[qname.uri].local_names[qname.local_name];
+    uint32_t channel = owner->channel_index;
+    if (owner->channel_block != decoding->block_number + 1 || channel >= decoding->channel_count ||
+        decoding->channels[channel].uri != qname.uri || decoding->channels[channel].local_name != qname.local_name) {
+        void *elements = decoding->channels;
+        sxml_status status = sxml_exi_grow(decoding->allocator, &(sxml_exi_array){.elements = &elements,
+                                                                                   .capacity = &decoding->channel_capacity,
+                                                                                   .element_count = decoding->channel_count,
+                                                                                   .element_size = sizeof(sxml_exi_channel)});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        decoding->channels = elements;
+        channel = (uint32_t)decoding->channel_count;
+        decoding->channels[decoding->channel_count++] =
+            (sxml_exi_channel){.uri = qname.uri, .local_name = qname.local_name, .value_count = 0};
+        owner = &decoding->table.uris[qname.uri].local_names[qname.local_name];
+        owner->channel_block = decoding->block_number + 1;
+        owner->channel_index = channel;
+    }
+    void *elements = decoding->slots;
+    sxml_status status = sxml_exi_grow(decoding->allocator, &(sxml_exi_array){.elements = &elements,
+                                                                               .capacity = &decoding->slot_capacity,
+                                                                               .element_count = decoding->slot_count,
+                                                                               .element_size = sizeof(sxml_exi_slot)});
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    decoding->slots = elements;
+    decoding->channels[channel].value_count++;
+    *value = (sxml_exi_value_handle){.is_slot = true, .slot = (uint32_t)decoding->slot_count};
+    decoding->slots[decoding->slot_count++] = (sxml_exi_slot){.channel = channel};
+    decoding->block_value_count++;
+    return SXML_STATUS_OK;
 }
 
 /* ------------------------------------------------------------ Names */
@@ -521,6 +638,64 @@ static sxml_status sxml_exi_prefix_identifier(sxml_exi_decoding *decoding, sxml_
                                                   identifier);
 }
 
+/* --------------------------------------------------------------- Emitting */
+
+static sxml_byte_view sxml_exi_handle_view(const sxml_exi_decoding *decoding, sxml_exi_value_handle handle) {
+    return sxml_exi_decoded_view(decoding, handle.is_slot ? decoding->slots[handle.slot].text : handle.text);
+}
+
+/* Sends an emitted event to the builder. */
+static sxml_status sxml_exi_deliver(sxml_exi_decoding *decoding, const sxml_exi_emitted *event) {
+    const sxml_tree_builder builder = decoding->builder;
+    switch (event->emitted_kind) {
+    case SXML_EXI_EMITTED_START_ELEMENT:
+        return builder.operations->start_element(
+            builder.state, &(sxml_element_start_event){.element_name = event->name, .namespace_prefix = event->prefix});
+    case SXML_EXI_EMITTED_BINDING:
+        return builder.operations->add_namespace_binding(
+            builder.state, &(sxml_namespace_binding){.namespace_prefix = event->prefix, .namespace_uri = event->uri});
+    case SXML_EXI_EMITTED_ATTRIBUTE:
+        return builder.operations->add_attribute(
+            builder.state, &(sxml_attribute_event){.attribute_name = event->name,
+                                                   .namespace_prefix = event->prefix,
+                                                   .attribute_value = sxml_exi_handle_view(decoding, event->text)});
+    case SXML_EXI_EMITTED_END_ELEMENT:
+        return builder.operations->end_element(builder.state);
+    case SXML_EXI_EMITTED_TEXT: {
+        const sxml_byte_view text = sxml_exi_handle_view(decoding, event->text);
+        if (text.byte_count == 0) {
+            return SXML_STATUS_OK;
+        }
+        return builder.operations->add_text(builder.state, &(sxml_text_event){.text = text});
+    }
+    case SXML_EXI_EMITTED_COMMENT:
+        return builder.operations->add_comment(
+            builder.state, &(sxml_comment_event){.comment = sxml_exi_handle_view(decoding, event->text)});
+    case SXML_EXI_EMITTED_PROCESSING_INSTRUCTION:
+        return builder.operations->add_processing_instruction(
+            builder.state, &(sxml_processing_instruction_event){.target = sxml_exi_handle_view(decoding, event->text),
+                                                               .data = sxml_exi_decoded_view(decoding, event->data)});
+    }
+    return SXML_STATUS_INVALID_ARGUMENT;
+}
+
+/* Sends an event now, or records it until its block's values are read. */
+static sxml_status sxml_exi_emit(sxml_exi_decoding *decoding, const sxml_exi_emitted *event) {
+    if (!decoding->is_channelized) {
+        return sxml_exi_deliver(decoding, event);
+    }
+    void *elements = decoding->emitted;
+    sxml_status status = sxml_exi_grow(decoding->allocator, &(sxml_exi_array){.elements = &elements,
+                                                                               .capacity = &decoding->emitted_capacity,
+                                                                               .element_count = decoding->emitted_count,
+                                                                               .element_size = sizeof(sxml_exi_emitted)});
+    if (status == SXML_STATUS_OK) {
+        decoding->emitted = elements;
+        decoding->emitted[decoding->emitted_count++] = *event;
+    }
+    return status;
+}
+
 /* ----------------------------------------------------------- Start tags */
 
 /* Sends the held start tag: the element, its bindings, its attributes. */
@@ -548,9 +723,9 @@ static sxml_status sxml_exi_flush_start(sxml_exi_decoding *decoding) {
         status = sxml_exi_prefix_identifier(decoding, element_prefix, &prefix);
     }
     if (status == SXML_STATUS_OK) {
-        status = decoding->builder.operations->start_element(
-            decoding->builder.state, &(sxml_element_start_event){.element_name = decoding->pending_name,
-                                                                 .namespace_prefix = prefix});
+        status = sxml_exi_emit(decoding, &(sxml_exi_emitted){.emitted_kind = SXML_EXI_EMITTED_START_ELEMENT,
+                                                             .name = decoding->pending_name,
+                                                             .prefix = prefix});
     }
     for (size_t declaration_index = 0; declaration_index < decoding->declaration_count && status == SXML_STATUS_OK;
          declaration_index++) {
@@ -563,19 +738,18 @@ static sxml_status sxml_exi_flush_start(sxml_exi_decoding *decoding) {
                                                          sxml_exi_decoded_view(decoding, declaration->uri), &bound_uri);
         }
         if (status == SXML_STATUS_OK) {
-            status = decoding->builder.operations->add_namespace_binding(
-                decoding->builder.state,
-                &(sxml_namespace_binding){.namespace_prefix = bound_prefix, .namespace_uri = bound_uri});
+            status = sxml_exi_emit(decoding, &(sxml_exi_emitted){.emitted_kind = SXML_EXI_EMITTED_BINDING,
+                                                                 .prefix = bound_prefix,
+                                                                 .uri = bound_uri});
         }
     }
     for (size_t attribute_index = 0; attribute_index < decoding->attribute_count && status == SXML_STATUS_OK;
          attribute_index++) {
         const sxml_exi_pending_attribute *attribute = &decoding->attributes[attribute_index];
-        status = decoding->builder.operations->add_attribute(
-            decoding->builder.state,
-            &(sxml_attribute_event){.attribute_name = attribute->name,
-                                    .namespace_prefix = attribute->prefix,
-                                    .attribute_value = sxml_exi_decoded_view(decoding, attribute->value)});
+        status = sxml_exi_emit(decoding, &(sxml_exi_emitted){.emitted_kind = SXML_EXI_EMITTED_ATTRIBUTE,
+                                                             .name = attribute->name,
+                                                             .prefix = attribute->prefix,
+                                                             .text = attribute->value});
     }
     decoding->attribute_count = 0;
     decoding->declaration_count = 0;
@@ -724,7 +898,7 @@ static sxml_status sxml_exi_end_element(sxml_exi_decoding *decoding, const sxml_
         status = sxml_exi_flush_start(decoding);
     }
     if (status == SXML_STATUS_OK) {
-        status = decoding->builder.operations->end_element(decoding->builder.state);
+        status = sxml_exi_emit(decoding, &(sxml_exi_emitted){.emitted_kind = SXML_EXI_EMITTED_END_ELEMENT});
     }
     if (status == SXML_STATUS_OK) {
         decoding->binding_count = decoding->frames[decoding->frame_count - 1].binding_mark;
@@ -779,21 +953,6 @@ static sxml_status sxml_exi_read_type_name(sxml_exi_decoding *decoding, sxml_byt
     return status;
 }
 
-/* Copies a value into the decoder's store, so it outlives later growth of
-   the string table. */
-static sxml_status sxml_exi_keep(sxml_exi_decoding *decoding, sxml_byte_view value, sxml_exi_text *text) {
-    if (value.bytes >= decoding->text_bytes && value.bytes <= decoding->text_bytes + decoding->text_byte_count) {
-        *text = (sxml_exi_text){.offset = (size_t)(value.bytes - decoding->text_bytes),
-                                .byte_count = (uint32_t)value.byte_count};
-        return SXML_STATUS_OK;
-    }
-    const size_t start = decoding->text_byte_count;
-    decoding->content_byte_count -= value.byte_count;
-    sxml_status status = sxml_exi_append_text(decoding, value);
-    *text = (sxml_exi_text){.offset = start, .byte_count = (uint32_t)value.byte_count};
-    return status;
-}
-
 static sxml_status sxml_exi_attribute(sxml_exi_decoding *decoding, const sxml_exi_decoded_event *event) {
     const sxml_exi_production *production = &event->production;
     const bool is_learned = event->is_learned;
@@ -843,17 +1002,17 @@ static sxml_status sxml_exi_attribute(sxml_exi_decoding *decoding, const sxml_ex
             }
         }
     }
-    sxml_byte_view value = {0};
+    sxml_exi_value_handle value = {.is_slot = false};
     if (is_type && !decoding->options.fidelity.preserves_lexical_values) {
-        status = sxml_exi_read_type_name(decoding, &value);
+        /* xsi:type's value stays in the structure channel (9.2.1). */
+        sxml_byte_view type_name = {0};
+        status = sxml_exi_read_type_name(decoding, &type_name);
+        value.text = (sxml_exi_text){.offset = (size_t)(type_name.bytes - decoding->text_bytes),
+                                     .byte_count = (uint32_t)type_name.byte_count};
     } else {
-        status = sxml_exi_read_value(decoding, qname, &value);
+        status = sxml_exi_take_value(decoding, qname, &value);
     }
-    sxml_exi_text kept = {0};
-    if (status == SXML_STATUS_OK) {
-        status = sxml_exi_keep(decoding, value, &kept);
-    }
-    sxml_exi_pending_attribute attribute = {.value = kept};
+    sxml_exi_pending_attribute attribute = {.value = value};
     if (status == SXML_STATUS_OK) {
         status = sxml_exi_name_identifier(decoding, qname, &attribute.name);
     }
@@ -944,12 +1103,12 @@ static sxml_status sxml_exi_characters(sxml_exi_decoding *decoding, const sxml_e
     if (status == SXML_STATUS_OK) {
         status = sxml_exi_flush_start(decoding);
     }
-    sxml_byte_view value = {0};
+    sxml_exi_value_handle value = {.is_slot = false};
     if (status == SXML_STATUS_OK) {
-        status = sxml_exi_read_value(decoding, qname, &value);
+        status = sxml_exi_take_value(decoding, qname, &value);
     }
-    if (status == SXML_STATUS_OK && value.byte_count > 0) {
-        status = decoding->builder.operations->add_text(decoding->builder.state, &(sxml_text_event){.text = value});
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_emit(decoding, &(sxml_exi_emitted){.emitted_kind = SXML_EXI_EMITTED_TEXT, .text = value});
     }
     return status;
 }
@@ -962,8 +1121,8 @@ static sxml_status sxml_exi_comment(sxml_exi_decoding *decoding) {
         status = sxml_exi_flush_start(decoding);
     }
     if (status == SXML_STATUS_OK) {
-        status = decoding->builder.operations->add_comment(
-            decoding->builder.state, &(sxml_comment_event){.comment = sxml_exi_decoded_view(decoding, text)});
+        status = sxml_exi_emit(decoding, &(sxml_exi_emitted){.emitted_kind = SXML_EXI_EMITTED_COMMENT,
+                                                             .text = {.is_slot = false, .text = text}});
     }
     return status;
 }
@@ -983,10 +1142,9 @@ static sxml_status sxml_exi_processing_instruction(sxml_exi_decoding *decoding) 
         status = sxml_exi_flush_start(decoding);
     }
     if (status == SXML_STATUS_OK) {
-        status = decoding->builder.operations->add_processing_instruction(
-            decoding->builder.state, &(sxml_processing_instruction_event){
-                                         .target = sxml_exi_decoded_view(decoding, target),
-                                         .data = sxml_exi_decoded_view(decoding, data)});
+        status = sxml_exi_emit(decoding, &(sxml_exi_emitted){.emitted_kind = SXML_EXI_EMITTED_PROCESSING_INSTRUCTION,
+                                                             .text = {.is_slot = false, .text = target},
+                                                             .data = data});
     }
     return status;
 }
@@ -1095,6 +1253,138 @@ static sxml_status sxml_exi_read_header(sxml_exi_decoding *decoding) {
     return SXML_STATUS_OK;
 }
 
+/* ---------------------------------------------------------------- Blocks */
+
+/* Opens the next compressed stream (9.3): with compression, inflates it
+   from the raw stream; with pre-compression the streams are back to back
+   and reading goes on. No bytes left is an empty stream (a final block
+   whose events take no bytes has none). */
+static sxml_status sxml_exi_open_stream(sxml_exi_decoding *decoding) {
+    if (!decoding->is_compressed) {
+        return SXML_STATUS_OK;
+    }
+    sxml_allocator_release(decoding->allocator, decoding->inflated);
+    decoding->inflated = NULL;
+    decoding->inflated_byte_count = 0;
+    decoding->reader = (sxml_exi_bit_reader){.input = {.bytes = NULL, .byte_count = 0}, .is_byte_aligned = true};
+    if (decoding->raw_position >= decoding->raw_input.byte_count) {
+        return SXML_STATUS_OK;
+    }
+    const uint64_t left = decoding->limits.maximum_content_byte_count > decoding->content_byte_count
+                              ? decoding->limits.maximum_content_byte_count - decoding->content_byte_count
+                              : 0;
+    sxml_inflate_result result = {0};
+    sxml_status status = sxml_inflate(
+        &(sxml_inflate_request){.input = {.bytes = decoding->raw_input.bytes + decoding->raw_position,
+                                          .byte_count = decoding->raw_input.byte_count - decoding->raw_position},
+                                .allocator = decoding->allocator,
+                                .maximum_output_byte_count = left > SIZE_MAX ? SIZE_MAX : (size_t)left},
+        &result);
+    if (status != SXML_STATUS_OK) {
+        return status == SXML_STATUS_LIMIT_EXCEEDED
+                   ? SXML_EXI_FAIL(decoding, status, "a compressed stream inflates past the content limit")
+                   : SXML_EXI_FAIL(decoding, status, "a compressed stream that DEFLATE cannot inflate");
+    }
+    decoding->raw_position += result.consumed_byte_count;
+    decoding->inflated = result.output.bytes;
+    decoding->inflated_byte_count = result.output.byte_count;
+    decoding->reader.input = (sxml_byte_view){.bytes = result.output.bytes, .byte_count = result.output.byte_count};
+    return SXML_STATUS_OK;
+}
+
+/* Reads the values of one channel of the block into their slots. */
+static sxml_status sxml_exi_read_channel(sxml_exi_decoding *decoding, uint32_t channel) {
+    const sxml_exi_channel *values = &decoding->channels[channel];
+    const sxml_exi_qname qname = {.uri = values->uri, .local_name = values->local_name};
+    for (uint32_t value_index = 0; value_index < values->value_count; value_index++) {
+        const uint32_t slot = decoding->channel_slots[values->first_slot_entry + value_index];
+        sxml_exi_text text = {0};
+        sxml_status status = sxml_exi_read_value_text(decoding, qname, &text);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        decoding->slots[slot].text = text;
+    }
+    return SXML_STATUS_OK;
+}
+
+/* Ends a block (9): its values, read channel by channel in the order of
+   9.3, then its events sent; then the next block's stream opened. */
+static sxml_status sxml_exi_end_block(sxml_exi_decoding *decoding) {
+    sxml_status status = SXML_STATUS_OK;
+    if (decoding->slot_count > decoding->channel_slot_capacity) {
+        void *memory = NULL;
+        status = sxml_allocator_allocate_array(decoding->allocator,
+                                               (sxml_array_allocation_request){.element_count = decoding->slot_count,
+                                                                               .element_size = sizeof(uint32_t),
+                                                                               .element_alignment = alignof(uint32_t)},
+                                               &memory);
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        sxml_allocator_release(decoding->allocator, decoding->channel_slots);
+        decoding->channel_slots = memory;
+        decoding->channel_slot_capacity = decoding->slot_count;
+    }
+    /* Each channel's slots, in order: offsets by count, then filled. */
+    size_t offset = 0;
+    for (size_t channel_index = 0; channel_index < decoding->channel_count; channel_index++) {
+        decoding->channels[channel_index].first_slot_entry = offset;
+        offset += decoding->channels[channel_index].value_count;
+        decoding->channels[channel_index].value_count = 0;
+    }
+    for (size_t slot_index = 0; slot_index < decoding->slot_count; slot_index++) {
+        sxml_exi_channel *channel = &decoding->channels[decoding->slots[slot_index].channel];
+        decoding->channel_slots[channel->first_slot_entry + channel->value_count++] = (uint32_t)slot_index;
+    }
+    if (decoding->block_value_count <= 100) {
+        for (uint32_t channel_index = 0; channel_index < decoding->channel_count && status == SXML_STATUS_OK; channel_index++) {
+            status = sxml_exi_read_channel(decoding, channel_index);
+        }
+    } else {
+        bool has_small = false;
+        for (size_t channel_index = 0; channel_index < decoding->channel_count; channel_index++) {
+            has_small = has_small || decoding->channels[channel_index].value_count <= 100;
+        }
+        if (has_small) {
+            status = sxml_exi_open_stream(decoding);
+        }
+        for (uint32_t channel_index = 0; channel_index < decoding->channel_count && status == SXML_STATUS_OK; channel_index++) {
+            if (decoding->channels[channel_index].value_count <= 100) {
+                status = sxml_exi_read_channel(decoding, channel_index);
+            }
+        }
+        for (uint32_t channel_index = 0; channel_index < decoding->channel_count && status == SXML_STATUS_OK; channel_index++) {
+            if (decoding->channels[channel_index].value_count > 100) {
+                status = sxml_exi_open_stream(decoding);
+                if (status == SXML_STATUS_OK) {
+                    status = sxml_exi_read_channel(decoding, channel_index);
+                }
+            }
+        }
+    }
+    for (size_t event_index = 0; event_index < decoding->emitted_count && status == SXML_STATUS_OK; event_index++) {
+        status = sxml_exi_deliver(decoding, &decoding->emitted[event_index]);
+    }
+    /* A start tag still held spans the boundary: its values are read now,
+       and its slots are reused by the next block. */
+    for (size_t attribute_index = 0; attribute_index < decoding->attribute_count; attribute_index++) {
+        sxml_exi_value_handle *value = &decoding->attributes[attribute_index].value;
+        if (value->is_slot) {
+            *value = (sxml_exi_value_handle){.is_slot = false, .text = decoding->slots[value->slot].text};
+        }
+    }
+    decoding->emitted_count = 0;
+    decoding->slot_count = 0;
+    decoding->channel_count = 0;
+    decoding->block_value_count = 0;
+    decoding->block_number++;
+    if (status == SXML_STATUS_OK && !decoding->is_finished) {
+        status = sxml_exi_open_stream(decoding);
+    }
+    return status;
+}
+
 /* ---------------------------------------------------------------- Body */
 
 static void sxml_exi_release_decoding(sxml_exi_decoding *decoding) {
@@ -1105,6 +1395,11 @@ static void sxml_exi_release_decoding(sxml_exi_decoding *decoding) {
     sxml_allocator_release(decoding->allocator, decoding->bindings);
     sxml_allocator_release(decoding->allocator, decoding->attributes);
     sxml_allocator_release(decoding->allocator, decoding->declarations);
+    sxml_allocator_release(decoding->allocator, decoding->emitted);
+    sxml_allocator_release(decoding->allocator, decoding->slots);
+    sxml_allocator_release(decoding->allocator, decoding->channels);
+    sxml_allocator_release(decoding->allocator, decoding->channel_slots);
+    sxml_allocator_release(decoding->allocator, decoding->inflated);
 }
 
 static sxml_status sxml_exi_decode_body(sxml_exi_decoding *decoding) {
@@ -1116,6 +1411,10 @@ static sxml_status sxml_exi_decode_body(sxml_exi_decoding *decoding) {
         decoding->options.is_fragment ? SXML_EXI_NONTERMINAL_FRAGMENT_CONTENT : SXML_EXI_NONTERMINAL_DOCUMENT_CONTENT;
     while (status == SXML_STATUS_OK && !decoding->is_finished) {
         status = sxml_exi_decode_event(decoding);
+        if (status == SXML_STATUS_OK && decoding->is_channelized &&
+            (decoding->is_finished || decoding->block_value_count == decoding->block_size)) {
+            status = sxml_exi_end_block(decoding);
+        }
     }
     if (status == SXML_STATUS_OK && decoding->frame_count != 0) {
         status = SXML_EXI_FAIL(decoding, SXML_STATUS_MALFORMED_INPUT, "the document ends inside an element");
@@ -1145,10 +1444,12 @@ sxml_status sxml_exi_decode_stream(sxml_exi_decoder *decoder, const sxml_exi_dec
                                "an options document in the header is not read yet (packet 8.10)");
     }
     const sxml_exi_options *options = &decoding.options;
-    if (status == SXML_STATUS_OK &&
-        (options->alignment == SXML_EXI_ALIGNMENT_PRE_COMPRESSION || options->alignment == SXML_EXI_ALIGNMENT_COMPRESSION)) {
-        status = SXML_EXI_FAIL(&decoding, SXML_STATUS_UNSUPPORTED_FEATURE,
-                               "pre-compression and compression are not read yet (packets 8.6, 8.8)");
+    decoding.is_channelized =
+        options->alignment == SXML_EXI_ALIGNMENT_PRE_COMPRESSION || options->alignment == SXML_EXI_ALIGNMENT_COMPRESSION;
+    decoding.is_compressed = options->alignment == SXML_EXI_ALIGNMENT_COMPRESSION;
+    decoding.block_size = options->has_block_size ? options->block_size : SXML_EXI_DEFAULT_BLOCK_SIZE;
+    if (status == SXML_STATUS_OK && decoding.block_size == 0) {
+        status = SXML_EXI_FAIL(&decoding, SXML_STATUS_MALFORMED_INPUT, "a blockSize of 0");
     }
     if (status == SXML_STATUS_OK && (request->schema != NULL || options->schema_identifier.schema_identifier_kind ==
                                                                     SXML_EXI_SCHEMA_IDENTIFIER_BUILT_IN_TYPES ||
@@ -1156,9 +1457,16 @@ sxml_status sxml_exi_decode_stream(sxml_exi_decoder *decoder, const sxml_exi_dec
         status = SXML_EXI_FAIL(&decoding, SXML_STATUS_UNSUPPORTED_FEATURE,
                                "schema-informed grammars are not read yet (packet 8.9)");
     }
-    if (status == SXML_STATUS_OK && options->alignment == SXML_EXI_ALIGNMENT_BYTE_ALIGNMENT) {
+    if (status == SXML_STATUS_OK && (options->alignment == SXML_EXI_ALIGNMENT_BYTE_ALIGNMENT || decoding.is_channelized)) {
+        /* 5: the header is padded to a byte; 9: compressed values are
+           byte-aligned. */
         sxml_exi_reader_align(&decoding.reader);
         decoding.reader.is_byte_aligned = true;
+    }
+    if (status == SXML_STATUS_OK && decoding.is_compressed) {
+        decoding.raw_input = request->input;
+        decoding.raw_position = decoding.reader.byte_position;
+        status = sxml_exi_open_stream(&decoding);
     }
     if (status == SXML_STATUS_OK) {
         status = sxml_exi_string_table_initialize(

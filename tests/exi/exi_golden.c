@@ -4,7 +4,7 @@
  * streams and decodings EXIficient made (the exi_oracle), with the
  * exi_ratchet of tests/exi/passing.txt.
  *
- *   exi_golden ROOT [--update] [--filter=TEXT] [--verbose]
+ *   exi_golden ROOT [--update] [--filter=TEXT] [--verbose] [--dump]
  *   exi_golden ROOT --self-check
  *
  * Each case is two checks, named <set>/<id>/decode and <set>/<id>/encode:
@@ -164,6 +164,11 @@ typedef struct sxml_exi_golden_run {
     sxml_exi_golden_schema schemas[SXML_EXI_GOLDEN_MAXIMUM_SCHEMAS];
     size_t schema_count;
     bool is_verbose;
+    /* --dump: write each decoding to standard error. */
+    bool is_dumping;
+    /* --encoded-dir=DIR: write each stream sxml encodes to DIR/<set>__<id>.exi,
+       for the oracle to decode (tools/exi-oracle/README.md). */
+    const char *encoded_directory;
 } sxml_exi_golden_run;
 
 /* The resolver of the run's processor: local files, by the path after
@@ -571,6 +576,25 @@ typedef struct sxml_exi_golden_outcome {
     bool encode_passed;
 } sxml_exi_golden_outcome;
 
+/* --dump: the document, serialized, to standard error. */
+static void sxml_exi_golden_dump(sxml_exi_golden_run *run, sxml_item document) {
+    sxml_output_buffer *output_buffer = NULL;
+    if (sxml_output_buffer_create(sxml_default_allocator(),
+                                  &(sxml_output_buffer_configuration){.allocator = sxml_default_allocator()},
+                                  &output_buffer) != SXML_STATUS_OK) {
+        return;
+    }
+    if (sxml_serialize_sequence(sxml_processor_get_item_heap(run->processor),
+                                &(sxml_serialization_request){
+                                    .value = sxml_sequence_from_item(document),
+                                    .serialization_parameters = {.serialization_method = SXML_SERIALIZATION_METHOD_XML}},
+                                sxml_output_buffer_as_output_stream(output_buffer)) == SXML_STATUS_OK) {
+        sxml_byte_view bytes = sxml_output_buffer_get_bytes(output_buffer);
+        (void)fprintf(stderr, "%.*s\n", (int)bytes.byte_count, (const char *)bytes.bytes);
+    }
+    sxml_output_buffer_destroy(output_buffer);
+}
+
 static bool sxml_exi_golden_check_decode(sxml_exi_golden_run *run, const sxml_exi_golden_case *test_case,
                                     const sxml_exi_golden_case_options *case_options) {
     char path[4096];
@@ -588,6 +612,12 @@ static bool sxml_exi_golden_check_decode(sxml_exi_golden_run *run, const sxml_ex
         sxml_exi_golden_parse_xml(run, sxml_exi_golden_view(&expected_text), &expected)) {
         if (sxml_exi_golden_decode(run, &(sxml_exi_golden_decode_request){.case_options = case_options, .stream = sxml_exi_golden_view(&stream)}, &decoded) == SXML_STATUS_OK) {
             passed = sxml_exi_golden_equal(run, &(sxml_exi_golden_comparison){.options = &case_options->options, .first = decoded, .second = expected});
+            if (!passed && run->is_verbose) {
+                (void)fprintf(stderr, "    decode: not deep-equal to the oracle's decoding\n");
+            }
+            if (run->is_dumping) {
+                sxml_exi_golden_dump(run, decoded);
+            }
             sxml_item_release(decoded);
         }
         sxml_item_release(expected);
@@ -604,6 +634,25 @@ typedef struct sxml_exi_golden_encode_check {
     const sxml_exi_golden_case_options *case_options;
     bool is_refused;
 } sxml_exi_golden_encode_check;
+
+/* A stream to save, and its case. */
+typedef struct sxml_exi_golden_saving {
+    const sxml_exi_golden_case *test_case;
+    sxml_byte_view bytes;
+} sxml_exi_golden_saving;
+
+static bool sxml_exi_golden_save(sxml_exi_golden_run *run, const sxml_exi_golden_saving *saving) {
+    char path[4096];
+    (void)snprintf(path, sizeof path, "%s/%s__%s.exi", run->encoded_directory,
+                   saving->test_case->fields[SXML_EXI_GOLDEN_FIELD_SET],
+                   saving->test_case->fields[SXML_EXI_GOLDEN_FIELD_IDENTIFIER]);
+    FILE *stream = fopen(path, "wb");
+    if (stream == NULL) {
+        return false;
+    }
+    bool is_written = fwrite(saving->bytes.bytes, 1, saving->bytes.byte_count, stream) == saving->bytes.byte_count;
+    return fclose(stream) == 0 && is_written;
+}
 
 static bool sxml_exi_golden_check_encode(sxml_exi_golden_run *run, const sxml_exi_golden_encode_check *check) {
     const sxml_exi_golden_case *test_case = check->test_case;
@@ -651,6 +700,10 @@ static bool sxml_exi_golden_check_encode(sxml_exi_golden_run *run, const sxml_ex
                         (const char *)status_name.bytes,
                         (int)diagnostic.description.byte_count, (const char *)diagnostic.description.bytes);
             }
+        } else if (run->encoded_directory != NULL &&
+                   !sxml_exi_golden_save(run, &(sxml_exi_golden_saving){.test_case = test_case,
+                                                                         .bytes = sxml_output_buffer_get_bytes(output_buffer)})) {
+            passed = false;
         } else if (case_options->options.alignment == SXML_EXI_ALIGNMENT_COMPRESSION &&
                    !case_options->canonicalization.is_canonical) {
             /* DEFLATE output may differ: decode it and compare. */
@@ -867,6 +920,10 @@ int main(int argument_count, char **arguments) {
             is_update = true;
         } else if (strncmp(arguments[argument_index], "--filter=", 9) == 0) {
             filter = arguments[argument_index] + 9;
+        } else if (strncmp(arguments[argument_index], "--encoded-dir=", 14) == 0) {
+            run.encoded_directory = arguments[argument_index] + 14;
+        } else if (strcmp(arguments[argument_index], "--dump") == 0) {
+            run.is_dumping = true;
         } else if (strcmp(arguments[argument_index], "--self-check") == 0) {
             is_self_check = true;
         } else if (strcmp(arguments[argument_index], "--verbose") == 0) {

@@ -2,7 +2,7 @@
   <title>EXI pre-compression</title>
   <summary>The pre-compression alignment in both directions: the structure channel, value channels by qualified name, blocks of blockSize values.</summary>
   <body>
-    <p>After 8.5. EXI 1.0, section 9 ("EXI Compression") but DEFLATE.</p>
+    <p><status value="done" date="2026-11-27"/> After 8.5. EXI 1.0, section 9 ("EXI Compression") but DEFLATE.</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: <code>src/exi_channel.c</code>: the encoder buffers a block's values per <term name="exi_channel"/> and writes them in channel order; the decoder reads the structure channel first, then hands values out of the channels.</p>

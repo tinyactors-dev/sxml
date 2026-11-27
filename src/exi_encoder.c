@@ -8,6 +8,7 @@
 #include <stdalign.h>
 #include <string.h>
 
+#include "deflate_internal.h"
 #include "exi_internal.h"
 #include "memory_internal.h"
 #include "sxml/serialize.h"
@@ -27,6 +28,19 @@ typedef struct sxml_exi_open_element {
     uint32_t next_child;
 } sxml_exi_open_element;
 
+/* A value of the block, recorded for its channel (9.2.2). */
+typedef struct sxml_exi_recorded_value {
+    sxml_byte_view text;
+    uint32_t channel;
+} sxml_exi_recorded_value;
+
+/* A value channel of the block: its qname and its number of values. */
+typedef struct sxml_exi_block_channel {
+    uint32_t uri;
+    uint32_t local_name;
+    uint32_t value_count;
+} sxml_exi_block_channel;
+
 typedef struct sxml_exi_encoding {
     const sxml_exi_encode_request *request;
     sxml_allocator allocator;
@@ -41,6 +55,20 @@ typedef struct sxml_exi_encoding {
     size_t element_capacity;
     sxml_exi_nonterminal top_nonterminal;
     sxml_byte_view failure_description;
+    /* Pre-compression and compression (EXI 9): output holds the header and
+       the blocks written; writer the structure channel of the block being
+       written; values its values, in event order. */
+    bool is_channelized;
+    bool is_compressed;
+    uint64_t block_size;
+    uint64_t block_number;
+    sxml_exi_bit_writer output;
+    sxml_exi_recorded_value *values;
+    size_t value_count;
+    size_t value_capacity;
+    sxml_exi_block_channel *channels;
+    size_t channel_count;
+    size_t channel_capacity;
 } sxml_exi_encoding;
 
 /* A failure: its status and what to tell. */
@@ -203,8 +231,8 @@ static sxml_status sxml_exi_encode_local_name(sxml_exi_encoding *encoding, const
     return status;
 }
 
-/* A value (7.3.3) of the qname in key. */
-static sxml_status sxml_exi_encode_value(sxml_exi_encoding *encoding, const sxml_exi_string_key *key) {
+/* A value (7.3.3) of the qname in key, written now to encoding->writer. */
+static sxml_status sxml_exi_write_value(sxml_exi_encoding *encoding, const sxml_exi_string_key *key) {
     sxml_exi_lookup local = {0};
     sxml_status status = sxml_exi_find_local_value(&encoding->table, key, &local);
     if (status == SXML_STATUS_OK && local.is_found) {
@@ -237,6 +265,156 @@ static sxml_status sxml_exi_encode_value(sxml_exi_encoding *encoding, const sxml
         status = sxml_exi_add_value(&encoding->table, key);
     }
     return status;
+}
+
+/* ------------------------------------------------------------ Blocks */
+
+/* Writes one compressed stream (9.3) to the output: its bytes, deflated
+   with compression; nothing for an empty one. */
+static sxml_status sxml_exi_write_stream(sxml_exi_encoding *encoding, sxml_byte_view bytes) {
+    if (bytes.byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    if (!encoding->is_compressed) {
+        sxml_status status = SXML_STATUS_OK;
+        for (size_t byte_index = 0; byte_index < bytes.byte_count && status == SXML_STATUS_OK; byte_index++) {
+            status = sxml_exi_write_bits(&encoding->output, (sxml_exi_bits){.value = bytes.bytes[byte_index], .bit_count = 8});
+        }
+        return status;
+    }
+    sxml_memory_view deflated = {0};
+    sxml_status status = sxml_deflate(&(sxml_deflate_request){.input = bytes, .allocator = encoding->allocator}, &deflated);
+    for (size_t byte_index = 0; byte_index < deflated.byte_count && status == SXML_STATUS_OK; byte_index++) {
+        status = sxml_exi_write_bits(&encoding->output, (sxml_exi_bits){.value = deflated.bytes[byte_index], .bit_count = 8});
+    }
+    sxml_allocator_release(encoding->allocator, deflated.bytes);
+    return status;
+}
+
+/* Which channels a stream holds: those with at most 100 values (small),
+   more (large), or every one. */
+typedef enum sxml_exi_channel_selection {
+    SXML_EXI_CHANNELS_ALL,
+    SXML_EXI_CHANNELS_SMALL,
+    SXML_EXI_CHANNELS_ONE,
+} sxml_exi_channel_selection;
+
+typedef struct sxml_exi_channel_write {
+    sxml_exi_channel_selection selection;
+    uint32_t channel;
+} sxml_exi_channel_write;
+
+/* Writes the values of the selected channels into encoding->writer, in
+   channel order, value order within each: the order a decoder reads, so
+   the string table changes alike (9.3). */
+static sxml_status sxml_exi_write_channels(sxml_exi_encoding *encoding, sxml_exi_channel_write write) {
+    sxml_status status = SXML_STATUS_OK;
+    for (uint32_t channel_index = 0; channel_index < encoding->channel_count && status == SXML_STATUS_OK; channel_index++) {
+        const sxml_exi_block_channel *values = &encoding->channels[channel_index];
+        const bool is_selected = write.selection == SXML_EXI_CHANNELS_ALL ||
+                                 (write.selection == SXML_EXI_CHANNELS_SMALL && values->value_count <= 100) ||
+                                 (write.selection == SXML_EXI_CHANNELS_ONE && channel_index == write.channel);
+        for (size_t value_index = 0; is_selected && value_index < encoding->value_count && status == SXML_STATUS_OK;
+             value_index++) {
+            if (encoding->values[value_index].channel == channel_index) {
+                status = sxml_exi_write_value(encoding, &(sxml_exi_string_key){.text = encoding->values[value_index].text,
+                                                                                .uri = values->uri,
+                                                                                .local_name = values->local_name});
+            }
+        }
+    }
+    return status;
+}
+
+/* Writes a stream of channels: into a fresh writer, then to the output. */
+static sxml_status sxml_exi_write_channel_stream(sxml_exi_encoding *encoding, sxml_exi_channel_write write) {
+    const sxml_exi_bit_writer structure = encoding->writer;
+    encoding->writer = (sxml_exi_bit_writer){.allocator = encoding->allocator, .is_byte_aligned = true};
+    sxml_status status = sxml_exi_write_channels(encoding, write);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_exi_write_stream(encoding, sxml_exi_writer_bytes(&encoding->writer));
+    }
+    sxml_exi_writer_release(&encoding->writer);
+    encoding->writer = structure;
+    return status;
+}
+
+/* Ends a block (9): its structure channel and its value channels as the
+   compressed streams of 9.3. */
+static sxml_status sxml_exi_flush_block(sxml_exi_encoding *encoding) {
+    sxml_status status = SXML_STATUS_OK;
+    if (encoding->value_count <= 100) {
+        /* One stream: the structure, then every channel. */
+        status = sxml_exi_write_channels(encoding, (sxml_exi_channel_write){.selection = SXML_EXI_CHANNELS_ALL});
+        if (status == SXML_STATUS_OK) {
+            status = sxml_exi_write_stream(encoding, sxml_exi_writer_bytes(&encoding->writer));
+        }
+    } else {
+        status = sxml_exi_write_stream(encoding, sxml_exi_writer_bytes(&encoding->writer));
+        if (status == SXML_STATUS_OK) {
+            status = sxml_exi_write_channel_stream(encoding, (sxml_exi_channel_write){.selection = SXML_EXI_CHANNELS_SMALL});
+        }
+        for (uint32_t channel_index = 0; channel_index < encoding->channel_count && status == SXML_STATUS_OK; channel_index++) {
+            if (encoding->channels[channel_index].value_count > 100) {
+                status = sxml_exi_write_channel_stream(
+                    encoding, (sxml_exi_channel_write){.selection = SXML_EXI_CHANNELS_ONE, .channel = channel_index});
+            }
+        }
+    }
+    sxml_exi_writer_release(&encoding->writer);
+    encoding->writer = (sxml_exi_bit_writer){.allocator = encoding->allocator, .is_byte_aligned = true};
+    encoding->value_count = 0;
+    encoding->channel_count = 0;
+    encoding->block_number++;
+    return status;
+}
+
+/* A value of an AT or CH event: written now, or recorded for its channel
+   and the block ended when it holds blockSize values (9.1). */
+static sxml_status sxml_exi_encode_value(sxml_exi_encoding *encoding, const sxml_exi_string_key *key) {
+    if (!encoding->is_channelized) {
+        return sxml_exi_write_value(encoding, key);
+    }
+    sxml_exi_local_name *owner = &encoding->table.uris[key->uri].local_names[key->local_name];
+    if (owner->channel_block != encoding->block_number + 1 || owner->channel_index >= encoding->channel_count) {
+        void *elements = encoding->channels;
+        sxml_status status = sxml_allocator_reserve_array(
+            encoding->allocator, &(sxml_array_reservation_request){.elements = &elements,
+                                                                   .capacity = &encoding->channel_capacity,
+                                                                   .element_count = encoding->channel_count,
+                                                                   .required_count = encoding->channel_count + 1,
+                                                                   .element_size = sizeof(sxml_exi_block_channel),
+                                                                   .element_alignment = alignof(sxml_exi_block_channel),
+                                                                   .minimum_capacity = 16});
+        if (status != SXML_STATUS_OK) {
+            return status;
+        }
+        encoding->channels = elements;
+        owner->channel_block = encoding->block_number + 1;
+        owner->channel_index = (uint32_t)encoding->channel_count;
+        encoding->channels[encoding->channel_count++] =
+            (sxml_exi_block_channel){.uri = key->uri, .local_name = key->local_name, .value_count = 0};
+    }
+    void *elements = encoding->values;
+    sxml_status status = sxml_allocator_reserve_array(
+        encoding->allocator, &(sxml_array_reservation_request){.elements = &elements,
+                                                               .capacity = &encoding->value_capacity,
+                                                               .element_count = encoding->value_count,
+                                                               .required_count = encoding->value_count + 1,
+                                                               .element_size = sizeof(sxml_exi_recorded_value),
+                                                               .element_alignment = alignof(sxml_exi_recorded_value),
+                                                               .minimum_capacity = 64});
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    encoding->values = elements;
+    encoding->channels[owner->channel_index].value_count++;
+    encoding->values[encoding->value_count++] =
+        (sxml_exi_recorded_value){.text = key->text, .channel = owner->channel_index};
+    if (encoding->value_count == encoding->block_size) {
+        return sxml_exi_flush_block(encoding);
+    }
+    return SXML_STATUS_OK;
 }
 
 /* ------------------------------------------------------------- Names */
@@ -862,10 +1040,12 @@ sxml_status sxml_exi_encode_stream(sxml_exi_encoder *encoder, const sxml_exi_enc
         status = SXML_EXI_ENCODER_FAIL(&encoding, SXML_STATUS_UNSUPPORTED_FEATURE,
                                        "options documents and Canonical EXI are not written yet (packets 8.10, 8.11)");
     }
-    if (status == SXML_STATUS_OK &&
-        (options->alignment == SXML_EXI_ALIGNMENT_PRE_COMPRESSION || options->alignment == SXML_EXI_ALIGNMENT_COMPRESSION)) {
-        status = SXML_EXI_ENCODER_FAIL(&encoding, SXML_STATUS_UNSUPPORTED_FEATURE,
-                                       "pre-compression and compression are not written yet (packets 8.6, 8.8)");
+    encoding.is_channelized =
+        options->alignment == SXML_EXI_ALIGNMENT_PRE_COMPRESSION || options->alignment == SXML_EXI_ALIGNMENT_COMPRESSION;
+    encoding.is_compressed = options->alignment == SXML_EXI_ALIGNMENT_COMPRESSION;
+    encoding.block_size = options->has_block_size ? options->block_size : SXML_EXI_DEFAULT_BLOCK_SIZE;
+    if (status == SXML_STATUS_OK && encoding.block_size == 0) {
+        status = SXML_EXI_ENCODER_FAIL(&encoding, SXML_STATUS_INVALID_ARGUMENT, "a blockSize of 0");
     }
     if (status == SXML_STATUS_OK &&
         (request->schema != NULL ||
@@ -877,9 +1057,15 @@ sxml_status sxml_exi_encode_stream(sxml_exi_encoder *encoder, const sxml_exi_enc
     if (status == SXML_STATUS_OK) {
         status = sxml_exi_write_header(&encoding);
     }
-    if (status == SXML_STATUS_OK && options->alignment == SXML_EXI_ALIGNMENT_BYTE_ALIGNMENT) {
+    if (status == SXML_STATUS_OK && (options->alignment == SXML_EXI_ALIGNMENT_BYTE_ALIGNMENT || encoding.is_channelized)) {
         status = sxml_exi_writer_align(&encoding.writer);
         encoding.writer.is_byte_aligned = true;
+    }
+    if (status == SXML_STATUS_OK && encoding.is_channelized) {
+        /* The header is the output's start; the writer is the first
+           block's structure channel. */
+        encoding.output = encoding.writer;
+        encoding.writer = (sxml_exi_bit_writer){.allocator = encoding.allocator, .is_byte_aligned = true};
     }
     bool has_table = false;
     if (status == SXML_STATUS_OK) {
@@ -896,11 +1082,15 @@ sxml_status sxml_exi_encode_stream(sxml_exi_encoder *encoder, const sxml_exi_enc
         status = sxml_exi_encode_body(&encoding, request->root);
         sxml_exi_grammars_finalize(&encoding.grammars);
     }
+    if (status == SXML_STATUS_OK && encoding.is_channelized) {
+        status = sxml_exi_flush_block(&encoding);
+    }
+    sxml_exi_bit_writer *final = encoding.is_channelized ? &encoding.output : &encoding.writer;
     if (status == SXML_STATUS_OK) {
-        status = sxml_exi_writer_align(&encoding.writer);
+        status = sxml_exi_writer_align(final);
     }
     if (status == SXML_STATUS_OK) {
-        status = sxml_output_stream_write(output_stream, sxml_exi_writer_bytes(&encoding.writer));
+        status = sxml_output_stream_write(output_stream, sxml_exi_writer_bytes(final));
     }
     if (request->diagnostic != NULL && status != SXML_STATUS_OK) {
         request->diagnostic->description = encoding.failure_description;
@@ -909,6 +1099,9 @@ sxml_status sxml_exi_encode_stream(sxml_exi_encoder *encoder, const sxml_exi_enc
         sxml_exi_string_table_finalize(&encoding.table);
     }
     sxml_allocator_release(encoding.allocator, encoding.elements);
+    sxml_allocator_release(encoding.allocator, encoding.values);
+    sxml_allocator_release(encoding.allocator, encoding.channels);
     sxml_exi_writer_release(&encoding.writer);
+    sxml_exi_writer_release(&encoding.output);
     return status;
 }

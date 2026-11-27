@@ -7,6 +7,14 @@ blocked. Add an item to this week's entry with `tools/spec/spec log TEXT`.
 
 ## Week of 2026-11-23
 
+- 8.6 and 8.8 done (D333): pre-compression and compression in both directions
+  (blocks, the structure channel, value channels read and written in the order
+  of EXI 9.3, our DEFLATE): every decode check of the six sets passes (720),
+  pre-compression encodes byte for byte, and EXIficient decodes every
+  compressed stream sxml writes to the same document as its own
+  (tools/exi-oracle/cross-check.py: 480 of 480). The ratchet lists 2,880
+  checks.
+
 - 8.5 done (D333): the encoder with built-in grammars writes every stream of
   the six schema-less sets byte for byte as EXIficient does (720 of 720); the
   ratchet lists 1,440 checks.

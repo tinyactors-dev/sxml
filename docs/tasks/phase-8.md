@@ -113,7 +113,8 @@ side; namespace declarations from in-scope namespaces (D333).
 **Summary**: The pre-compression alignment in both directions: the structure
 channel, value channels by qualified name, blocks of blockSize values.
 
-After 8.5. EXI 1.0, section 9 ("EXI Compression") but DEFLATE.
+**Done** 2026-11-27 After 8.5. EXI 1.0, section 9 ("EXI Compression") but
+DEFLATE.
 
 - **Mechanism**: `src/exi_channel.c`: the encoder buffers a block's values per
   `exi_channel` and writes them in channel order; the decoder reads the
@@ -145,8 +146,9 @@ bounded output.
 **Summary**: The compression alignment in both directions: pre-compression's
 channels, each block's streams compressed with our DEFLATE.
 
-After 8.6 and 8.7. EXI 1.0, section 9.3: the structure channel and channels of
-more than 100 values compressed one by one, the smaller channels together.
+**Done** 2026-11-27 After 8.6 and 8.7. EXI 1.0, section 9.3: the structure
+channel and channels of more than 100 values compressed one by one, the smaller
+channels together.
 
 - **Owns**: the compression part of `src/exi_channel.c`.
 - **Done when**: every decode and encode check of the compression sets passes

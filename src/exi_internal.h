@@ -131,6 +131,10 @@ typedef struct sxml_exi_local_name {
     uint32_t element_grammar;
     /* The name pool identifier of the qname, 0 until interned. */
     sxml_name_identifier name;
+    /* With pre-compression and compression: the value channel of this
+       qname in the block numbered channel_block + 1 (0: none yet). */
+    uint64_t channel_block;
+    uint32_t channel_index;
 } sxml_exi_local_name;
 
 typedef struct sxml_exi_uri {
