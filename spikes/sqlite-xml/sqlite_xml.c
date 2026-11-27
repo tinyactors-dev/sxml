@@ -25,6 +25,10 @@ SQLITE_EXTENSION_INIT1
 
 typedef struct sqlite_xml_connection {
     sxml_host_processor *processor;
+    /* xml_exi_schema: the schema and alignment of EXI streams whose header
+       carries no options (schema-informed streams are stored without). */
+    sxml_host_schema *exi_schema;
+    uint32_t exi_alignment;
 } sqlite_xml_connection;
 
 static void sqlite_xml_fail(sqlite3_context *context, sxml_host_processor *processor) {
@@ -39,6 +43,16 @@ static void sqlite_xml_fail(sqlite3_context *context, sxml_host_processor *proce
     }
     sqlite3_result_error(context, message, -1);
     sqlite3_free(message);
+}
+
+/* Whether bytes are an EXI stream: the cookie "$EXI", or the
+   distinguishing bits 10 (EXI 1.0, 5.1 and 5.2). XDMB starts with 'X'
+   (01011000) and XML text with '<' or white space, so neither is one. */
+static int sqlite_xml_is_exi(sxml_byte_view bytes) {
+    if (bytes.byte_count >= 4 && memcmp(bytes.bytes, "$EXI", 4) == 0) {
+        return 1;
+    }
+    return bytes.byte_count > 0 && (bytes.bytes[0] & 0xC0U) == 0x80U;
 }
 
 /* The document node of argument, as a value: an XDMB blob opened in place
@@ -63,6 +77,24 @@ static sxml_host_value *sqlite_xml_document(sqlite3_context *context, sxml_host_
         sxml_host_value *value = sxml_host_value_make(processor, sxml_sequence_from_item(item));
         if (value == NULL) {
             sqlite3_result_error_nomem(context);
+        }
+        return value;
+    }
+    if (sqlite3_value_type(argument) == SQLITE_BLOB && sqlite_xml_is_exi(bytes)) {
+        /* EXI (EXI 1.0, 5): decoded into a tree for each call, its options
+           read from its header. */
+        sqlite_xml_connection *connection = sqlite3_user_data(context);
+        sxml_host_exi_parse_request request = {.input = bytes, .document_uri = {0}, .options = {0}};
+        size_t header = bytes.byte_count >= 4 && memcmp(bytes.bytes, "$EXI", 4) == 0 ? 4 : 0;
+        int has_options = header < bytes.byte_count && (bytes.bytes[header] & 0x20U) != 0;
+        if (!has_options) {
+            /* no options in the header: the connection's (xml_exi_schema) */
+            request.options.schema = connection->exi_schema;
+            request.options.alignment = connection->exi_alignment;
+        }
+        sxml_host_value *value = sxml_host_exi_parse(processor, &request);
+        if (value == NULL) {
+            sqlite_xml_fail(context, processor);
         }
         return value;
     }
@@ -105,6 +137,69 @@ static void sqlite_xml_xmlb(sqlite3_context *context, int argument_count, sqlite
         sqlite3_result_error(context, "sxml: cannot encode", -1);
     }
     sxml_host_value_release(document);
+}
+
+/* xml_exi(doc, alignment): the EXI stream of doc, with its options in the
+   header so that every other function reads it without being told them.
+   alignment: 0 bit-packed, 1 byte-alignment, 2 pre-compression, 3
+   compression (sxml_exi_alignment). */
+static void sqlite_xml_exi(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
+    if (sqlite3_value_type(arguments[0]) == SQLITE_NULL) {
+        return;
+    }
+    sqlite_xml_connection *connection = sqlite3_user_data(context);
+    sxml_host_value *document = sqlite_xml_document(context, connection->processor, arguments[0]);
+    if (document == NULL) {
+        return;
+    }
+    sxml_host_exi_encode_request request = {0};
+    request.node = document;
+    request.options.alignment = argument_count > 1 ? (uint32_t)sqlite3_value_int(arguments[1]) : 0;
+    if (argument_count > 2 && sqlite3_value_int(arguments[2]) != 0) {
+        /* full fidelity: what XDMB keeps (comments, PIs, prefixes) */
+        request.options.preserves_comments = 1;
+        request.options.preserves_processing_instructions = 1;
+        request.options.preserves_prefixes = 1;
+    }
+    if (argument_count > 3 && sqlite3_value_int(arguments[3]) != 0) {
+        /* schema-informed with the connection's schema; its options stay
+           out of the header (xml_exi_schema names them for decoding) */
+        request.options.schema = connection->exi_schema;
+    } else {
+        request.includes_options = 1;
+    }
+    if (sxml_host_exi_encode(connection->processor, &request) == SXML_STATUS_OK) {
+        const sxml_byte_view *output = sxml_host_output_of(connection->processor);
+        sqlite3_result_blob64(context, output->bytes, output->byte_count, SQLITE_TRANSIENT);
+    } else {
+        sqlite_xml_fail(context, connection->processor);
+    }
+    sxml_host_value_release(document);
+}
+
+/* xml_exi_schema(xsd, alignment): the schema (XSD text) and alignment of
+   EXI streams written by xml_exi(doc, alignment, full, 1) and read without
+   options in their header. Returns 1. */
+static void sqlite_xml_exi_schema(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
+    (void)argument_count;
+    sqlite_xml_connection *connection = sqlite3_user_data(context);
+    sxml_host_schema *schema = sxml_host_schema_create(connection->processor);
+    if (schema == NULL) {
+        sqlite3_result_error_nomem(context);
+        return;
+    }
+    const sxml_host_schema_document document = {
+        .text = {sqlite3_value_text(arguments[0]), (size_t)sqlite3_value_bytes(arguments[0])}, .uri = {0}};
+    sxml_host_schema_compile_request request = {.documents = &document, .document_count = 1, .base_uri = {0}};
+    if (sxml_host_schema_compile(schema, &request) != SXML_STATUS_OK) {
+        sqlite_xml_fail(context, connection->processor);
+        sxml_host_schema_destroy(schema);
+        return;
+    }
+    sxml_host_schema_destroy(connection->exi_schema);
+    connection->exi_schema = schema;
+    connection->exi_alignment = (uint32_t)sqlite3_value_int(arguments[1]);
+    sqlite3_result_int(context, 1);
 }
 
 /* Writes value to the result: one atomic item as an SQL value, else
@@ -295,6 +390,7 @@ static void sqlite_xml_query(sqlite3_context *context, int argument_count, sqlit
 
 static void sqlite_xml_connection_destroy(void *state) {
     sqlite_xml_connection *connection = state;
+    sxml_host_schema_destroy(connection->exi_schema);
     sxml_host_processor_destroy(connection->processor);
     sqlite3_free(connection);
 }
@@ -308,6 +404,7 @@ int sqlite3_xml_init(sqlite3 *database, char **error_message, const sqlite3_api_
     if (connection == NULL) {
         return SQLITE_NOMEM;
     }
+    memset(connection, 0, sizeof *connection);
     connection->processor = sxml_host_processor_create(
         &(sxml_host_processor_configuration){.feature_mask = UINT32_MAX});
     if (connection->processor == NULL) {
@@ -322,7 +419,7 @@ int sqlite3_xml_init(sqlite3 *database, char **error_message, const sqlite3_api_
     } functions[] = {
         {"xmlb", 1, sqlite_xml_xmlb},         {"xml", 1, sqlite_xml_xml},
         {"xml_xpath", 2, sqlite_xml_xpath},   {"xml_exists", 2, sqlite_xml_exists},
-        {"xml_query", 2, sqlite_xml_query},
+        {"xml_query", 2, sqlite_xml_query},   {"xml_exi", -1, sqlite_xml_exi},   {"xml_exi_schema", 2, sqlite_xml_exi_schema},
     };
     int result = SQLITE_OK;
     for (size_t index = 0; index < sizeof functions / sizeof functions[0] && result == SQLITE_OK; index++) {
