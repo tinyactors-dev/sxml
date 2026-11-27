@@ -70,7 +70,7 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
             "${CMAKE_CURRENT_SOURCE_DIR}/test/package.test.ts"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(javascript/package PROPERTIES
-        ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_module>;SXML_WASM_FEATURES=test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text,invisible-xml,localization,builtin-schemas,source-code")
+        ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_module>;SXML_WASM_FEATURES=test,expath-binary,html,xslt-transform,timezone-database,dtd-validation,uca-collation,full-text,invisible-xml,localization,builtin-schemas,source-code,exi")
     # XQuery, XSLT and XSD (test/full.test.ts).
     add_test(NAME javascript/languages
         COMMAND "${SXML_NODE_EXECUTABLE}" --expose-gc --test --test-reporter=dot
@@ -147,7 +147,9 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     # tree-sitter:parse (+1,927,000 in the module, 96 % parse tables);
     # 15,500,000 / 2,900,000 since D288, and the module 14,000,000 /
     # 2,800,000, for TypeScript, TSX and Markdown (+3,700,000 in the
-    # module, 95 % parse tables).
+    # module, 95 % parse tables); the CLI 16,000,000 / 2,900,000 since
+    # D333, for EXI (the codec, DEFLATE, exi:serialize, exi:parse and the
+    # exi:exi method: the CLI was 15,517,087 stripped with them).
     # test/size-baseline/sxml.txt is the module's code and data per object
     # at the last audit or budget raise (D225, D272): the test prints the
     # largest growths since then, and names twenty when the module is over
@@ -155,7 +157,7 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     if(TARGET sxml_cli)
         add_test(NAME javascript/size_budget
             COMMAND "${SXML_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/size-budget.mjs"
-                "$<TARGET_FILE:sxml_cli>" 15500000 2900000
+                "$<TARGET_FILE:sxml_cli>" 16000000 2900000
                 "$<TARGET_FILE:sxml_javascript_module>" 14000000 2800000)
     endif()
 endif()
