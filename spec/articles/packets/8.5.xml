@@ -2,7 +2,7 @@
   <title>EXI encoder with built-in grammars</title>
   <summary>Encodes a tree as a schema-less stream, bit-packed or byte-aligned, byte for byte as the oracle does.</summary>
   <body>
-    <p>After 8.4. EXI 1.0, sections 5, 6 and 8, from the encoder's side; namespace declarations from in-scope namespaces (<ref kind="decision" to="D333"/>).</p>
+    <p><status value="done" date="2026-11-27"/> After 8.4. EXI 1.0, sections 5, 6 and 8, from the encoder's side; namespace declarations from in-scope namespaces (<ref kind="decision" to="D333"/>).</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: <code>src/exi_encoder.c</code>, a walk of the tree over an explicit stack (<ref kind="decision" to="D71"/>) that sends events through the grammar machine of 8.4.</p>

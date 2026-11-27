@@ -2,7 +2,7 @@
   <title>EXI streams, datatypes and string tables</title>
   <summary>Bit and byte streams, the built-in EXI datatype representations and the string tables, the parts both codecs share.</summary>
   <body>
-    <p>After 8.2. EXI 1.0, sections 7 ("Representing Event Content") and 7.3 ("String Table").</p>
+    <p><status value="done" date="2026-11-27"/> After 8.2. EXI 1.0, sections 7 ("Representing Event Content") and 7.3 ("String Table").</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: <code>src/exi_stream.c</code>, a bit reader over a byte view and a bit writer over allocator memory, both with byte alignment (n-bit unsigned integers in whole bytes, least significant first, section 7.1.9); <code>src/exi_datatype.c</code>, Binary, Boolean, Decimal, Float, Integer, Unsigned Integer, Date-Time, n-bit Unsigned Integer, Enumeration, List and String, each in both directions, with their canonical forms (Canonical EXI, 4.5); <code>src/exi_string_table.c</code>, the URI, prefix, local-name and value partitions, global and local, with valueMaxLength and valuePartitionCapacity (its round-robin replacement, 7.3.3), their initial entries (Appendix D).</p>

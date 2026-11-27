@@ -58,8 +58,8 @@ exi_ratchet, and tools/exi/check-packet.sh.
 **Summary**: Bit and byte streams, the built-in EXI datatype representations
 and the string tables, the parts both codecs share.
 
-After 8.2. EXI 1.0, sections 7 ("Representing Event Content") and 7.3 ("String
-Table").
+**Done** 2026-11-27 After 8.2. EXI 1.0, sections 7 ("Representing Event
+Content") and 7.3 ("String Table").
 
 - **Mechanism**: `src/exi_stream.c`, a bit reader over a byte view and a bit
   writer over allocator memory, both with byte alignment (n-bit unsigned
@@ -82,9 +82,9 @@ Table").
 alignment into tree builder events, with every fidelity option and the fragment
 option.
 
-After 8.3. EXI 1.0, sections 5 (the header, options out of band), 6, 8.1 to 8.4
-(built-in document, fragment and element grammars, with learning) and 8.3
-(event codes as the fidelity options prune them).
+**Done** 2026-11-27 After 8.3. EXI 1.0, sections 5 (the header, options out of
+band), 6, 8.1 to 8.4 (built-in document, fragment and element grammars, with
+learning) and 8.3 (event codes as the fidelity options prune them).
 
 - **Mechanism**: `src/exi_grammar.c`, the grammar machine both codecs run;
   `src/exi_decoder.c`, the event loop to the builder, the NS events (prefixes
@@ -99,8 +99,8 @@ After 8.3. EXI 1.0, sections 5 (the header, options out of band), 6, 8.1 to 8.4
 **Summary**: Encodes a tree as a schema-less stream, bit-packed or
 byte-aligned, byte for byte as the oracle does.
 
-After 8.4. EXI 1.0, sections 5, 6 and 8, from the encoder's side; namespace
-declarations from in-scope namespaces (D333).
+**Done** 2026-11-27 After 8.4. EXI 1.0, sections 5, 6 and 8, from the encoder's
+side; namespace declarations from in-scope namespaces (D333).
 
 - **Mechanism**: `src/exi_encoder.c`, a walk of the tree over an explicit stack
   (D71) that sends events through the grammar machine of 8.4.

@@ -190,12 +190,10 @@ void sxml_exi_encoder_destroy(sxml_exi_encoder *encoder) {
 
 sxml_status sxml_exi_encoder_encode(sxml_exi_encoder *encoder, const sxml_exi_encode_request *request,
                                     sxml_output_stream output_stream) {
-    (void)output_stream;
-    if (encoder == NULL || request == NULL) {
+    if (encoder == NULL || request == NULL || output_stream.operations == NULL) {
         return SXML_STATUS_INVALID_ARGUMENT;
     }
-    /* Packet 8.5 encodes. */
-    return SXML_STATUS_UNSUPPORTED_FEATURE;
+    return sxml_exi_encode_stream(encoder, request, output_stream);
 }
 
 /* ---------------------------------------------------------- Options reader */

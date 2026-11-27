@@ -7,6 +7,10 @@ blocked. Add an item to this week's entry with `tools/spec/spec log TEXT`.
 
 ## Week of 2026-11-23
 
+- 8.5 done (D333): the encoder with built-in grammars writes every stream of
+  the six schema-less sets byte for byte as EXIficient does (720 of 720); the
+  ratchet lists 1,440 checks.
+
 - 8.7 done (D333): sxml inflate and deflate from RFC 1951, deflate_vectors 422
   of 422 under the sanitizers (allocation sweeps included); deflate within 1 %
   of zlib level 6 on the text vectors (text 5,031 against 5,031 bytes). The
