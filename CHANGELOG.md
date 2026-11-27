@@ -20,7 +20,10 @@ release are in `docs/RELEASE.md`.
   blocks and the string table limits. The streams sxml writes are byte
   for byte those of EXIficient 1.0.4, the reference implementation
   (DEFLATE output aside, which EXIficient decodes to the same
-  documents); `tests/exi` holds the golden streams.
+  documents); `tests/exi` holds the golden streams. Schema-informed
+  grammars come from a compiled XSD (`sxml_schema`): typed values,
+  `xsi:type` and `xsi:nil`, strict and non-strict grammars, and the
+  built-in XSD types alone (a schemaId of `xsd-types-only`).
 - **EXI through the processor** (D333): the optional feature `exi`, in
   every build (D272); the functions `exi:serialize` and `exi:parse` in
   the namespace `urn:sxml:exi`, bound to the prefix `exi` in the `sxml`
@@ -38,6 +41,9 @@ release are in `docs/RELEASE.md`.
   `--strict`, `--block-size`, `--value-max-length`,
   `--value-partition-capacity`, `--schema`). The book has a chapter,
   "Compact XML with EXI".
+- **`Processor.encodeExi` and `Processor.parseExi`** in the JavaScript
+  package (D333), with the stream's options as an `ExiOptions` object,
+  and their calls in the host shim.
 
 ### Changed
 
