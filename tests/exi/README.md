@@ -61,3 +61,11 @@ the oracle and the driver:
 
 `tools/exi/check-packet.sh` runs everything a Phase 8 packet must pass (see
 its header and `docs/tasks/phase-8.md`).
+
+## Where the oracle is wrong
+
+EXIficient is the oracle, not the specification. `oracle-deviations.txt`
+lists the golden checks sxml fails on purpose, each with the evidence
+that EXIficient is wrong there and sxml's result is the input: they are
+not in the ratchet, and they stay failing. A case joins that list only
+with such evidence, never to make a check pass.

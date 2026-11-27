@@ -1,0 +1,10 @@
+# Golden checks sxml does not pass on purpose: EXIficient 1.0.4, the oracle,
+# is wrong in them, and sxml's result is the input (tests/exi/README.md,
+# "Where the oracle is wrong"). One per line: set/id direction, then why.
+# Never add a case here to make a check pass; only with evidence.
+schema-canonical-utc/sdata-datatypes-facets-date-date-minexclusive005-f97932 encode	EXIficient's DateTimeValue.maximumDayInMonthFor gives May 30 days, so utcTime turns 1999-05-31 into 1999-05-28; XML Schema 1.0 Part 2, Appendix E keeps the date
+self-contained/tests-exi-handmade-namespaces-28240e decode	EXIficient decodes a self-contained element with no namespaces in scope: t:rate loses its URI, which the EXI qname carries (EXI 1.0, 7.1.7)
+self-contained/third-party-qt4tests-docs-auction-5d1ce9 decode	the same: the xlink attributes of a self-contained element lose their namespace
+self-contained/third-party-xslt40-test-tests-misc-bug-bug-51-58766d decode	the same: ZZZ:dasAttribut loses its namespace
+self-contained/third-party-xmlconf-eduni-namespaces-1-0-037-59f3fe decode	the same: of two attributes with one local name in different namespaces, EXIficient keeps one
+self-contained/third-party-xmlconf-eduni-namespaces-1-0-040-03cff4 decode	the same as 037
