@@ -18,6 +18,7 @@
 #
 # Tests (WASI only, Node.js): javascript/package runs test/package.test.ts
 # and javascript/languages test/full.test.ts on the module;
+# javascript/exi test/exi.test.ts (D333);
 # javascript/code_languages test/code-language.test.ts on language modules
 # built here (D293); javascript/streams test/stream.test.ts (D294);
 # javascript/typecheck runs tsc (after `npm ci` here); javascript/size_budget
@@ -77,6 +78,13 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
             "${CMAKE_CURRENT_SOURCE_DIR}/test/full.test.ts"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(javascript/languages PROPERTIES
+        ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_module>")
+    # EXI against the golden streams of tests/exi (packet 8.15, D333).
+    add_test(NAME javascript/exi
+        COMMAND "${SXML_NODE_EXECUTABLE}" --expose-gc --test --test-reporter=dot
+            "${CMAKE_CURRENT_SOURCE_DIR}/test/exi.test.ts"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(javascript/exi PROPERTIES
         ENVIRONMENT "SXML_WASM_PATH=$<TARGET_FILE:sxml_javascript_module>")
     # tree-sitter's WebAssembly language files (D293): vendored grammars
     # compiled as tree-sitter 0.27's `tree-sitter build --wasm` compiles

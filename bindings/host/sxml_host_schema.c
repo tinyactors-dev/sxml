@@ -66,6 +66,10 @@ void sxml_host_schema_destroy(sxml_host_schema *schema) {
     sxml_allocator_release(schema->owner->allocator, schema);
 }
 
+const sxml_schema *sxml_host_schema_compiled(const sxml_host_schema *schema) {
+    return schema->schema;
+}
+
 /* ----------------------------------------------------------------- Reports */
 
 /* Each report as a SCHEMA_REPORT side result; the compilation or

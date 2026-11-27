@@ -386,6 +386,45 @@ result.findings.map(({ id, lineNumber, message }) => `${lineNumber} ${id}: ${mes
 A stylesheet with errors also throws a `SchemaError` from
 `compileStylesheet`, with every error in `reports`.
 
+## EXI
+
+`processor.encodeExi(node, options)` encodes a document or element node as
+an EXI stream (Efficient XML Interchange 1.0) and returns its bytes as a
+`Uint8Array`. `processor.parseExi(stream, options)` decodes a stream into a
+new document and returns its document node, as `parse` does for XML text;
+`options.uri` is its document URI. A stream that is not EXI throws an
+`SxmlError` with status `'MALFORMED_INPUT'`.
+
+The options are EXI's (section 5.4). Each option that is left out has its
+default: bit-packed, nothing preserved, a document, no limits on the
+string tables, and the built-in grammars.
+
+- `alignment`: `'bit-packed'` (the default), `'byte-alignment'`,
+  `'pre-compression'` or `'compression'` (DEFLATE).
+- `preserve`: a list of `'comments'`, `'pis'`, `'dtd'`, `'prefixes'` and
+  `'lexical-values'`. Without `'prefixes'`, the decoder names prefixes
+  `ns0`, `ns1` and so on.
+- `fragment`, `strict`, `selfContained`: booleans.
+- `blockSize`, `valueMaxLength`, `valuePartitionCapacity`: integers.
+- `includeCookie`, `includeOptions`, `canonical` (encoding only): the
+  `$EXI` cookie, the options in the header, Canonical EXI.
+- `schema`: a `Schema` of the same processor, for schema-informed grammars.
+
+A stream whose header has no options is decoded with the options given to
+`parseExi`, which must be the options that it was encoded with. An unknown
+`alignment` or `preserve` item throws a `TypeError`; a count that is not an
+integer from 0 to 2^32 - 1 throws a `RangeError`. In XPath and XQuery, the
+functions `exi:serialize` and `exi:parse` do the same (the prefix `exi` is
+bound to `urn:sxml:exi`).
+
+```js
+const order = processor.parse('<order id="A-1"><line sku="KB-104">2</line><!-- note --></order>');
+const stream = processor.encodeExi(order, { alignment: 'byte-alignment', preserve: ['comments'] });
+processor.parseExi(stream, { alignment: 'byte-alignment', preserve: ['comments'] })
+  .serialize({ method: 'xml', omitXmlDeclaration: true });
+// '<order id="A-1"><line sku="KB-104">2</line><!-- note --></order>'
+```
+
 ## Code languages
 
 `tree-sitter:parse` (the `source-code` feature; the prefix `tree-sitter`
@@ -533,6 +572,7 @@ documents) are yours to dispose.
 | `Processor.compileStylesheet(text, options)` | A `Stylesheet`, with `transform` |
 | `Processor.compileSchema(documents, options)` | A `Schema`, with `validate` |
 | `Processor.compileSchematron(schema, options)` | A `Schematron`, with `validate` and its `title`, `phase` and edition |
+| `Processor.encodeExi(node, options)`, `Processor.parseExi(stream, options)` | An EXI stream of a node, and the document of a stream |
 | `Processor.value(data)` | JavaScript data as a value |
 | `Processor.serialize(value, options)` | The same as `value.serialize(options)` |
 | `Value.toString()`, `Value.serialize(options)` | The value's text |

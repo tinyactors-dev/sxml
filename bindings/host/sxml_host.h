@@ -452,6 +452,57 @@ typedef struct sxml_host_schematron_validate_request {
     uint32_t writes_svrl;
 } sxml_host_schematron_validate_request;
 
+/* ------------------------------------------------------------------- EXI */
+
+/*
+ * The EXI options of an encode or a parse (include/sxml/exi.h, D333), one
+ * word each: sxml_exi_options flattened, with the schema as a handle.
+ */
+typedef struct sxml_host_exi_options {
+    /* sxml_exi_alignment. */
+    uint32_t alignment;
+    /* Nonzero for each fidelity option (sxml_exi_fidelity). */
+    uint32_t preserves_comments;
+    uint32_t preserves_processing_instructions;
+    uint32_t preserves_dtd;
+    uint32_t preserves_prefixes;
+    uint32_t preserves_lexical_values;
+    uint32_t is_fragment;
+    uint32_t is_strict;
+    uint32_t allows_self_contained;
+    /* Nonzero when the value after it is given. */
+    uint32_t has_block_size;
+    uint32_t block_size;
+    uint32_t has_value_max_length;
+    uint32_t value_max_length;
+    uint32_t has_value_partition_capacity;
+    uint32_t value_partition_capacity;
+    /* A compiled schema of the same processor for schema-informed
+       grammars, or NULL for the built-in grammars. */
+    const sxml_host_schema *schema;
+} sxml_host_exi_options;
+
+typedef struct sxml_host_exi_encode_request {
+    /* One document or element node. */
+    const sxml_host_value *node;
+    sxml_host_exi_options options;
+    /* Nonzero: the header has the cookie, the options
+       (sxml_exi_header_options); the stream is Canonical EXI
+       (sxml_exi_canonicalization). */
+    uint32_t includes_cookie;
+    uint32_t includes_options;
+    uint32_t is_canonical;
+} sxml_host_exi_encode_request;
+
+typedef struct sxml_host_exi_parse_request {
+    /* The whole stream. */
+    sxml_byte_view input;
+    /* The document URI and base URI; may be empty. */
+    sxml_byte_view document_uri;
+    /* The options when the stream's header carries none. */
+    sxml_host_exi_options options;
+} sxml_host_exi_parse_request;
+
 /* ------------------------------------------------------------- Functions */
 
 /*
@@ -627,6 +678,17 @@ uint32_t sxml_host_schema_compile(sxml_host_schema *schema,
    without it when the node is invalid (request->validity). */
 sxml_host_value *sxml_host_schema_validate(sxml_host_schema *schema,
                                            sxml_host_validate_request *request);
+
+/* In sxml_host_exi.c (D333): encodes request->node as an EXI stream into
+   the processor's output (or its output writer, as sxml_host_serialize
+   writes). Returns the status. */
+uint32_t sxml_host_exi_encode(sxml_host_processor *processor,
+                              const sxml_host_exi_encode_request *request);
+
+/* Decodes an EXI stream (sxml_processor_parse_exi_document) and returns
+   its document node as a value. */
+sxml_host_value *sxml_host_exi_parse(sxml_host_processor *processor,
+                                     const sxml_host_exi_parse_request *request);
 
 /* In sxml_host_schematron.c (D323): a Schematron handle, made empty and
    compiled once (include/sxml/schematron.h); NULL when out of memory. */

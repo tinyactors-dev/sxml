@@ -217,8 +217,12 @@ static void sxml_host_json_string(sxml_host_json *json, sxml_byte_view text) {
         sxml_host_json_write(json, (sxml_byte_view){.bytes = escape, .byte_count = escape_byte_count});
         run_start = byte_index + 1;
     }
-    sxml_host_json_write(json, (sxml_byte_view){.bytes = text.bytes + run_start,
-                                                .byte_count = text.byte_count - run_start});
+    /* An empty text may have no bytes, and NULL + 0 is undefined (C17,
+       6.5.6). */
+    if (run_start < text.byte_count) {
+        sxml_host_json_write(json, (sxml_byte_view){.bytes = text.bytes + run_start,
+                                                    .byte_count = text.byte_count - run_start});
+    }
     sxml_host_json_literal(json, "\"");
 }
 

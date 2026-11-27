@@ -8,8 +8,9 @@
  * The helpers are static, as they were in the JavaScript shim, so
  * sxml_host.c compiles to the same bytes (an inline hint on all of them made
  * sxml.wasm 1,609 bytes larger); each file that includes this one uses
- * every helper but sxml_host_begin, which alone is static inline so the
- * files that do not use it do not warn.
+ * every helper but sxml_host_begin and sxml_host_allocate_array, which
+ * alone are static inline so the files that do not use them do not warn
+ * (sxml_host_exi.c allocates no array).
  */
 #include "sxml_host.h"
 
@@ -131,9 +132,9 @@ typedef struct sxml_host_array_request {
 
 /* Allocates the array request describes, or sets *memory to NULL for no
    elements. */
-static sxml_status sxml_host_allocate_array(sxml_allocator allocator,
-                                            sxml_host_array_request request,
-                                            void **memory) {
+static inline sxml_status sxml_host_allocate_array(sxml_allocator allocator,
+                                                   sxml_host_array_request request,
+                                                   void **memory) {
     *memory = NULL;
     if (request.element_count == 0) {
         return SXML_STATUS_OK;
@@ -243,6 +244,10 @@ sxml_status sxml_host_read_bindings(sxml_host_processor *processor,
    NULL with the processor's error set. */
 sxml_host_value *sxml_host_value_retain(sxml_host_processor *processor,
                                         sxml_sequence sequence);
+
+/* The compiled schema of a schema handle, NULL before it compiled. In
+   sxml_host_schema.c. */
+const sxml_schema *sxml_host_schema_compiled(const sxml_host_schema *schema);
 
 /* A schema report sink whose state is an sxml_host_side_result_target:
    each report becomes a SCHEMA_REPORT side result, its code with its

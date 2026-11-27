@@ -4,8 +4,8 @@
  * a resolver (a state and a function), parse, compile once and evaluate
  * with a context value and a variable, serialize by the adaptive method
  * and with fn:serialize options, a resolver that fails or has nothing, an
- * XQuery query, and the whole XPath run under every allocation failure
- * (D23). Every case ends with the processor's live allocation count 0.
+ * XQuery query, an EXI round trip, and the whole XPath run under every
+ * allocation failure (D23). Every case ends with the processor's live allocation count 0.
  *
  * Golden file: bindings/javascript/test/package.test.ts, whose first cases
  * these follow in C, and tests/csv_test.c (fixture, failure loop).
@@ -630,6 +630,64 @@ static void test_string_refuses_characters_xml_does_not_allow(sxml_test_state *s
     SXML_TEST_EXPECT(state, sxml_host_processor_destroy(processor) == 0);
 }
 
+/* Encodes a document as EXI and decodes the stream back (D333): the
+   options the stream was written with read it, a stream that is not EXI
+   is MALFORMED_INPUT, a value that is not a node INVALID_ARGUMENT. */
+static void test_exi_encode_and_parse(sxml_test_state *state) {
+    sxml_host_processor *processor = make_processor(NULL, 0);
+    SXML_TEST_REQUIRE(state, processor != NULL);
+    sxml_host_value *order = sxml_host_parse(
+        processor, &(sxml_host_parse_request){
+                       .input = TEXT("<order id=\"A-1\"><line>2</line><!-- note --></order>"),
+                       .document_uri = TEXT("")});
+    SXML_TEST_REQUIRE(state, order != NULL);
+    const sxml_host_exi_options options = {.alignment = SXML_EXI_ALIGNMENT_BYTE_ALIGNMENT,
+                                           .preserves_comments = 1};
+    SXML_TEST_EXPECT(state, sxml_host_exi_encode(processor,
+                                                 &(sxml_host_exi_encode_request){
+                                                     .node = order, .options = options}) ==
+                                SXML_STATUS_OK);
+    const sxml_byte_view stream_view = *sxml_host_output_of(processor);
+    uint8_t stream[256];
+    SXML_TEST_REQUIRE(state, stream_view.byte_count > 0 && stream_view.byte_count <= sizeof(stream));
+    memcpy(stream, stream_view.bytes, stream_view.byte_count);
+    sxml_host_value *back = sxml_host_exi_parse(
+        processor, &(sxml_host_exi_parse_request){
+                       .input = {.bytes = stream, .byte_count = stream_view.byte_count},
+                       .document_uri = TEXT(""),
+                       .options = options});
+    SXML_TEST_REQUIRE(state, back != NULL);
+    sxml_host_value *string_value = sxml_host_string(processor, &TEXT("xml"));
+    sxml_host_expression *map_expression = sxml_host_compile(
+        processor,
+        &(sxml_host_compile_request){.expression_text =
+                                         TEXT("map { 'method': 'xml', 'omit-xml-declaration': true() }")});
+    SXML_TEST_REQUIRE(state, map_expression != NULL);
+    sxml_host_value *serialization = sxml_host_evaluate(
+        map_expression, &(sxml_host_evaluate_request){.context_value = NULL});
+    SXML_TEST_REQUIRE(state, serialization != NULL);
+    SXML_TEST_EXPECT(state, sxml_host_serialize(processor, &(sxml_host_serialize_request){
+                                                               .value = back,
+                                                               .options = serialization}) ==
+                                SXML_STATUS_OK);
+    SXML_TEST_EXPECT(state,
+                     output_is(processor, "<order id=\"A-1\"><line>2</line><!-- note --></order>"));
+    SXML_TEST_EXPECT(state, sxml_host_exi_parse(processor, &(sxml_host_exi_parse_request){
+                                                               .input = TEXT("<order/>"),
+                                                               .document_uri = TEXT("")}) == NULL);
+    SXML_TEST_EXPECT(state, sxml_host_error_of(processor)->status == SXML_STATUS_MALFORMED_INPUT);
+    SXML_TEST_EXPECT(state, sxml_host_exi_encode(processor,
+                                                 &(sxml_host_exi_encode_request){
+                                                     .node = string_value}) ==
+                                SXML_STATUS_INVALID_ARGUMENT);
+    sxml_host_value_release(serialization);
+    sxml_host_expression_destroy(map_expression);
+    sxml_host_value_release(string_value);
+    sxml_host_value_release(back);
+    sxml_host_value_release(order);
+    SXML_TEST_EXPECT(state, sxml_host_processor_destroy(processor) == 0);
+}
+
 /* The XPath run with each allocation failing in turn (D23): every run
    fails cleanly or succeeds, and none leaks. */
 static void test_xpath_under_every_allocation_failure(sxml_test_state *state) {
@@ -678,6 +736,7 @@ static const sxml_test_case host_shim_test_cases[] = {
      .function = test_stylesheet_compile_reports_every_error},
     {.name = "schematron_compile_describe_validate",
      .function = test_schematron_compile_describe_validate},
+    {.name = "exi_encode_and_parse", .function = test_exi_encode_and_parse},
 };
 
 int main(int argument_count, char **arguments) {

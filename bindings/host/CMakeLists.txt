@@ -16,13 +16,14 @@
 set(SXML_HOST_CORE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/sxml_host.c"
     PARENT_SCOPE)
-# XQuery, XSLT, XSD and Schematron.
+# XQuery, XSLT, XSD, Schematron and EXI.
 set(sxml_host_full_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/sxml_host_full.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/sxml_host_xquery.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/sxml_host_xslt.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/sxml_host_schema.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/sxml_host_schematron.c")
+    "${CMAKE_CURRENT_SOURCE_DIR}/sxml_host_schematron.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/sxml_host_exi.c")
 set(SXML_HOST_FULL_SOURCES ${sxml_host_full_sources} PARENT_SCOPE)
 set(SXML_HOST_INCLUDE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" PARENT_SCOPE)
 

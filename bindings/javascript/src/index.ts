@@ -11,7 +11,8 @@
 //
 // The one module has every language and every optional feature (D272):
 // XQuery 4.0 (Processor.compileQuery), XSLT 4.0 (Processor.compileStylesheet)
-// and XSD 1.1 validation (Processor.compileSchema) besides XPath.
+// and XSD 1.1 validation (Processor.compileSchema) besides XPath, and EXI
+// (Processor.encodeExi and Processor.parseExi, D333).
 //
 // Every object that owns memory in the module (Processor, XPathExpression,
 // XQuery, Stylesheet, Schema, Value) has dispose(); one that is never disposed is released when it is
@@ -484,6 +485,116 @@ export interface SchematronResult {
   svrl?: string;
 }
 
+// -------------------------------------------------------------------- EXI
+
+/** The EXI options of Processor.encodeExi and Processor.parseExi
+ *  (Efficient XML Interchange 1.0, section 5.4). Every option left out has
+ *  its EXI default: bit-packed, nothing preserved, not strict, a document,
+ *  unbounded string tables, built-in grammars. In parseExi, a stream whose
+ *  header carries its options is read with those instead. */
+export interface ExiOptions {
+  /** How events and values are laid out (EXI 1.0, 5.4 and 9): 'bit-packed'
+   *  (default), 'byte-alignment', 'pre-compression' (values in channels,
+   *  not compressed) or 'compression' (the channels compressed with
+   *  DEFLATE). */
+  alignment?: 'bit-packed' | 'byte-alignment' | 'pre-compression' | 'compression';
+  /** The fidelity options (EXI 1.0, 6.3): what the stream keeps besides
+   *  elements, attributes and text. 'dtd' writes nothing from a tree,
+   *  which has no document type declaration; without 'prefixes' a decoder
+   *  names the prefixes ns0, ns1 and so on. */
+  preserve?: ('comments' | 'pis' | 'dtd' | 'prefixes' | 'lexical-values')[];
+  /** A fragment (EXI 1.0, 8.4.2): zero or more elements, comments and
+   *  processing instructions, not a document. */
+  fragment?: boolean;
+  /** strict: schema-informed grammars without their undeclared
+   *  productions; it means nothing with the built-in grammars. */
+  strict?: boolean;
+  /** selfContained: self-contained elements are allowed (EXI 1.0,
+   *  8.5.4.4.1). */
+  selfContained?: boolean;
+  /** blockSize: the values per compression block (default 1,000,000). */
+  blockSize?: number;
+  /** valueMaxLength: the longest value the string tables keep (default
+   *  unbounded). */
+  valueMaxLength?: number;
+  /** valuePartitionCapacity: how many values the global string table
+   *  keeps (default unbounded). */
+  valuePartitionCapacity?: number;
+  /** encodeExi: the header starts with the EXI cookie '$EXI' (EXI 1.0,
+   *  5.1). */
+  includeCookie?: boolean;
+  /** encodeExi: the header carries the options, so that a decoder need
+   *  not know them. */
+  includeOptions?: boolean;
+  /** encodeExi: the stream is Canonical EXI (W3C Recommendation 7 June
+   *  2018). */
+  canonical?: boolean;
+  /** Schema-informed grammars from a compiled schema of this processor
+   *  (Processor.compileSchema); without it the built-in grammars. */
+  schema?: Schema;
+}
+
+/** The alignments of ExiOptions, in sxml_exi_alignment's order. */
+const exi_alignments: readonly string[] = ['bit-packed', 'byte-alignment', 'pre-compression', 'compression'];
+/** The items of ExiOptions.preserve, in the order of the words of
+ *  sxml_host_exi_options. */
+const exi_preserved_items: readonly string[] = ['comments', 'pis', 'dtd', 'prefixes', 'lexical-values'];
+
+/** The two words of an optional count of ExiOptions (whether it is given,
+ *  its value); a RangeError for a number that is not an integer from 0 to
+ *  2^32 - 1. */
+function exiCountWords(name: string, count: number | undefined): [number, number] {
+  if (count === undefined) {
+    return [0, 0];
+  }
+  if (typeof count !== 'number') {
+    throw new TypeError(`sxml: the EXI option ${name} is not a number`);
+  }
+  if (!Number.isInteger(count) || count < 0 || count > 0xffffffff) {
+    throw new RangeError(`sxml: the EXI option ${name} is not an integer from 0 to 4294967295`);
+  }
+  return [1, count];
+}
+
+/** Whether an optional flag of ExiOptions is set; a TypeError for a value
+ *  that is not a boolean. */
+function exiFlag(name: string, flag: boolean | undefined): boolean {
+  if (flag !== undefined && typeof flag !== 'boolean') {
+    throw new TypeError(`sxml: the EXI option ${name} is not a boolean`);
+  }
+  return flag === true;
+}
+
+/** The sixteen words of sxml_host_exi_options, checked: a TypeError for
+ *  an unknown alignment or preserve item, a RangeError for a count out of
+ *  range. The schema's handle is the last word. */
+function exiOptionWords(options: ExiOptions, schemaAddress: number): number[] {
+  const alignment = exi_alignments.indexOf(options.alignment ?? 'bit-packed');
+  if (alignment < 0) {
+    throw new TypeError(`sxml: unknown EXI alignment ${String(options.alignment)}`);
+  }
+  const preserve: unknown = options.preserve ?? [];
+  if (!Array.isArray(preserve)) {
+    throw new TypeError('sxml: the EXI option preserve is not an array');
+  }
+  for (const item of preserve as unknown[]) {
+    if (typeof item !== 'string' || !exi_preserved_items.includes(item)) {
+      throw new TypeError(`sxml: unknown EXI preserve item ${String(item)}`);
+    }
+  }
+  return [
+    alignment,
+    ...exi_preserved_items.map((item) => ((preserve as unknown[]).includes(item) ? 1 : 0)),
+    exiFlag('fragment', options.fragment) ? 1 : 0,
+    exiFlag('strict', options.strict) ? 1 : 0,
+    exiFlag('selfContained', options.selfContained) ? 1 : 0,
+    ...exiCountWords('blockSize', options.blockSize),
+    ...exiCountWords('valueMaxLength', options.valueMaxLength),
+    ...exiCountWords('valuePartitionCapacity', options.valuePartitionCapacity),
+    schemaAddress,
+  ];
+}
+
 // ----------------------------------------------------------------- Errors
 
 /** A failure in sxml: a static, dynamic or type error of the expression
@@ -599,6 +710,9 @@ interface Exports {
   sxml_javascript_schematron_compile(schematron: number, request: number): number;
   sxml_javascript_schematron_describe(schematron: number, description: number): void;
   sxml_javascript_schematron_validate(schematron: number, request: number): number;
+  // EXI (D333).
+  sxml_javascript_exi_encode(processor: number, request: number): number;
+  sxml_javascript_exi_parse(processor: number, request: number): number;
   // Streams (sxml_javascript_stream.c, D294).
   sxml_javascript_set_output(processor: number, chunkByteCount: number): number;
   sxml_javascript_set_byte_reader(processor: number): number;
@@ -1649,6 +1763,50 @@ export class Processor {
     }
   }
 
+  /** Encodes a document or element node as an EXI stream (Efficient XML
+   *  Interchange 1.0) with options: by default bit-packed, with the
+   *  built-in grammars, keeping elements, attributes and text only. Throws
+   *  a TypeError or RangeError for options it does not take, and an
+   *  SxmlError for a value that is not one document or element node or
+   *  content the options cannot represent. */
+  encodeExi(node: Value, options: ExiOptions = {}): Uint8Array {
+    this.check(node);
+    const words = exiOptionWords(options, this.exiSchemaAddress(options));
+    const headerWords = [
+      exiFlag('includeCookie', options.includeCookie) ? 1 : 0,
+      exiFlag('includeOptions', options.includeOptions) ? 1 : 0,
+      exiFlag('canonical', options.canonical) ? 1 : 0,
+    ];
+    const state = this.enter();
+    const scratch = new Scratch(state);
+    try {
+      const request = scratch.words([node.address(), ...words, ...headerWords]);
+      if (state.module.exports.sxml_javascript_exi_encode(state.address, request) !== status_ok) {
+        throw this.failure();
+      }
+      return this.outputBytes();
+    } finally {
+      scratch.release();
+    }
+  }
+
+  /** Decodes an EXI stream into a new document and returns its document
+   *  node, as parse() does for XML text. options are those the stream was
+   *  encoded with, needed when its header does not carry them;
+   *  options.uri is the document URI. A stream that is not EXI throws an
+   *  SxmlError with status 'MALFORMED_INPUT'. */
+  parseExi(stream: Uint8Array, options: ExiOptions & { uri?: string } = {}): Value {
+    const words = exiOptionWords(options, this.exiSchemaAddress(options));
+    const state = this.enter();
+    const scratch = new Scratch(state);
+    try {
+      const request = scratch.words([...scratch.view(stream), ...scratch.view(options.uri ?? ''), ...words]);
+      return this.adopt(state.module.exports.sxml_javascript_exi_parse(state.address, request));
+    } finally {
+      scratch.release();
+    }
+  }
+
   /** Releases the processor and every value and expression made with it. */
   dispose(): void {
     this.state.module.untrack(this);
@@ -1841,6 +1999,32 @@ export class Processor {
     const output = module.exports.sxml_javascript_output_of(this.state.address) / 4;
     const words = module.words();
     return module.text(words[output] ?? 0, words[output + 1] ?? 0);
+  }
+
+  /** @internal A copy of the bytes of the processor's last
+   *  serialization. */
+  outputBytes(): Uint8Array {
+    const module = this.state.module;
+    const output = module.exports.sxml_javascript_output_of(this.state.address) / 4;
+    const words = module.words();
+    const address = words[output] ?? 0;
+    return module.bytes().slice(address, address + (words[output + 1] ?? 0));
+  }
+
+  /** @internal The handle of options.schema, a schema of this processor;
+   *  0 for none. */
+  exiSchemaAddress(options: ExiOptions): number {
+    const schema = options.schema;
+    if (schema === undefined) {
+      return 0;
+    }
+    if (!(schema instanceof Schema)) {
+      throw new TypeError('sxml: the EXI option schema is not a Schema');
+    }
+    if (schema.processor !== this) {
+      throw new Error('sxml: the schema belongs to another processor');
+    }
+    return schema.address();
   }
 
   /** @internal An input as a value of this processor; values it made are
@@ -2420,7 +2604,8 @@ export class Schema {
     }
   }
 
-  private address(): number {
+  /** @internal The handle, checked usable. */
+  address(): number {
     if (this.handle === 0) {
       throw disposed('schema');
     }

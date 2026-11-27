@@ -1,6 +1,6 @@
 /*
- * The exports of sxml.wasm for XQuery, XSLT, XSD and Schematron (D216,
- * D238, D272, D323),
+ * The exports of sxml.wasm for XQuery, XSLT, XSD, Schematron and EXI
+ * (D216, D238, D272, D323, D333),
  * each the host shim function of the same name with sxml_host_ in place
  * of sxml_javascript_. Golden file: sxml_javascript_exports.c.
  */
@@ -108,4 +108,16 @@ SXML_JAVASCRIPT_EXPORT("sxml_javascript_schematron_validate")
 uint32_t sxml_javascript_schematron_validate(
     sxml_host_schematron *schematron, const sxml_host_schematron_validate_request *request) {
     return sxml_host_schematron_validate(schematron, request);
+}
+
+SXML_JAVASCRIPT_EXPORT("sxml_javascript_exi_encode")
+uint32_t sxml_javascript_exi_encode(sxml_host_processor *processor,
+                                    const sxml_host_exi_encode_request *request) {
+    return sxml_host_exi_encode(processor, request);
+}
+
+SXML_JAVASCRIPT_EXPORT("sxml_javascript_exi_parse")
+sxml_host_value *sxml_javascript_exi_parse(sxml_host_processor *processor,
+                                           const sxml_host_exi_parse_request *request) {
+    return sxml_host_exi_parse(processor, request);
 }

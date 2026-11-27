@@ -83,6 +83,12 @@ sxml_host_value *sxml_javascript_evaluate(sxml_host_expression *expression,
 uint32_t sxml_javascript_serialize(sxml_host_processor *processor,
                                    const sxml_host_serialize_request *request);
 
+/* EXI (D333). */
+uint32_t sxml_javascript_exi_encode(sxml_host_processor *processor,
+                                    const sxml_host_exi_encode_request *request);
+sxml_host_value *sxml_javascript_exi_parse(sxml_host_processor *processor,
+                                           const sxml_host_exi_parse_request *request);
+
 /* sxml_javascript_stream.c (D294): the processor's output goes to the
    import sxml_host.write in chunks of chunk_byte_count bytes, or with 0
    to its output again; its byte reader is the imports sxml_host.read and
