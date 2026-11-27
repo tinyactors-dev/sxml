@@ -529,6 +529,18 @@ export interface ExiOptions {
   /** encodeExi: the stream is Canonical EXI (W3C Recommendation 7 June
    *  2018). */
   canonical?: boolean;
+  /** encodeExi: the header's options name the schemaId (EXI 1.0, 5.4). */
+  includeSchemaId?: boolean;
+  /** encodeExi, with canonical: the header leaves the options document
+   *  out (Canonical EXI, omitOptionsDocument). */
+  omitOptionsDocument?: boolean;
+  /** encodeExi, with canonical: date-times are written in UTC (Canonical
+   *  EXI, utcTime). */
+  utcTime?: boolean;
+  /** encodeExi, with selfContained: the elements written self-contained,
+   *  so that each can be read on its own (EXI 1.0, 8.5.4.4.1), each an
+   *  NCName in no namespace or Q{uri}local. */
+  selfContainedElements?: string[];
   /** Schema-informed grammars from a compiled schema of this processor
    *  (Processor.compileSchema); without it the built-in grammars. */
   schema?: Schema;
@@ -1772,15 +1784,23 @@ export class Processor {
   encodeExi(node: Value, options: ExiOptions = {}): Uint8Array {
     this.check(node);
     const words = exiOptionWords(options, this.exiSchemaAddress(options));
+    const names = options.selfContainedElements ?? [];
+    if (!Array.isArray(names) || names.some((name) => typeof name !== 'string')) {
+      throw new TypeError('sxml: the EXI option selfContainedElements is not an array of strings');
+    }
     const headerWords = [
       exiFlag('includeCookie', options.includeCookie) ? 1 : 0,
       exiFlag('includeOptions', options.includeOptions) ? 1 : 0,
       exiFlag('canonical', options.canonical) ? 1 : 0,
+      exiFlag('includeSchemaId', options.includeSchemaId) ? 1 : 0,
+      exiFlag('omitOptionsDocument', options.omitOptionsDocument) ? 1 : 0,
+      exiFlag('utcTime', options.utcTime) ? 1 : 0,
     ];
     const state = this.enter();
     const scratch = new Scratch(state);
     try {
-      const request = scratch.words([node.address(), ...words, ...headerWords]);
+      const nameViews = names.length === 0 ? 0 : scratch.words(names.flatMap((name) => scratch.view(name)));
+      const request = scratch.words([node.address(), ...words, ...headerWords, nameViews, names.length]);
       if (state.module.exports.sxml_javascript_exi_encode(state.address, request) !== status_ok) {
         throw this.failure();
       }

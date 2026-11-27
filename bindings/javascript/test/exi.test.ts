@@ -26,8 +26,16 @@ const sample = 4;
 const sets = [
   'bit-packed', 'bit-packed-full', 'byte-alignment-full', 'pre-compression', 'pre-compression-full',
   'pre-compression-blocks', 'compression', 'compression-full', 'compression-blocks', 'string-limits',
-  'string-limits-zero', 'fragment',
+  'string-limits-zero', 'fragment', 'header-options', 'canonical', 'canonical-byte-alignment',
+  'canonical-compression', 'self-contained', 'self-contained-byte-alignment',
 ];
+/** The cases EXIficient decodes wrongly (tests/exi/oracle-deviations.txt). */
+const deviations = new Set(
+  readFileSync(new URL('tests/exi/oracle-deviations.txt', root), 'utf8')
+    .split('\n')
+    .filter((line) => line.trim() !== '' && !line.startsWith('#'))
+    .map((line) => line.split(/\s/)[0]),
+);
 
 /** The ExiOptions of an option specification of the manifest
  *  (tests/exi/README.md, "Options"), and whether it preserves comments,
@@ -57,6 +65,17 @@ function optionsOf(specification: string): ExiOptions {
         break;
       case 'value-partition-capacity':
         options.valuePartitionCapacity = Number(value);
+        break;
+      case 'canonical':
+        options.canonical = true;
+        break;
+      case 'self-contained':
+        options.selfContained = true;
+        options.selfContainedElements = value.split(',').map((name) => (name.startsWith('{') ? `Q${name}` : name));
+        break;
+      case 'header':
+        options.includeCookie = value.split(',').includes('cookie');
+        options.includeOptions = value.split(',').includes('options');
         break;
       default:
         throw new Error(`unknown option ${key}`);
@@ -95,7 +114,7 @@ const rows = readFileSync(new URL('tests/exi/manifest.tsv', root), 'utf8')
 for (const name of sets) {
   describe(`the golden set ${name}`, () => {
     for (const [set = '', id = '', input = '', specification = '', oracle = '', decoded = ''] of rows
-      .filter((row) => row[0] === name && row[4] === 'ok')
+      .filter((row) => row[0] === name && row[4] === 'ok' && !deviations.has(`${row[0]}/${row[1]}`))
       .slice(0, sample)) {
       void set;
       void oracle;

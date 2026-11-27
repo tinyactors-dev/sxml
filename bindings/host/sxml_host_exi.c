@@ -100,6 +100,71 @@ static sxml_status sxml_host_exi_root_of(sxml_host_processor *processor,
     return SXML_STATUS_OK;
 }
 
+/* One name of self_contained_names: an NCName in no namespace or an EQName
+   Q{uri}local, interned in the processor's pool. INVALID_ARGUMENT when it
+   is neither. */
+static sxml_status sxml_host_exi_name_of(sxml_host_processor *processor, sxml_byte_view text,
+                                         sxml_name_identifier *name) {
+    sxml_byte_view namespace_uri = {.bytes = NULL, .byte_count = 0};
+    sxml_byte_view local_name = text;
+    if (text.byte_count > 2 && text.bytes[0] == 'Q' && text.bytes[1] == '{') {
+        const uint8_t *close = memchr(text.bytes + 2, '}', text.byte_count - 2);
+        if (close == NULL) {
+            local_name.byte_count = 0;
+        } else {
+            namespace_uri = (sxml_byte_view){.bytes = text.bytes + 2, .byte_count = (size_t)(close - text.bytes) - 2};
+            local_name = (sxml_byte_view){.bytes = close + 1,
+                                          .byte_count = text.byte_count - (size_t)(close - text.bytes) - 1};
+        }
+    }
+    if (local_name.byte_count == 0 || memchr(local_name.bytes, ':', local_name.byte_count) != NULL ||
+        memchr(local_name.bytes, '{', local_name.byte_count) != NULL) {
+        processor->error_record.diagnostic.description =
+            SXML_BYTE_VIEW_FROM_LITERAL("a self-contained element is named by an NCName or Q{uri}local");
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    sxml_name_pool *name_pool = sxml_processor_get_name_pool(processor->processor);
+    sxml_namespace_uri_identifier namespace_identifier = {.index = 0};
+    sxml_status status = sxml_name_pool_intern_namespace_uri(name_pool, namespace_uri, &namespace_identifier);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_name_pool_intern_name(
+            name_pool, &(sxml_name_request){.namespace_uri = namespace_identifier, .local_name = local_name}, name);
+    }
+    return status;
+}
+
+/* The self-contained element names of request, in processor memory
+   (release names->element_names). */
+static sxml_status sxml_host_exi_self_contained_of(sxml_host_processor *processor,
+                                                   const sxml_host_exi_encode_request *request,
+                                                   sxml_element_name_view *names) {
+    *names = (sxml_element_name_view){.element_names = NULL, .element_name_count = 0};
+    if (request->self_contained_name_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    void *memory = NULL;
+    sxml_status status = sxml_allocator_allocate(
+        processor->allocator,
+        (sxml_allocation_request){.byte_count = request->self_contained_name_count * sizeof(sxml_name_identifier),
+                                  .alignment = _Alignof(sxml_name_identifier)},
+        &memory);
+    if (status != SXML_STATUS_OK) {
+        return status;
+    }
+    sxml_name_identifier *identifiers = memory;
+    for (uint32_t name_index = 0; name_index < request->self_contained_name_count && status == SXML_STATUS_OK;
+         name_index++) {
+        status = sxml_host_exi_name_of(processor, request->self_contained_names[name_index], &identifiers[name_index]);
+    }
+    if (status != SXML_STATUS_OK) {
+        sxml_allocator_release(processor->allocator, memory);
+        return status;
+    }
+    *names = (sxml_element_name_view){.element_names = identifiers,
+                                      .element_name_count = request->self_contained_name_count};
+    return SXML_STATUS_OK;
+}
+
 /* Encodes root with request's options to output_stream, with an encoder
    made for the call. */
 static sxml_status sxml_host_exi_write(sxml_host_processor *processor,
@@ -110,6 +175,10 @@ static sxml_status sxml_host_exi_write(sxml_host_processor *processor,
     const sxml_schema *schema = NULL;
     if (status == SXML_STATUS_OK) {
         status = sxml_host_exi_schema_of(processor, &request->options, &schema);
+    }
+    sxml_element_name_view self_contained = {.element_names = NULL, .element_name_count = 0};
+    if (status == SXML_STATUS_OK) {
+        status = sxml_host_exi_self_contained_of(processor, request, &self_contained);
     }
     sxml_exi_encoder *encoder = NULL;
     if (status == SXML_STATUS_OK) {
@@ -127,15 +196,16 @@ static sxml_status sxml_host_exi_write(sxml_host_processor *processor,
                 .schema = schema,
                 .header_options = {.includes_cookie = request->includes_cookie != 0,
                                    .includes_options = request->includes_options != 0,
-                                   .includes_schema_identifier = false},
+                                   .includes_schema_identifier = request->includes_schema_identifier != 0},
                 .canonicalization = {.is_canonical = request->is_canonical != 0,
-                                     .omits_options_document = false,
-                                     .uses_utc_time = false},
-                .self_contained_elements = {.element_names = NULL, .element_name_count = 0},
+                                     .omits_options_document = request->omits_options_document != 0,
+                                     .uses_utc_time = request->uses_utc_time != 0},
+                .self_contained_elements = self_contained,
                 .diagnostic = &processor->error_record.diagnostic},
             output_stream);
     }
     sxml_exi_encoder_destroy(encoder);
+    sxml_allocator_release(processor->allocator, (void *)self_contained.element_names);
     return status;
 }
 
@@ -184,6 +254,6 @@ sxml_host_value *sxml_host_exi_parse(sxml_host_processor *processor,
 #if defined(__wasm32__)
 /* The JavaScript package (src/index.ts) writes these as 32-bit words. */
 _Static_assert(sizeof(sxml_host_exi_options) == 64, "EXI options: 16 words");
-_Static_assert(sizeof(sxml_host_exi_encode_request) == 80, "EXI encode request: 20 words");
+_Static_assert(sizeof(sxml_host_exi_encode_request) == 100, "EXI encode request: 25 words");
 _Static_assert(sizeof(sxml_host_exi_parse_request) == 80, "EXI parse request: 20 words");
 #endif

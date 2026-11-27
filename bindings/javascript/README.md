@@ -406,8 +406,13 @@ string tables, and the built-in grammars.
   `ns0`, `ns1` and so on.
 - `fragment`, `strict`, `selfContained`: booleans.
 - `blockSize`, `valueMaxLength`, `valuePartitionCapacity`: integers.
-- `includeCookie`, `includeOptions`, `canonical` (encoding only): the
-  `$EXI` cookie, the options in the header, Canonical EXI.
+- `includeCookie`, `includeOptions`, `includeSchemaId` (encoding only):
+  the `$EXI` cookie, the options in the header, the schemaId among them.
+- `canonical`, with `omitOptionsDocument` and `utcTime` (encoding only):
+  Canonical EXI, one stream for one document and one set of options.
+- `selfContainedElements` (encoding only, with `selfContained`): the
+  names of the elements written so that each can be read on its own, an
+  NCName or `Q{uri}local` each.
 - `schema`: a `Schema` of the same processor, for schema-informed grammars.
 
 A stream whose header has no options is decoded with the options given to

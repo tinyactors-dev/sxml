@@ -492,6 +492,15 @@ typedef struct sxml_host_exi_encode_request {
     uint32_t includes_cookie;
     uint32_t includes_options;
     uint32_t is_canonical;
+    /* Nonzero: the header's options name the schemaId; Canonical EXI
+       without the options document; Canonical EXI with date-times in UTC. */
+    uint32_t includes_schema_identifier;
+    uint32_t omits_options_document;
+    uint32_t uses_utc_time;
+    /* The elements written self-contained (with allows_self_contained),
+       each an NCName or Q{uri}local. */
+    const sxml_byte_view *self_contained_names;
+    uint32_t self_contained_name_count;
 } sxml_host_exi_encode_request;
 
 typedef struct sxml_host_exi_parse_request {
