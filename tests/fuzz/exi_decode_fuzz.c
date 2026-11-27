@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* The options the first byte picks. */
 static sxml_exi_options exi_fuzz_options(uint8_t selector) {
@@ -87,6 +88,18 @@ static uint32_t exi_fuzz_node_count(sxml_tree *tree) {
     return description.node_count;
 }
 
+/* Whether a stream's header carries its own options (EXI 1.0, 5: the
+   presence bit after the distinguishing bits, past an optional cookie).
+   The decoder then reads with those, which the harness does not know, so
+   it cannot encode the tree with the same options to compare. */
+static bool exi_fuzz_has_header_options(sxml_byte_view stream) {
+    size_t offset = 0;
+    if (stream.byte_count >= 4 && memcmp(stream.bytes, "$EXI", 4) == 0) {
+        offset = 4;
+    }
+    return offset < stream.byte_count && (stream.bytes[offset] & 0x20U) != 0;
+}
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) { // NOLINT(readability-identifier-naming)
     if (size < 1) {
         return 0;
@@ -120,6 +133,10 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) { // NOLINT(readabi
                                              .options = &options,
                                              .stream = {.bytes = data + 1, .byte_count = size - 1}},
                         &tree);
+    }
+    if (tree != NULL && exi_fuzz_has_header_options((sxml_byte_view){.bytes = data + 1, .byte_count = size - 1})) {
+        sxml_tree_release(tree);
+        tree = NULL;
     }
     if (tree != NULL) {
         sxml_output_buffer *output_buffer = NULL;
