@@ -1,0 +1,132 @@
+# Makes a release from its release commit, so that the owner needs no
+# computer of their own (docs/RELEASE.md, steps 6 and 7): a session or a
+# person pushes the commit "Release X.Y.Z" to main (step 5), and this
+# workflow
+#   1. tags that commit vX.Y.Z (annotated, "sxml X.Y.Z");
+#   2. makes the GitHub release vX.Y.Z, its notes the version's section
+#      of CHANGELOG.md (tools/release-notes.sh);
+#   3. starts npm.yml for the tag, which stages @tinyactors/sxml on npm
+#      (a tag pushed with this workflow's token starts no workflow, so it
+#      is started with "Run workflow"; npm's trusted publisher stays
+#      npm.yml);
+#   4. builds the sxml archives of every target (mise run dist) and
+#      attaches them, with SHA256SUMS, to the release.
+# What stays the owner's: approving the staged npm version with 2FA.
+#
+# On every push to main it does nothing unless include/sxml/version.h's
+# version has a commit "Release X.Y.Z" on main and no tag vX.Y.Z yet.
+# "Run workflow" with a version does the steps for that version again:
+# the tag and the release are made when missing (the notes are written
+# again), npm.yml is started again (a version npm has is skipped) and
+# the archives are uploaded again.
+name: release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version to release (again), such as 0.3.0; empty: version.h's"
+        required: false
+
+permissions:
+  contents: write # the tag, the release and its files
+  actions: write # starting npm.yml
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  find:
+    name: Find the release to make
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.find.outputs.version }}
+      commit: ${{ steps.find.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - id: find
+        env:
+          REQUESTED: ${{ inputs.version }}
+        run: |
+          version=$REQUESTED
+          if [ -z "$version" ]; then
+            version=$(for part in MAJOR MINOR PATCH; do
+                        sed -n "s/^#define SXML_VERSION_$part \([0-9][0-9]*\)$/\1/p" include/sxml/version.h
+                      done | paste -sd. -)
+          fi
+          commit=$(git log --format=%H -1 --grep="^Release $version\$" main)
+          if [ -z "$commit" ]; then
+            echo "No commit \"Release $version\" on main: nothing to release."
+            exit 0
+          fi
+          if [ -z "$REQUESTED" ] && git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+            echo "v$version exists: released already."
+            exit 0
+          fi
+          tools/release-notes.sh "$version" >/dev/null
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "Releasing $version from $commit."
+
+  release:
+    name: Release ${{ needs.find.outputs.version }}
+    needs: find
+    if: needs.find.outputs.version != ''
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ needs.find.outputs.version }}
+      COMMIT: ${{ needs.find.outputs.commit }}
+      GH_TOKEN: ${{ github.token }}
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.find.outputs.commit }}
+          fetch-depth: 0
+      - name: Tag the release commit
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+            echo "v$VERSION exists."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "v$VERSION" -m "sxml $VERSION" "$COMMIT"
+            git push origin "v$VERSION"
+          fi
+      - name: Make the GitHub release
+        run: |
+          tools/release-notes.sh "$VERSION" > "$RUNNER_TEMP/notes.md"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release edit "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+          else
+            gh release create "v$VERSION" --verify-tag --title "sxml $VERSION" \
+              --notes-file "$RUNNER_TEMP/notes.md"
+          fi
+      - name: Start the npm publish
+        run: gh workflow run npm.yml --ref main -f tag="v$VERSION"
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+      - name: Build the archives
+        run: mise run dist
+      - name: Attach the archives
+        run: |
+          gh release upload "v$VERSION" --clobber build/dist/sxml-"$VERSION"-*.tar.gz \
+            build/dist/sxml-"$VERSION"-*.zip build/dist/SHA256SUMS
+      - name: Summary
+        run: |
+          {
+            echo "## sxml $VERSION"
+            echo
+            echo "- Tag: v$VERSION at $COMMIT"
+            echo "- Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/v$VERSION"
+            echo "- npm: npm.yml started; approve the staged version on npmjs.com (Staged Packages)."
+            echo
+            cat "$RUNNER_TEMP/notes.md"
+          } >> "$GITHUB_STEP_SUMMARY"
