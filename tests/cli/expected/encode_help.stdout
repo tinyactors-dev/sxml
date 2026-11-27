@@ -1,0 +1,50 @@
+sxml encode - Write an XML document as an EXI stream
+
+Usage: sxml encode [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--include-cookie] [--include-options] [--output=FILE] [--force] INPUT
+
+Parses INPUT as XML and writes it as an EXI 1.0 stream (Efficient XML
+Interchange) to standard output: bytes, with no line feed after them.
+
+The EXI options say what the stream keeps and how it is laid out:
+--alignment=bit-packed (the default), byte-alignment, pre-compression
+or compression (DEFLATE); --preserve=LIST, a comma-separated list of
+comments, pis, dtd, prefixes and lexical-values (none by default);
+--fragment for a stream of elements with no document around them;
+--strict; --block-size=N, --value-max-length=N and
+--value-partition-capacity=N. --schema=FILE encodes with the
+schema-informed grammars of the XSD in FILE.
+
+A decoder needs the options the stream was written with: give it the
+same flags, or write them into the stream's header with
+--include-options. --include-cookie begins the stream with "$EXI".
+
+--output=FILE (-o FILE) writes the stream to FILE instead, and only
+when the command succeeds; a FILE that exists is replaced only with
+--force.
+
+Exit status: 0 on success, 1 when INPUT is not well-formed or the
+options cannot represent it, 2 for a bad option value, 3 when a file
+cannot be read or written.
+
+Options:
+  -h, --help                        Show this help and exit
+      --alignment=ALIGNMENT         EXI alignment of the stream (one of: bit-packed, byte-alignment, pre-compression, compression; default: bit-packed)
+      --preserve=LIST               EXI fidelity: comments,pis,dtd,prefixes,lexical-values
+      --fragment                    The EXI stream is a fragment, not a document
+      --strict                      Strict schema-informed EXI grammars
+      --block-size=N                EXI values per compression block
+      --value-max-length=N          Longest EXI value kept in the string table
+      --value-partition-capacity=N  Most EXI values in the string table
+      --schema=FILE                 XSD of the stream's schema-informed grammars
+      --include-cookie              Begin the stream with the EXI cookie $EXI
+      --include-options             Write the EXI options into the stream's header
+  -o, --output=FILE                 Write the result to FILE instead of standard output
+      --force                       Replace files that exist instead of refusing
+
+Arguments:
+  INPUT  XML document to encode; - reads standard input
+
+Examples:
+  sxml encode --output=orders.exi orders.xml
+  sxml encode --alignment=compression --preserve=comments,prefixes --output=orders.exi orders.xml
+  sxml encode --include-options orders.xml | sxml decode -

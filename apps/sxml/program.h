@@ -16,6 +16,12 @@ const sxml_cli_program *sxml_program(void);
 /* The "check" command (command_check.c). */
 extern const sxml_cli_command sxml_check_command;
 
+/* The "decode" command (command_decode.c). */
+extern const sxml_cli_command sxml_decode_command;
+
+/* The "encode" command (command_encode.c). */
+extern const sxml_cli_command sxml_encode_command;
+
 /* The "serialize" command (command_serialize.c). */
 extern const sxml_cli_command sxml_serialize_command;
 

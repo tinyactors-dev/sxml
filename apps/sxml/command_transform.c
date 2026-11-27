@@ -120,6 +120,7 @@ static const sxml_cli_option sxml_transform_options[] = {
     SXML_QUERY_COLLECTION_OPTION,
     SXML_CODE_LANGUAGE_OPTION,
     SXML_QUERY_LOCATIONS_OPTION,
+    SXML_QUERY_INPUT_FORMAT_OPTION,
     SXML_QUERY_OUTPUT_OPTION,
     SXML_QUERY_FORCE_OPTION,
 };
@@ -865,6 +866,11 @@ const sxml_cli_command sxml_transform_command = {
         "and column of each node, for fn:location: automatic (the default)\n"
         "when the stylesheet calls fn:location, can look up or evaluate\n"
         "functions or imports a schema, always, or never.\n"
+        "\n"
+        "--input-format=exi reads the INPUT document as an EXI stream, with the\n"
+        "EXI options --alignment, --preserve, --fragment, --strict,\n"
+        "--block-size, --value-max-length, --value-partition-capacity and\n"
+        "--schema, as for sxml decode, when its header carries none.\n"
         "\n"
         "An error is reported on standard error as\n"
         "  STYLESHEET:LINE:COLUMN: err:CODE: description\n"

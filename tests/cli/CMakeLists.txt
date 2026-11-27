@@ -463,3 +463,27 @@ sxml_add_cli_test(xpath_misspelled_output EXIT_CODE 2 ARGUMENTS xpath --ouptut=a
 sxml_add_cli_test(xpath_option_of_xquery EXIT_CODE 2 ARGUMENTS xpath --expression=1)
 sxml_add_cli_test(xpath_option_of_others EXIT_CODE 2 ARGUMENTS xpath --format=json "1")
 sxml_add_cli_test(serialize_option_of_others EXIT_CODE 2 ARGUMENTS serialize --context-item=books.xml books.xml)
+
+# sxml encode and sxml decode, and --input-format=exi (apps/sxml/README.md;
+# D333): the streams of tests/cli/input/exi/ were written by sxml encode
+# from order.xml, with the options each name says.
+sxml_add_cli_test(encode_bit_packed EXIT_CODE 0 ARGUMENTS encode exi/order.xml)
+sxml_add_cli_test(encode_cookie EXIT_CODE 0 ARGUMENTS encode --include-cookie exi/order.xml)
+sxml_add_cli_test(encode_output EXIT_CODE 0 WORKSPACE FILES exi/order.xml ARGUMENTS encode --output=order.exi exi/order.xml)
+sxml_add_cli_test(encode_not_well_formed EXIT_CODE 1 ARGUMENTS encode mismatched-tag.xml)
+sxml_add_cli_test(encode_bad_alignment EXIT_CODE 2 ARGUMENTS encode --alignment=sideways exi/order.xml)
+sxml_add_cli_test(encode_bad_preserve EXIT_CODE 2 ARGUMENTS encode --preserve=comments,whitespace exi/order.xml)
+sxml_add_cli_test(encode_bad_block_size EXIT_CODE 2 ARGUMENTS encode --block-size=0 exi/order.xml)
+sxml_add_cli_test(encode_bad_value_max_length EXIT_CODE 2 ARGUMENTS encode --value-max-length=4294967296 exi/order.xml)
+sxml_add_cli_test(encode_help EXIT_CODE 0 ARGUMENTS encode --help)
+sxml_add_cli_test(decode_bit_packed EXIT_CODE 0 ARGUMENTS decode exi/order.exi)
+sxml_add_cli_test(decode_compression EXIT_CODE 0 ARGUMENTS decode --alignment=compression exi/order-compressed.exi)
+sxml_add_cli_test(decode_preserve EXIT_CODE 0 ARGUMENTS decode --preserve=comments,prefixes exi/order-preserved.exi)
+sxml_add_cli_test(decode_not_exi EXIT_CODE 1 ARGUMENTS decode exi/order.xml)
+sxml_add_cli_test(decode_wrong_options EXIT_CODE 1 ARGUMENTS decode --alignment=compression exi/order.exi)
+sxml_add_cli_test(decode_missing EXIT_CODE 3 ARGUMENTS decode exi/missing.exi)
+sxml_add_cli_test(decode_help EXIT_CODE 0 ARGUMENTS decode --help)
+sxml_add_cli_test(xpath_input_format_exi EXIT_CODE 0 ARGUMENTS xpath --input-format=exi --context-item=exi/order.exi "sum(//*:line/@quantity)")
+sxml_add_cli_test(xpath_input_format_exi_options EXIT_CODE 0 ARGUMENTS xpath --input-format=exi --alignment=compression --context-item=exi/order-compressed.exi "//*:line/string()")
+sxml_add_cli_test(xquery_input_format_exi EXIT_CODE 0 ARGUMENTS xquery --input-format=exi --preserve=comments,prefixes --context-item=exi/order-preserved.exi "--expression=/comment()/string(), in-scope-prefixes(/*)")
+sxml_add_cli_test(xpath_input_format_not_exi EXIT_CODE 1 ARGUMENTS xpath --input-format=exi --context-item=books.xml "1")

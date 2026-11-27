@@ -61,6 +61,8 @@ add_library(sxml_program STATIC
     "${SXML_CLDR_DATA_SOURCE}"
     sxml/code_languages.c
     sxml/command_check.c
+    sxml/command_decode.c
+    sxml/command_encode.c
     sxml/command_serialize.c
     sxml/command_transform.c
     sxml/command_validate.c
@@ -70,6 +72,7 @@ add_library(sxml_program STATIC
     sxml/program.c
     sxml/query_collection.c
     sxml/query_command.c
+    sxml/query_exi.c
 )
 target_include_directories(sxml_program PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/sxml")
 target_link_libraries(sxml_program PUBLIC sxml_cli_framework)

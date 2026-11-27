@@ -1,6 +1,6 @@
 sxml transform - Transform a document with an XSLT 4.0 stylesheet
 
-Usage: sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--collection=DIR] [--code-language=LIBRARY]... [--locations=WHEN] [--output=FILE] [--force] STYLESHEET [INPUT]
+Usage: sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--collection=DIR] [--code-language=LIBRARY]... [--locations=WHEN] [--input-format=FORMAT] [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--output=FILE] [--force] STYLESHEET [INPUT]
 
 Compiles the XSLT 4.0 stylesheet STYLESHEET and runs it.
 
@@ -37,6 +37,11 @@ and column of each node, for fn:location: automatic (the default)
 when the stylesheet calls fn:location, can look up or evaluate
 functions or imports a schema, always, or never.
 
+--input-format=exi reads the INPUT document as an EXI stream, with the
+EXI options --alignment, --preserve, --fragment, --strict,
+--block-size, --value-max-length, --value-partition-capacity and
+--schema, as for sxml decode, when its header carries none.
+
 An error is reported on standard error as
   STYLESHEET:LINE:COLUMN: err:CODE: description
 and, when its value is a node whose document kept its locations,
@@ -47,17 +52,26 @@ document that is not well-formed, 3 when a file cannot be read or
 written.
 
 Options:
-  -h, --help                   Show this help and exit
-      --initial-mode=NAME      Mode whose template rules process INPUT, instead of the default mode
-      --initial-template=NAME  Named template to call, instead of applying templates to INPUT
-      --method=METHOD          Serialization method of the result, replacing the stylesheet's (one of: adaptive, xml, xhtml, html, text, json, csv)
-      --param=NAME=VALUE       Bind stylesheet parameter $NAME to xs:untypedAtomic(VALUE) (repeatable)
-      --result-directory=DIR   Write result documents with an href into the existing directory DIR
-      --collection=DIR         Directory whose XML files are the default collection
-      --code-language=LIBRARY  Load a tree-sitter language for tree-sitter:parse from a shared library (repeatable)
-      --locations=WHEN         Keep the line and column of input nodes, for fn:location (one of: automatic, always, never; default: automatic)
-  -o, --output=FILE            Write the result to FILE instead of standard output
-      --force                  Replace files that exist instead of refusing
+  -h, --help                        Show this help and exit
+      --initial-mode=NAME           Mode whose template rules process INPUT, instead of the default mode
+      --initial-template=NAME       Named template to call, instead of applying templates to INPUT
+      --method=METHOD               Serialization method of the result, replacing the stylesheet's (one of: adaptive, xml, xhtml, html, text, json, csv)
+      --param=NAME=VALUE            Bind stylesheet parameter $NAME to xs:untypedAtomic(VALUE) (repeatable)
+      --result-directory=DIR        Write result documents with an href into the existing directory DIR
+      --collection=DIR              Directory whose XML files are the default collection
+      --code-language=LIBRARY       Load a tree-sitter language for tree-sitter:parse from a shared library (repeatable)
+      --locations=WHEN              Keep the line and column of input nodes, for fn:location (one of: automatic, always, never; default: automatic)
+      --input-format=FORMAT         Format of the input document: xml or exi (one of: xml, exi; default: xml)
+      --alignment=ALIGNMENT         EXI alignment of the stream (one of: bit-packed, byte-alignment, pre-compression, compression; default: bit-packed)
+      --preserve=LIST               EXI fidelity: comments,pis,dtd,prefixes,lexical-values
+      --fragment                    The EXI stream is a fragment, not a document
+      --strict                      Strict schema-informed EXI grammars
+      --block-size=N                EXI values per compression block
+      --value-max-length=N          Longest EXI value kept in the string table
+      --value-partition-capacity=N  Most EXI values in the string table
+      --schema=FILE                 XSD of the stream's schema-informed grammars
+  -o, --output=FILE                 Write the result to FILE instead of standard output
+      --force                       Replace files that exist instead of refusing
 
 Arguments:
   STYLESHEET  File holding the principal stylesheet module

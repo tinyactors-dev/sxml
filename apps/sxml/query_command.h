@@ -2,6 +2,7 @@
 
 #include "cli_command.h"
 #include "code_languages.h"
+#include "sxml/exi.h"
 #include "sxml/processor.h"
 #include "sxml/serialize.h"
 #include "sxml/status.h"
@@ -94,6 +95,87 @@ extern const sxml_byte_view sxml_query_location_policies[SXML_QUERY_LOCATION_POL
         .summary = SXML_BYTE_VIEW_INITIALIZER(                                 \
             "Keep the line and column of input nodes, for fn:location"),       \
     }
+
+/* The values of --alignment, --input-format and the names --preserve
+   lists (query_exi.c; D333). */
+enum { SXML_QUERY_EXI_ALIGNMENT_COUNT = 4, SXML_QUERY_INPUT_FORMAT_COUNT = 2 };
+extern const sxml_byte_view sxml_query_exi_alignments[SXML_QUERY_EXI_ALIGNMENT_COUNT];
+extern const sxml_byte_view sxml_query_input_formats[SXML_QUERY_INPUT_FORMAT_COUNT];
+
+/* A flag of a command's table, given at most once. */
+#define SXML_QUERY_FLAG_OPTION(name, text)                                     \
+    {                                                                          \
+        .long_name = SXML_BYTE_VIEW_INITIALIZER(name), .short_name = 0,        \
+        .value_kind = SXML_CLI_VALUE_KIND_NONE,                                \
+        .value_name = {.bytes = NULL, .byte_count = 0},                        \
+        .choices = {.texts = NULL, .text_count = 0},                           \
+        .default_value = {.bytes = NULL, .byte_count = 0},                     \
+        .multiplicity = SXML_CLI_OPTION_AT_MOST_ONCE,                          \
+        .summary = SXML_BYTE_VIEW_INITIALIZER(text),                           \
+    }
+
+/* An option of a command's table with a text value and no default, given
+   at most once. */
+#define SXML_QUERY_TEXT_OPTION(name, placeholder, text)                        \
+    {                                                                          \
+        .long_name = SXML_BYTE_VIEW_INITIALIZER(name), .short_name = 0,        \
+        .value_kind = SXML_CLI_VALUE_KIND_TEXT,                                \
+        .value_name = SXML_BYTE_VIEW_INITIALIZER(placeholder),                 \
+        .choices = {.texts = NULL, .text_count = 0},                           \
+        .default_value = {.bytes = NULL, .byte_count = 0},                     \
+        .multiplicity = SXML_CLI_OPTION_AT_MOST_ONCE,                          \
+        .summary = SXML_BYTE_VIEW_INITIALIZER(text),                           \
+    }
+
+/*
+ * The EXI options of sxml encode, sxml decode and --input-format=exi
+ * (EXI 1.0, section 5.4; apps/sxml/README.md, "EXI options"): the
+ * stream's options when its header carries none, and the schema of its
+ * schema-informed grammars. Read by sxml_query_run_start into
+ * run->exi_options and run->exi_schema.
+ */
+#define SXML_QUERY_EXI_OPTIONS                                                 \
+    {                                                                          \
+        .long_name = SXML_BYTE_VIEW_INITIALIZER("alignment"), .short_name = 0, \
+        .value_kind = SXML_CLI_VALUE_KIND_CHOICE,                              \
+        .value_name = SXML_BYTE_VIEW_INITIALIZER("ALIGNMENT"),                 \
+        .choices = {.texts = sxml_query_exi_alignments,                        \
+                    .text_count = SXML_QUERY_EXI_ALIGNMENT_COUNT},             \
+        .default_value = SXML_BYTE_VIEW_INITIALIZER("bit-packed"),             \
+        .multiplicity = SXML_CLI_OPTION_AT_MOST_ONCE,                          \
+        .summary = SXML_BYTE_VIEW_INITIALIZER("EXI alignment of the stream"),  \
+    },                                                                         \
+        SXML_QUERY_TEXT_OPTION("preserve", "LIST",                             \
+                               "EXI fidelity: comments,pis,dtd,prefixes,"      \
+                               "lexical-values"),                              \
+        SXML_QUERY_FLAG_OPTION("fragment",                                     \
+                               "The EXI stream is a fragment, not a document"), \
+        SXML_QUERY_FLAG_OPTION("strict", "Strict schema-informed EXI grammars"), \
+        SXML_QUERY_TEXT_OPTION("block-size", "N",                              \
+                               "EXI values per compression block"),            \
+        SXML_QUERY_TEXT_OPTION("value-max-length", "N",                        \
+                               "Longest EXI value kept in the string table"),  \
+        SXML_QUERY_TEXT_OPTION("value-partition-capacity", "N",                \
+                               "Most EXI values in the string table"),         \
+        SXML_QUERY_TEXT_OPTION("schema", "FILE",                               \
+                               "XSD of the stream's schema-informed grammars")
+
+/* --input-format=xml|exi of sxml xpath, sxml xquery and sxml transform:
+   the input document (--context-item, INPUT) is XML text or an EXI
+   stream, read with the EXI options. */
+#define SXML_QUERY_INPUT_FORMAT_OPTION                                         \
+    {                                                                          \
+        .long_name = SXML_BYTE_VIEW_INITIALIZER("input-format"),               \
+        .short_name = 0, .value_kind = SXML_CLI_VALUE_KIND_CHOICE,             \
+        .value_name = SXML_BYTE_VIEW_INITIALIZER("FORMAT"),                    \
+        .choices = {.texts = sxml_query_input_formats,                         \
+                    .text_count = SXML_QUERY_INPUT_FORMAT_COUNT},              \
+        .default_value = SXML_BYTE_VIEW_INITIALIZER("xml"),                    \
+        .multiplicity = SXML_CLI_OPTION_AT_MOST_ONCE,                          \
+        .summary = SXML_BYTE_VIEW_INITIALIZER(                                 \
+            "Format of the input document: xml or exi"),                       \
+    },                                                                         \
+        SXML_QUERY_EXI_OPTIONS
 
 /* What --param does with $NAME. */
 typedef enum sxml_parameter_binding {
@@ -251,6 +333,13 @@ typedef struct sxml_query_run {
     /* The languages --code-language loaded (D288), which the processor
        uses; released after it. */
     sxml_code_language_list code_languages;
+    /* Documents are read as EXI streams (sxml decode, --input-format=exi)
+       instead of XML text. */
+    bool reads_exi;
+    /* The EXI options, for a command with SXML_QUERY_EXI_OPTIONS. */
+    sxml_exi_options exi_options;
+    /* The --schema of the EXI options, compiled; NULL without it. */
+    sxml_schema *exi_schema;
 } sxml_query_run;
 
 /* Makes the processor (with --locations), reads --output and --force
@@ -259,6 +348,35 @@ typedef struct sxml_query_run {
    otherwise the diagnostic is written. Call sxml_query_run_finish in
    every case. */
 sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run);
+
+/* Reads the EXI options of a command with SXML_QUERY_EXI_OPTIONS into
+   run->exi_options, and --input-format=exi into run->reads_exi
+   (query_exi.c). A value that is not one is a usage error (2). Does
+   nothing for another command. */
+sxml_cli_exit_code sxml_query_run_read_exi_options(sxml_query_run *run);
+
+/* Compiles the --schema of the EXI options into run->exi_schema, once
+   the processor exists (query_exi.c). Reports a schema that cannot be
+   read (3) or compiled (1). */
+sxml_cli_exit_code sxml_query_run_compile_exi_schema(sxml_query_run *run);
+
+/* Decodes the EXI stream contents, read from FILE, into a document node,
+   owned, at *document, with the run's EXI options (query_exi.c). uri is
+   the document URI and base URI. Reports "FILE: offset N: message" (1
+   for a stream that is not EXI or not well-formed, 4 at a limit). */
+typedef struct sxml_query_exi_input {
+    sxml_byte_view file;
+    sxml_byte_view contents;
+    sxml_byte_view uri;
+} sxml_query_exi_input;
+
+sxml_cli_exit_code sxml_query_run_decode_exi(sxml_query_run *run,
+                                             const sxml_query_exi_input *input,
+                                             sxml_item *document);
+
+/* The run's result writer (standard output or the --output file) as the
+   library's stream. */
+sxml_output_stream sxml_query_run_output_stream(sxml_query_run *run);
 
 /* Parses the --context-item document, if the command has the option and
    it is given. Called after the program is compiled, so that under
@@ -281,7 +399,7 @@ sxml_cli_exit_code sxml_query_run_begin_file(sxml_query_run *run, sxml_byte_view
 void sxml_query_run_write_prefix(const sxml_query_run *run);
 
 /* Parses FILE (- for standard input) into a document node, owned, at
-   *document. Returns SXML_CLI_EXIT_SUCCESS, or reports "cannot read" (3)
+   *document; decodes it as EXI when run->reads_exi. Returns SXML_CLI_EXIT_SUCCESS, or reports "cannot read" (3)
    or "FILE:LINE:COLUMN: message" (1 when not well-formed, 4 at a limit). */
 sxml_cli_exit_code sxml_query_run_parse_document(sxml_query_run *run, sxml_byte_view file,
                                                  sxml_item *document);

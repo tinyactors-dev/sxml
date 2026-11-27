@@ -1,0 +1,4 @@
+<ns0:order xmlns:ns0="urn:example:order" id="A-1001">
+  <ns0:line sku="KB-104" quantity="3">Mechanical keyboard</ns0:line>
+  <ns0:line sku="MS-220" quantity="1">Wireless mouse</ns0:line>
+</ns0:order>

@@ -14,6 +14,7 @@
 #include "cldr_data.h"
 #include "sxml/memory.h"
 #include "sxml/name.h"
+#include "sxml/schema.h"
 #include "sxml/types.h"
 
 #include <stdalign.h>
@@ -490,6 +491,11 @@ static const sxml_output_stream_operations sxml_query_output_operations = {
     .write = sxml_query_write_output,
 };
 
+sxml_output_stream sxml_query_run_output_stream(sxml_query_run *run) {
+    return (sxml_output_stream){.state = run->result_writer,
+                                .operations = &sxml_query_output_operations};
+}
+
 sxml_status sxml_query_run_write(const sxml_query_run *run, const sxml_query_output *output) {
     sxml_cli_writer *writer = run->result_writer;
     sxml_status status = sxml_serialize_sequence(
@@ -800,6 +806,14 @@ sxml_cli_exit_code sxml_query_run_parse_document(sxml_query_run *run, sxml_byte_
         sxml_query_make_file_uri(invocation, file, &uri) != SXML_STATUS_OK) {
         sxml_allocator_release(invocation->allocator, (void *)contents.bytes);
         return SXML_CLI_EXIT_INTERNAL_ERROR;
+    }
+    if (run->reads_exi) {
+        const sxml_cli_exit_code exit_code = sxml_query_run_decode_exi(
+            run, &(sxml_query_exi_input){.file = file, .contents = contents, .uri = uri},
+            document);
+        sxml_allocator_release(invocation->allocator, (void *)contents.bytes);
+        sxml_allocator_release(invocation->allocator, (void *)uri.bytes);
+        return exit_code;
     }
     sxml_diagnostic diagnostic = {.description = {.bytes = NULL, .byte_count = 0},
                                   .location = {.source_name = file,
@@ -1241,6 +1255,10 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
     const sxml_cli_invocation *invocation = run->invocation;
     run->resolver = (sxml_query_file_resolver){.invocation = invocation};
     run->result_writer = invocation->standard_output;
+    const sxml_cli_exit_code exi_exit_code = sxml_query_run_read_exi_options(run);
+    if (exi_exit_code != SXML_CLI_EXIT_SUCCESS) {
+        return exi_exit_code;
+    }
     const sxml_cli_exit_code output_exit_code = sxml_query_read_output(run);
     if (output_exit_code != SXML_CLI_EXIT_SUCCESS) {
         return output_exit_code;
@@ -1312,6 +1330,10 @@ sxml_cli_exit_code sxml_query_run_start(sxml_query_run *run) {
                                  &run->static_base_uri) != SXML_STATUS_OK) {
         return SXML_CLI_EXIT_INTERNAL_ERROR;
     }
+    const sxml_cli_exit_code schema_exit_code = sxml_query_run_compile_exi_schema(run);
+    if (schema_exit_code != SXML_CLI_EXIT_SUCCESS) {
+        return schema_exit_code;
+    }
     if (run->parameter_binding == SXML_PARAMETER_BINDING_NONE) {
         return SXML_CLI_EXIT_SUCCESS;
     }
@@ -1337,6 +1359,8 @@ sxml_cli_exit_code sxml_query_run_finish(sxml_query_run *run, sxml_cli_exit_code
     if (run->has_context_item) {
         sxml_item_release(run->context_item);
     }
+    sxml_schema_destroy(run->exi_schema);
+    run->exi_schema = NULL;
     if (run->processor != NULL) {
         sxml_item_heap_clear_raised_error(sxml_processor_get_item_heap(run->processor));
         sxml_processor_destroy(run->processor);

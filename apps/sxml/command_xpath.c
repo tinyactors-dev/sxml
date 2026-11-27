@@ -72,6 +72,7 @@ static const sxml_cli_option sxml_xpath_options[] = {
         .summary = SXML_BYTE_VIEW_INITIALIZER("Serialization method of the result"),
     },
     SXML_QUERY_LOCATIONS_OPTION,
+    SXML_QUERY_INPUT_FORMAT_OPTION,
     SXML_QUERY_FILE_ACCESS_OPTION,
     SXML_QUERY_COLLECTION_OPTION,
     SXML_CODE_LANGUAGE_OPTION,
@@ -189,6 +190,11 @@ const sxml_cli_command sxml_xpath_command = {
         "of each node, for fn:location: automatic (the default) when the\n"
         "expression calls fn:location or can look up functions, always, or\n"
         "never.\n"
+        "\n"
+        "--input-format=exi reads the --context-item document as an EXI stream, with the\n"
+        "EXI options --alignment, --preserve, --fragment, --strict,\n"
+        "--block-size, --value-max-length, --value-partition-capacity and\n"
+        "--schema, as for sxml decode, when its header carries none.\n"
         "\n"
 
         "An error is reported on standard error as\n"

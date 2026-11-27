@@ -1,0 +1,4 @@
+<!-- An order of two lines. --><o:order xmlns:o="urn:example:order" id="A-1001">
+  <o:line sku="KB-104" quantity="3">Mechanical keyboard</o:line>
+  <o:line sku="MS-220" quantity="1">Wireless mouse</o:line>
+</o:order>

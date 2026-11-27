@@ -1,0 +1,47 @@
+sxml decode - Write an EXI stream as an XML document
+
+Usage: sxml decode [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--output=FILE] [--force] INPUT
+
+Reads INPUT as an EXI 1.0 stream (Efficient XML Interchange) and
+writes the document to standard output as XML text, by the xml
+method with its default parameters.
+
+A stream whose header carries its options is read with them. One
+that does not is read with the options its encoder was given, which
+the flags repeat: --alignment, --preserve, --fragment, --strict,
+--block-size, --value-max-length and --value-partition-capacity, as
+for sxml encode. --schema=FILE reads it with the schema-informed
+grammars of the XSD in FILE. Without --preserve=prefixes the decoder
+makes the prefixes up (ns0, ns1, ...).
+
+--output=FILE (-o FILE) writes the document to FILE instead, and only
+when the command succeeds; a FILE that exists is replaced only with
+--force.
+
+A stream that is not EXI, or not well-formed EXI, is reported on
+standard error as
+  INPUT: byte N: message
+
+Exit status: 0 on success, 1 when INPUT is not an EXI stream sxml can
+read, 2 for a bad option value, 3 when a file cannot be read or
+written.
+
+Options:
+  -h, --help                        Show this help and exit
+      --alignment=ALIGNMENT         EXI alignment of the stream (one of: bit-packed, byte-alignment, pre-compression, compression; default: bit-packed)
+      --preserve=LIST               EXI fidelity: comments,pis,dtd,prefixes,lexical-values
+      --fragment                    The EXI stream is a fragment, not a document
+      --strict                      Strict schema-informed EXI grammars
+      --block-size=N                EXI values per compression block
+      --value-max-length=N          Longest EXI value kept in the string table
+      --value-partition-capacity=N  Most EXI values in the string table
+      --schema=FILE                 XSD of the stream's schema-informed grammars
+  -o, --output=FILE                 Write the result to FILE instead of standard output
+      --force                       Replace files that exist instead of refusing
+
+Arguments:
+  INPUT  EXI stream to decode; - reads standard input
+
+Examples:
+  sxml decode orders.exi
+  sxml decode --alignment=compression --output=orders.xml orders.exi

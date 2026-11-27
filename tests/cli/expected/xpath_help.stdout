@@ -1,6 +1,6 @@
 sxml xpath - Evaluate an XPath 4.0 expression
 
-Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--input-format=FORMAT] [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 
 Evaluates EXPRESSION as XPath 4.0 and writes the result to standard
 output, by the adaptive method with one item per line unless --method
@@ -22,6 +22,11 @@ of each node, for fn:location: automatic (the default) when the
 expression calls fn:location or can look up functions, always, or
 never.
 
+--input-format=exi reads the --context-item document as an EXI stream, with the
+EXI options --alignment, --preserve, --fragment, --strict,
+--block-size, --value-max-length, --value-partition-capacity and
+--schema, as for sxml decode, when its header carries none.
+
 An error is reported on standard error as
   expression:LINE:COLUMN: err:CODE: description
 and, when its value is a node whose document kept its locations,
@@ -32,16 +37,25 @@ context document that is not well-formed, 3 when a file cannot be
 read or written.
 
 Options:
-  -h, --help                   Show this help and exit
-      --context-item=FILE      XML document to use as the context item; - reads standard input
-      --param=NAME=VALUE       Bind $NAME to xs:untypedAtomic(VALUE) (repeatable)
-      --method=METHOD          Serialization method of the result (one of: adaptive, xml, xhtml, html, text, json, csv; default: adaptive)
-      --locations=WHEN         Keep the line and column of input nodes, for fn:location (one of: automatic, always, never; default: automatic)
-      --allow-file-access      Let the query read and write files (EXPath File functions)
-      --collection=DIR         Directory whose XML files are the default collection
-      --code-language=LIBRARY  Load a tree-sitter language for tree-sitter:parse from a shared library (repeatable)
-  -o, --output=FILE            Write the result to FILE instead of standard output
-      --force                  Replace files that exist instead of refusing
+  -h, --help                        Show this help and exit
+      --context-item=FILE           XML document to use as the context item; - reads standard input
+      --param=NAME=VALUE            Bind $NAME to xs:untypedAtomic(VALUE) (repeatable)
+      --method=METHOD               Serialization method of the result (one of: adaptive, xml, xhtml, html, text, json, csv; default: adaptive)
+      --locations=WHEN              Keep the line and column of input nodes, for fn:location (one of: automatic, always, never; default: automatic)
+      --input-format=FORMAT         Format of the input document: xml or exi (one of: xml, exi; default: xml)
+      --alignment=ALIGNMENT         EXI alignment of the stream (one of: bit-packed, byte-alignment, pre-compression, compression; default: bit-packed)
+      --preserve=LIST               EXI fidelity: comments,pis,dtd,prefixes,lexical-values
+      --fragment                    The EXI stream is a fragment, not a document
+      --strict                      Strict schema-informed EXI grammars
+      --block-size=N                EXI values per compression block
+      --value-max-length=N          Longest EXI value kept in the string table
+      --value-partition-capacity=N  Most EXI values in the string table
+      --schema=FILE                 XSD of the stream's schema-informed grammars
+      --allow-file-access           Let the query read and write files (EXPath File functions)
+      --collection=DIR              Directory whose XML files are the default collection
+      --code-language=LIBRARY       Load a tree-sitter language for tree-sitter:parse from a shared library (repeatable)
+  -o, --output=FILE                 Write the result to FILE instead of standard output
+      --force                       Replace files that exist instead of refusing
 
 Arguments:
   EXPRESSION  XPath 4.0 expression to evaluate

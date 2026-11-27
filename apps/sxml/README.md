@@ -6,7 +6,7 @@ evaluates XPath 4.0 expressions and XQuery 4.0 queries (with the Update
 Facility and Full Text), runs XSLT 4.0 stylesheets (streamed when the
 stylesheet allows it), and writes the results to standard output or to
 the file that `--output` names. Every optional feature of the library is
-in it: HTML parsing, Invisible XML, `fn:transform`, EXPath Binary, UCA
+in it: HTML parsing, Invisible XML, EXI, `fn:transform`, EXPath Binary, UCA
 collations, time zones, and languages and calendars in the formatting
 functions; EXPath File with `--allow-file-access`.
 
@@ -21,7 +21,7 @@ $ sxml xpath --context-item=books.xml '//book[@year < 1980]/title/string()'
 - [Sample files](#sample-files)
 - Commands: [xpath](#sxml-xpath), [xquery](#sxml-xquery),
   [transform](#sxml-transform), [serialize](#sxml-serialize),
-  [check](#sxml-check), [validate](#sxml-validate),
+  [encode](#sxml-encode), [decode](#sxml-decode), [check](#sxml-check), [validate](#sxml-validate),
   [version](#sxml-version), [help](#sxml-help)
 - [Exit codes](#exit-codes)
 
@@ -64,8 +64,8 @@ sxml [-h | --help | --version] COMMAND [ARGUMENT...]
 - `sxml` reads documents, schemas, modules and stylesheets from local files
   only. It does not use the network and reads no configuration files.
 - `sxml` writes a file only when an option names it: `--output=FILE`
-  (`-o FILE`) for the result of `xpath`, `xquery`, `transform` and
-  `serialize`, `--result-directory=DIR` for the result documents of
+  (`-o FILE`) for the result of `xpath`, `xquery`, `transform`,
+  `serialize`, `encode` and `decode`, `--result-directory=DIR` for the result documents of
   `transform`, `--allow-put` for `fn:put` in `xquery`, and
   `--allow-file-access` for the EXPath File functions. Each file is
   written only when the command succeeds, in one step (through a
@@ -241,7 +241,7 @@ year: digit, digit, digit, digit.
 Evaluate an XPath 4.0 expression.
 
 ```
-sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
+sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--input-format=FORMAT] [EXI OPTIONS] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 ```
 
 `sxml xpath` evaluates EXPRESSION as XPath 4.0, with the F&O 4.0 function
@@ -254,6 +254,7 @@ adaptive output method writes the result, one item on each line.
 | `--param=NAME=VALUE` | Bind `$NAME` to `xs:untypedAtomic(VALUE)`. Repeatable. |
 | `--method=METHOD` | Serialization method: `adaptive` (default), `xml`, `xhtml`, `html`, `text`, `json` or `csv`, each with its default parameters |
 | `--locations=WHEN` | Whether the documents read keep the line and column of each node, for `fn:location`: `automatic` (default) when the expression calls `fn:location` or can look up functions, `always`, or `never`. They cost 32 bytes a node. |
+| `--input-format=FORMAT` | Format of the `--context-item` document: `xml` (default) or `exi`, an EXI stream read with the [EXI options](#exi-options) |
 | `--allow-file-access` | Let the expression read and write files with the EXPath File functions (`file:`). Without this option, they do not exist. |
 | `--collection=DIR` | Make the XML files of the directory DIR the default collection, for `fn:collection()` and `fn:uri-collection()`. DIR may be followed by the parameters of a collection URI, as in `--collection='docs?recurse=yes'`. |
 | `--code-language=LIBRARY` | Load a tree-sitter grammar for `tree-sitter:parse` from the shared library LIBRARY, with the queries in the directory `queries` beside it (or `../queries/NAME`). The language is named after the file: `libtree-sitter-rust.so` and `rust.so` are `rust`. Repeatable. See the book's chapter [Source Code as XML](../../docs/book/src/source-code.md#supplying-your-own-language). |
@@ -409,7 +410,7 @@ sxml xpath: 'titles.txt' exists; give --force to replace it
 Run an XQuery 4.0 query.
 
 ```
-sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--allow-file-access] [--collection=DIR] [--allow-put] [--code-language=LIBRARY]... [--output=FILE] [--force] [QUERY-FILE]
+sxml xquery [--context-item=FILE] [--expression=TEXT] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--input-format=FORMAT] [EXI OPTIONS] [--allow-file-access] [--collection=DIR] [--allow-put] [--code-language=LIBRARY]... [--output=FILE] [--force] [QUERY-FILE]
 ```
 
 `sxml xquery` runs the XQuery 4.0 main module in QUERY-FILE, or the query
@@ -424,6 +425,7 @@ serialization. The default method is xml.
 | `--param=NAME=VALUE` | Bind the external variable `$NAME`, if the query declares it, to `xs:untypedAtomic(VALUE)`. Repeatable. |
 | `--method=METHOD` | Replace the serialization method of the query: `adaptive`, `xml`, `xhtml`, `html`, `text`, `json` or `csv` |
 | `--locations=WHEN` | Source locations of the documents read, as for [sxml xpath](#sxml-xpath); `automatic` also keeps them for a query that imports a schema |
+| `--input-format=FORMAT` | Format of the `--context-item` document, as for [sxml xpath](#sxml-xpath) |
 | `--allow-file-access` | Let the query read and write files with the EXPath File functions, as for [sxml xpath](#sxml-xpath) |
 | `--collection=DIR` | Make the XML files of DIR the default collection, as for [sxml xpath](#sxml-xpath) |
 | `--allow-put` | Let `fn:put` write the documents it stores to local files |
@@ -499,7 +501,7 @@ expression: err:FOUP0002: fn:put has no location to store at: the host's update 
 Transform a document with an XSLT 4.0 stylesheet.
 
 ```
-sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--collection=DIR] [--code-language=LIBRARY]... [--locations=WHEN] [--output=FILE] [--force] STYLESHEET [INPUT]
+sxml transform [--initial-mode=NAME] [--initial-template=NAME] [--method=METHOD] [--param=NAME=VALUE]... [--result-directory=DIR] [--collection=DIR] [--code-language=LIBRARY]... [--locations=WHEN] [--input-format=FORMAT] [EXI OPTIONS] [--output=FILE] [--force] STYLESHEET [INPUT]
 ```
 
 `sxml transform` compiles the XSLT 4.0 stylesheet STYLESHEET and runs one
@@ -561,6 +563,7 @@ XTDE1425 only when called.
 | `--collection=DIR` | Make the XML files of DIR the default collection, as for [sxml xpath](#sxml-xpath) |
 | `--code-language=LIBRARY` | Load a tree-sitter grammar for `tree-sitter:parse`, as for [sxml xpath](#sxml-xpath). Repeatable. |
 | `--locations=WHEN` | Source locations of INPUT and the documents read, as for [sxml xpath](#sxml-xpath); `automatic` also keeps them for a stylesheet that uses `xsl:evaluate` or imports a schema |
+| `--input-format=FORMAT` | Format of INPUT: `xml` (default) or `exi`, an EXI stream read with the [EXI options](#exi-options) |
 | `--output=FILE`, `-o FILE` | Write the principal result to FILE instead of standard output |
 | `--force` | Let `--output` and `--result-directory` replace files that exist |
 
@@ -665,6 +668,97 @@ $ head -3 page-indented.xml
   <head>
     <title>Hi</title>
 ```
+
+## sxml encode
+
+Write an XML document as an EXI stream.
+
+```
+sxml encode [EXI OPTIONS] [--include-cookie] [--include-options] [--output=FILE] [--force] INPUT
+```
+
+`sxml encode` parses INPUT as XML and writes it as an EXI 1.0 stream
+(Efficient XML Interchange, W3C Recommendation 11 February 2014) to
+standard output: bytes, with no line feed after them. The [EXI
+options](#exi-options) say what the stream keeps and how it is laid out.
+A decoder needs the options the stream was written with: give it the same
+flags, or write them into the stream's header with `--include-options`.
+
+| Option | Description |
+| --- | --- |
+| EXI options | As in [EXI options](#exi-options) |
+| `--include-cookie` | Begin the stream with the EXI cookie `$EXI` |
+| `--include-options` | Write the EXI options into the stream's header (not written yet: the command then fails with exit status 1) |
+| `--output=FILE`, `-o FILE` | Write the stream to FILE instead of standard output |
+| `--force` | Let `--output` replace a file that exists |
+
+Exit status: 0 on success; 1 when INPUT is not well-formed or the options
+cannot represent it; 2 for a bad option value; 3 when a file cannot be
+read or written.
+
+```console
+$ sxml encode --output=books.exi books.xml
+$ sxml encode --alignment=compression --preserve=comments,prefixes --output=books.deflate.exi books.xml
+```
+
+## sxml decode
+
+Write an EXI stream as an XML document.
+
+```
+sxml decode [EXI OPTIONS] [--output=FILE] [--force] INPUT
+```
+
+`sxml decode` reads INPUT as an EXI 1.0 stream and writes the document to
+standard output as XML text, by the `xml` method with its default
+parameters (no XML declaration), and a line feed. A stream whose header
+carries its options is read with them; one that does not is read with
+the [EXI options](#exi-options) the flags give, the same as its encoder
+was given. Without `--preserve=prefixes` the stream has no prefixes, and
+the decoder makes them up: `ns0`, `ns1`, ...
+
+A stream that is not EXI, or not one EXI 1.0 allows, is reported on
+standard error as `INPUT: byte N: message`; a stream sxml cannot read
+(a schemaId it cannot find, an entity reference) as `INPUT: message`.
+
+| Option | Description |
+| --- | --- |
+| EXI options | As in [EXI options](#exi-options) |
+| `--output=FILE`, `-o FILE` | Write the document to FILE instead of standard output |
+| `--force` | Let `--output` replace a file that exists |
+
+Exit status: 0 on success; 1 when INPUT is not an EXI stream sxml can
+read; 2 for a bad option value; 3 when a file cannot be read or written.
+
+```console
+$ sxml decode books.exi | head -2
+<books>
+  <book year="1979"><title>Godel, Escher, Bach</title><price>22.50</price></book>
+$ sxml xpath --input-format=exi --context-item=books.exi 'count(//book)'
+3
+$ sxml decode books.xml
+books.xml: byte 0: no EXI distinguishing bits
+```
+
+### EXI options
+
+`sxml encode`, `sxml decode`, and `sxml xpath`, `sxml xquery` and `sxml
+transform` with `--input-format=exi` take the options of EXI 1.0,
+section 5.4. A decoder uses them only for a stream whose header carries
+no options.
+
+| Option | Description |
+| --- | --- |
+| `--alignment=ALIGNMENT` | `bit-packed` (default), `byte-alignment`, `pre-compression` (values grouped by name) or `compression` (the groups compressed with DEFLATE) |
+| `--preserve=LIST` | What the stream keeps besides elements, attributes and text: a comma-separated list of `comments`, `pis`, `dtd`, `prefixes` and `lexical-values` |
+| `--fragment` | The stream is a fragment: elements, comments and processing instructions with no document around them |
+| `--strict` | Strict schema-informed grammars (with `--schema`) |
+| `--block-size=N` | Values per compression block, 1 or more (default 1,000,000) |
+| `--value-max-length=N` | Longest value kept in the string table (default unbounded) |
+| `--value-partition-capacity=N` | Most values in the string table (default unbounded) |
+| `--schema=FILE` | The XSD of the stream's schema-informed grammars (not built yet: a stream encoded or decoded with one fails with exit status 1) |
+
+A value that is not one of these is a usage error (exit status 2).
 
 ## sxml check
 
@@ -1023,7 +1117,7 @@ Usage: sxml [--version] COMMAND [ARGUMENT...]
 Try 'sxml --help'.
 $ sxml xpath --contxt-item=books.xml 1
 sxml xpath: unknown option '--contxt-item'; did you mean '--context-item'?
-Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--input-format=FORMAT] [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 Try 'sxml xpath --help'.
 ```
 
@@ -1032,7 +1126,7 @@ An option of another command is named as such:
 ```console
 $ sxml xpath --expression=1
 sxml xpath: unknown option '--expression'; it is an option of 'sxml xquery'
-Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
+Usage: sxml xpath [--context-item=FILE] [--param=NAME=VALUE]... [--method=METHOD] [--locations=WHEN] [--input-format=FORMAT] [--alignment=ALIGNMENT] [--preserve=LIST] [--fragment] [--strict] [--block-size=N] [--value-max-length=N] [--value-partition-capacity=N] [--schema=FILE] [--allow-file-access] [--collection=DIR] [--code-language=LIBRARY]... [--output=FILE] [--force] EXPRESSION
 Try 'sxml xpath --help'.
 ```
 

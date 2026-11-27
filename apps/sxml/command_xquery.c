@@ -90,6 +90,7 @@ static const sxml_cli_option sxml_xquery_options[] = {
             "Serialization method of the result, replacing the query's"),
     },
     SXML_QUERY_LOCATIONS_OPTION,
+    SXML_QUERY_INPUT_FORMAT_OPTION,
     SXML_QUERY_FILE_ACCESS_OPTION,
     SXML_QUERY_COLLECTION_OPTION,
     {
@@ -449,6 +450,11 @@ const sxml_cli_command sxml_xquery_command = {
         "of each node, for fn:location: automatic (the default) when the query\n"
         "calls fn:location, can look up functions or imports a schema,\n"
         "always, or never.\n"
+        "\n"
+        "--input-format=exi reads the --context-item document as an EXI stream, with the\n"
+        "EXI options --alignment, --preserve, --fragment, --strict,\n"
+        "--block-size, --value-max-length, --value-partition-capacity and\n"
+        "--schema, as for sxml decode, when its header carries none.\n"
         "\n"
         "An error is reported on standard error as\n"
         "  QUERY-FILE:LINE:COLUMN: err:CODE: description\n"
