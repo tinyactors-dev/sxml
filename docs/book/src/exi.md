@@ -1,7 +1,6 @@
 # Compact XML with EXI
 
 <!-- examples: exi -->
-<!-- status: draft -->
 
 XML text is easy to read and expensive to move. A feed of forty orders,
 `orders.xml` in `docs/book/examples/exi`, is 13,732 bytes, and most of
@@ -59,8 +58,8 @@ $ sxml decode invoice.exi
   <ns0:order ref="A-1007"/>
   <ns0:amount currency="EUR">113.40</ns0:amount>
 </ns0:invoice>
-$ sxml encode --preserve=comments,prefixes --output=invoice.exi invoice.xml
-$ sxml decode --preserve=comments,prefixes invoice.exi
+$ sxml encode --preserve=comments,prefixes --output=invoice-full.exi invoice.xml
+$ sxml decode --preserve=comments,prefixes invoice-full.exi
 <inv:invoice xmlns:inv="urn:example:invoice" number="2026-0412">
   <!-- Net 30 days. -->
   <inv:order ref="A-1007"/>
