@@ -158,6 +158,10 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     # module, 95 % parse tables); the CLI 16,000,000 / 2,900,000 since
     # D333, for EXI (the codec, DEFLATE, exi:serialize, exi:parse and the
     # exi:exi method: the CLI was 15,517,087 stripped with them).
+    # With schema-informed grammars (packet 8.9) the module was 13,995,675
+    # stripped and the CLI 2,885,548 gzipped; for the rest of EXI (header
+    # options, Canonical EXI, self-contained elements) the CLI's budget is
+    # 16,500,000 / 3,000,000 and the module's 14,500,000 / 2,800,000 (D333).
     # test/size-baseline/sxml.txt is the module's code and data per object
     # at the last audit or budget raise (D225, D272): the test prints the
     # largest growths since then, and names twenty when the module is over
@@ -165,7 +169,7 @@ if(SXML_BUILD_TESTS AND SXML_NODE_EXECUTABLE)
     if(TARGET sxml_cli)
         add_test(NAME javascript/size_budget
             COMMAND "${SXML_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/size-budget.mjs"
-                "$<TARGET_FILE:sxml_cli>" 16000000 2900000
-                "$<TARGET_FILE:sxml_javascript_module>" 14000000 2800000)
+                "$<TARGET_FILE:sxml_cli>" 16500000 3000000
+                "$<TARGET_FILE:sxml_javascript_module>" 14500000 2800000)
     endif()
 endif()
