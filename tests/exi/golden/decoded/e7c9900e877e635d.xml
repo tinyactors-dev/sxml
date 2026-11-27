@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?><ns3:refentry xmlns:ns3="http://docbook.org/ns/docbook" version="5.0" xml:id="footnote.sep.leader.properties" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ns3:refmeta><ns3:refentrytitle>footnote.sep.leader.properties</ns3:refentrytitle><ns3:refmiscinfo class="other" otherclass="datatype">attribute set</ns3:refmiscinfo></ns3:refmeta><ns3:refnamediv><ns3:refname>footnote.sep.leader.properties</ns3:refname><ns3:refpurpose>Properties associated with footnote separators</ns3:refpurpose></ns3:refnamediv><ns3:refsynopsisdiv><ns4:fragment xmlns:ns4="http://nwalsh.com/xmlns/litprog/fragment" xml:id="footnote.sep.leader.properties.frag"><ns5:attribute-set xmlns:ns5="http://www.w3.org/1999/XSL/Transform" name="footnote.sep.leader.properties"><ns3:attribute xmlns:ns3="http://www.w3.org/1999/XSL/Transform" name="color">black</ns3:attribute><ns3:attribute xmlns:ns3="http://www.w3.org/1999/XSL/Transform" name="leader-pattern">rule</ns3:attribute><ns3:attribute xmlns:ns3="http://www.w3.org/1999/XSL/Transform" name="leader-length">1in</ns3:attribute></ns5:attribute-set></ns4:fragment></ns3:refsynopsisdiv><ns3:refsection><ns3:info><ns3:title>Description</ns3:title></ns3:info><ns3:para>The styling for the rule line that separates the
+footnotes from the body text.
+These are properties applied to the fo:leader used as
+the separator.
+</ns3:para><ns3:para>If you want to do more than just set properties on
+the leader element, then you can customize the template
+named <ns3:literal>footnote.separator</ns3:literal> in 
+<ns3:filename>fo/pagesetup.xsl</ns3:filename>.</ns3:para></ns3:refsection></ns3:refentry>

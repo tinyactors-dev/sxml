@@ -48,6 +48,9 @@ SCHEMA_LESS_SETS = [
     ("string-limits", "value-max-length=6;value-partition-capacity=10"),
     ("string-limits-zero", "value-partition-capacity=0;" + FULL),
     ("fragment", "fragment;" + FULL),
+    # ELEMENTS: the document's most frequent element name (self_contained_names).
+    ("self-contained", "self-contained=ELEMENTS;" + FULL),
+    ("self-contained-byte-alignment", "self-contained=ELEMENTS;alignment=byte-alignment"),
     ("xsd-types-only", "xsd-types-only;" + FULL),
     ("canonical", "canonical;" + FULL),
     ("canonical-byte-alignment", "canonical;alignment=byte-alignment;" + FULL),
@@ -151,6 +154,20 @@ def schema_pairs():
     return pairs[::9][:60]
 
 
+def self_contained_names(path):
+    """The element name a self-contained set makes self-contained in the
+    document at path, as {uri}local: its most frequent element name, the
+    first in document order among equals (the root's when it has no other)."""
+    counts = {}
+    for element in ElementTree.parse(os.path.join(ROOT, path)).iter():
+        if isinstance(element.tag, str):
+            counts[element.tag] = counts.get(element.tag, 0) + 1
+    tags = list(counts)
+    if len(tags) > 1:
+        tags = tags[1:]
+    return max(tags, key=lambda tag: (counts[tag], -tags.index(tag)))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--sxml", default=os.environ.get("SXML", os.path.join(ROOT, "build", "release", "apps", "sxml")))
@@ -184,6 +201,8 @@ def main():
     for case, path, schema in documents:
         if schema is None:
             for name, options in SCHEMA_LESS_SETS:
+                if "ELEMENTS" in options:
+                    options = options.replace("ELEMENTS", self_contained_names(path))
                 rows.append((name, case, path, options))
         else:
             for name, options in SCHEMA_SETS:

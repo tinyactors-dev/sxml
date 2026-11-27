@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8"?><!-- Attribute uniqueness: different attributes with same local name --><foo xmlns:a="http://example.org/~wilbur" xmlns:b="http://example.org/~kipper"><bar attr="2"/></foo>
