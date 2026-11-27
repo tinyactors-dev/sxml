@@ -2,7 +2,7 @@
   <title>DEFLATE of our own</title>
   <summary>An RFC 1951 inflater and deflater written for sxml, with no third-party code: stored, fixed and dynamic Huffman blocks, a 32 KiB window, bounded output.</summary>
   <body>
-    <p>After 8.2. RFC 1951.</p>
+    <p><status value="done" date="2026-11-27"/> After 8.2. RFC 1951.</p>
     <list>
       <item>
         <p><strong>Mechanism</strong>: <code>src/inflate.c</code> (every block type, the length and distance codes, checks for every malformed case, output bounded by the caller) and <code>src/deflate.c</code> (LZ77 with hash chains over the 32 KiB window, dynamic Huffman blocks with lengths limited to 15 bits, stored blocks when they are smaller), behind <code>src/deflate_internal.h</code>.</p>

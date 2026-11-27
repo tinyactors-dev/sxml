@@ -127,7 +127,7 @@ After 8.5. EXI 1.0, section 9 ("EXI Compression") but DEFLATE.
 third-party code: stored, fixed and dynamic Huffman blocks, a 32 KiB window,
 bounded output.
 
-After 8.2. RFC 1951.
+**Done** 2026-11-27 After 8.2. RFC 1951.
 
 - **Mechanism**: `src/inflate.c` (every block type, the length and distance
   codes, checks for every malformed case, output bounded by the caller) and

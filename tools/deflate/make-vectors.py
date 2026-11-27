@@ -147,8 +147,9 @@ def main():
     order_lengths = [2, 2, 2, 2] + [0] * 15
     for length in order_lengths:
         bits += [(length >> shift) & 1 for shift in range(3)]
-    # Canonical codes: 16 -> 00, 17 -> 01, 18 -> 10, 0 -> 11. Code 16 first.
-    bits += huffman_code(0b00, 2) + [0, 0]
+    # Canonical codes (RFC 1951, 3.2.2: equal lengths in symbol order):
+    # 0 -> 00, 16 -> 01, 17 -> 10, 18 -> 11. Code 16 first.
+    bits += huffman_code(0b01, 2) + [0, 0]
     malformed("repeat-first", bits_to_bytes(bits + [0] * 16), "SXML_STATUS_MALFORMED_INPUT",
               "code 16 (repeat the previous length) with no previous length")
     # A valid stream with its final block's flag cleared: never ends.

@@ -7,6 +7,12 @@ blocked. Add an item to this week's entry with `tools/spec/spec log TEXT`.
 
 ## Week of 2026-11-23
 
+- 8.7 done (D333): sxml inflate and deflate from RFC 1951, deflate_vectors 422
+  of 422 under the sanitizers (allocation sweeps included); deflate within 1 %
+  of zlib level 6 on the text vectors (text 5,031 against 5,031 bytes). The
+  repeat-first vector was wrong (canonical codes go by symbol order, RFC 1951
+  3.2.2) and is fixed.
+
 - 8.4 decode (D333): the built-in grammars, string tables and bit streams;
   every decode check of bit-packed, bit-packed-full, byte-alignment-full,
   string-limits, string-limits-zero and fragment passes (720 of 720) and is in
