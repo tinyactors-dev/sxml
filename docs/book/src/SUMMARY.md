@@ -60,6 +60,7 @@
     - [When a Parse Fails](ixml-errors.md)
     - [Invisible XML Performance](ixml-performance.md)
 - [JSON, CSV and HTML](formats.md)
+- [Compact XML with EXI](exi.md)
 - [Source Code as XML](source-code.md)
 - [Project: A Diff of Call Chains](call-chains.md)
     - [A Call Graph from the Code](call-chains-graph.md)

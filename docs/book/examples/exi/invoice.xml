@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inv:invoice xmlns:inv="urn:example:invoice" number="2026-0412">
+  <!-- Net 30 days. -->
+  <inv:order ref="A-1007"/>
+  <inv:amount currency="EUR">113.40</inv:amount>
+</inv:invoice>

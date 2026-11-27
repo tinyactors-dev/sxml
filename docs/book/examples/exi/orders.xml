@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Orders exported from the shop, one day. -->
+<orders date="2026-11-27">
+  <order id="A-1001" status="shipped">
+    <customer><name>Frances Allen</name><city>Lyon</city><country>FR</country></customer>
+    <line sku="KB-104" quantity="3" price="89.00">Mechanical keyboard</line>
+    <line sku="LS-050" quantity="1" price="34.00">Laptop stand</line>
+    <line sku="CB-015" quantity="2" price="9.95">Cable, 1.5 m</line>
+    <total currency="EUR">320.90</total>
+  </order>
+  <order id="A-1002" status="shipped">
+    <customer><name>Ada Byron</name><city>Berlin</city><country>DE</country></customer>
+    <line sku="KB-104" quantity="1" price="89.00">Mechanical keyboard</line>
+    <line sku="MS-220" quantity="4" price="24.50">Wireless mouse</line>
+    <total currency="EUR">187.00</total>
+  </order>
+  <order id="A-1003" status="paid">
+    <customer><name>Ada Byron</name><city>Graz</city><country>AT</country></customer>
+    <line sku="LS-050" quantity="1" price="34.00">Laptop stand</line>
+    <total currency="EUR">34.00</total>
+  </order>
+  <order id="A-1004" status="paid">
+    <customer><name>Ken Thompson</name><city>Berlin</city><country>DE</country></customer>
+    <line sku="CB-015" quantity="2" price="9.95">Cable, 1.5 m</line>
+    <total currency="EUR">19.90</total>
+  </order>
+  <order id="A-1005" status="paid">
+    <customer><name>Edsger Dijkstra</name><city>Leeds</city><country>GB</country></customer>
+    <line sku="KB-104" quantity="2" price="89.00">Mechanical keyboard</line>
+    <line sku="CB-015" quantity="1" price="9.95">Cable, 1.5 m</line>
+    <line sku="HD-310" quantity="2" price="39.90">USB-C hub</line>
+    <total currency="EUR">267.75</total>
+  </order>
+  <order id="A-1006" status="refunded">
+    <customer><name>Frances Allen</name><city>Berlin</city><country>DE</country></customer>
+    <line sku="KB-104" quantity="2" price="89.00">Mechanical keyboard</line>
+    <line sku="CB-015" quantity="4" price="9.95">Cable, 1.5 m</line>
+    <line sku="LS-050" quantity="4" price="34.00">Laptop stand</line>
+    <total currency="EUR">353.80</total>
+  </order>
+  <order id="A-1007" status="refunded">
+    <customer><name>Frances Allen</name><city>Leeds</city><country>GB</country></customer>
+    <line sku="HD-310" quantity="2" price="39.90">USB-C hub</line>
+    <line sku="LS-050" quantity="2" price="34.00">Laptop stand</line>
+    <total currency="EUR">147.80</total>
+  </order>
+  <order id="A-1008" status="refunded">
+    <customer><name>Barbara Liskov</name><city>Berlin</city><country>DE</country></customer>
+    <line sku="CB-015" quantity="3" price="9.95">Cable, 1.5 m</line>
+    <line sku="MN-270" quantity="4" price="249.00">27-inch monitor</line>
+    <total currency="EUR">1025.85</total>
+  </order>
+  <order id="A-1009" status="paid">
+    <customer><name>Edsger Dijkstra</name><city>Graz</city><country>AT</country></customer>
+    <line sku="CB-015" quantity="4" price="9.95">Cable, 1.5 m</line>
+    <total currency="EUR">39.80</total>
+  </order>
+  <order id="A-1010" status="paid">
+    <customer><name>Alan Kay</name><city>Porto</city><country>PT</country></customer>
+    <line sku="MN-270" quantity="1" price="249.00">27-inch monitor</line>
+    <line sku="KB-104" quantity="3" price="89.00">Mechanical keyboard</line>
+    <total currency="EUR">516.00</total>
+  </order>
+  <order id="A-1011" status="refunded">
+    <customer><name>Frances Allen</name><city>Porto</city><country>PT</country></customer>
+    <line sku="CB-015" quantity="1" price="9.95">Cable, 1.5 m</line>
+    <line sku="MN-270" quantity="1" price="249.00">27-inch monitor</line>
+    <total currency="EUR">258.95</total>
+  </order>
+  <order id="A-1012" status="paid">
+    <customer><name>Edsger Dijkstra</name><city>Leeds</city><country>GB</country></customer>
+    <line sku="LS-050" quantity="3" price="34.00">Laptop stand</line>
+    <total currency="EUR">102.00</total>
+  </order>
+  <order id="A-1013" status="shipped">
+    <customer><name>Radia Perlman</name><city>Porto</city><country>PT</country></customer>
+    <line sku="HD-310" quantity="3" price="39.90">USB-C hub</line>
+    <line sku="KB-104" quantity="2" price="89.00">Mechanical keyboard</line>
+    <line sku="MN-270" quantity="1" price="249.00">27-inch monitor</line>
+    <total currency="EUR">546.70</total>
+  </order>
+  <order id="A-1014" status="paid">
+    <customer><name>Radia Perlman</name><city>Berlin</city><country>DE</country></customer>
+    <line sku="MS-220" quantity="4" price="24.50">Wireless mouse</line>
+    <line sku="LS-050" quantity="4" price="34.00">Laptop stand</line>
+    <total currency="EUR">234.00</total>
+  </order>
+  <order id="A-1015" status="paid">
+    <customer><name>Radia Perlman</name><city>Berlin</city><country>DE</country></customer>
+    <line sku="MN-270" quantity="3" price="249.00">27-inch monitor</line>
+    <line sku="CB-015" quantity="2" price="9.95">Cable, 1.5 m</line>
+    <total currency="EUR">766.90</total>
+  </order>
+  <order id="A-1016" status="paid">
+    <customer><name>Ken Thompson</name><city>Graz</city><country>AT</country></customer>
+    <line sku="MN-270" quantity="2" price="249.00">27-inch monitor</line>
+    <line sku="HD-310" quantity="2" price="39.90">USB-C hub</line>
+    <line sku="LS-050" quantity="1" price="34.00">Laptop stand</line>
+    <total currency="EUR">611.80</total>
+  </order>
+  <order id="A-1017" status="paid">
+    <customer><name>Alan Kay</name><city>Lyon</city><country>FR</country></customer>
+    <line sku="MS-220" quantity="2" price="24.50">Wireless mouse</line>
+    <line sku="KB-104" quantity="3" price="89.00">Mechanical keyboard</line>
+    <line sku="MN-270" quantity="3" price="249.00">27-inch monitor</line>
+    <total currency="EUR">1063.00</total>
+  </order>
+  <order id="A-1018" status="shipped">
+    <customer><name>Ada Byron</name><city>Lyon</city><country>FR</country></customer>
+    <line sku="HD-310" quantity="2" price="39.90">USB-C hub</line>
+    <line sku="CB-015" quantity="1" price="9.95">Cable, 1.5 m</line>
+    <line sku="LS-050" quantity="4" price="34.00">Laptop stand</line>
+    <total currency="EUR">225.75</total>
+  </order>
+  <order id="A-1019" status="shipped">
+    <customer><name>Ken Thompson</name><city>Leeds</city><country>GB</country></customer>
+    <line sku="KB-104" quantity="4" price="89.00">Mechanical keyboard</line>
+    <line sku="MN-270" quantity="1" price="249.00">27-inch monitor</line>
+    <total currency="EUR">605.00</total>
+  </order>
+  <order id="A-1020" status="paid">
+    <customer><name>Barbara Liskov</name><city>Berlin</city><country>DE</country></customer>
+    <line sku="MS-220" quantity="3" price="24.50">Wireless mouse</line>
+    <line sku="KB-104" quantity="1" price="89.00">Mechanical keyboard</line>
+    <total currency="EUR">162.50</total>
+  </order>
+  <order id="A-1021" status="refunded">
+    <customer><name>Grace Hopper</name><city>Berlin</city><country>DE</country></customer>
+    <line sku="CB-015" quantity="1" price="9.95">Cable, 1.5 m</line>
+    <total currency="EUR">9.95</total>
+  </order>
+  <order id="A-1022" status="paid">
+    <customer><name>Frances Allen</name><city>Graz</city><country>AT</country></customer>
+    <line sku="MS-220" quantity="4" price="24.50">Wireless mouse</line>
+    <total currency="EUR">98.00</total>
+  </order>
+  <order id="A-1023" status="paid">
+    <customer><name>Alan Kay</name><city>Porto</city><country>PT</country></customer>
+    <line sku="HD-310" quantity="1" price="39.90">USB-C hub</line>
+    <line sku="MN-270" quantity="4" price="249.00">27-inch monitor</line>
+    <line sku="KB-104" quantity="4" price="89.00">Mechanical keyboard</line>
+    <total currency="EUR">1391.90</total>
+  </order>
+  <order id="A-1024" status="paid">
+    <customer><name>Radia Perlman</name><city>Leeds</city><country>GB</country></customer>
+    <line sku="MS-220" quantity="1" price="24.50">Wireless mouse</line>
+    <total currency="EUR">24.50</total>
+  </order>
+  <order id="A-1025" status="shipped">
+    <customer><name>Frances Allen</name><city>Porto</city><country>PT</country></customer>
+    <line sku="MS-220" quantity="2" price="24.50">Wireless mouse</line>
+    <line sku="CB-015" quantity="3" price="9.95">Cable, 1.5 m</line>
+    <line sku="KB-104" quantity="2" price="89.00">Mechanical keyboard</line>
+    <total currency="EUR">256.85</total>
+  </order>
+  <order id="A-1026" status="paid">
+    <customer><name>Ada Byron</name><city>Graz</city><country>AT</country></customer>
+    <line sku="KB-104" quantity="2" price="89.00">Mechanical keyboard</line>
+    <line sku="HD-310" quantity="3" price="39.90">USB-C hub</line>
+    <line sku="CB-015" quantity="2" price="9.95">Cable, 1.5 m</line>
+    <total currency="EUR">317.60</total>
+  </order>
+  <order id="A-1027" status="refunded">
+    <customer><name>Frances Allen</name><city>Lyon</city><country>FR</country></customer>
+    <line sku="MS-220" quantity="4" price="24.50">Wireless mouse</line>
+    <total currency="EUR">98.00</total>
+  </order>
+  <order id="A-1028" status="refunded">
+    <customer><name>Barbara Liskov</name><city>Lyon</city><country>FR</country></customer>
+    <line sku="HD-310" quantity="1" price="39.90">USB-C hub</line>
+    <line sku="KB-104" quantity="3" price="89.00">Mechanical keyboard</line>
+    <total currency="EUR">306.90</total>
+  </order>
+  <order id="A-1029" status="paid">
+    <customer><name>Radia Perlman</name><city>Porto</city><country>PT</country></customer>
+    <line sku="CB-015" quantity="3" price="9.95">Cable, 1.5 m</line>
+    <line sku="HD-310" quantity="3" price="39.90">USB-C hub</line>
+    <line sku="MN-270" quantity="1" price="249.00">27-inch monitor</line>
+    <total currency="EUR">398.55</total>
+  </order>
+  <order id="A-1030" status="paid">
+    <customer><name>Barbara Liskov</name><city>Berlin</city><country>DE</country></customer>
+    <line sku="MS-220" quantity="2" price="24.50">Wireless mouse</line>
+    <line sku="HD-310" quantity="4" price="39.90">USB-C hub</line>
+    <total currency="EUR">208.60</total>
+  </order>
+  <order id="A-1031" status="paid">
+    <customer><name>Ada Byron</name><city>Leeds</city><country>GB</country></customer>
+    <line sku="KB-104" quantity="2" price="89.00">Mechanical keyboard</line>
+    <line sku="LS-050" quantity="4" price="34.00">Laptop stand</line>
+    <line sku="MN-270" quantity="2" price="249.00">27-inch monitor</line>
+    <total currency="EUR">812.00</total>
+  </order>
+  <order id="A-1032" status="paid">
+    <customer><name>Ken Thompson</name><city>Porto</city><country>PT</country></customer>
+    <line sku="MN-270" quantity="1" price="249.00">27-inch monitor</line>
+    <line sku="LS-050" quantity="2" price="34.00">Laptop stand</line>
+    <line sku="CB-015" quantity="2" price="9.95">Cable, 1.5 m</line>
+    <total currency="EUR">336.90</total>
+  </order>
+  <order id="A-1033" status="paid">
+    <customer><name>Alan Kay</name><city>Berlin</city><country>DE</country></customer>
+    <line sku="MN-270" quantity="3" price="249.00">27-inch monitor</line>
+    <line sku="MS-220" quantity="2" price="24.50">Wireless mouse</line>
+    <line sku="LS-050" quantity="2" price="34.00">Laptop stand</line>
+    <total currency="EUR">864.00</total>
+  </order>
+  <order id="A-1034" status="paid">
+    <customer><name>Ada Byron</name><city>Berlin</city><country>DE</country></customer>
+    <line sku="LS-050" quantity="2" price="34.00">Laptop stand</line>
+    <line sku="MS-220" quantity="2" price="24.50">Wireless mouse</line>
+    <line sku="MN-270" quantity="1" price="249.00">27-inch monitor</line>
+    <total currency="EUR">366.00</total>
+  </order>
+  <order id="A-1035" status="paid">
+    <customer><name>Edsger Dijkstra</name><city>Lyon</city><country>FR</country></customer>
+    <line sku="MS-220" quantity="3" price="24.50">Wireless mouse</line>
+    <line sku="CB-015" quantity="4" price="9.95">Cable, 1.5 m</line>
+    <line sku="HD-310" quantity="2" price="39.90">USB-C hub</line>
+    <total currency="EUR">193.10</total>
+  </order>
+  <order id="A-1036" status="shipped">
+    <customer><name>Ada Byron</name><city>Porto</city><country>PT</country></customer>
+    <line sku="CB-015" quantity="2" price="9.95">Cable, 1.5 m</line>
+    <line sku="LS-050" quantity="2" price="34.00">Laptop stand</line>
+    <line sku="MN-270" quantity="1" price="249.00">27-inch monitor</line>
+    <total currency="EUR">336.90</total>
+  </order>
+  <order id="A-1037" status="refunded">
+    <customer><name>Radia Perlman</name><city>Lyon</city><country>FR</country></customer>
+    <line sku="MS-220" quantity="2" price="24.50">Wireless mouse</line>
+    <total currency="EUR">49.00</total>
+  </order>
+  <order id="A-1038" status="refunded">
+    <customer><name>Alan Kay</name><city>Leeds</city><country>GB</country></customer>
+    <line sku="KB-104" quantity="3" price="89.00">Mechanical keyboard</line>
+    <line sku="CB-015" quantity="4" price="9.95">Cable, 1.5 m</line>
+    <line sku="LS-050" quantity="1" price="34.00">Laptop stand</line>
+    <total currency="EUR">340.80</total>
+  </order>
+  <order id="A-1039" status="paid">
+    <customer><name>Ada Byron</name><city>Lyon</city><country>FR</country></customer>
+    <line sku="KB-104" quantity="4" price="89.00">Mechanical keyboard</line>
+    <line sku="LS-050" quantity="1" price="34.00">Laptop stand</line>
+    <total currency="EUR">390.00</total>
+  </order>
+  <order id="A-1040" status="paid">
+    <customer><name>Grace Hopper</name><city>Leeds</city><country>GB</country></customer>
+    <line sku="CB-015" quantity="3" price="9.95">Cable, 1.5 m</line>
+    <line sku="LS-050" quantity="4" price="34.00">Laptop stand</line>
+    <line sku="MS-220" quantity="4" price="24.50">Wireless mouse</line>
+    <total currency="EUR">263.85</total>
+  </order>
+</orders>
