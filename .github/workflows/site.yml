@@ -1,0 +1,64 @@
+# Publishes sxml.tinyactors.dev (D304): builds the landing page (website/,
+# VitePress) and the book (docs/book, mdBook) from a commit and force-pushes
+# them to the gh-pages branch that GitHub Pages serves, with
+# tools/publish-site.sh. The page reads the version from that commit's
+# include/sxml/version.h.
+#
+# Two ways in:
+#   - release.yml calls it for each release, with the release commit, so
+#     the site describes the version people install;
+#   - "Run workflow", with a ref (default main), for a fix between
+#     releases, such as a typo in the book.
+name: site
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The commit, branch or tag to publish"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "The commit, branch or tag to publish"
+        required: false
+        default: main
+
+permissions:
+  contents: write # the gh-pages branch
+
+concurrency:
+  group: site
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish sxml.tinyactors.dev from ${{ inputs.ref }}
+    runs-on: ubuntu-24.04
+    env:
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+          # Only what the site needs, not the release toolchains.
+          install_args: "node github:rust-lang/mdBook"
+      - name: Build and publish
+        env:
+          # The script pushes from a repository of its own, which has none
+          # of the checkout's credentials.
+          SXML_SITE_REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+          REF: ${{ inputs.ref }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          tools/publish-site.sh
+          {
+            echo "## sxml.tinyactors.dev"
+            echo
+            echo "Published from $(git rev-parse --short HEAD) ($REF): https://sxml.tinyactors.dev/"
+          } >> "$GITHUB_STEP_SUMMARY"

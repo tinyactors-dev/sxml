@@ -16196,8 +16196,8 @@ D301 stay; docs/tasks/book.md section 9 has the change table and the packets.
 ### D304. The website: sxml.tinyactors.dev on GitHub Pages
 
 **Summary**: The website at sxml.tinyactors.dev is a VitePress landing page
-with the book at /book/, built and force-pushed to the gh-pages branch by hand
-with `mise run site:publish`.
+with the book at /book/, published to the gh-pages branch by the release
+workflow (site.yml) from each release commit, its version read from version.h.
 
 Recorded 2026-10-21, at the owner's request, after the repository moved to
 tinyactors-dev/sxml.
@@ -16216,11 +16216,18 @@ tinyactors-dev/sxml.
 - **The look** is the tinyactors design system (vellum, graphite, pine;
   Newsreader and IBM Plex, self-hosted in `website/public/fonts/`).
   `docs/book/style/` gives the book the same colours and type.
-- **Hosting**: `mise run site:publish` (`tools/publish-site.sh`) builds the
-  site locally and force-pushes it as one commit to the `gh-pages` branch,
-  which GitHub Pages serves under the custom domain in `website/public/CNAME`.
-  No GitHub Actions: they are off (D123), so whoever changes `website/` or the
-  book publishes by hand.
+- **Hosting**: `tools/publish-site.sh` builds the site and force-pushes it as
+  one commit to the `gh-pages` branch, which GitHub Pages serves under the
+  custom domain in `website/public/CNAME`. The workflow
+  `.github/workflows/site.yml` runs it: `release.yml` calls it with each
+  release commit, so the site describes the released version, and "Run
+  workflow" on `site.yml` (a ref, default `main`) publishes a fix between
+  releases. `mise run site:publish` does the same from a machine. Until
+  2026-11-27 the site was published by hand only, because Actions were off
+  (D123), and it fell behind: it still showed 0.2.0 after 0.3.0 (the owner).
+- **The version** the page shows is read from `include/sxml/version.h` at build
+  time (`website/.vitepress/config.mts`), never typed into the page. mdBook is
+  pinned in `mise.toml`.
 
 ### D305. The book's diagrams use a layered layout with model order
 

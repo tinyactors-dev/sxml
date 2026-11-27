@@ -64,9 +64,10 @@ do.
    vX.Y.Z exists, it tags that commit (`sxml X.Y.Z`), makes the GitHub release
    vX.Y.Z with the version's section of `CHANGELOG.md` as its notes
    (`tools/release-notes.sh X.Y.Z`), starts `npm.yml` for the tag (step 7), and
-   builds and attaches the `sxml` archives with `SHA256SUMS` (`mise run dist`).
-   The run's summary links the release. "Run workflow" on `release.yml` with a
-   version does the steps again for that version, for a run that failed.
+   builds and attaches the `sxml` archives with `SHA256SUMS` (`mise run dist`),
+   then publishes sxml.tinyactors.dev from the release commit (`site.yml`,
+   D304). The run's summary links the release. "Run workflow" on `release.yml`
+   with a version does the steps again for that version, for a run that failed.
 7. **Publish the JavaScript package.** `release.yml` starts
    `.github/workflows/npm.yml` (D332) for the tag (a tag pushed by hand starts
    it too), which runs `tools/npm-package.sh publish`: it builds the package

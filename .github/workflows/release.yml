@@ -10,7 +10,8 @@
 #      is started with "Run workflow"; npm's trusted publisher stays
 #      npm.yml);
 #   4. builds the sxml archives of every target (mise run dist) and
-#      attaches them, with SHA256SUMS, to the release.
+#      attaches them, with SHA256SUMS, to the release;
+#   5. publishes sxml.tinyactors.dev from the release commit (site.yml).
 # What stays the owner's: approving the staged npm version with 2FA.
 #
 # On every push to main it does nothing unless include/sxml/version.h's
@@ -137,3 +138,10 @@ jobs:
             echo
             cat "$RUNNER_TEMP/notes.md"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  site:
+    name: Publish the site of ${{ needs.find.outputs.version }}
+    needs: [find, release]
+    uses: ./.github/workflows/site.yml
+    with:
+      ref: ${{ needs.find.outputs.commit }}

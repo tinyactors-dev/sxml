@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import { useData } from 'vitepress'
 import Pipeline from './Pipeline.vue'
+
+// The library's version, read from include/sxml/version.h by config.mts.
+const { theme } = useData()
 
 // The standards, design rules, streaming figures and conformance counts
 // are the repository's README.md (What it does, Design, Examples,
@@ -64,7 +68,7 @@ const targets = [
   <div class="sx">
     <section class="sx-hero">
       <div class="sx-wrap">
-        <div class="sx-eyebrow"><span />sxml 0.2.0 · MIT License</div>
+        <div class="sx-eyebrow"><span />sxml {{ theme.sxmlVersion }} · MIT License</div>
         <h1 class="sx-hero__title">An XML toolchain in portable C.</h1>
         <p class="sx-hero__lead">
           sxml parses XML and HTML, validates documents against XSD 1.1 schemas and DTDs,

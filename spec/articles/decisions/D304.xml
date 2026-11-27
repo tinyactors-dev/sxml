@@ -1,6 +1,6 @@
 <decision id="D304" status="accepted">
   <title>The website: sxml.tinyactors.dev on GitHub Pages</title>
-  <summary>The website at sxml.tinyactors.dev is a VitePress landing page with the book at /book/, built and force-pushed to the gh-pages branch by hand with <code>mise run site:publish</code>.</summary>
+  <summary>The website at sxml.tinyactors.dev is a VitePress landing page with the book at /book/, published to the gh-pages branch by the release workflow (site.yml) from each release commit, its version read from version.h.</summary>
   <body>
     <p><recorded date="2026-10-21"/>, at the owner's request, after the repository moved to tinyactors-dev/sxml.</p>
     <list>
@@ -11,7 +11,10 @@
         <p><strong>The look</strong> is the tinyactors design system (vellum, graphite, pine; Newsreader and IBM Plex, self-hosted in <code>website/public/fonts/</code>). <code>docs/book/style/</code> gives the book the same colours and type.</p>
       </item>
       <item>
-        <p><strong>Hosting</strong>: <code>mise run site:publish</code> (<code>tools/publish-site.sh</code>) builds the site locally and force-pushes it as one commit to the <code>gh-pages</code> branch, which GitHub Pages serves under the custom domain in <code>website/public/CNAME</code>. No GitHub Actions: they are off (<ref kind="decision" to="D123"/>), so whoever changes <code>website/</code> or the book publishes by hand.</p>
+        <p><strong>Hosting</strong>: <code>tools/publish-site.sh</code> builds the site and force-pushes it as one commit to the <code>gh-pages</code> branch, which GitHub Pages serves under the custom domain in <code>website/public/CNAME</code>. The workflow <code>.github/workflows/site.yml</code> runs it: <code>release.yml</code> calls it with each release commit, so the site describes the released version, and "Run workflow" on <code>site.yml</code> (a ref, default <code>main</code>) publishes a fix between releases. <code>mise run site:publish</code> does the same from a machine. Until 2026-11-27 the site was published by hand only, because Actions were off (<ref kind="decision" to="D123"/>), and it fell behind: it still showed 0.2.0 after 0.3.0 (the owner).</p>
+      </item>
+      <item>
+        <p><strong>The version</strong> the page shows is read from <code>include/sxml/version.h</code> at build time (<code>website/.vitepress/config.mts</code>), never typed into the page. mdBook is pinned in <code>mise.toml</code>.</p>
       </item>
     </list>
   </body>

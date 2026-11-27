@@ -14,6 +14,8 @@ ninja = "1.13.1"
 zig = "0.15.2"
 node = "22.22.0"
 "github:WebAssembly/wasi-sdk" = "wasi-sdk-34"
+# mdBook builds the book (docs/book) for sxml.tinyactors.dev (mise run site).
+"github:rust-lang/mdBook" = "v0.4.52"
 
 [tasks.dist]
 description = "Build the sxml archives of every target, then SHA256SUMS"
