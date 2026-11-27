@@ -7,6 +7,11 @@ blocked. Add an item to this week's entry with `tools/spec/spec log TEXT`.
 
 ## Week of 2026-11-23
 
+- Packets 8.9 (schema-informed grammars and typed values: every schema and
+  xsd-types-only golden case in both directions; ratchet 3,789) and 8.15
+  (Processor.encodeExi and parseExi; 100 golden checks in JavaScript) landed
+  (D333).
+
 - Packet 8.14 (sxml encode, sxml decode, --input-format=exi) landed:
   check-command 206 of 206, the book chapter's 16 examples, the gate with the
   wasm tests (D333).

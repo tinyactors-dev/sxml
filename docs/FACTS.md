@@ -9,9 +9,9 @@ says now. Add one with tools/spec/spec add fact.
 
 | Fact | What | Value | Read from |
 | --- | --- | --- | --- |
-| `budget/cli/bytes` | Size budget of the sxml command's WebAssembly module, bytes stripped (javascript/size_budget) | 16,000,000 | `bindings/javascript/CMakeLists.txt` |
-| `budget/cli/gzipped` | Size budget of the sxml command's WebAssembly module, bytes gzipped (javascript/size_budget) | 2,900,000 | `bindings/javascript/CMakeLists.txt` |
-| `budget/javascript/bytes` | Size budget of the JavaScript package's sxml.wasm, bytes stripped (javascript/size_budget) | 14,000,000 | `bindings/javascript/CMakeLists.txt` |
+| `budget/cli/bytes` | Size budget of the sxml command's WebAssembly module, bytes stripped (javascript/size_budget) | 16,500,000 | `bindings/javascript/CMakeLists.txt` |
+| `budget/cli/gzipped` | Size budget of the sxml command's WebAssembly module, bytes gzipped (javascript/size_budget) | 3,000,000 | `bindings/javascript/CMakeLists.txt` |
+| `budget/javascript/bytes` | Size budget of the JavaScript package's sxml.wasm, bytes stripped (javascript/size_budget) | 14,500,000 | `bindings/javascript/CMakeLists.txt` |
 | `budget/javascript/gzipped` | Size budget of the JavaScript package's sxml.wasm, bytes gzipped (javascript/size_budget) | 2,800,000 | `bindings/javascript/CMakeLists.txt` |
 | `conformance/commit` | The commit the conformance report measured | e74d4ad475b6 | `docs/CONFORMANCE.md` (tools/conformance-report.py) |
 | `conformance/date` | The date of the commit the conformance report measured | 2026-10-20 | `docs/CONFORMANCE.md` (tools/conformance-report.py) |

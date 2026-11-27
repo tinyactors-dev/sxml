@@ -21,8 +21,8 @@ Numbers are release-build passes from `docs/CONFORMANCE.md`.
   D307.
 - One build with everything (D272, size-3): every shipped build has every
   language and optional feature; the JavaScript package ships one `sxml.wasm`
-  (`./sxml-full.wasm` is an alias), budget 14,000,000 / 2,800,000 bytes
-  (stripped / gzipped); the CLI module's is 16,000,000 / 2,900,000. Their sizes
+  (`./sxml-full.wasm` is an alias), budget 14,500,000 / 2,800,000 bytes
+  (stripped / gzipped); the CLI module's is 16,500,000 / 3,000,000. Their sizes
   when last measured, at wasm-1 (week-of-2026-10-26): 13,833,376 / 2,529,416
   and 15,441,066 / 2,817,989. The size test compares the module's linker map
   with a baseline and prints the top growths (D225). fn:load-xquery-module

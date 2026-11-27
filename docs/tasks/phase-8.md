@@ -159,10 +159,11 @@ channels together.
 a compiled schema, decodes and encodes with them, strict and not, with typed
 values and the datatypeRepresentationMap.
 
-After 8.5. EXI 1.0, sections 7.1 (built-in datatypes by schema type), 7.4
-(datatypeRepresentationMap) and 8.5 (schema-informed document, fragment,
-element fragment and type grammars, normalization, event codes, the undeclared
-productions of non-strict grammars); the components of `src/schema_internal.h`.
+**Done** 2026-11-27 After 8.5. EXI 1.0, sections 7.1 (built-in datatypes by
+schema type), 7.4 (datatypeRepresentationMap) and 8.5 (schema-informed
+document, fragment, element fragment and type grammars, normalization, event
+codes, the undeclared productions of non-strict grammars); the components of
+`src/schema_internal.h`.
 
 - **Mechanism**: `src/exi_schema_grammar.c`, the proto-grammars of every
   particle, term and attribute use, normalized and numbered, built once per
@@ -235,7 +236,7 @@ the commands that read documents.
 **Summary**: The shim's encode and decode calls and the JavaScript package's
 processor.encodeEXI and processor.parseEXI, within the size budget.
 
-After 8.13.
+**Done** 2026-11-27 After 8.13.
 
 - **Owns**: their parts of `bindings/host/` and `bindings/javascript/`, their
   tests, the budgets the size test names (D272).

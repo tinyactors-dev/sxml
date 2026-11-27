@@ -3,6 +3,9 @@
   <body>
     <list loose="true">
       <item>
+        <p>Packets 8.9 (schema-informed grammars and typed values: every schema and xsd-types-only golden case in both directions; ratchet 3,789) and 8.15 (Processor.encodeExi and parseExi; 100 golden checks in JavaScript) landed (<ref kind="decision" to="D333"/>).</p>
+      </item>
+      <item>
         <p>Packet 8.14 (sxml encode, sxml decode, --input-format=exi) landed: check-command 206 of 206, the book chapter's 16 examples, the gate with the wasm tests (<ref kind="decision" to="D333"/>).</p>
       </item>
       <item>
