@@ -6,15 +6,14 @@ everything the tree had?
 1. Typed documents: the schema/instance pairs of tests/exi (60 pairs from
    the W3C XSD test suites) and the orders of orders.py against
    orders.xsd (inline types) and orders-named.xsd (named types). Each
-   valid instance is queried twice, validated in memory (xml_query(doc,
-   q, 1)) and as typed XDMB (xmlb(doc, 'validate')): every element's and
+   valid instance is queried twice, validated in memory (xmlquery_validated(q, doc)) and as typed XDMB (xmlparse(doc, 'validate')): every element's and
    attribute's path, type annotation, and typed value with the type of
    each item. Counted apart: documents whose blob holds an approximated
    annotation (an anonymous type of a local declaration, written as its
    named base type).
 2. Locations and unparsed entities: SAMPLE documents of third_party (the
    differential test's corpus): fn:location of every node, text against
-   xmlb(doc, 'locations'), and each blob re-encoded must be the same bytes,
+   xmlparse(doc, 'locations'), and each blob re-encoded must be the same bytes,
    which it can only be when the unparsed entities and locations come back
    out of the tree it was opened as.
 """
@@ -42,18 +41,18 @@ def typed(cases, label):
     valid = equal = approximate_documents = approximate_equal = not_compiled = 0
     for schema, text in cases:
         try:
-            db.execute("select xml_schema(?)", (schema,))
+            db.execute("select xmlschema(?)", (schema,))
         except sqlite3.Error:
             not_compiled += 1  # includes or redefines a file: the spike compiles from text alone
             continue
         try:
-            reference = db.execute("select xml_query(?, ?, 1)", (text, TYPED)).fetchone()[0]
+            reference = db.execute("select xmlquery_validated(?2, ?1)", (text, TYPED)).fetchone()[0]
         except sqlite3.Error:
             continue  # not valid against its schema
         valid += 1
-        blob = db.execute("select xmlb(?, 'validate')", (text,)).fetchone()[0]
-        approximated = db.execute("select xmlb_approximate()").fetchone()[0]
-        got = db.execute("select xml_query(?, ?)", (blob, TYPED)).fetchone()[0]
+        blob = db.execute("select xmlparse(?, 'validate')", (text,)).fetchone()[0]
+        approximated = db.execute("select xmlparse_approximate()").fetchone()[0]
+        got = db.execute("select xmlquery(?2, ?1)", (blob, TYPED)).fetchone()[0]
         same = got == reference
         if approximated:
             approximate_documents += 1
@@ -90,16 +89,16 @@ for path in files[: int(sys.argv[1]) if len(sys.argv) > 1 else 3000]:
         continue
     try:
         text = raw.decode("utf-8")
-        blob = db.execute("select xmlb(?, 'locations')", (text,)).fetchone()[0]
+        blob = db.execute("select xmlparse(?, 'locations')", (text,)).fetchone()[0]
     except Exception:
         continue
     documents += 1
     with_entities += b"NDATA" in raw
-    if db.execute("select xmlb(?, 'locations') = ?", (blob, blob)).fetchone()[0] != 1:
+    if db.execute("select xmlparse(?, 'locations') = ?", (blob, blob)).fetchone()[0] != 1:
         unstable += 1
         print("  NOT STABLE", path)
-    if db.execute("select xml_xpath(?, ?)", (text, LOCATIONS)).fetchone()[0] != \
-            db.execute("select xml_xpath(?, ?)", (blob, LOCATIONS)).fetchone()[0]:
+    if db.execute("select xmlquery(?2, ?1)", (text, LOCATIONS)).fetchone()[0] != \
+            db.execute("select xmlquery(?2, ?1)", (blob, LOCATIONS)).fetchone()[0]:
         location_failures += 1
         if location_failures < 5:
             print("  LOCATIONS DIFFER", path)

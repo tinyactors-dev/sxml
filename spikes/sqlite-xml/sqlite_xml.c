@@ -32,8 +32,15 @@ typedef struct sqlite_xml_connection {
     /* xml_schema(xsd): the schema xmlb(doc, 'validate') validates with,
        and typed XDMB blobs are opened with. */
     sxml_host_schema *schema;
-    /* What the last xmlb wrote as an approximation (xmlb_approximate()). */
+    /* What the last xmlparse wrote as an approximation. */
     size_t approximate_type_count;
+    /* The xmlfiles table a running xmlquery/xmlexists reads (its third
+       argument), NULL for none; and the database it is in. */
+    char *files_table;
+    sqlite3 *database;
+    /* Turns XDMB and EXI rows into XML text for the resolver, which may
+       not call the processor it resolves for (D71). */
+    sxml_host_processor *helper;
     /* The operators (sqlite3_xml_operators_init): a private in-memory
        connection with SQLite's own -> and ->>, which answers for every
        left operand that is not XML, and its two statements. */
@@ -41,6 +48,7 @@ typedef struct sqlite_xml_connection {
     sqlite3_stmt *json_arrow;
     sqlite3_stmt *json_double_arrow;
 } sqlite_xml_connection;
+
 
 static void sqlite_xml_fail(sqlite3_context *context, sxml_host_processor *processor) {
     const sxml_host_error *error = sxml_host_error_of(processor);
@@ -240,6 +248,8 @@ static void sqlite_xml_exi_schema(sqlite3_context *context, int argument_count, 
     }
     sxml_host_schema_destroy(connection->exi_schema);
     sxml_host_schema_destroy(connection->schema);
+    sxml_host_processor_destroy(connection->helper);
+    sqlite3_free(connection->files_table);
     connection->exi_schema = schema;
     connection->exi_alignment = (uint32_t)sqlite3_value_int(arguments[1]);
     sqlite3_result_int(context, 1);
@@ -408,55 +418,442 @@ static void sqlite_xml_evaluate(sqlite3_context *context, sqlite3_value **argume
     sxml_host_value_release(document);
 }
 
-static void sqlite_xml_xpath(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
-    (void)argument_count;
-    sqlite_xml_evaluate(context, arguments, SQLITE_XML_MODE_XPATH);
+
+
+/* ------------------------------------------------- xmlfiles: the files */
+
+/*
+ * CREATE VIRTUAL TABLE docs USING xmlfiles: the files a query may read,
+ * kept as FTS5 keeps its own: in a shadow table, docs_content(uri,
+ * content, media_type), which the module owns (xShadowName), so that a
+ * database in defensive mode refuses SQL that writes it directly. The
+ * virtual table is the way in: SELECT, INSERT, UPDATE, DELETE on docs.
+ * content is stored as given: XML text, XDMB, EXI, or any text or bytes.
+ * xmlquery(query, doc, 'docs') resolves fn:doc, fn:unparsed-text, module
+ * and schema imports against docs' rows, by uri.
+ */
+
+/* Whether the xmlfiles table named by argument exists; sets it as the
+   table the coming evaluation reads. */
+static int sqlite_xml_use_files(sqlite3_context *context, sqlite_xml_connection *connection,
+                                sqlite3_value *argument) {
+    const char *name = (const char *)sqlite3_value_text(argument);
+    char *sql = name ? sqlite3_mprintf("select 1 from \"%w_content\" limit 0", name) : NULL;
+    sqlite3_stmt *statement = NULL;
+    int result = sql ? sqlite3_prepare_v2(connection->database, sql, -1, &statement, NULL) : SQLITE_MISUSE;
+    sqlite3_finalize(statement);
+    sqlite3_free(sql);
+    if (result != SQLITE_OK) {
+        char *message = sqlite3_mprintf("sxml: no xmlfiles table named %s", name ? name : "NULL");
+        sqlite3_result_error(context, message, -1);
+        sqlite3_free(message);
+        return SQLITE_ERROR;
+    }
+    connection->files_table = sqlite3_mprintf("%s", name);
+    return connection->files_table ? SQLITE_OK : SQLITE_NOMEM;
 }
 
-static void sqlite_xml_exists(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
-    (void)argument_count;
-    sqlite_xml_evaluate(context, arguments, SQLITE_XML_MODE_EXISTS);
+/* A row's content as XML text when it is XDMB or EXI, through the helper
+   processor; NULL with nothing to free when it is neither. The result is
+   the helper's output, valid until its next operation. */
+static const sxml_byte_view *sqlite_xml_row_as_text(sqlite_xml_connection *connection, sxml_byte_view bytes) {
+    int is_xdmb = xdmb_is_encoded(bytes), is_exi = !is_xdmb && sqlite_xml_is_exi(bytes);
+    if (!is_xdmb && !is_exi) {
+        return NULL;
+    }
+    if (connection->helper == NULL) {
+        connection->helper = sxml_host_processor_create(&(sxml_host_processor_configuration){.feature_mask = UINT32_MAX});
+        if (connection->helper == NULL) {
+            return NULL;
+        }
+    }
+    sxml_host_processor *helper = connection->helper;
+    sxml_host_value *value = NULL;
+    if (is_xdmb) {
+        sxml_tree *tree = NULL;
+        if (xdmb_open(&(xdmb_open_request){.bytes = bytes,
+                                           .item_heap = sxml_processor_get_item_heap(helper->processor),
+                                           .allocator = helper->allocator,
+                                           .type_registry = sxml_processor_get_type_registry(helper->processor)},
+                      &tree) != SXML_STATUS_OK) {
+            return NULL;
+        }
+        sxml_item item = sxml_node_item_make((sxml_node_reference){.tree = tree, .node_index = {0}});
+        sxml_tree_release(tree);
+        value = sxml_host_value_make(helper, sxml_sequence_from_item(item));
+    } else {
+        value = sxml_host_exi_parse(helper, &(sxml_host_exi_parse_request){.input = bytes});
+    }
+    if (value == NULL) {
+        return NULL;
+    }
+    sxml_host_serialize_request request = {.value = value, .options = NULL};
+    uint32_t status = sxml_host_serialize(helper, &request);
+    sxml_host_value_release(value);
+    return status == SXML_STATUS_OK ? sxml_host_output_of(helper) : NULL;
 }
 
-static void sqlite_xml_query(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
-    (void)argument_count;
-    if (sqlite3_value_type(arguments[1]) == SQLITE_NULL) {
+/* The resolver of the connection's processor (sxml_host_resolver): a row
+   of the xmlfiles table the running query names, by its uri (the
+   reference as written, else the absolute URI). Reads the database while
+   the calling statement runs, which SQLite allows; it writes nothing. */
+static uint32_t sqlite_xml_resolve(void *state, const sxml_host_resource_request *request,
+                                   sxml_host_resource *resource) {
+    sqlite_xml_connection *connection = state;
+    if (connection->files_table == NULL) {
+        return SXML_STATUS_OK;
+    }
+    char *sql = sqlite3_mprintf("select content from \"%w_content\" where uri = ?1", connection->files_table);
+    sqlite3_stmt *statement = NULL;
+    if (sql == NULL || sqlite3_prepare_v2(connection->database, sql, -1, &statement, NULL) != SQLITE_OK) {
+        sqlite3_free(sql);
+        return SXML_STATUS_INPUT_OUTPUT_FAILED;
+    }
+    sqlite3_free(sql);
+    static const char base[] = "xmlfiles:/";
+    sxml_byte_view below = {0};
+    if (request->absolute_uri.byte_count > sizeof base - 1 &&
+        memcmp(request->absolute_uri.bytes, base, sizeof base - 1) == 0) {
+        below = (sxml_byte_view){request->absolute_uri.bytes + sizeof base - 1,
+                                 request->absolute_uri.byte_count - (sizeof base - 1)};
+    }
+    const sxml_byte_view uris[2] = {below, request->uri_reference};
+    uint32_t status = SXML_STATUS_OK;
+    for (int attempt = 0; attempt < 2 && resource->resource_form == 0; attempt++) {
+        if (uris[attempt].byte_count == 0) {
+            continue;
+        }
+        sqlite3_bind_text64(statement, 1, (const char *)uris[attempt].bytes, uris[attempt].byte_count,
+                            SQLITE_STATIC, SQLITE_UTF8);
+        if (sqlite3_step(statement) == SQLITE_ROW) {
+            sxml_byte_view bytes = {sqlite3_column_blob(statement, 0), (size_t)sqlite3_column_bytes(statement, 0)};
+            const sxml_byte_view *text = sqlite_xml_row_as_text(connection, bytes);
+            if (text != NULL) {
+                bytes = *text;
+            }
+            void *copy = sxml_host_allocate(request->processor, bytes.byte_count ? bytes.byte_count : 1);
+            if (copy == NULL) {
+                status = SXML_STATUS_OUT_OF_MEMORY;
+                break;
+            }
+            memcpy(copy, bytes.bytes, bytes.byte_count);
+            resource->resource_form = 1;
+            resource->content = (sxml_byte_view){copy, bytes.byte_count};
+        }
+        sqlite3_reset(statement);
+    }
+    sqlite3_finalize(statement);
+    return status;
+}
+
+/* The virtual table: its schema is the shadow table's, minus nothing. */
+typedef struct sqlite_xml_files {
+    sqlite3_vtab base;
+    sqlite3 *database;
+    char *schema_name;
+    char *table_name;
+} sqlite_xml_files;
+
+typedef struct sqlite_xml_files_cursor {
+    sqlite3_vtab_cursor base;
+    sqlite3_stmt *statement;
+    int at_end;
+} sqlite_xml_files_cursor;
+
+static int sqlite_xml_files_connect_or_create(sqlite3 *database, void *auxiliary, int argument_count,
+                                              const char *const *arguments, sqlite3_vtab **table, char **error,
+                                              int creates) {
+    (void)auxiliary;
+    if (argument_count != 3) {
+        *error = sqlite3_mprintf("xmlfiles takes no arguments");
+        return SQLITE_ERROR;
+    }
+    if (creates) {
+        char *sql = sqlite3_mprintf(
+            "create table \"%w\".\"%w_content\"(uri text primary key, content blob not null, media_type text)",
+            arguments[1], arguments[2]);
+        int result = sql ? sqlite3_exec(database, sql, NULL, NULL, error) : SQLITE_NOMEM;
+        sqlite3_free(sql);
+        if (result != SQLITE_OK) {
+            return result;
+        }
+    }
+    int result = sqlite3_declare_vtab(database, "create table x(uri text, content blob, media_type text)");
+    if (result != SQLITE_OK) {
+        return result;
+    }
+    sqlite_xml_files *files = sqlite3_malloc(sizeof *files);
+    if (files == NULL) {
+        return SQLITE_NOMEM;
+    }
+    memset(files, 0, sizeof *files);
+    files->database = database;
+    files->schema_name = sqlite3_mprintf("%s", arguments[1]);
+    files->table_name = sqlite3_mprintf("%s", arguments[2]);
+    *table = &files->base;
+    return SQLITE_OK;
+}
+
+static int sqlite_xml_files_create(sqlite3 *database, void *auxiliary, int argument_count,
+                                   const char *const *arguments, sqlite3_vtab **table, char **error) {
+    return sqlite_xml_files_connect_or_create(database, auxiliary, argument_count, arguments, table, error, 1);
+}
+
+static int sqlite_xml_files_connect(sqlite3 *database, void *auxiliary, int argument_count,
+                                    const char *const *arguments, sqlite3_vtab **table, char **error) {
+    return sqlite_xml_files_connect_or_create(database, auxiliary, argument_count, arguments, table, error, 0);
+}
+
+static int sqlite_xml_files_disconnect(sqlite3_vtab *table) {
+    sqlite_xml_files *files = (sqlite_xml_files *)table;
+    sqlite3_free(files->schema_name);
+    sqlite3_free(files->table_name);
+    sqlite3_free(files);
+    return SQLITE_OK;
+}
+
+static int sqlite_xml_files_destroy(sqlite3_vtab *table) {
+    sqlite_xml_files *files = (sqlite_xml_files *)table;
+    char *sql = sqlite3_mprintf("drop table \"%w\".\"%w_content\"", files->schema_name, files->table_name);
+    int result = sql ? sqlite3_exec(files->database, sql, NULL, NULL, NULL) : SQLITE_NOMEM;
+    sqlite3_free(sql);
+    if (result == SQLITE_OK) {
+        sqlite_xml_files_disconnect(table);
+    }
+    return result;
+}
+
+/* uri = ? is a lookup by the shadow table's primary key; anything else
+   a scan. */
+static int sqlite_xml_files_best_index(sqlite3_vtab *table, sqlite3_index_info *info) {
+    (void)table;
+    info->idxNum = 0;
+    info->estimatedCost = 1000000;
+    for (int index = 0; index < info->nConstraint; index++) {
+        const struct sqlite3_index_constraint *constraint = &info->aConstraint[index];
+        if (constraint->usable && constraint->iColumn == 0 && constraint->op == SQLITE_INDEX_CONSTRAINT_EQ) {
+            info->idxNum = 1;
+            info->aConstraintUsage[index].argvIndex = 1;
+            info->aConstraintUsage[index].omit = 1;
+            info->estimatedCost = 1;
+            info->estimatedRows = 1;
+            info->idxFlags = SQLITE_INDEX_SCAN_UNIQUE;
+            break;
+        }
+    }
+    return SQLITE_OK;
+}
+
+static int sqlite_xml_files_open(sqlite3_vtab *table, sqlite3_vtab_cursor **cursor) {
+    (void)table;
+    sqlite_xml_files_cursor *files_cursor = sqlite3_malloc(sizeof *files_cursor);
+    if (files_cursor == NULL) {
+        return SQLITE_NOMEM;
+    }
+    memset(files_cursor, 0, sizeof *files_cursor);
+    *cursor = &files_cursor->base;
+    return SQLITE_OK;
+}
+
+static int sqlite_xml_files_close(sqlite3_vtab_cursor *cursor) {
+    sqlite_xml_files_cursor *files_cursor = (sqlite_xml_files_cursor *)cursor;
+    sqlite3_finalize(files_cursor->statement);
+    sqlite3_free(files_cursor);
+    return SQLITE_OK;
+}
+
+static int sqlite_xml_files_next(sqlite3_vtab_cursor *cursor) {
+    sqlite_xml_files_cursor *files_cursor = (sqlite_xml_files_cursor *)cursor;
+    int result = sqlite3_step(files_cursor->statement);
+    files_cursor->at_end = result != SQLITE_ROW;
+    return result == SQLITE_ROW || result == SQLITE_DONE ? SQLITE_OK : result;
+}
+
+static int sqlite_xml_files_filter(sqlite3_vtab_cursor *cursor, int index_number, const char *index_text,
+                                   int argument_count, sqlite3_value **arguments) {
+    (void)index_text, (void)argument_count;
+    sqlite_xml_files_cursor *files_cursor = (sqlite_xml_files_cursor *)cursor;
+    sqlite_xml_files *files = (sqlite_xml_files *)cursor->pVtab;
+    sqlite3_finalize(files_cursor->statement);
+    files_cursor->statement = NULL;
+    char *sql = sqlite3_mprintf("select rowid, uri, content, media_type from \"%w\".\"%w_content\"%s",
+                                files->schema_name, files->table_name, index_number == 1 ? " where uri = ?1" : "");
+    int result = sql ? sqlite3_prepare_v2(files->database, sql, -1, &files_cursor->statement, NULL) : SQLITE_NOMEM;
+    sqlite3_free(sql);
+    if (result != SQLITE_OK) {
+        return result;
+    }
+    if (index_number == 1) {
+        sqlite3_bind_value(files_cursor->statement, 1, arguments[0]);
+    }
+    return sqlite_xml_files_next(cursor);
+}
+
+static int sqlite_xml_files_eof(sqlite3_vtab_cursor *cursor) {
+    return ((sqlite_xml_files_cursor *)cursor)->at_end;
+}
+
+static int sqlite_xml_files_column(sqlite3_vtab_cursor *cursor, sqlite3_context *context, int column) {
+    sqlite3_result_value(context, sqlite3_column_value(((sqlite_xml_files_cursor *)cursor)->statement, column + 1));
+    return SQLITE_OK;
+}
+
+static int sqlite_xml_files_rowid(sqlite3_vtab_cursor *cursor, sqlite3_int64 *rowid) {
+    *rowid = sqlite3_column_int64(((sqlite_xml_files_cursor *)cursor)->statement, 0);
+    return SQLITE_OK;
+}
+
+/* INSERT, UPDATE and DELETE on the virtual table, applied to the shadow
+   table. */
+static int sqlite_xml_files_update(sqlite3_vtab *table, int argument_count, sqlite3_value **arguments,
+                                   sqlite3_int64 *rowid) {
+    sqlite_xml_files *files = (sqlite_xml_files *)table;
+    char *sql = NULL;
+    if (argument_count == 1) {
+        sql = sqlite3_mprintf("delete from \"%w\".\"%w_content\" where rowid = ?1", files->schema_name,
+                              files->table_name);
+    } else if (sqlite3_value_type(arguments[0]) == SQLITE_NULL) {
+        sql = sqlite3_mprintf("insert into \"%w\".\"%w_content\"(rowid, uri, content, media_type) values (?2, ?3, ?4, ?5)",
+                              files->schema_name, files->table_name);
+    } else {
+        sql = sqlite3_mprintf("update \"%w\".\"%w_content\" set rowid = ?2, uri = ?3, content = ?4, media_type = ?5 "
+                              "where rowid = ?1",
+                              files->schema_name, files->table_name);
+    }
+    sqlite3_stmt *statement = NULL;
+    int result = sql ? sqlite3_prepare_v2(files->database, sql, -1, &statement, NULL) : SQLITE_NOMEM;
+    sqlite3_free(sql);
+    if (result != SQLITE_OK) {
+        return result;
+    }
+    for (int index = 0; index < argument_count && index < 5; index++) {
+        if (!(index == 0 && argument_count > 1 && sqlite3_value_type(arguments[0]) == SQLITE_NULL)) {
+            sqlite3_bind_value(statement, index + 1, arguments[index]);
+        }
+    }
+    result = sqlite3_step(statement);
+    sqlite3_finalize(statement);
+    if (result != SQLITE_DONE) {
+        table->zErrMsg = sqlite3_mprintf("%s", sqlite3_errmsg(files->database));
+        return result == SQLITE_CONSTRAINT ? SQLITE_CONSTRAINT : SQLITE_ERROR;
+    }
+    if (argument_count > 1 && sqlite3_value_type(arguments[0]) == SQLITE_NULL) {
+        *rowid = sqlite3_last_insert_rowid(files->database);
+    }
+    return SQLITE_OK;
+}
+
+static int sqlite_xml_files_rename(sqlite3_vtab *table, const char *new_name) {
+    sqlite_xml_files *files = (sqlite_xml_files *)table;
+    char *sql = sqlite3_mprintf("alter table \"%w\".\"%w_content\" rename to \"%w_content\"", files->schema_name,
+                                files->table_name, new_name);
+    int result = sql ? sqlite3_exec(files->database, sql, NULL, NULL, NULL) : SQLITE_NOMEM;
+    sqlite3_free(sql);
+    if (result == SQLITE_OK) {
+        sqlite3_free(files->table_name);
+        files->table_name = sqlite3_mprintf("%s", new_name);
+    }
+    return result;
+}
+
+/* The shadow table is the module's own: SQLite refuses to let ordinary
+   SQL write it while the database is in defensive mode. */
+static int sqlite_xml_files_shadow_name(const char *suffix) {
+    return strcmp(suffix, "content") == 0;
+}
+
+static const sqlite3_module sqlite_xml_files_module = {
+    .iVersion = 3,
+    .xCreate = sqlite_xml_files_create,
+    .xConnect = sqlite_xml_files_connect,
+    .xBestIndex = sqlite_xml_files_best_index,
+    .xDisconnect = sqlite_xml_files_disconnect,
+    .xDestroy = sqlite_xml_files_destroy,
+    .xOpen = sqlite_xml_files_open,
+    .xClose = sqlite_xml_files_close,
+    .xFilter = sqlite_xml_files_filter,
+    .xNext = sqlite_xml_files_next,
+    .xEof = sqlite_xml_files_eof,
+    .xColumn = sqlite_xml_files_column,
+    .xRowid = sqlite_xml_files_rowid,
+    .xUpdate = sqlite_xml_files_update,
+    .xRename = sqlite_xml_files_rename,
+    .xShadowName = sqlite_xml_files_shadow_name,
+};
+
+/* What xmlquery, xmlexists and xmlquery_validated do with the result. */
+typedef enum sqlite_xml_run_mode {
+    /* xmlquery(query, doc [, files]): one atomic item as an SQL value,
+       anything else serialized (SQL/XML XMLQUERY). */
+    SQLITE_XML_RUN_QUERY,
+    /* xmlexists(query, doc [, files]): 1 when the result is not empty,
+       else 0 (SQL/XML XMLEXISTS: not the effective boolean value). */
+    SQLITE_XML_RUN_EXISTS,
+    /* xmlquery_validated(query, doc): over doc validated in memory with
+       the connection's schema (xmlschema), the reference typed XDMB is
+       compared with (fidelity_test.py). Spike only. */
+    SQLITE_XML_RUN_VALIDATED,
+} sqlite_xml_run_mode;
+
+/* The query (argument 0, compiled once per statement as XQuery) over doc
+   (argument 1). A third argument names an xmlfiles table whose rows
+   fn:doc, fn:unparsed-text, module imports and schema imports read: the
+   functions with it are registered as not deterministic, those without
+   it read nothing and are deterministic. */
+static void sqlite_xml_run(sqlite3_context *context, int argument_count, sqlite3_value **arguments,
+                           sqlite_xml_run_mode mode) {
+    if (sqlite3_value_type(arguments[0]) == SQLITE_NULL) {
         return;
     }
     sqlite_xml_connection *connection = sqlite3_user_data(context);
     sxml_host_processor *processor = connection->processor;
-    sxml_host_query *query = sqlite3_get_auxdata(context, 1);
+    int reads_files = mode != SQLITE_XML_RUN_VALIDATED && argument_count > 2;
+    if (reads_files && sqlite_xml_use_files(context, connection, arguments[2]) != SQLITE_OK) {
+        return;
+    }
+    sxml_host_query *query = sqlite3_get_auxdata(context, 0);
     if (query == NULL) {
-        const char *text = (const char *)sqlite3_value_text(arguments[1]);
+        const char *text = (const char *)sqlite3_value_text(arguments[0]);
+        /* With files, relative references resolve against xmlfiles:/,
+           so that a row's uri is the path below it (lib/tax.xqm imports
+           rates.xqm as lib/rates.xqm). Module and schema imports are
+           resolved here, at compile time. */
+        static const char base[] = "xmlfiles:/";
         query = sxml_host_query_compile(
-            processor, &(sxml_host_query_compile_request){.query_text = {(const uint8_t *)text, strlen(text)}});
+            processor, &(sxml_host_query_compile_request){
+                           .query_text = {(const uint8_t *)text, strlen(text)},
+                           .static_base_uri = reads_files ? (sxml_byte_view){(const uint8_t *)base, sizeof base - 1}
+                                                          : (sxml_byte_view){0}});
         if (query == NULL) {
+            sqlite3_free(connection->files_table);
+            connection->files_table = NULL;
             sqlite_xml_fail(context, processor);
             return;
         }
-        sqlite3_set_auxdata(context, 1, query, sqlite_xml_destroy_query);
-        query = sqlite3_get_auxdata(context, 1);
+        sqlite3_set_auxdata(context, 0, query, sqlite_xml_destroy_query);
+        query = sqlite3_get_auxdata(context, 0);
         if (query == NULL) {
+            sqlite3_free(connection->files_table);
+            connection->files_table = NULL;
             sqlite3_result_error_nomem(context);
             return;
         }
     }
     sxml_host_value *document = NULL;
-    if (sqlite3_value_type(arguments[0]) != SQLITE_NULL) {
-        document = sqlite_xml_document(context, processor, arguments[0]);
+    if (sqlite3_value_type(arguments[1]) != SQLITE_NULL) {
+        document = sqlite_xml_document(context, processor, arguments[1]);
         if (document == NULL) {
+            sqlite3_free(connection->files_table);
+            connection->files_table = NULL;
             return;
         }
-        if (sqlite3_user_data(context) == connection && argument_count > 2 && sqlite3_value_int(arguments[2]) != 0) {
-            /* xml_query(doc, query, 1): over doc validated with the
-               connection's schema, in memory (the reference the typed
-               XDMB is compared with) */
+        if (mode == SQLITE_XML_RUN_VALIDATED) {
             sxml_host_validate_request validation = {.node = document};
             sxml_host_value *validated =
                 connection->schema ? sxml_host_schema_validate(connection->schema, &validation) : NULL;
             sxml_host_value_release(document);
             if (validated == NULL) {
-                sqlite3_result_error(context, "sxml: not valid (or no xml_schema)", -1);
+                sqlite3_result_error(context, "sxml: not valid (or no xmlschema)", -1);
                 return;
             }
             document = validated;
@@ -464,17 +861,34 @@ static void sqlite_xml_query(sqlite3_context *context, int argument_count, sqlit
     }
     sxml_host_query_evaluate_request request = {.context_value = document};
     sxml_host_value *result = sxml_host_query_evaluate(query, &request);
+    sqlite3_free(connection->files_table);
+    connection->files_table = NULL;
     if (result == NULL) {
         sqlite_xml_fail(context, processor);
-    } else if (sxml_host_query_serialize(query, result) != SXML_STATUS_OK) {
-        sqlite_xml_fail(context, processor);
+    } else if (mode == SQLITE_XML_RUN_EXISTS) {
+        uint64_t count = 0;
+        if (sxml_sequence_count(result->sequence, NULL, &count) != SXML_STATUS_OK) {
+            sqlite3_result_error(context, "sxml: cannot count the result", -1);
+        } else {
+            sqlite3_result_int(context, count > 0);
+        }
     } else {
-        const sxml_byte_view *output = sxml_host_output_of(processor);
-        sqlite3_result_text64(context, (const char *)output->bytes, output->byte_count, SQLITE_TRANSIENT,
-                              SQLITE_UTF8);
+        sqlite_xml_result(context, processor, result, 1);
     }
     sxml_host_value_release(result);
     sxml_host_value_release(document);
+}
+
+static void sqlite_xml_query(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
+    sqlite_xml_run(context, argument_count, arguments, SQLITE_XML_RUN_QUERY);
+}
+
+static void sqlite_xml_exists_query(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
+    sqlite_xml_run(context, argument_count, arguments, SQLITE_XML_RUN_EXISTS);
+}
+
+static void sqlite_xml_query_validated(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
+    sqlite_xml_run(context, argument_count, arguments, SQLITE_XML_RUN_VALIDATED);
 }
 
 /* ------------------------------------------------------------ Entry */
@@ -585,29 +999,45 @@ static int sqlite_xml_register(sqlite3 *database, char **error_message, int with
         return SQLITE_NOMEM;
     }
     memset(connection, 0, sizeof *connection);
+    connection->database = database;
     connection->processor = sxml_host_processor_create(
         &(sxml_host_processor_configuration){.feature_mask = UINT32_MAX,
+                                             .resolver = {.state = connection, .resolve = sqlite_xml_resolve},
                                              .source_location_policy = SXML_SOURCE_LOCATION_POLICY_ALWAYS});
     if (connection->processor == NULL) {
         sqlite3_free(connection);
         *error_message = sqlite3_mprintf("sxml: cannot create a processor");
         return SQLITE_ERROR;
     }
+    /* Names and argument order of SQL/XML (ISO/IEC 9075-14) where it has
+       the function; the rest in its style. Deterministic and innocuous
+       unless marked: those reading an xmlfiles table (a third argument)
+       are neither, so they can be in no index, and are direct-only. */
+    enum { READS_FILES = 1 };
     static const struct {
         const char *name;
         int argument_count;
         void (*function)(sqlite3_context *, int, sqlite3_value **);
         int flags;
+        int reads;
     } all_functions[] = {
         /* the operators first, so that the last registration (owning the
            state) is the same either way */
-        {"->", 2, sqlite_xml_arrow, SQLITE_SUBTYPE | SQLITE_RESULT_SUBTYPE},
-        {"->>", 2, sqlite_xml_double_arrow, SQLITE_SUBTYPE | SQLITE_RESULT_SUBTYPE},
-        {"xmlb", -1, sqlite_xml_xmlb, 0},        {"xml", 1, sqlite_xml_xml, 0},
-        {"xml_schema", 1, sqlite_xml_schema, 0}, {"xmlb_approximate", 0, sqlite_xml_approximate, 0},
-        {"xml_xpath", 2, sqlite_xml_xpath, 0},   {"xml_exists", 2, sqlite_xml_exists, 0},
-        {"xml_query", -1, sqlite_xml_query, 0},   {"xml_exi", -1, sqlite_xml_exi, 0},
-        {"xml_exi_schema", 2, sqlite_xml_exi_schema, 0},
+        {"->", 2, sqlite_xml_arrow, SQLITE_SUBTYPE | SQLITE_RESULT_SUBTYPE, 0},
+        {"->>", 2, sqlite_xml_double_arrow, SQLITE_SUBTYPE | SQLITE_RESULT_SUBTYPE, 0},
+        {"xmlparse", 1, sqlite_xml_xmlb, 0, 0},
+        {"xmlparse", 2, sqlite_xml_xmlb, 0, 0},
+        {"xmlserialize", 1, sqlite_xml_xml, 0, 0},
+        {"xmlquery", 2, sqlite_xml_query, SQLITE_RESULT_SUBTYPE, 0},
+        {"xmlquery", 3, sqlite_xml_query, SQLITE_RESULT_SUBTYPE, READS_FILES},
+        {"xmlexists", 2, sqlite_xml_exists_query, 0, 0},
+        {"xmlexists", 3, sqlite_xml_exists_query, 0, READS_FILES},
+        {"xmlexi", -1, sqlite_xml_exi, 0, 0},
+        /* spike only */
+        {"xmlschema", 1, sqlite_xml_schema, 0, 0},
+        {"xmlparse_approximate", 0, sqlite_xml_approximate, 0, 0},
+        {"xmlquery_validated", 2, sqlite_xml_query_validated, 0, 0},
+        {"xmlexi_schema", 2, sqlite_xml_exi_schema, 0, 0},
     };
     const size_t first = with_operators ? 0 : 2;
     const size_t count = sizeof all_functions / sizeof all_functions[0];
@@ -615,11 +1045,15 @@ static int sqlite_xml_register(sqlite3 *database, char **error_message, int with
     for (size_t index = first; index < count && result == SQLITE_OK; index++) {
         /* The last registration owns the connection state. */
         int is_last = index + 1 == count;
+        int flags = all_functions[index].reads ? SQLITE_DIRECTONLY
+                                               : SQLITE_DETERMINISTIC | SQLITE_INNOCUOUS;
         result = sqlite3_create_function_v2(database, all_functions[index].name, all_functions[index].argument_count,
-                                            SQLITE_UTF8 | SQLITE_DETERMINISTIC | SQLITE_INNOCUOUS |
-                                                all_functions[index].flags,
-                                            connection, all_functions[index].function, NULL, NULL,
+                                            SQLITE_UTF8 | flags | all_functions[index].flags, connection,
+                                            all_functions[index].function, NULL, NULL,
                                             is_last ? sqlite_xml_connection_destroy : NULL);
+    }
+    if (result == SQLITE_OK) {
+        result = sqlite3_create_module(database, "xmlfiles", &sqlite_xml_files_module, NULL);
     }
     return result;
 }

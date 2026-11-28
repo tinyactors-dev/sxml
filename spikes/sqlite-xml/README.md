@@ -267,3 +267,55 @@ refuse such a document rather than approximate.
 - Validation drops locations: the validated tree sxml builds does not
   keep the parser's, so "typed + locations" equals "typed" (a finding
   about sxml's validator, not XDMB).
+
+## The owner's decisions, and xmlfiles (2026-11-28)
+
+1. **Names: the SQL standard's.** Functions take SQL/XML's (ISO/IEC
+   9075-14) names and argument order where it has the function, the rest
+   follow its style. Earlier sections of this README use the spike's old
+   names (`xmlb`, `xml`, `xml_xpath`, `xml_exists`, `xml_query`, `xml_exi`);
+   the scripts now use the new ones and give the same results (the
+   differential test: 48,909 comparisons, 0 differences, now through
+   XQuery; jsonarrow: 18,500 cases, 0 differ; fidelity: as above).
+2. **Here**, in this repository.
+3. **Files are a virtual table with a shadow table, as FTS5 keeps its
+   own** (below).
+4. **Native builds only** while this is a spike.
+
+| Function | Old name | What it does |
+|---|---|---|
+| `xmlparse(doc [, options])` | `xmlb` | XML text or EXI to XDMB; options `'validate'` (with `xmlschema`) and `'locations'` |
+| `xmlserialize(doc)` | `xml` | any form to XML text |
+| `xmlquery(query, doc [, files])` | `xml_xpath`, `xml_query` | XQuery (XPath is a part of it): one atomic item as an SQL value, anything else serialized |
+| `xmlexists(query, doc [, files])` | `xml_exists` | 1 when the result is not empty, as SQL/XML's XMLEXISTS (not the effective boolean value) |
+| `xmlexi(doc, alignment [, full [, schema]])` | `xml_exi` | EXI |
+| `->`, `->>` | | unchanged (opt-in, `sqlite3_xml_operators_init`) |
+| `xmlschema`, `xmlparse_approximate`, `xmlquery_validated`, `xmlexi_schema` | | spike only: test and measurement helpers |
+
+**xmlfiles.** `CREATE VIRTUAL TABLE docs USING xmlfiles` creates the
+shadow table `docs_content(uri text primary key, content blob not null,
+media_type text)`, which the module declares as its own (`xShadowName`),
+so a database in defensive mode refuses SQL that writes it directly.
+`SELECT`, `INSERT`, `UPDATE`, `DELETE` and `ALTER TABLE ... RENAME` go
+through the virtual table (a lookup by `uri` uses the primary key).
+Content is stored as given: XML text, XDMB, EXI, or any text or bytes.
+
+The third argument of `xmlquery` and `xmlexists` names the files table
+a query reads: `fn:doc`, `fn:unparsed-text`, module imports and schema
+imports resolve against its rows by `uri`, below the static base URI
+`xmlfiles:/` (so a module's relative import, `rate.xqm` in
+`lib/tax.xqm`, is the row `lib/rate.xqm`). SQLite registers functions
+per argument count, which gives the split: the two-argument forms read
+nothing and are deterministic and innocuous (indexes, generated columns,
+views, triggers); the three-argument forms are neither, and
+direct-only, so SQLite refuses them in an index or a view. A database
+file reaches no file and no URL: the resolver answers only from the
+named table.
+
+`files_test.py` checks it (20 checks, all pass). Limits of the spike:
+an XDMB or EXI row reaches `fn:doc` as text, serialized by a second
+processor and parsed again, because the host shim's resolver passes
+bytes only (the core can take a document node, `SXML_RESOURCE_FORM_
+DOCUMENT_NODE`); `fn:collection` is not resolved (it needs the shim's
+sequence form too); the query is compiled once per statement, so its
+imports come from the files as they were at its first row.

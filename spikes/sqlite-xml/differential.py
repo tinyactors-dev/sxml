@@ -20,7 +20,7 @@ expressions = [
   "string(/)",
   # serialize(/) differs only in the order of namespace declarations,
   # which XDMB sorts by prefix; deep-equal checks the rest.
-  "deep-equal(/, parse-xml(serialize(/)))",
+  "deep-equal(/, parse-xmlserialize(serialize(/)))",
 ]
 files = sorted(glob.glob(sys.argv[1] + "/**/*.xml", recursive=True))
 random.seed(1); random.shuffle(files)
@@ -30,16 +30,16 @@ for path in files[: int(sys.argv[2])]:
     if len(raw) > 200_000: continue
     try:
         text = raw.decode("utf-8")
-        blob = db.execute("select xmlb(?)", (text,)).fetchone()[0]
+        blob = db.execute("select xmlparse(?)", (text,)).fetchone()[0]
     except Exception:
         skipped += 1; continue
     documents += 1
-    if db.execute("select xmlb(?) = ?", (blob, blob)).fetchone()[0] != 1:
+    if db.execute("select xmlparse(?) = ?", (blob, blob)).fetchone()[0] != 1:
         failures += 1; print("NOT STABLE", path)
     for e in expressions:
-        try: a = db.execute("select xml_xpath(?, ?)", (text, e)).fetchone()[0]
+        try: a = db.execute("select xmlquery(?2, ?1)", (text, e)).fetchone()[0]
         except Exception as x: a = "ERR " + str(x)[:60]
-        try: b = db.execute("select xml_xpath(?, ?)", (blob, e)).fetchone()[0]
+        try: b = db.execute("select xmlquery(?2, ?1)", (blob, e)).fetchone()[0]
         except Exception as x: b = "ERR " + str(x)[:60]
         checked += 1
         if a != b:

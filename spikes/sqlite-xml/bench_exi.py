@@ -26,15 +26,15 @@ texts = orders(count)
 
 forms = {
     "text": None,
-    "XDMB": "xmlb(doc)",
-    "EXI bit-packed": "xml_exi(doc, 0)",
-    "EXI byte-aligned": "xml_exi(doc, 1)",
-    "EXI pre-compression": "xml_exi(doc, 2)",
-    "EXI compression": "xml_exi(doc, 3)",
-    "EXI bit-packed, full": "xml_exi(doc, 0, 1)",
-    "EXI compression, full": "xml_exi(doc, 3, 1)",
-    "EXI schema bit-packed": "xml_exi(doc, 0, 0, 1)",
-    "EXI schema compression": "xml_exi(doc, 3, 0, 1)",
+    "XDMB": "xmlparse(doc)",
+    "EXI bit-packed": "xmlexi(doc, 0)",
+    "EXI byte-aligned": "xmlexi(doc, 1)",
+    "EXI pre-compression": "xmlexi(doc, 2)",
+    "EXI compression": "xmlexi(doc, 3)",
+    "EXI bit-packed, full": "xmlexi(doc, 0, 1)",
+    "EXI compression, full": "xmlexi(doc, 3, 1)",
+    "EXI schema bit-packed": "xmlexi(doc, 0, 0, 1)",
+    "EXI schema compression": "xmlexi(doc, 3, 0, 1)",
 }
 # Schema-informed streams carry no options: the connection names the schema
 # and the alignment they are read with (xml_exi_schema).
@@ -44,7 +44,7 @@ schema_alignment = {"EXI schema bit-packed": 0, "EXI schema compression": 3}
 
 def use(name):
     if name in schema_alignment:
-        db.execute("select xml_exi_schema(?, ?)", (schema_text, schema_alignment[name]))
+        db.execute("select xmlexi_schema(?, ?)", (schema_text, schema_alignment[name]))
 tables = {}
 db.execute("create table t0(id integer primary key, doc text)")
 db.executemany("insert into t0(doc) values (?)", ((text,) for text in texts))
@@ -70,12 +70,12 @@ for name, table in tables.items():
     print(f"{name:24} {size:12,} {size / text_bytes:8.2f} {encode}")
 
 queries = {
-    "open only": "select count(*) from {t} where xml_exists(doc, '/')",
-    "revenue": "select sum(xml_xpath(doc, 'sum(//*:line/(@qty * @price))')) from {t}",
-    "filter": "select count(*) from {t} where xml_exists(doc, '/*:order[@status = \"refunded\"][*:shipping/@country = \"EE\"]')",
-    "extract": "select count(xml_xpath(doc, 'string(/*:order/*:customer/*:name)')) from {t}",
-    "xquery": "select count(xml_query(doc, 'declare default element namespace \"urn:example:orders\"; <summary id=\"{{/order/@id}}\">{{count(//line)}}</summary>')) from {t}",
-    "last line": "select count(xml_xpath(doc, '(//*:line)[last()]/@sku/string()')) from {t}",
+    "open only": "select count(*) from {t} where xmlexists('/', doc)",
+    "revenue": "select sum(xmlquery('sum(//*:line/(@qty * @price))', doc)) from {t}",
+    "filter": "select count(*) from {t} where xmlexists('/*:order[@status = \"refunded\"][*:shipping/@country = \"EE\"]', doc)",
+    "extract": "select count(xmlquery('string(/*:order/*:customer/*:name)', doc)) from {t}",
+    "xquery": "select count(xmlquery('declare default element namespace \"urn:example:orders\"; <summary id=\"{{/order/@id}}\">{{count(//line)}}</summary>', doc)) from {t}",
+    "last line": "select count(xmlquery('(//*:line)[last()]/@sku/string()', doc)) from {t}",
 }
 names = list(tables)
 print(f"\nus per row, best of 3")
