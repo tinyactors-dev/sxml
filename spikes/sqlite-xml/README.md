@@ -319,3 +319,33 @@ bytes only (the core can take a document node, `SXML_RESOURCE_FORM_
 DOCUMENT_NODE`); `fn:collection` is not resolved (it needs the shim's
 sequence form too); the query is compiled once per statement, so its
 imports come from the files as they were at its first row.
+
+**xmltable.** SQL/XML's XMLTABLE as an eponymous table-valued function:
+`xmltable(row_query, doc [, path1 ... path8])`, with no `CREATE VIRTUAL
+TABLE` needed. There is one row per item of the row query, in order.
+SQLite's table-valued functions take positional arguments only, so
+XMLTABLE's `COLUMNS name type PATH '...'` becomes up to eight paths and
+the columns `c1` to `c8`; a view names them. Each path is evaluated with
+the row's item as context. As in XMLTABLE, attributes, text, comments
+and processing instructions give their string value, elements and
+documents give XML, and atomic items give themselves. Every row also has
+`position` (from 1), `value` (a node's string value, or the atomic
+item), `xml`, `name`, `kind` (`element`, `attribute`, ..., `atomic`) and
+`path` (`fn:path`). The table is innocuous, so views may use it; it
+reads no files.
+
+```sql
+select o.id, l.c1 sku, sum(l.c2) revenue
+from orders o, xmltable('//*:line', o.doc, '@sku', '@qty * @price') l
+group by o.id, l.c1;
+```
+
+In a join, SQLite calls the filter once per outer row. Compiling the
+queries again on every call cost 450 us an order (20,000 orders, two
+paths). Now the cursor keeps the row query and the paths while their
+text stays the same, and the table keeps its four item queries: 22.9 us
+an order, against 15.4 for `xmlquery('sum(...)', doc)` alone. Most of
+the difference is that SQLite reads every line's columns. `xmltable_test.py`
+checks it (19 checks, all pass): the columns, node kinds, XDMB and EXI
+input, errors, joins, a left join, a row query that changes per row,
+and a view.

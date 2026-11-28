@@ -781,6 +781,372 @@ static const sqlite3_module sqlite_xml_files_module = {
     .xShadowName = sqlite_xml_files_shadow_name,
 };
 
+/* ------------------------------------------------- xmltable: rows of items */
+
+/*
+ * SELECT * FROM xmltable(row_query, doc [, path1 ... path8]): one row per
+ * item of row_query over doc, as SQL/XML's XMLTABLE(row_query PASSING doc
+ * COLUMNS c1 ... PATH path1 ...), in the form a table-valued function
+ * has: the columns are fixed, so up to eight path columns, c1 to c8, each
+ * path evaluated with the row's item as its context. Every row also has
+ * its position, value (an atomic item as itself, a node as its string
+ * value), xml (the item serialized), name, kind and path. Pure: it reads
+ * no files, so it is innocuous.
+ */
+enum { SQLITE_XML_TABLE_PATHS = 8, SQLITE_XML_TABLE_FIRST_PATH = 6 };
+enum {
+    SQLITE_XML_TABLE_POSITION, SQLITE_XML_TABLE_VALUE, SQLITE_XML_TABLE_XML, SQLITE_XML_TABLE_NAME,
+    SQLITE_XML_TABLE_KIND, SQLITE_XML_TABLE_PATH,
+    /* c1..c8 are 6..13; then the hidden arguments */
+    SQLITE_XML_TABLE_ROW_QUERY = SQLITE_XML_TABLE_FIRST_PATH + SQLITE_XML_TABLE_PATHS,
+    SQLITE_XML_TABLE_DOC,
+    SQLITE_XML_TABLE_FIRST_PATH_ARGUMENT,
+};
+
+typedef struct sqlite_xml_table {
+    sqlite3_vtab base;
+    sqlite_xml_connection *connection;
+    /* value, name, kind and path of an item: compiled at the first use,
+       kept for the table's life. */
+    sxml_host_query *item_queries[4];
+} sqlite_xml_table;
+
+/* The queries a cursor needs once: value, name, kind and path of an item. */
+enum { SQLITE_XML_ITEM_VALUE, SQLITE_XML_ITEM_NAME, SQLITE_XML_ITEM_KIND, SQLITE_XML_ITEM_PATH, SQLITE_XML_ITEM_QUERIES };
+static const char *const sqlite_xml_item_queries[SQLITE_XML_ITEM_QUERIES] = {
+    "if (. instance of node()) then string(.) else .",
+    "if (. instance of node()) then name(.) else ()",
+    "typeswitch (.) case document-node() return 'document' case element() return 'element' "
+    "case attribute() return 'attribute' case text() return 'text' case comment() return 'comment' "
+    "case processing-instruction() return 'processing-instruction' case namespace-node() return 'namespace' "
+    "case map(*) return 'map' case array(*) return 'array' case function(*) return 'function' "
+    "default return 'atomic'",
+    "if (. instance of node()) then path(.) else ()",
+};
+
+typedef struct sqlite_xml_table_cursor {
+    sqlite3_vtab_cursor base;
+    sxml_host_value *items;
+    uint64_t item_count;
+    uint64_t index;
+    /* The row query and the paths, compiled, with their texts: a filter
+       with the same texts (each row of a join) reuses them. */
+    sxml_host_query *row_query;
+    char *row_query_text;
+    sxml_host_query *paths[SQLITE_XML_TABLE_PATHS];
+    char *path_texts[SQLITE_XML_TABLE_PATHS];
+} sqlite_xml_table_cursor;
+
+static int sqlite_xml_table_connect(sqlite3 *database, void *auxiliary, int argument_count,
+                                    const char *const *arguments, sqlite3_vtab **table, char **error) {
+    (void)argument_count, (void)arguments, (void)error;
+    int result = sqlite3_declare_vtab(
+        database,
+        "create table x(position integer, value, xml text, name text, kind text, path text, "
+        "c1, c2, c3, c4, c5, c6, c7, c8, row_query hidden, doc hidden, "
+        "path1 hidden, path2 hidden, path3 hidden, path4 hidden, path5 hidden, path6 hidden, path7 hidden, "
+        "path8 hidden)");
+    if (result != SQLITE_OK) {
+        return result;
+    }
+    sqlite3_vtab_config(database, SQLITE_VTAB_INNOCUOUS);
+    sqlite_xml_table *xml_table = sqlite3_malloc(sizeof *xml_table);
+    if (xml_table == NULL) {
+        return SQLITE_NOMEM;
+    }
+    memset(xml_table, 0, sizeof *xml_table);
+    xml_table->connection = auxiliary;
+    *table = &xml_table->base;
+    return SQLITE_OK;
+}
+
+static int sqlite_xml_table_disconnect(sqlite3_vtab *table) {
+    sqlite_xml_table *xml_table = (sqlite_xml_table *)table;
+    for (int index = 0; index < SQLITE_XML_ITEM_QUERIES; index++) {
+        sxml_host_query_destroy(xml_table->item_queries[index]);
+    }
+    sqlite3_free(table);
+    return SQLITE_OK;
+}
+
+/* The arguments are equality constraints on the hidden columns; idxNum
+   has bit 0 for row_query, bit 1 for doc, bits 2.. for the paths, and
+   the arguments come in that order. row_query and doc are required. */
+static int sqlite_xml_table_best_index(sqlite3_vtab *table, sqlite3_index_info *info) {
+    (void)table;
+    int positions[2 + SQLITE_XML_TABLE_PATHS];
+    for (int index = 0; index < 2 + SQLITE_XML_TABLE_PATHS; index++) {
+        positions[index] = -1;
+    }
+    for (int index = 0; index < info->nConstraint; index++) {
+        const struct sqlite3_index_constraint *constraint = &info->aConstraint[index];
+        int argument = constraint->iColumn - SQLITE_XML_TABLE_ROW_QUERY;
+        if (argument < 0 || constraint->op != SQLITE_INDEX_CONSTRAINT_EQ) {
+            continue;
+        }
+        if (!constraint->usable) {
+            return SQLITE_CONSTRAINT;
+        }
+        positions[argument] = index;
+    }
+    if (positions[0] < 0 || positions[1] < 0) {
+        table->zErrMsg = sqlite3_mprintf("xmltable(row_query, doc [, path ...]) needs row_query and doc");
+        return SQLITE_ERROR;
+    }
+    int next = 1;
+    info->idxNum = 0;
+    for (int argument = 0; argument < 2 + SQLITE_XML_TABLE_PATHS; argument++) {
+        if (positions[argument] >= 0) {
+            info->aConstraintUsage[positions[argument]].argvIndex = next++;
+            info->aConstraintUsage[positions[argument]].omit = 1;
+            info->idxNum |= 1 << argument;
+        }
+    }
+    info->estimatedCost = 1000;
+    info->estimatedRows = 100;
+    return SQLITE_OK;
+}
+
+static int sqlite_xml_table_open(sqlite3_vtab *table, sqlite3_vtab_cursor **cursor) {
+    (void)table;
+    sqlite_xml_table_cursor *table_cursor = sqlite3_malloc(sizeof *table_cursor);
+    if (table_cursor == NULL) {
+        return SQLITE_NOMEM;
+    }
+    memset(table_cursor, 0, sizeof *table_cursor);
+    *cursor = &table_cursor->base;
+    return SQLITE_OK;
+}
+
+/* Lets go of the current result; with forgets, of the compiled queries
+   too (the cursor closes). */
+static void sqlite_xml_table_reset(sqlite_xml_table_cursor *cursor, int forgets) {
+    sxml_host_value_release(cursor->items);
+    cursor->items = NULL;
+    cursor->item_count = cursor->index = 0;
+    if (!forgets) {
+        return;
+    }
+    sxml_host_query_destroy(cursor->row_query);
+    sqlite3_free(cursor->row_query_text);
+    cursor->row_query = NULL;
+    cursor->row_query_text = NULL;
+    for (int index = 0; index < SQLITE_XML_TABLE_PATHS; index++) {
+        sxml_host_query_destroy(cursor->paths[index]);
+        sqlite3_free(cursor->path_texts[index]);
+        cursor->paths[index] = NULL;
+        cursor->path_texts[index] = NULL;
+    }
+}
+
+static int sqlite_xml_table_close(sqlite3_vtab_cursor *cursor) {
+    sqlite_xml_table_reset((sqlite_xml_table_cursor *)cursor, 1);
+    sqlite3_free(cursor);
+    return SQLITE_OK;
+}
+
+/* Compiles text as XQuery; the processor's error in zErrMsg when it fails. */
+static sxml_host_query *sqlite_xml_table_compile(sqlite3_vtab *table, sxml_host_processor *processor,
+                                                 const char *text) {
+    sxml_host_query *query = sxml_host_query_compile(
+        processor, &(sxml_host_query_compile_request){.query_text = {(const uint8_t *)text, strlen(text)}});
+    if (query == NULL) {
+        const sxml_host_error *error = sxml_host_error_of(processor);
+        sqlite3_free(table->zErrMsg);
+        table->zErrMsg = sqlite3_mprintf("sxml: %.*s: %.*s (in %s)", (int)error->code_local_name.byte_count,
+                                         error->code_local_name.bytes, (int)error->description.byte_count,
+                                         error->description.bytes, text);
+    }
+    return query;
+}
+
+static int sqlite_xml_table_filter(sqlite3_vtab_cursor *cursor, int index_number, const char *index_text,
+                                   int argument_count, sqlite3_value **arguments) {
+    (void)index_text, (void)argument_count;
+    sqlite_xml_table_cursor *table_cursor = (sqlite_xml_table_cursor *)cursor;
+    sqlite3_vtab *table = cursor->pVtab;
+    sqlite_xml_connection *connection = ((sqlite_xml_table *)table)->connection;
+    sxml_host_processor *processor = connection->processor;
+    sqlite_xml_table_reset(table_cursor, 0);
+    sqlite_xml_table *xml_table = (sqlite_xml_table *)table;
+    int argument = 0;
+    sqlite3_value *row_query = arguments[argument++];
+    sqlite3_value *doc = arguments[argument++];
+    for (int path = 0; path < SQLITE_XML_TABLE_PATHS; path++) {
+        const char *text = (index_number & (1 << (path + 2))) ? (const char *)sqlite3_value_text(arguments[argument++])
+                                                              : NULL;
+        if (text != NULL && table_cursor->path_texts[path] != NULL && strcmp(text, table_cursor->path_texts[path]) == 0) {
+            continue; /* the same path as the last row's */
+        }
+        sxml_host_query_destroy(table_cursor->paths[path]);
+        sqlite3_free(table_cursor->path_texts[path]);
+        table_cursor->paths[path] = NULL;
+        table_cursor->path_texts[path] = NULL;
+        if (text == NULL) {
+            continue;
+        }
+        /* As XMLTABLE's columns: attributes, text, comments and processing
+           instructions as their string values, elements and documents as
+           XML, atomic items as themselves. */
+        char *wrapped = sqlite3_mprintf(
+            "for $sqlite_xml_item in (%s\n) return if ($sqlite_xml_item instance of attribute() or $sqlite_xml_item "
+            "instance of text() or $sqlite_xml_item instance of comment() or $sqlite_xml_item instance of "
+            "processing-instruction()) then string($sqlite_xml_item) else $sqlite_xml_item",
+            text);
+        if (wrapped == NULL) {
+            return SQLITE_NOMEM;
+        }
+        table_cursor->paths[path] = sqlite_xml_table_compile(table, processor, wrapped);
+        sqlite3_free(wrapped);
+        if (table_cursor->paths[path] == NULL) {
+            return SQLITE_ERROR;
+        }
+        table_cursor->path_texts[path] = sqlite3_mprintf("%s", text);
+    }
+    for (int index = 0; index < SQLITE_XML_ITEM_QUERIES; index++) {
+        if (xml_table->item_queries[index] == NULL &&
+            (xml_table->item_queries[index] = sqlite_xml_table_compile(table, processor, sqlite_xml_item_queries[index])) ==
+                NULL) {
+            return SQLITE_ERROR;
+        }
+    }
+    if (sqlite3_value_type(row_query) == SQLITE_NULL || sqlite3_value_type(doc) == SQLITE_NULL) {
+        return SQLITE_OK;
+    }
+    const char *row_text = (const char *)sqlite3_value_text(row_query);
+    if (table_cursor->row_query_text == NULL || strcmp(row_text, table_cursor->row_query_text) != 0) {
+        sxml_host_query_destroy(table_cursor->row_query);
+        sqlite3_free(table_cursor->row_query_text);
+        table_cursor->row_query_text = NULL;
+        table_cursor->row_query = sqlite_xml_table_compile(table, processor, row_text);
+        if (table_cursor->row_query == NULL) {
+            return SQLITE_ERROR;
+        }
+        table_cursor->row_query_text = sqlite3_mprintf("%s", row_text);
+    }
+    sxml_host_query *query = table_cursor->row_query;
+    /* sqlite_xml_document reports through a context; a table has none, so
+       it is opened here the same way, by hand. */
+    sxml_host_value *document = NULL;
+    sxml_byte_view bytes = {sqlite3_value_blob(doc), (size_t)sqlite3_value_bytes(doc)};
+    if (sqlite3_value_type(doc) == SQLITE_BLOB && xdmb_is_encoded(bytes)) {
+        sxml_tree *tree = NULL;
+        if (xdmb_open(&(xdmb_open_request){.bytes = bytes,
+                                           .item_heap = sxml_processor_get_item_heap(processor->processor),
+                                           .allocator = processor->allocator,
+                                           .type_registry = sxml_processor_get_type_registry(processor->processor),
+                                           .schema = connection->schema ? sxml_host_schema_compiled(connection->schema)
+                                                                        : NULL},
+                      &tree) == SXML_STATUS_OK) {
+            sxml_item item = sxml_node_item_make((sxml_node_reference){.tree = tree, .node_index = {0}});
+            sxml_tree_release(tree);
+            document = sxml_host_value_make(processor, sxml_sequence_from_item(item));
+        }
+    } else if (sqlite3_value_type(doc) == SQLITE_BLOB && sqlite_xml_is_exi(bytes)) {
+        document = sxml_host_exi_parse(processor, &(sxml_host_exi_parse_request){.input = bytes});
+    } else {
+        bytes = (sxml_byte_view){sqlite3_value_text(doc), (size_t)sqlite3_value_bytes(doc)};
+        document = sxml_host_parse(processor, &(sxml_host_parse_request){.input = bytes, .document_uri = {0}});
+    }
+    if (document == NULL) {
+        table->zErrMsg = sqlite3_mprintf("sxml: doc is not XML, XDMB or EXI");
+        return SQLITE_ERROR;
+    }
+    table_cursor->items = sxml_host_query_evaluate(query, &(sxml_host_query_evaluate_request){.context_value = document});
+    sxml_host_value_release(document);
+    if (table_cursor->items == NULL ||
+        sxml_sequence_count(table_cursor->items->sequence, NULL, &table_cursor->item_count) != SXML_STATUS_OK) {
+        const sxml_host_error *error = sxml_host_error_of(processor);
+        table->zErrMsg = sqlite3_mprintf("sxml: %.*s: %.*s", (int)error->code_local_name.byte_count,
+                                         error->code_local_name.bytes, (int)error->description.byte_count,
+                                         error->description.bytes);
+        return SQLITE_ERROR;
+    }
+    return SQLITE_OK;
+}
+
+static int sqlite_xml_table_next(sqlite3_vtab_cursor *cursor) {
+    ((sqlite_xml_table_cursor *)cursor)->index++;
+    return SQLITE_OK;
+}
+
+static int sqlite_xml_table_eof(sqlite3_vtab_cursor *cursor) {
+    sqlite_xml_table_cursor *table_cursor = (sqlite_xml_table_cursor *)cursor;
+    return table_cursor->index >= table_cursor->item_count;
+}
+
+static int sqlite_xml_table_rowid(sqlite3_vtab_cursor *cursor, sqlite3_int64 *rowid) {
+    *rowid = (sqlite3_int64)((sqlite_xml_table_cursor *)cursor)->index + 1;
+    return SQLITE_OK;
+}
+
+/* A column of the current row: query over the row's item, its result as
+   xmlquery gives it. */
+static int sqlite_xml_table_column(sqlite3_vtab_cursor *cursor, sqlite3_context *context, int column) {
+    sqlite_xml_table_cursor *table_cursor = (sqlite_xml_table_cursor *)cursor;
+    sqlite_xml_connection *connection = ((sqlite_xml_table *)cursor->pVtab)->connection;
+    sxml_host_processor *processor = connection->processor;
+    if (column == SQLITE_XML_TABLE_POSITION) {
+        sqlite3_result_int64(context, (sqlite3_int64)table_cursor->index + 1);
+        return SQLITE_OK;
+    }
+    sxml_item item = {0};
+    if (sxml_sequence_get_item(table_cursor->items->sequence, (sxml_item_request){.item_index = table_cursor->index},
+                               &item) != SXML_STATUS_OK) {
+        return SQLITE_ERROR;
+    }
+    sxml_item_retain(item);
+    sxml_host_value *value = sxml_host_value_make(processor, sxml_sequence_from_item(item));
+    if (value == NULL) {
+        return SQLITE_NOMEM;
+    }
+    if (column == SQLITE_XML_TABLE_XML) {
+        sqlite_xml_result(context, processor, value, 1);
+        sxml_host_value_release(value);
+        return SQLITE_OK;
+    }
+    sxml_host_query *query = NULL;
+    switch (column) {
+    case SQLITE_XML_TABLE_VALUE: query = ((sqlite_xml_table *)cursor->pVtab)->item_queries[SQLITE_XML_ITEM_VALUE]; break;
+    case SQLITE_XML_TABLE_NAME: query = ((sqlite_xml_table *)cursor->pVtab)->item_queries[SQLITE_XML_ITEM_NAME]; break;
+    case SQLITE_XML_TABLE_KIND: query = ((sqlite_xml_table *)cursor->pVtab)->item_queries[SQLITE_XML_ITEM_KIND]; break;
+    case SQLITE_XML_TABLE_PATH: query = ((sqlite_xml_table *)cursor->pVtab)->item_queries[SQLITE_XML_ITEM_PATH]; break;
+    default:
+        if (column >= SQLITE_XML_TABLE_FIRST_PATH && column < SQLITE_XML_TABLE_FIRST_PATH + SQLITE_XML_TABLE_PATHS) {
+            query = table_cursor->paths[column - SQLITE_XML_TABLE_FIRST_PATH];
+        }
+        break;
+    }
+    if (query == NULL) {
+        sxml_host_value_release(value);
+        return SQLITE_OK; /* NULL: a path column not asked for, or a hidden argument */
+    }
+    sxml_host_value *result = sxml_host_query_evaluate(query, &(sxml_host_query_evaluate_request){.context_value = value});
+    if (result == NULL) {
+        sqlite_xml_fail(context, processor);
+    } else {
+        sqlite_xml_result(context, processor, result, 1);
+        sxml_host_value_release(result);
+    }
+    sxml_host_value_release(value);
+    return SQLITE_OK;
+}
+
+static const sqlite3_module sqlite_xml_table_module = {
+    .iVersion = 0,
+    .xCreate = NULL, /* eponymous only: a table-valued function */
+    .xConnect = sqlite_xml_table_connect,
+    .xBestIndex = sqlite_xml_table_best_index,
+    .xDisconnect = sqlite_xml_table_disconnect,
+    .xOpen = sqlite_xml_table_open,
+    .xClose = sqlite_xml_table_close,
+    .xFilter = sqlite_xml_table_filter,
+    .xNext = sqlite_xml_table_next,
+    .xEof = sqlite_xml_table_eof,
+    .xColumn = sqlite_xml_table_column,
+    .xRowid = sqlite_xml_table_rowid,
+};
+
 /* What xmlquery, xmlexists and xmlquery_validated do with the result. */
 typedef enum sqlite_xml_run_mode {
     /* xmlquery(query, doc [, files]): one atomic item as an SQL value,
@@ -1054,6 +1420,9 @@ static int sqlite_xml_register(sqlite3 *database, char **error_message, int with
     }
     if (result == SQLITE_OK) {
         result = sqlite3_create_module(database, "xmlfiles", &sqlite_xml_files_module, NULL);
+    }
+    if (result == SQLITE_OK) {
+        result = sqlite3_create_module(database, "xmltable", &sqlite_xml_table_module, connection);
     }
     return result;
 }
