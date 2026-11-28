@@ -18,6 +18,8 @@
 #include "sxml/tree.h"
 #include "sxml/view.h"
 #include "sxml/xdm.h"
+#include "sxml/schema.h"
+#include "sxml/types.h"
 
 /* Bytes the encoder made; free with xdmb_free (malloc'd). */
 typedef struct xdmb_bytes {
@@ -25,7 +27,25 @@ typedef struct xdmb_bytes {
     size_t byte_count;
 } xdmb_bytes;
 
-sxml_status xdmb_encode(sxml_tree *tree, xdmb_bytes *encoded);
+/* What to encode. Version 2 keeps, besides version 1's XDM, what makes a
+   tree round-trip completely: type annotations of validated nodes, the
+   unparsed entities, the entity base URIs and, when asked, the source
+   locations. Each is a section of its own, written only when present. */
+typedef struct xdmb_encode_request {
+    sxml_tree *tree;
+    /* Describes the tree's type annotations (the processor's). */
+    const sxml_type_registry *type_registry;
+    /* Optional: the schema the tree was validated with; an anonymous type
+       of one of its global declarations is then written exactly. */
+    const sxml_schema *schema;
+    /* Nonzero: write the nodes' source locations. */
+    int keeps_locations;
+    /* Out: annotations of anonymous types of local declarations, written
+       as their nearest named base type (not exact). */
+    size_t approximate_type_count;
+} xdmb_encode_request;
+
+sxml_status xdmb_encode(xdmb_encode_request *request, xdmb_bytes *encoded);
 void xdmb_free(xdmb_bytes *encoded);
 
 /* True when bytes start with the XDMB magic. */
@@ -36,6 +56,11 @@ typedef struct xdmb_open_request {
     sxml_byte_view bytes;
     sxml_item_heap *item_heap;
     sxml_allocator allocator;
+    /* Resolve the type annotations of a typed blob: the processor's
+       registry for built-in types, the schema for its own (a typed blob
+       whose types the schema lacks is refused). */
+    const sxml_type_registry *type_registry;
+    const sxml_schema *schema;
 } xdmb_open_request;
 
 /* Makes a tree over request->bytes with one reference, owned by the

@@ -215,3 +215,55 @@ release build, clang. Times in microseconds per row, best of 3.
   transfer): bit-packed EXI is 0.46 of the text and still five times
   faster to query than text, schema-informed 0.23 once its grammars are
   cached.
+
+## XDMB version 2: the gaps closed (2026-11-28)
+
+Version 2 adds a sections byte to the header and, after the text heap,
+four optional sections (layout at the top of `xdmb.c`): TYPES (a type
+table and a type number per node), ENTITIES (the unparsed entities),
+LOCATIONS (line, column and byte offset per node, opt-in with
+`xmlb(doc, 'locations')`) and BASES (entity base URIs by element). A
+document with none of them is version 1's layout plus one byte. Typed
+blobs come from `xmlb(doc, 'validate')` with `xml_schema(xsd)`, and are
+opened with the same schema; built-in types resolve without one.
+
+**Fidelity** (`fidelity_test.py`):
+
+| What | Result |
+|---|---|
+| Typed documents whose annotations are named types or anonymous types of global declarations | 242 of 242 identical (42 instances of the W3C XSD test suites, 200 orders against `orders-named.xsd`): every node's type annotation, and every typed value with the type of each item |
+| Typed documents with an anonymous type of a local declaration (an inline `xs:complexType` on a local element) | 16 of the 58 valid XSD-suite instances, and every order against `orders.xsd`; written as the nearest named base type, all of them differ |
+| Locations | 2,877 documents, `fn:location` of every node identical |
+| Unparsed entities | 49 documents declare them; 47 blobs carry the section (the other 2: unverified, likely declared in an external subset the spike does not load); all 49 re-encode to the same bytes |
+| Entity base URIs | written and read, untested: the spike has no resolver, so no external entity is ever loaded |
+
+The approximation must go: an anonymous local type cannot be named
+through sxml's public API (no content model access, no component
+designators), and a named base type stands for it wrongly (an
+element-only type becomes `xs:anyType` with a typed value). The fix is a
+schema API that names every type portably: W3C Schema Component
+Designators (`/schemaElement::order/type()/schemaElement::customer/type()`),
+or an ordinal per type in schema document order. That is a header
+change (additive, a decision record). Until then, an encoder should
+refuse such a document rather than approximate.
+
+**Cost** (20,000 orders, best of 3, us per row; same machine as above):
+
+| form | size vs text | encode | open only | revenue | extract |
+|---|--:|--:|--:|--:|--:|
+| text | 1.00 | | 122.8 | 133.5 | 131.5 |
+| XDMB (v2, untyped) | 0.96 | 170.0 | 3.1 | 16.7 | 5.3 |
+| XDMB + locations | 1.24 | 164.2 | 3.3 | 17.5 | 5.7 |
+| XDMB typed (orders-named.xsd) | 1.06 | 206.8 | 4.0 | 26.3 | 6.7 |
+
+- Untyped documents pay one byte each (18,084,333 against 18,064,333 for
+  20,000).
+- Types cost 10% in size (a byte per node and the type table) and about
+  1 us to open (the type names are resolved on every open; cacheable).
+  The slower `revenue` is semantics, not storage: typed `@price` is
+  `xs:decimal`, so the sum is decimal arithmetic instead of doubles.
+- Locations cost 28% in size: three fixed-width numbers per node. Delta
+  encoding would shrink them (unmeasured); they stay opt-in.
+- Validation drops locations: the validated tree sxml builds does not
+  keep the parser's, so "typed + locations" equals "typed" (a finding
+  about sxml's validator, not XDMB).

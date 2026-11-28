@@ -19,6 +19,25 @@
  *             their text in the heap, document = 0
  *   text heap: entries of varint length, bytes; equal texts shared
  *
+ * Version 2 adds a sections byte after the widths, and after the text
+ * heap the sections it names, each only when the tree has something for
+ * it (a tree with none is version 1's layout plus that byte):
+ *   TYPES (1):     varint type_count, type_count x (varint kind, uri, local
+ *                  string), varint width code, node_count x type number
+ *                  (fixed width; 0: the kind's default, xs:untyped for an
+ *                  element, xs:untypedAtomic for an attribute, none else).
+ *                  kind 0: the type named uri/local; 1: the anonymous type
+ *                  of the global element declaration named so; 2: of the
+ *                  global attribute declaration; 3: a named base type
+ *                  standing for an anonymous local type (not exact).
+ *   ENTITIES (2):  varint count, count x (varint name, system id, public
+ *                  id strings): the unparsed entities, in order.
+ *   LOCATIONS (4): varint source name string, varint widths (line code |
+ *                  column code << 2 | offset code << 4), node_count x
+ *                  (line, column, byte offset), fixed widths.
+ *   BASES (8):     varint count, count x (varint element index, string):
+ *                  the entity base URIs, by element.
+ *
  * Nodes are in sxml's document order (preorder, attributes first), so
  * the descendants of n are n+1 .. last_descendant(n), as the arena tree
  * and the XPath accelerator's pre/size encoding have it.
@@ -33,7 +52,11 @@
 #include "sxml/types.h"
 
 enum {
-    XDMB_VERSION = 1,
+    XDMB_VERSION = 2,
+    XDMB_SECTION_TYPES = 1,
+    XDMB_SECTION_ENTITIES = 2,
+    XDMB_SECTION_LOCATIONS = 4,
+    XDMB_SECTION_BASES = 8,
     XDMB_KIND_MASK = 0x07,
     XDMB_FLAG_ID = 0x08,
     XDMB_FLAG_IDREFS = 0x10,
@@ -202,6 +225,8 @@ typedef struct xdmb_encoder {
     xdmb_buffer set_table;
     xdmb_interner texts;
     xdmb_buffer text_heap;
+    xdmb_interner types;
+    xdmb_buffer type_table;
 } xdmb_encoder;
 
 static uint32_t xdmb_encoder_string(xdmb_encoder *encoder, sxml_byte_view text) {
@@ -307,11 +332,176 @@ static uint32_t xdmb_encoder_set(xdmb_encoder *encoder, sxml_namespace_binding_v
     return number;
 }
 
+/* ------------------------------------------- Entities and entity bases */
+
+/* What a copy of the document tells and the tree interface does not:
+   the unparsed entities and the elements' entity base URIs, captured by
+   a tree builder that keeps nothing else. */
+typedef struct xdmb_capture {
+    xdmb_encoder *encoder;
+    xdmb_buffer entities;
+    uint32_t entity_count;
+    /* Element number (in document order) and string, for each element
+       with an entity base URI. */
+    uint32_t *base_elements;
+    uint32_t *base_strings;
+    uint32_t base_count;
+    uint32_t base_capacity;
+    uint32_t element_number;
+    bool failed;
+} xdmb_capture;
+
+static sxml_status xdmb_capture_none(void *state) {
+    (void)state;
+    return SXML_STATUS_OK;
+}
+static sxml_status xdmb_capture_document(void *state, const sxml_document_start_event *event) {
+    (void)state, (void)event;
+    return SXML_STATUS_OK;
+}
+static sxml_status xdmb_capture_element(void *state, const sxml_element_start_event *event) {
+    xdmb_capture *capture = state;
+    uint32_t number = capture->element_number++;
+    if (event->entity_base_uri.byte_count == 0) {
+        return SXML_STATUS_OK;
+    }
+    if (capture->base_count == capture->base_capacity) {
+        uint32_t capacity = capture->base_capacity ? capture->base_capacity * 2 : 8;
+        uint32_t *elements = realloc(capture->base_elements, capacity * sizeof *elements);
+        uint32_t *strings = elements ? realloc(capture->base_strings, capacity * sizeof *strings) : NULL;
+        if (elements) capture->base_elements = elements;
+        if (strings) capture->base_strings = strings;
+        if (!elements || !strings) {
+            capture->failed = true;
+            return SXML_STATUS_OUT_OF_MEMORY;
+        }
+        capture->base_capacity = capacity;
+    }
+    capture->base_elements[capture->base_count] = number;
+    capture->base_strings[capture->base_count] = xdmb_encoder_string(capture->encoder, event->entity_base_uri);
+    capture->base_count++;
+    return SXML_STATUS_OK;
+}
+static sxml_status xdmb_capture_binding(void *state, const sxml_namespace_binding *binding) {
+    (void)state, (void)binding;
+    return SXML_STATUS_OK;
+}
+static sxml_status xdmb_capture_attribute(void *state, const sxml_attribute_event *event) {
+    (void)state, (void)event;
+    return SXML_STATUS_OK;
+}
+static sxml_status xdmb_capture_text(void *state, const sxml_text_event *event) {
+    (void)state, (void)event;
+    return SXML_STATUS_OK;
+}
+static sxml_status xdmb_capture_comment(void *state, const sxml_comment_event *event) {
+    (void)state, (void)event;
+    return SXML_STATUS_OK;
+}
+static sxml_status xdmb_capture_instruction(void *state, const sxml_processing_instruction_event *event) {
+    (void)state, (void)event;
+    return SXML_STATUS_OK;
+}
+static sxml_status xdmb_capture_entity(void *state, const sxml_unparsed_entity *entity) {
+    xdmb_capture *capture = state;
+    xdmb_buffer_varint(&capture->entities, xdmb_encoder_string(capture->encoder, entity->entity_name));
+    xdmb_buffer_varint(&capture->entities, xdmb_encoder_string(capture->encoder, entity->system_identifier));
+    xdmb_buffer_varint(&capture->entities, xdmb_encoder_string(capture->encoder, entity->public_identifier));
+    capture->entity_count++;
+    return SXML_STATUS_OK;
+}
+static const sxml_tree_builder_operations xdmb_capture_operations = {
+    .start_document = xdmb_capture_document,
+    .end_document = xdmb_capture_none,
+    .start_element = xdmb_capture_element,
+    .add_namespace_binding = xdmb_capture_binding,
+    .add_attribute = xdmb_capture_attribute,
+    .end_element = xdmb_capture_none,
+    .add_text = xdmb_capture_text,
+    .add_comment = xdmb_capture_comment,
+    .add_processing_instruction = xdmb_capture_instruction,
+    .add_unparsed_entity = xdmb_capture_entity,
+};
+
+/* ------------------------------------------------------- Type annotations */
+
+/* The type number (from 1) of a type annotation that is not the kind's
+   default, 0 for the default. */
+static uint32_t xdmb_encoder_type(xdmb_encoder *encoder, xdmb_encode_request *request,
+                                  const sxml_node_description *description) {
+    sxml_type_identifier type = description->type_annotation;
+    sxml_type_identifier default_type = sxml_builtin_type_identifier(
+        description->node_kind == SXML_NODE_KIND_ELEMENT     ? SXML_TYPE_XS_UNTYPED
+        : description->node_kind == SXML_NODE_KIND_ATTRIBUTE ? SXML_TYPE_XS_UNTYPED_ATOMIC
+                                                             : SXML_TYPE_NONE);
+    if (type.index == default_type.index || type.index == 0 || request->type_registry == NULL) {
+        return 0;
+    }
+    uint32_t kind = 0;
+    sxml_name_identifier name = {0};
+    sxml_type_description type_description;
+    memset(&type_description, 0, sizeof type_description);
+    if (sxml_type_registry_describe_type(request->type_registry, type, &type_description) != SXML_STATUS_OK) {
+        encoder->types.failed = true;
+        return 0;
+    }
+    if (type_description.type_name.index != 0) {
+        name = type_description.type_name;
+    } else {
+        sxml_element_declaration_description element = {0};
+        sxml_attribute_declaration_description attribute = {0};
+        if (request->schema != NULL && description->node_kind == SXML_NODE_KIND_ELEMENT &&
+            sxml_schema_find_element_declaration(request->schema, description->node_name, &element) &&
+            element.declared_type.index == type.index) {
+            kind = 1;
+            name = description->node_name;
+        } else if (request->schema != NULL && description->node_kind == SXML_NODE_KIND_ATTRIBUTE &&
+                   sxml_schema_find_attribute_declaration(request->schema, description->node_name, &attribute) &&
+                   attribute.declared_type.index == type.index) {
+            kind = 2;
+            name = description->node_name;
+        } else {
+            /* An anonymous type of a local declaration: its nearest named
+               base type stands for it (not exact). */
+            kind = 3;
+            request->approximate_type_count++;
+            sxml_type_identifier base = type_description.base_type;
+            while (base.index != 0 && name.index == 0) {
+                if (sxml_type_registry_describe_type(request->type_registry, base, &type_description) !=
+                    SXML_STATUS_OK) {
+                    break;
+                }
+                name = type_description.type_name;
+                base = type_description.base_type;
+            }
+            if (name.index == 0) {
+                encoder->types.failed = true;
+                return 0;
+            }
+        }
+    }
+    uint32_t key[2] = {kind, name.index};
+    bool is_new = false;
+    uint32_t number = xdmb_intern(&encoder->types, (sxml_byte_view){(const uint8_t *)key, sizeof key}, &is_new);
+    if (is_new) {
+        sxml_name_parts parts = {0};
+        if (sxml_name_pool_get_name_parts(encoder->name_pool, name, &parts) != SXML_STATUS_OK) {
+            encoder->types.failed = true;
+        }
+        xdmb_buffer_varint(&encoder->type_table, kind);
+        xdmb_buffer_varint(&encoder->type_table, xdmb_encoder_string(encoder, xdmb_uri_text(encoder, parts.namespace_uri)));
+        xdmb_buffer_varint(&encoder->type_table, xdmb_encoder_string(encoder, parts.local_name));
+    }
+    return number + 1;
+}
+
 static unsigned xdmb_width_code(uint32_t maximum) {
     return maximum <= 0xFF ? 0 : maximum <= 0xFFFF ? 1 : 2;
 }
 
-sxml_status xdmb_encode(sxml_tree *tree, xdmb_bytes *encoded) {
+sxml_status xdmb_encode(xdmb_encode_request *request, xdmb_bytes *encoded) {
+    sxml_tree *tree = request->tree;
+    request->approximate_type_count = 0;
     sxml_tree_description tree_description = {0};
     sxml_status status = sxml_tree_describe(tree, &tree_description);
     if (status != SXML_STATUS_OK) {
@@ -319,6 +509,11 @@ sxml_status xdmb_encode(sxml_tree *tree, xdmb_bytes *encoded) {
     }
     uint32_t node_count = tree_description.node_count;
     xdmb_record *records = calloc(node_count ? node_count : 1, sizeof *records);
+    uint32_t *type_numbers = calloc(node_count ? node_count : 1, sizeof *type_numbers);
+    sxml_source_location *locations =
+        request->keeps_locations ? calloc(node_count ? node_count : 1, sizeof *locations) : NULL;
+    uint32_t maximum_type = 0, maximum_line = 0, maximum_column = 0, maximum_offset = 0;
+    bool has_locations = false;
     uint32_t *text_offsets = NULL; /* by text number */
     size_t text_offset_capacity = 0;
     xdmb_encoder encoder = {.name_pool = tree_description.name_pool};
@@ -326,7 +521,10 @@ sxml_status xdmb_encode(sxml_tree *tree, xdmb_bytes *encoded) {
     xdmb_intern(&encoder.strings, (sxml_byte_view){(const uint8_t *)"", 0}, &is_new);
     uint32_t document_uri = xdmb_encoder_string(&encoder, tree_description.document_uri);
     uint32_t base_uri = xdmb_encoder_string(&encoder, tree_description.base_uri);
-    if (records == NULL) {
+    if (records == NULL || type_numbers == NULL || (request->keeps_locations && locations == NULL)) {
+        free(records);
+        free(type_numbers);
+        free(locations);
         return SXML_STATUS_OUT_OF_MEMORY;
     }
     uint32_t maximum_payload = 0;
@@ -346,6 +544,19 @@ sxml_status xdmb_encode(sxml_tree *tree, xdmb_bytes *encoded) {
                              (description.disables_output_escaping ? XDMB_FLAG_NO_ESCAPING : 0);
         record->parent = description.has_parent ? description.parent.index : 0;
         record->last_descendant = description.last_descendant.index;
+        if (description.node_kind == SXML_NODE_KIND_ELEMENT || description.node_kind == SXML_NODE_KIND_ATTRIBUTE) {
+            type_numbers[index] = xdmb_encoder_type(&encoder, request, &description);
+            if (type_numbers[index] > maximum_type) {
+                maximum_type = type_numbers[index];
+            }
+        }
+        if (locations != NULL && sxml_node_get_location(node, &locations[index]) == SXML_STATUS_OK &&
+            locations[index].line_number != 0) {
+            has_locations = true;
+            if (locations[index].line_number > maximum_line) maximum_line = locations[index].line_number;
+            if (locations[index].column_number > maximum_column) maximum_column = locations[index].column_number;
+            if (locations[index].byte_offset > maximum_offset) maximum_offset = (uint32_t)locations[index].byte_offset;
+        }
         switch (description.node_kind) {
         case SXML_NODE_KIND_ELEMENT: {
             record->name = xdmb_encoder_name(&encoder, &description);
@@ -393,7 +604,28 @@ sxml_status xdmb_encode(sxml_tree *tree, xdmb_bytes *encoded) {
             maximum_payload = record->payload;
         }
     }
-    bool failed = encoder.strings.failed || encoder.names.failed || encoder.sets.failed ||
+    xdmb_capture capture = {.encoder = &encoder};
+    if (status == SXML_STATUS_OK) {
+        sxml_status copied = sxml_tree_builder_copy_node(
+            (sxml_tree_builder){.state = &capture, .operations = &xdmb_capture_operations},
+            &(sxml_copy_request){.node = {.tree = tree, .node_index = {0}, .namespace_number = 0},
+                                 .preserves_namespaces = true});
+        if (copied != SXML_STATUS_OK || capture.failed) {
+            status = copied != SXML_STATUS_OK ? copied : SXML_STATUS_OUT_OF_MEMORY;
+        }
+    }
+    uint32_t location_source = 0;
+    if (has_locations) {
+        location_source = xdmb_encoder_string(&encoder, locations[0].source_name);
+        for (uint32_t index = 1; index < node_count; index++) {
+            if (locations[index].line_number != 0) {
+                location_source = xdmb_encoder_string(&encoder, locations[index].source_name);
+                break;
+            }
+        }
+    }
+    bool failed = encoder.strings.failed || encoder.names.failed || encoder.sets.failed || encoder.types.failed ||
+                  encoder.type_table.failed || capture.entities.failed ||
                   encoder.texts.failed || encoder.string_table.failed || encoder.name_table.failed ||
                   encoder.set_table.failed || encoder.text_heap.failed;
     if (status == SXML_STATUS_OK && failed) {
@@ -404,8 +636,10 @@ sxml_status xdmb_encode(sxml_tree *tree, xdmb_bytes *encoded) {
         unsigned node_code = xdmb_width_code(node_count);
         unsigned name_code = xdmb_width_code(encoder.names.entry_count);
         unsigned payload_code = xdmb_width_code(maximum_payload);
-        uint8_t header[6] = {xdmb_magic[0], xdmb_magic[1], xdmb_magic[2], xdmb_magic[3], XDMB_VERSION,
-                             (uint8_t)(node_code | name_code << 2 | payload_code << 4)};
+        uint8_t sections = (maximum_type ? XDMB_SECTION_TYPES : 0) | (capture.entity_count ? XDMB_SECTION_ENTITIES : 0) |
+                           (has_locations ? XDMB_SECTION_LOCATIONS : 0) | (capture.base_count ? XDMB_SECTION_BASES : 0);
+        uint8_t header[7] = {xdmb_magic[0], xdmb_magic[1], xdmb_magic[2], xdmb_magic[3], XDMB_VERSION,
+                             (uint8_t)(node_code | name_code << 2 | payload_code << 4), sections};
         xdmb_buffer_append(&output, header, sizeof header);
         xdmb_buffer_varint(&output, node_count);
         xdmb_buffer_varint(&output, encoder.strings.entry_count);
@@ -426,11 +660,58 @@ sxml_status xdmb_encode(sxml_tree *tree, xdmb_bytes *encoded) {
             xdmb_buffer_fixed(&output, record->payload, 1u << payload_code);
         }
         xdmb_buffer_append(&output, encoder.text_heap.bytes, encoder.text_heap.byte_count);
+        if (sections & XDMB_SECTION_TYPES) {
+            unsigned type_code = xdmb_width_code(maximum_type);
+            xdmb_buffer_varint(&output, encoder.types.entry_count);
+            xdmb_buffer_append(&output, encoder.type_table.bytes, encoder.type_table.byte_count);
+            xdmb_buffer_varint(&output, type_code);
+            for (uint32_t index = 0; index < node_count; index++) {
+                xdmb_buffer_fixed(&output, type_numbers[index], 1u << type_code);
+            }
+        }
+        if (sections & XDMB_SECTION_ENTITIES) {
+            xdmb_buffer_varint(&output, capture.entity_count);
+            xdmb_buffer_append(&output, capture.entities.bytes, capture.entities.byte_count);
+        }
+        if (sections & XDMB_SECTION_LOCATIONS) {
+            unsigned line_code = xdmb_width_code(maximum_line), column_code = xdmb_width_code(maximum_column),
+                     offset_code = xdmb_width_code(maximum_offset);
+            xdmb_buffer_varint(&output, location_source);
+            xdmb_buffer_varint(&output, line_code | column_code << 2 | offset_code << 4);
+            for (uint32_t index = 0; index < node_count; index++) {
+                xdmb_buffer_fixed(&output, locations[index].line_number, 1u << line_code);
+                xdmb_buffer_fixed(&output, locations[index].column_number, 1u << column_code);
+                xdmb_buffer_fixed(&output, (uint32_t)locations[index].byte_offset, 1u << offset_code);
+            }
+        }
+        if (sections & XDMB_SECTION_BASES) {
+            /* element numbers to node indexes: the k-th element in order */
+            xdmb_buffer_varint(&output, capture.base_count);
+            uint32_t element_number = 0, next = 0;
+            for (uint32_t index = 0; index < node_count && next < capture.base_count; index++) {
+                if ((records[index].kind_flags & XDMB_KIND_MASK) != SXML_NODE_KIND_ELEMENT) {
+                    continue;
+                }
+                if (element_number == capture.base_elements[next]) {
+                    xdmb_buffer_varint(&output, index);
+                    xdmb_buffer_varint(&output, capture.base_strings[next]);
+                    next++;
+                }
+                element_number++;
+            }
+        }
         if (output.failed) {
             status = SXML_STATUS_OUT_OF_MEMORY;
         }
     }
     free(records);
+    free(type_numbers);
+    free(locations);
+    free(capture.entities.bytes);
+    free(capture.base_elements);
+    free(capture.base_strings);
+    xdmb_interner_free(&encoder.types);
+    free(encoder.type_table.bytes);
     free(text_offsets);
     xdmb_interner_free(&encoder.strings);
     xdmb_interner_free(&encoder.names);
@@ -456,7 +737,7 @@ void xdmb_free(xdmb_bytes *encoded) {
 }
 
 int xdmb_is_encoded(sxml_byte_view bytes) {
-    return bytes.byte_count >= 6 && memcmp(bytes.bytes, xdmb_magic, 4) == 0 && bytes.bytes[4] == XDMB_VERSION;
+    return bytes.byte_count >= 7 && memcmp(bytes.bytes, xdmb_magic, 4) == 0 && bytes.bytes[4] == XDMB_VERSION;
 }
 
 /* ---------------------------------------------------------------- Reader */
@@ -479,6 +760,22 @@ typedef struct xdmb_reader {
     /* By name number - 1. */
     sxml_name_identifier *names;
     sxml_namespace_prefix_identifier *prefixes;
+    /* Version 2 sections. TYPES: the type number column and the
+       identifiers by number - 1. */
+    const uint8_t *type_column;
+    unsigned type_width;
+    sxml_type_identifier *types;
+    /* ENTITIES. */
+    sxml_unparsed_entity *entities;
+    uint32_t entity_count;
+    /* LOCATIONS: (line, column, offset) per node, fixed widths. */
+    const uint8_t *location_column;
+    unsigned line_width, column_width, offset_width;
+    sxml_byte_view location_source;
+    /* BASES: element indexes ascending, and their entity base URIs. */
+    uint32_t *base_nodes;
+    sxml_byte_view *base_uris;
+    uint32_t base_count;
     /* Set s is bindings[set_starts[s] .. set_starts[s + 1]). */
     sxml_namespace_binding *bindings;
     uint32_t *set_starts;
@@ -586,6 +883,12 @@ static sxml_status xdmb_describe_node(void *state, sxml_node_index node_index,
             : kind == SXML_NODE_KIND_ATTRIBUTE ? SXML_TYPE_XS_UNTYPED_ATOMIC
                                                : SXML_TYPE_NONE),
     };
+    if (reader->type_column != NULL) {
+        uint32_t type = xdmb_read_fixed(reader->type_column + (size_t)index * reader->type_width, reader->type_width);
+        if (type != 0) {
+            description->type_annotation = reader->types[type - 1];
+        }
+    }
     if (kind == SXML_NODE_KIND_ELEMENT || kind == SXML_NODE_KIND_DOCUMENT) {
         uint32_t attributes = kind == SXML_NODE_KIND_ELEMENT ? xdmb_attribute_count(reader, index) : 0;
         description->attribute_count = attributes;
@@ -653,14 +956,79 @@ static sxml_status xdmb_get_in_scope_namespaces(void *state, sxml_node_index ele
     return SXML_STATUS_OK;
 }
 
+static sxml_status xdmb_get_location(void *state, sxml_node_index node_index, sxml_source_location *location) {
+    const xdmb_reader *reader = state;
+    *location = (sxml_source_location){0};
+    if (reader->location_column == NULL) {
+        return SXML_STATUS_OK;
+    }
+    const uint8_t *at = reader->location_column +
+                        (size_t)node_index.index * (reader->line_width + reader->column_width + reader->offset_width);
+    location->line_number = xdmb_read_fixed(at, reader->line_width);
+    location->column_number = xdmb_read_fixed(at + reader->line_width, reader->column_width);
+    location->byte_offset = xdmb_read_fixed(at + reader->line_width + reader->column_width, reader->offset_width);
+    if (location->line_number != 0) {
+        location->source_name = reader->location_source;
+    }
+    return SXML_STATUS_OK;
+}
+
+static sxml_status xdmb_get_unparsed_entity(void *state, size_t entity_number, sxml_unparsed_entity *entity) {
+    const xdmb_reader *reader = state;
+    if (entity_number >= reader->entity_count) {
+        return SXML_STATUS_INDEX_OUT_OF_RANGE;
+    }
+    *entity = reader->entities[entity_number];
+    return SXML_STATUS_OK;
+}
+
+static sxml_status xdmb_find_unparsed_entity(void *state, sxml_unparsed_entity *entity) {
+    const xdmb_reader *reader = state;
+    for (uint32_t index = 0; index < reader->entity_count; index++) {
+        const sxml_unparsed_entity *candidate = &reader->entities[index];
+        if (candidate->entity_name.byte_count == entity->entity_name.byte_count &&
+            memcmp(candidate->entity_name.bytes, entity->entity_name.bytes, entity->entity_name.byte_count) == 0) {
+            *entity = *candidate;
+            return SXML_STATUS_OK;
+        }
+    }
+    return SXML_STATUS_INDEX_OUT_OF_RANGE;
+}
+
+static sxml_status xdmb_get_entity_base_uri(void *state, sxml_node_index element, sxml_byte_view *uri) {
+    const xdmb_reader *reader = state;
+    *uri = (sxml_byte_view){0};
+    uint32_t low = 0, high = reader->base_count;
+    while (low < high) {
+        uint32_t middle = low + (high - low) / 2;
+        if (reader->base_nodes[middle] < element.index) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    if (low < reader->base_count && reader->base_nodes[low] == element.index) {
+        *uri = reader->base_uris[low];
+    }
+    return SXML_STATUS_OK;
+}
+
 static const sxml_tree_operations xdmb_tree_operations = {
     .describe_tree = xdmb_describe_tree,
     .describe_node = xdmb_describe_node,
     .get_node_content = xdmb_get_node_content,
     .get_in_scope_namespaces = xdmb_get_in_scope_namespaces,
+    .get_location = xdmb_get_location,
+    .find_unparsed_entity = xdmb_find_unparsed_entity,
+    .get_unparsed_entity = xdmb_get_unparsed_entity,
+    .get_entity_base_uri = xdmb_get_entity_base_uri,
 };
 
 static void xdmb_reader_free(xdmb_reader *reader) {
+    free(reader->types);
+    free(reader->entities);
+    free(reader->base_nodes);
+    free(reader->base_uris);
     free(reader->names);
     free(reader->prefixes);
     free(reader->bindings);
@@ -675,6 +1043,150 @@ static void xdmb_release(void *state, sxml_tree *tree) {
 }
 
 static const sxml_tree_owner_operations xdmb_owner_operations = {.release = xdmb_release};
+
+/* The version 2 sections after the text heap (layout at the top). */
+typedef struct xdmb_sections {
+    const xdmb_open_request *request;
+    xdmb_cursor *cursor;
+    uint8_t sections;
+    const sxml_byte_view *strings;
+    uint64_t string_count;
+} xdmb_sections;
+
+static sxml_status xdmb_read_sections(xdmb_reader *reader, const xdmb_sections *in) {
+    xdmb_cursor *cursor = in->cursor;
+    const uint64_t string_count = in->string_count;
+    const sxml_byte_view *strings = in->strings;
+    sxml_status status = SXML_STATUS_OK;
+    if (in->sections & ~(XDMB_SECTION_TYPES | XDMB_SECTION_ENTITIES | XDMB_SECTION_LOCATIONS | XDMB_SECTION_BASES)) {
+        return SXML_STATUS_INVALID_ARGUMENT;
+    }
+    if (in->sections & XDMB_SECTION_TYPES) {
+        uint64_t type_count = xdmb_read_varint(cursor);
+        if (cursor->failed || type_count == 0 || type_count > in->request->bytes.byte_count) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        reader->types = calloc(type_count, sizeof *reader->types);
+        if (reader->types == NULL) {
+            return SXML_STATUS_OUT_OF_MEMORY;
+        }
+        for (uint64_t index = 0; index < type_count; index++) {
+            uint64_t kind = xdmb_read_varint(cursor);
+            uint64_t uri = xdmb_read_varint(cursor);
+            uint64_t local = xdmb_read_varint(cursor);
+            if (cursor->failed || kind > 3 || uri >= string_count || local == 0 || local >= string_count) {
+                return SXML_STATUS_INVALID_ARGUMENT;
+            }
+            sxml_namespace_uri_identifier uri_identifier = {0};
+            sxml_name_identifier name = {0};
+            if (uri != 0) {
+                status = sxml_name_pool_intern_namespace_uri(reader->name_pool, strings[uri], &uri_identifier);
+            }
+            if (status == SXML_STATUS_OK) {
+                status = sxml_name_pool_intern_name(
+                    reader->name_pool, &(sxml_name_request){.namespace_uri = uri_identifier, .local_name = strings[local]},
+                    &name);
+            }
+            if (status != SXML_STATUS_OK) {
+                return status;
+            }
+            bool found = false;
+            const sxml_schema *schema = in->request->schema;
+            if (kind == 0 || kind == 3) {
+                found = (in->request->type_registry != NULL &&
+                         sxml_type_registry_find_type(in->request->type_registry, name, &reader->types[index])) ||
+                        (schema != NULL && sxml_schema_find_type(schema, name, &reader->types[index]));
+            } else if (kind == 1 && schema != NULL) {
+                sxml_element_declaration_description element = {0};
+                found = sxml_schema_find_element_declaration(schema, name, &element);
+                reader->types[index] = element.declared_type;
+            } else if (kind == 2 && schema != NULL) {
+                sxml_attribute_declaration_description attribute = {0};
+                found = sxml_schema_find_attribute_declaration(schema, name, &attribute);
+                reader->types[index] = attribute.declared_type;
+            }
+            if (!found) {
+                /* a type of a schema the reader was not given */
+                return SXML_STATUS_INVALID_ARGUMENT;
+            }
+        }
+        uint64_t code = xdmb_read_varint(cursor);
+        if (cursor->failed || code > 2) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        reader->type_width = 1u << code;
+        size_t size = (size_t)reader->node_count * reader->type_width;
+        if (size > (size_t)(cursor->end - cursor->at)) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        reader->type_column = cursor->at;
+        for (uint32_t index = 0; index < reader->node_count; index++) {
+            if (xdmb_read_fixed(reader->type_column + (size_t)index * reader->type_width, reader->type_width) > type_count) {
+                return SXML_STATUS_INVALID_ARGUMENT;
+            }
+        }
+        cursor->at += size;
+    }
+    if (in->sections & XDMB_SECTION_ENTITIES) {
+        uint64_t count = xdmb_read_varint(cursor);
+        if (cursor->failed || count == 0 || count > in->request->bytes.byte_count) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        reader->entities = calloc(count, sizeof *reader->entities);
+        if (reader->entities == NULL) {
+            return SXML_STATUS_OUT_OF_MEMORY;
+        }
+        for (uint64_t index = 0; index < count; index++) {
+            uint64_t name = xdmb_read_varint(cursor), system = xdmb_read_varint(cursor), public = xdmb_read_varint(cursor);
+            if (cursor->failed || name == 0 || name >= string_count || system >= string_count || public >= string_count) {
+                return SXML_STATUS_INVALID_ARGUMENT;
+            }
+            reader->entities[index] = (sxml_unparsed_entity){strings[name], strings[system], strings[public]};
+        }
+        reader->entity_count = (uint32_t)count;
+    }
+    if (in->sections & XDMB_SECTION_LOCATIONS) {
+        uint64_t source = xdmb_read_varint(cursor);
+        uint64_t codes = xdmb_read_varint(cursor);
+        if (cursor->failed || source >= string_count || (codes & 3) > 2 || ((codes >> 2) & 3) > 2 ||
+            ((codes >> 4) & 3) > 2 || codes >> 6) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        reader->location_source = strings[source];
+        reader->line_width = 1u << (codes & 3);
+        reader->column_width = 1u << ((codes >> 2) & 3);
+        reader->offset_width = 1u << ((codes >> 4) & 3);
+        size_t size = (size_t)reader->node_count * (reader->line_width + reader->column_width + reader->offset_width);
+        if (size > (size_t)(cursor->end - cursor->at)) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        reader->location_column = cursor->at;
+        cursor->at += size;
+    }
+    if (in->sections & XDMB_SECTION_BASES) {
+        uint64_t count = xdmb_read_varint(cursor);
+        if (cursor->failed || count == 0 || count > reader->node_count) {
+            return SXML_STATUS_INVALID_ARGUMENT;
+        }
+        reader->base_nodes = calloc(count, sizeof *reader->base_nodes);
+        reader->base_uris = calloc(count, sizeof *reader->base_uris);
+        if (reader->base_nodes == NULL || reader->base_uris == NULL) {
+            return SXML_STATUS_OUT_OF_MEMORY;
+        }
+        for (uint64_t index = 0; index < count; index++) {
+            uint64_t node = xdmb_read_varint(cursor), uri = xdmb_read_varint(cursor);
+            if (cursor->failed || node >= reader->node_count || uri == 0 || uri >= string_count ||
+                (index > 0 && node <= reader->base_nodes[index - 1]) ||
+                (xdmb_kind_flags(reader, (uint32_t)node) & XDMB_KIND_MASK) != SXML_NODE_KIND_ELEMENT) {
+                return SXML_STATUS_INVALID_ARGUMENT;
+            }
+            reader->base_nodes[index] = (uint32_t)node;
+            reader->base_uris[index] = strings[uri];
+        }
+        reader->base_count = (uint32_t)count;
+    }
+    return cursor->at == cursor->end ? SXML_STATUS_OK : SXML_STATUS_INVALID_ARGUMENT;
+}
 
 sxml_status xdmb_open(const xdmb_open_request *request, sxml_tree **tree) {
     if (!xdmb_is_encoded(request->bytes)) {
@@ -692,7 +1204,8 @@ sxml_status xdmb_open(const xdmb_open_request *request, sxml_tree **tree) {
     reader->name_width = 1u << ((widths >> 2) & 3);
     reader->payload_width = 1u << ((widths >> 4) & 3);
     reader->record_size = 1 + reader->name_width + 2 * reader->node_width + reader->payload_width;
-    xdmb_cursor cursor = {request->bytes.bytes + 6, request->bytes.bytes + request->bytes.byte_count, false};
+    uint8_t sections = request->bytes.bytes[6];
+    xdmb_cursor cursor = {request->bytes.bytes + 7, request->bytes.bytes + request->bytes.byte_count, false};
     uint64_t node_count = xdmb_read_varint(&cursor);
     uint64_t string_count = xdmb_read_varint(&cursor);
     uint64_t name_count = xdmb_read_varint(&cursor);
@@ -805,13 +1318,20 @@ sxml_status xdmb_open(const xdmb_open_request *request, sxml_tree **tree) {
     }
     size_t table_size = (size_t)node_count * reader->record_size;
     if (table_size > (size_t)(cursor.end - cursor.at) ||
-        text_heap_size != (uint64_t)(cursor.end - cursor.at) - table_size) {
+        text_heap_size > (uint64_t)(cursor.end - cursor.at) - table_size ||
+        (sections == 0 && text_heap_size != (uint64_t)(cursor.end - cursor.at) - table_size)) {
         status = SXML_STATUS_INVALID_ARGUMENT;
         goto done;
     }
     reader->node_table = cursor.at;
     reader->text_heap = cursor.at + table_size;
     reader->text_heap_size = (size_t)text_heap_size;
+    cursor.at += table_size + text_heap_size;
+    status = xdmb_read_sections(reader, &(xdmb_sections){.request = request, .cursor = &cursor, .sections = sections,
+                                                         .strings = strings, .string_count = string_count});
+    if (status != SXML_STATUS_OK) {
+        goto done;
+    }
     /* Validate the structural fields once, so the operations may trust
        them: names and sets in range, parents before their children, the
        descendant ranges nested. O(nodes). */

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- orders.xsd with every type named: no anonymous type of a local
+     declaration, so typed XDMB can name each annotation exactly. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="urn:example:orders"
+           targetNamespace="urn:example:orders" elementFormDefault="qualified">
+  <xs:element name="order" type="Order"/>
+  <xs:complexType name="Order">
+    <xs:sequence>
+      <xs:element name="customer" type="Customer"/>
+      <xs:element name="shipping" type="Shipping"/>
+      <xs:element name="lines" type="Lines"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:string" use="required"/>
+    <xs:attribute name="status" type="xs:string" use="required"/>
+    <xs:attribute name="placed" type="xs:dateTime" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="Customer">
+    <xs:sequence>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element name="email" type="xs:string"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:string" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="Shipping">
+    <xs:sequence>
+      <xs:element name="street" type="xs:string"/>
+      <xs:element name="city" type="xs:string"/>
+    </xs:sequence>
+    <xs:attribute name="country" type="xs:string" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="Lines">
+    <xs:sequence>
+      <xs:element name="line" type="Line" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="Line">
+    <xs:sequence>
+      <xs:element name="description" type="xs:string"/>
+    </xs:sequence>
+    <xs:attribute name="sku" type="xs:string" use="required"/>
+    <xs:attribute name="qty" type="xs:integer" use="required"/>
+    <xs:attribute name="price" type="xs:decimal" use="required"/>
+  </xs:complexType>
+</xs:schema>

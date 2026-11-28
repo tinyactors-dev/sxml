@@ -29,6 +29,11 @@ typedef struct sqlite_xml_connection {
        carries no options (schema-informed streams are stored without). */
     sxml_host_schema *exi_schema;
     uint32_t exi_alignment;
+    /* xml_schema(xsd): the schema xmlb(doc, 'validate') validates with,
+       and typed XDMB blobs are opened with. */
+    sxml_host_schema *schema;
+    /* What the last xmlb wrote as an approximation (xmlb_approximate()). */
+    size_t approximate_type_count;
     /* The operators (sqlite3_xml_operators_init): a private in-memory
        connection with SQLite's own -> and ->>, which answers for every
        left operand that is not XML, and its two statements. */
@@ -72,7 +77,12 @@ static sxml_host_value *sqlite_xml_document(sqlite3_context *context, sxml_host_
         sxml_status status = xdmb_open(
             &(xdmb_open_request){.bytes = bytes,
                                  .item_heap = sxml_processor_get_item_heap(processor->processor),
-                                 .allocator = processor->allocator},
+                                 .allocator = processor->allocator,
+                                 .type_registry = sxml_processor_get_type_registry(processor->processor),
+                                 .schema = ((sqlite_xml_connection *)sqlite3_user_data(context))->schema
+                                               ? sxml_host_schema_compiled(
+                                                     ((sqlite_xml_connection *)sqlite3_user_data(context))->schema)
+                                               : NULL},
             &tree);
         if (status != SXML_STATUS_OK) {
             sqlite3_result_error(context, "sxml: not a valid XDMB blob", -1);
@@ -116,15 +126,35 @@ static sxml_host_value *sqlite_xml_document(sqlite3_context *context, sxml_host_
 
 /* ------------------------------------------------- xmlb(doc), xml(doc) */
 
+/* xmlb(doc [, options]): options a text naming 'validate' (validate with
+   the connection's schema, xml_schema, and keep the type annotations) and
+   'locations' (keep the nodes' source locations). */
 static void sqlite_xml_xmlb(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
-    (void)argument_count;
     if (sqlite3_value_type(arguments[0]) == SQLITE_NULL) {
         return;
     }
     sqlite_xml_connection *connection = sqlite3_user_data(context);
+    const char *options = argument_count > 1 ? (const char *)sqlite3_value_text(arguments[1]) : NULL;
+    int validates = options != NULL && strstr(options, "validate") != NULL;
+    int keeps_locations = options != NULL && strstr(options, "locations") != NULL;
     sxml_host_value *document = sqlite_xml_document(context, connection->processor, arguments[0]);
     if (document == NULL) {
         return;
+    }
+    if (validates) {
+        if (connection->schema == NULL) {
+            sqlite3_result_error(context, "sxml: xmlb(doc, 'validate') needs xml_schema(xsd) first", -1);
+            sxml_host_value_release(document);
+            return;
+        }
+        sxml_host_validate_request validation = {.node = document};
+        sxml_host_value *validated = sxml_host_schema_validate(connection->schema, &validation);
+        sxml_host_value_release(document);
+        if (validated == NULL) {
+            sqlite3_result_error(context, "sxml: the document is not valid", -1);
+            return;
+        }
+        document = validated;
     }
     sxml_item item = {0};
     sxml_node_reference node = {0};
@@ -134,7 +164,13 @@ static void sqlite_xml_xmlb(sqlite3_context *context, int argument_count, sqlite
         status = sxml_item_get_node(item, &node);
     }
     if (status == SXML_STATUS_OK) {
-        status = xdmb_encode(node.tree, &encoded);
+        xdmb_encode_request request = {
+            .tree = node.tree,
+            .type_registry = sxml_processor_get_type_registry(connection->processor->processor),
+            .schema = connection->schema ? sxml_host_schema_compiled(connection->schema) : NULL,
+            .keeps_locations = keeps_locations};
+        status = xdmb_encode(&request, &encoded);
+        connection->approximate_type_count = request.approximate_type_count;
     }
     if (status == SXML_STATUS_OK) {
         sqlite3_result_blob64(context, encoded.bytes, encoded.byte_count, SQLITE_TRANSIENT);
@@ -203,9 +239,41 @@ static void sqlite_xml_exi_schema(sqlite3_context *context, int argument_count, 
         return;
     }
     sxml_host_schema_destroy(connection->exi_schema);
+    sxml_host_schema_destroy(connection->schema);
     connection->exi_schema = schema;
     connection->exi_alignment = (uint32_t)sqlite3_value_int(arguments[1]);
     sqlite3_result_int(context, 1);
+}
+
+/* xml_schema(xsd): compiles the schema xmlb(doc, 'validate') uses and
+   typed blobs are opened with. Returns 1. */
+static void sqlite_xml_schema(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
+    (void)argument_count;
+    sqlite_xml_connection *connection = sqlite3_user_data(context);
+    sxml_host_schema *schema = sxml_host_schema_create(connection->processor);
+    if (schema == NULL) {
+        sqlite3_result_error_nomem(context);
+        return;
+    }
+    const sxml_host_schema_document document = {
+        .text = {sqlite3_value_text(arguments[0]), (size_t)sqlite3_value_bytes(arguments[0])}, .uri = {0}};
+    sxml_host_schema_compile_request request = {.documents = &document, .document_count = 1, .base_uri = {0}};
+    if (sxml_host_schema_compile(schema, &request) != SXML_STATUS_OK) {
+        sqlite_xml_fail(context, connection->processor);
+        sxml_host_schema_destroy(schema);
+        return;
+    }
+    sxml_host_schema_destroy(connection->schema);
+    connection->schema = schema;
+    sqlite3_result_int(context, 1);
+}
+
+/* xmlb_approximate(): how many type annotations the last xmlb wrote as a
+   named base type (an anonymous type of a local declaration). */
+static void sqlite_xml_approximate(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
+    (void)argument_count, (void)arguments;
+    sqlite_xml_connection *connection = sqlite3_user_data(context);
+    sqlite3_result_int64(context, (sqlite3_int64)connection->approximate_type_count);
 }
 
 /* Writes value to the result: one atomic item as an SQL value, else
@@ -379,6 +447,20 @@ static void sqlite_xml_query(sqlite3_context *context, int argument_count, sqlit
         if (document == NULL) {
             return;
         }
+        if (sqlite3_user_data(context) == connection && argument_count > 2 && sqlite3_value_int(arguments[2]) != 0) {
+            /* xml_query(doc, query, 1): over doc validated with the
+               connection's schema, in memory (the reference the typed
+               XDMB is compared with) */
+            sxml_host_validate_request validation = {.node = document};
+            sxml_host_value *validated =
+                connection->schema ? sxml_host_schema_validate(connection->schema, &validation) : NULL;
+            sxml_host_value_release(document);
+            if (validated == NULL) {
+                sqlite3_result_error(context, "sxml: not valid (or no xml_schema)", -1);
+                return;
+            }
+            document = validated;
+        }
     }
     sxml_host_query_evaluate_request request = {.context_value = document};
     sxml_host_value *result = sxml_host_query_evaluate(query, &request);
@@ -504,7 +586,8 @@ static int sqlite_xml_register(sqlite3 *database, char **error_message, int with
     }
     memset(connection, 0, sizeof *connection);
     connection->processor = sxml_host_processor_create(
-        &(sxml_host_processor_configuration){.feature_mask = UINT32_MAX});
+        &(sxml_host_processor_configuration){.feature_mask = UINT32_MAX,
+                                             .source_location_policy = SXML_SOURCE_LOCATION_POLICY_ALWAYS});
     if (connection->processor == NULL) {
         sqlite3_free(connection);
         *error_message = sqlite3_mprintf("sxml: cannot create a processor");
@@ -520,9 +603,10 @@ static int sqlite_xml_register(sqlite3 *database, char **error_message, int with
            state) is the same either way */
         {"->", 2, sqlite_xml_arrow, SQLITE_SUBTYPE | SQLITE_RESULT_SUBTYPE},
         {"->>", 2, sqlite_xml_double_arrow, SQLITE_SUBTYPE | SQLITE_RESULT_SUBTYPE},
-        {"xmlb", 1, sqlite_xml_xmlb, 0},         {"xml", 1, sqlite_xml_xml, 0},
+        {"xmlb", -1, sqlite_xml_xmlb, 0},        {"xml", 1, sqlite_xml_xml, 0},
+        {"xml_schema", 1, sqlite_xml_schema, 0}, {"xmlb_approximate", 0, sqlite_xml_approximate, 0},
         {"xml_xpath", 2, sqlite_xml_xpath, 0},   {"xml_exists", 2, sqlite_xml_exists, 0},
-        {"xml_query", 2, sqlite_xml_query, 0},   {"xml_exi", -1, sqlite_xml_exi, 0},
+        {"xml_query", -1, sqlite_xml_query, 0},   {"xml_exi", -1, sqlite_xml_exi, 0},
         {"xml_exi_schema", 2, sqlite_xml_exi_schema, 0},
     };
     const size_t first = with_operators ? 0 : 2;
