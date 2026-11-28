@@ -401,6 +401,6 @@ the frame: about 17 us an order in the frame. Aggregating `xmlquery`
 results passes through text. If `xmlquery` returned nodes as XDMB, as
 XMLQUERY returns an XML value in SQL/XML, they would stay nodes, at the
 cost of an `xmlserialize` wherever text is wanted. That is a choice for
-later. `xmlagg_test.py` checks all this (22 checks, all pass): order,
+later. `xmlagg_test.py` checks all this (21 checks, all pass): order,
 groups, NULLs, content and prologs, EXI, errors, running, sliding and
 partitioned windows, a frame that empties, and xmlconcat.
