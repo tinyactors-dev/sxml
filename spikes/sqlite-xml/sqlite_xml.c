@@ -29,6 +29,12 @@ typedef struct sqlite_xml_connection {
        carries no options (schema-informed streams are stored without). */
     sxml_host_schema *exi_schema;
     uint32_t exi_alignment;
+    /* The operators (sqlite3_xml_operators_init): a private in-memory
+       connection with SQLite's own -> and ->>, which answers for every
+       left operand that is not XML, and its two statements. */
+    sqlite3 *json;
+    sqlite3_stmt *json_arrow;
+    sqlite3_stmt *json_double_arrow;
 } sqlite_xml_connection;
 
 static void sqlite_xml_fail(sqlite3_context *context, sxml_host_processor *processor) {
@@ -270,6 +276,8 @@ static void sqlite_xml_xml(sqlite3_context *context, int argument_count, sqlite3
 typedef enum sqlite_xml_mode {
     SQLITE_XML_MODE_XPATH,
     SQLITE_XML_MODE_EXISTS,
+    /* ->>: the expression's result atomized, data((EXPR)). */
+    SQLITE_XML_MODE_ATOMIZE,
 } sqlite_xml_mode;
 
 static void sqlite_xml_destroy_expression(void *expression) {
@@ -290,8 +298,9 @@ static sxml_host_expression *sqlite_xml_expression(sqlite3_context *context, sxm
     if (text == NULL) {
         return NULL;
     }
-    char *wrapped = mode == SQLITE_XML_MODE_EXISTS ? sqlite3_mprintf("boolean((%s\n))", text)
-                                                   : sqlite3_mprintf("%s", text);
+    char *wrapped = mode == SQLITE_XML_MODE_EXISTS    ? sqlite3_mprintf("boolean((%s\n))", text)
+                    : mode == SQLITE_XML_MODE_ATOMIZE ? sqlite3_mprintf("data((%s\n))", text)
+                                                      : sqlite3_mprintf("%s", text);
     expression = sxml_host_compile(
         processor, &(sxml_host_compile_request){
                        .expression_text = {(const uint8_t *)wrapped, strlen(wrapped)},
@@ -388,18 +397,107 @@ static void sqlite_xml_query(sqlite3_context *context, int argument_count, sqlit
 
 /* ------------------------------------------------------------ Entry */
 
+/* ---------------------------------------------- the -> and ->> operators */
+
+/* The subtype SQLite's JSON functions give JSON text ('J', json.c), and
+   ours for XML text. */
+enum { SQLITE_XML_JSON_SUBTYPE = 74, SQLITE_XML_SUBTYPE = 88 };
+
+/* Whether an operand is XML: text whose first character past white space
+   (and a byte order mark) is '<', an XDMB blob, or a value of our XML
+   subtype. JSON text never starts with '<'; JSONB is never "XDMB"... */
+static int sqlite_xml_is_xml_operand(sqlite3_value *value) {
+    if (sqlite3_value_subtype(value) == SQLITE_XML_SUBTYPE) {
+        return 1;
+    }
+    if (sqlite3_value_type(value) == SQLITE_BLOB) {
+        sxml_byte_view bytes = {sqlite3_value_blob(value), (size_t)sqlite3_value_bytes(value)};
+        return xdmb_is_encoded(bytes);
+    }
+    if (sqlite3_value_type(value) != SQLITE_TEXT) {
+        return 0;
+    }
+    const unsigned char *text = sqlite3_value_text(value);
+    int length = sqlite3_value_bytes(value);
+    int at = 0;
+    if (length >= 3 && text[0] == 0xEF && text[1] == 0xBB && text[2] == 0xBF) {
+        at = 3;
+    }
+    while (at < length && (text[at] == ' ' || text[at] == '\t' || text[at] == '\n' || text[at] == '\r')) {
+        at++;
+    }
+    return at < length && text[at] == '<';
+}
+
+/* SQLite's own operator on a JSON operand, answered by the private
+   connection: its value exactly, and the JSON subtype where SQLite gives
+   one (-> only). Subtypes do not cross connections, so that rule is ours;
+   jsonarrow_test.py checks it. */
+static void sqlite_xml_json_operator(sqlite3_context *context, sqlite3_value **arguments, int is_double) {
+    sqlite_xml_connection *connection = sqlite3_user_data(context);
+    if (connection->json == NULL) {
+        if (sqlite3_open_v2(":memory:", &connection->json, SQLITE_OPEN_READWRITE | SQLITE_OPEN_MEMORY, NULL) !=
+                SQLITE_OK ||
+            sqlite3_prepare_v2(connection->json, "select ?1 -> ?2", -1, &connection->json_arrow, NULL) != SQLITE_OK ||
+            sqlite3_prepare_v2(connection->json, "select ?1 ->> ?2", -1, &connection->json_double_arrow,
+                               NULL) != SQLITE_OK) {
+            sqlite3_result_error(context, "sxml: cannot open the JSON connection", -1);
+            return;
+        }
+    }
+    sqlite3_stmt *statement = is_double ? connection->json_double_arrow : connection->json_arrow;
+    sqlite3_bind_value(statement, 1, arguments[0]);
+    sqlite3_bind_value(statement, 2, arguments[1]);
+    int step = sqlite3_step(statement);
+    if (step == SQLITE_ROW) {
+        sqlite3_result_value(context, sqlite3_column_value(statement, 0));
+        /* ->: JSON text, of the JSON subtype; ->>: an SQL value, of none,
+           objects and arrays included (jsonarrow_test.py) */
+        if (!is_double && sqlite3_column_type(statement, 0) != SQLITE_NULL) {
+            sqlite3_result_subtype(context, SQLITE_XML_JSON_SUBTYPE);
+        }
+    } else {
+        sqlite3_result_error(context, sqlite3_errmsg(connection->json), -1);
+    }
+    sqlite3_reset(statement);
+    sqlite3_clear_bindings(statement);
+}
+
+/* doc -> expr: the XPath result as XML (nodes serialized, of our XML
+   subtype; an atomic value as text); doc ->> expr: an SQL value, as
+   xml_xpath gives, nodes atomized. Any other left operand: SQLite's. */
+static void sqlite_xml_arrow(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
+    (void)argument_count;
+    if (!sqlite_xml_is_xml_operand(arguments[0])) {
+        sqlite_xml_json_operator(context, arguments, 0);
+        return;
+    }
+    sqlite_xml_evaluate(context, arguments, SQLITE_XML_MODE_XPATH);
+    if (sqlite3_value_type(arguments[1]) != SQLITE_NULL) {
+        sqlite3_result_subtype(context, SQLITE_XML_SUBTYPE);
+    }
+}
+
+static void sqlite_xml_double_arrow(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
+    (void)argument_count;
+    if (!sqlite_xml_is_xml_operand(arguments[0])) {
+        sqlite_xml_json_operator(context, arguments, 1);
+        return;
+    }
+    sqlite_xml_evaluate(context, arguments, SQLITE_XML_MODE_ATOMIZE);
+}
+
 static void sqlite_xml_connection_destroy(void *state) {
     sqlite_xml_connection *connection = state;
+    sqlite3_finalize(connection->json_arrow);
+    sqlite3_finalize(connection->json_double_arrow);
+    sqlite3_close(connection->json);
     sxml_host_schema_destroy(connection->exi_schema);
     sxml_host_processor_destroy(connection->processor);
     sqlite3_free(connection);
 }
 
-#ifdef _WIN32
-__declspec(dllexport)
-#endif
-int sqlite3_xml_init(sqlite3 *database, char **error_message, const sqlite3_api_routines *api) {
-    SQLITE_EXTENSION_INIT2(api);
+static int sqlite_xml_register(sqlite3 *database, char **error_message, int with_operators) {
     sqlite_xml_connection *connection = sqlite3_malloc(sizeof *connection);
     if (connection == NULL) {
         return SQLITE_NOMEM;
@@ -416,19 +514,48 @@ int sqlite3_xml_init(sqlite3 *database, char **error_message, const sqlite3_api_
         const char *name;
         int argument_count;
         void (*function)(sqlite3_context *, int, sqlite3_value **);
-    } functions[] = {
-        {"xmlb", 1, sqlite_xml_xmlb},         {"xml", 1, sqlite_xml_xml},
-        {"xml_xpath", 2, sqlite_xml_xpath},   {"xml_exists", 2, sqlite_xml_exists},
-        {"xml_query", 2, sqlite_xml_query},   {"xml_exi", -1, sqlite_xml_exi},   {"xml_exi_schema", 2, sqlite_xml_exi_schema},
+        int flags;
+    } all_functions[] = {
+        /* the operators first, so that the last registration (owning the
+           state) is the same either way */
+        {"->", 2, sqlite_xml_arrow, SQLITE_SUBTYPE | SQLITE_RESULT_SUBTYPE},
+        {"->>", 2, sqlite_xml_double_arrow, SQLITE_SUBTYPE | SQLITE_RESULT_SUBTYPE},
+        {"xmlb", 1, sqlite_xml_xmlb, 0},         {"xml", 1, sqlite_xml_xml, 0},
+        {"xml_xpath", 2, sqlite_xml_xpath, 0},   {"xml_exists", 2, sqlite_xml_exists, 0},
+        {"xml_query", 2, sqlite_xml_query, 0},   {"xml_exi", -1, sqlite_xml_exi, 0},
+        {"xml_exi_schema", 2, sqlite_xml_exi_schema, 0},
     };
+    const size_t first = with_operators ? 0 : 2;
+    const size_t count = sizeof all_functions / sizeof all_functions[0];
     int result = SQLITE_OK;
-    for (size_t index = 0; index < sizeof functions / sizeof functions[0] && result == SQLITE_OK; index++) {
+    for (size_t index = first; index < count && result == SQLITE_OK; index++) {
         /* The last registration owns the connection state. */
-        int is_last = index + 1 == sizeof functions / sizeof functions[0];
-        result = sqlite3_create_function_v2(database, functions[index].name, functions[index].argument_count,
-                                            SQLITE_UTF8 | SQLITE_DETERMINISTIC | SQLITE_INNOCUOUS, connection,
-                                            functions[index].function, NULL, NULL,
+        int is_last = index + 1 == count;
+        result = sqlite3_create_function_v2(database, all_functions[index].name, all_functions[index].argument_count,
+                                            SQLITE_UTF8 | SQLITE_DETERMINISTIC | SQLITE_INNOCUOUS |
+                                                all_functions[index].flags,
+                                            connection, all_functions[index].function, NULL, NULL,
                                             is_last ? sqlite_xml_connection_destroy : NULL);
     }
     return result;
+}
+
+
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+int sqlite3_xml_init(sqlite3 *database, char **error_message, const sqlite3_api_routines *api) {
+    SQLITE_EXTENSION_INIT2(api);
+    return sqlite_xml_register(database, error_message, 0);
+}
+
+/* The named functions and the operators -> and ->>, opt-in because they
+   replace SQLite's own on this connection (which still answer for every
+   operand that is not XML): .load ./xml sqlite3_xml_operators_init */
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+int sqlite3_xml_operators_init(sqlite3 *database, char **error_message, const sqlite3_api_routines *api) {
+    SQLITE_EXTENSION_INIT2(api);
+    return sqlite_xml_register(database, error_message, 1);
 }
