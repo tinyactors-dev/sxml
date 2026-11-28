@@ -289,6 +289,8 @@ refuse such a document rather than approximate.
 | `xmlquery(query, doc [, files])` | `xml_xpath`, `xml_query` | XQuery (XPath is a part of it): one atomic item as an SQL value, anything else serialized |
 | `xmlexists(query, doc [, files])` | `xml_exists` | 1 when the result is not empty, as SQL/XML's XMLEXISTS (not the effective boolean value) |
 | `xmlexi(doc, alignment [, full [, schema]])` | `xml_exi` | EXI |
+| `xmlagg(x)` | | aggregate and window function: the values as one XDMB document (below) |
+| `xmlconcat(x, ...)` | | the arguments as one XDMB document |
 | `->`, `->>` | | unchanged (opt-in, `sqlite3_xml_operators_init`) |
 | `xmlschema`, `xmlparse_approximate`, `xmlquery_validated`, `xmlexi_schema` | | spike only: test and measurement helpers |
 
@@ -349,3 +351,56 @@ the difference is that SQLite reads every line's columns. `xmltable_test.py`
 checks it (19 checks, all pass): the columns, node kinds, XDMB and EXI
 input, errors, joins, a left join, a row query that changes per row,
 and a view.
+
+**xmlagg and xmlconcat.** SQL/XML's XMLAGG and XMLCONCAT. They return
+the XML values of a group, or the arguments, in order, as one XDMB
+document whose children are theirs (`document { $x1, $x2, ... }`). A
+value is XDMB, EXI or text. Text is read as XML content: a fragment,
+plain text (one text node), or a document. Text with an XML declaration
+or a DOCTYPE is parsed as a document. NULLs are skipped, and a group of
+none is NULL. The order is SQLite's `ORDER BY` in the call (SQLite 3.44
+and later). Wrapping in an element or computing over the group is
+`xmlquery` over the result; no `xmlelement` is needed:
+
+```sql
+select customer,
+       xmlquery('<orders n="{count(*)}">{*}</orders>', xmlagg(doc order by id)),
+       xmlquery('sum(//*:line/(@qty * @price))', xmlagg(doc))
+from orders group by customer;
+
+-- a window: the last ten orders at each order
+select id, xmlquery('count(//*:line)', xmlagg(doc) over (order by id rows 9 preceding))
+from orders;
+```
+
+`xmlagg` is also a window function. It keeps the frame's values as a
+queue: `xInverse` drops the oldest, and `xValue` builds the document.
+SQLite's numeric aggregates and windows already work over `xmlquery`
+(`sum(xmlquery(...)) over (...)`). The new part is an XML-valued result.
+
+To make `xmlagg(xmlquery('//line', doc))` give the lines and nothing
+else, `xmlquery` now writes a sequence of several nodes with the `xml`
+method, with no separator, when none of them is an attribute or a
+namespace. The adaptive method put a newline between items, which
+became text nodes. Attributes and atomic items keep the adaptive method.
+
+Measured on the 20,000 orders, in us an order:
+
+| | us |
+|---|---|
+| `xmlagg(doc)`, all orders as XDMB | 21.7 |
+| the same from XML text (the parse is most of it) | 155 |
+| `group by` 200 customers, `xmlquery` over each group | 18.4 |
+| `xmlagg(xmlquery('//*:line', doc))` (serialized and parsed again) | 118 |
+| window, frames of 10 rows | 171 |
+| window, frames of 100 rows | 1542 |
+| for scale: `xmlquery('count(*)', doc)` | 2.9 |
+
+A window builds its document again for every row, so its cost grows with
+the frame: about 17 us an order in the frame. Aggregating `xmlquery`
+results passes through text. If `xmlquery` returned nodes as XDMB, as
+XMLQUERY returns an XML value in SQL/XML, they would stay nodes, at the
+cost of an `xmlserialize` wherever text is wanted. That is a choice for
+later. `xmlagg_test.py` checks all this (22 checks, all pass): order,
+groups, NULLs, content and prologs, EXI, errors, running, sliding and
+partitioned windows, a frame that empties, and xmlconcat.

@@ -45,6 +45,11 @@ typedef struct sqlite_xml_connection {
        connection with SQLite's own -> and ->>, which answers for every
        left operand that is not XML, and its two statements. */
     sqlite3 *json;
+    /* xmlagg and xmlconcat: document { . } over the parts, and a
+       fragment's nodes out of the element it was parsed in. */
+    sxml_host_query *combine;
+    sxml_host_query *fragment_nodes;
+    sxml_host_value *xml_method;
     sqlite3_stmt *json_arrow;
     sqlite3_stmt *json_double_arrow;
 } sqlite_xml_connection;
@@ -77,32 +82,41 @@ static int sqlite_xml_is_exi(sxml_byte_view bytes) {
 /* The document node of argument, as a value: an XDMB blob opened in place
    (valid for this call: SQLite keeps the bytes until the function
    returns), else XML text parsed. NULL with the error set. */
+/* An XDMB blob opened in place, as a document node value. The value reads
+   bytes, which must outlive it. NULL with the error set. */
+static sxml_host_value *sqlite_xml_open_blob(sqlite3_context *context, sxml_host_processor *processor,
+                                             sxml_byte_view bytes) {
+    sqlite_xml_connection *connection = sqlite3_user_data(context);
+    sxml_tree *tree = NULL;
+    sxml_status status =
+        xdmb_open(&(xdmb_open_request){.bytes = bytes,
+                                       .item_heap = sxml_processor_get_item_heap(processor->processor),
+                                       .allocator = processor->allocator,
+                                       .type_registry = sxml_processor_get_type_registry(processor->processor),
+                                       .schema = connection->schema ? sxml_host_schema_compiled(connection->schema)
+                                                                    : NULL},
+                  &tree);
+    if (status != SXML_STATUS_OK) {
+        sqlite3_result_error(context, "sxml: not a valid XDMB blob", -1);
+        return NULL;
+    }
+    sxml_item item = sxml_node_item_make((sxml_node_reference){.tree = tree, .node_index = {0}});
+    sxml_tree_release(tree); /* the item holds it now */
+    sxml_host_value *value = sxml_host_value_make(processor, sxml_sequence_from_item(item));
+    if (value == NULL) {
+        sqlite3_result_error_nomem(context);
+    }
+    return value;
+}
+
+/* The document node of argument, as a value: an XDMB blob opened in place
+   (valid for this call: SQLite keeps the bytes until the function
+   returns), else XML text parsed. NULL with the error set. */
 static sxml_host_value *sqlite_xml_document(sqlite3_context *context, sxml_host_processor *processor,
                                             sqlite3_value *argument) {
     sxml_byte_view bytes = {sqlite3_value_blob(argument), (size_t)sqlite3_value_bytes(argument)};
     if (sqlite3_value_type(argument) == SQLITE_BLOB && xdmb_is_encoded(bytes)) {
-        sxml_tree *tree = NULL;
-        sxml_status status = xdmb_open(
-            &(xdmb_open_request){.bytes = bytes,
-                                 .item_heap = sxml_processor_get_item_heap(processor->processor),
-                                 .allocator = processor->allocator,
-                                 .type_registry = sxml_processor_get_type_registry(processor->processor),
-                                 .schema = ((sqlite_xml_connection *)sqlite3_user_data(context))->schema
-                                               ? sxml_host_schema_compiled(
-                                                     ((sqlite_xml_connection *)sqlite3_user_data(context))->schema)
-                                               : NULL},
-            &tree);
-        if (status != SXML_STATUS_OK) {
-            sqlite3_result_error(context, "sxml: not a valid XDMB blob", -1);
-            return NULL;
-        }
-        sxml_item item = sxml_node_item_make((sxml_node_reference){.tree = tree, .node_index = {0}});
-        sxml_tree_release(tree); /* the item holds it now */
-        sxml_host_value *value = sxml_host_value_make(processor, sxml_sequence_from_item(item));
-        if (value == NULL) {
-            sqlite3_result_error_nomem(context);
-        }
-        return value;
+        return sqlite_xml_open_blob(context, processor, bytes);
     }
     if (sqlite3_value_type(argument) == SQLITE_BLOB && sqlite_xml_is_exi(bytes)) {
         /* EXI (EXI 1.0, 5): decoded into a tree for each call, its options
@@ -288,8 +302,52 @@ static void sqlite_xml_approximate(sqlite3_context *context, int argument_count,
 
 /* Writes value to the result: one atomic item as an SQL value, else
    serialized by the adaptive method. */
-static void sqlite_xml_result(sqlite3_context *context, sxml_host_processor *processor,
-                              const sxml_host_value *value, int serialize_nodes_as_xml) {
+/* map { 'method': 'xml' }: a sequence of several nodes, none of them an
+   attribute or a namespace, is serialized with it, so that the nodes are
+   written one after the other with no separator (the adaptive method puts
+   a newline between items), and the text is XML content again (xmlagg). */
+static const sxml_host_value *sqlite_xml_xml_method(sqlite_xml_connection *connection) {
+    if (connection->xml_method == NULL) {
+        static const char text[] = "map { 'method': 'xml' }";
+        sxml_host_expression *expression = sxml_host_compile(
+            connection->processor,
+            &(sxml_host_compile_request){.expression_text = {(const uint8_t *)text, sizeof text - 1}});
+        if (expression != NULL) {
+            connection->xml_method = sxml_host_evaluate(expression, &(sxml_host_evaluate_request){0});
+            sxml_host_expression_destroy(expression);
+        }
+    }
+    return connection->xml_method;
+}
+
+/* Whether value is several nodes that are all content (no attribute or
+   namespace nodes). */
+static int sqlite_xml_is_content(const sxml_host_value *value, uint64_t count) {
+    if (count < 2) {
+        return 0;
+    }
+    sxml_sequence_iterator iterator = sxml_sequence_iterator_start(value->sequence);
+    for (;;) {
+        sxml_iteration_step step = {0};
+        if (sxml_sequence_iterator_next(&iterator, NULL, &step) != SXML_STATUS_OK) {
+            return 0;
+        }
+        if (!step.has_item) {
+            return 1;
+        }
+        sxml_node_reference node = {0};
+        sxml_node_description description = {0};
+        if (sxml_item_get_kind(step.item) != SXML_ITEM_KIND_NODE || sxml_item_get_node(step.item, &node) != SXML_STATUS_OK ||
+            node.namespace_number != 0 || sxml_node_describe(node, &description) != SXML_STATUS_OK ||
+            description.node_kind == SXML_NODE_KIND_ATTRIBUTE) {
+            return 0;
+        }
+    }
+}
+
+static void sqlite_xml_result(sqlite3_context *context, sqlite_xml_connection *connection,
+                              const sxml_host_value *value) {
+    sxml_host_processor *processor = connection->processor;
     uint64_t count = 0;
     if (sxml_sequence_count(value->sequence, NULL, &count) != SXML_STATUS_OK) {
         sqlite3_result_error(context, "sxml: cannot count the result", -1);
@@ -324,8 +382,8 @@ static void sqlite_xml_result(sqlite3_context *context, sxml_host_processor *pro
             }
         }
     }
-    (void)serialize_nodes_as_xml;
-    if (sxml_host_serialize(processor, &(sxml_host_serialize_request){.value = value, .options = NULL}) !=
+    const sxml_host_value *options = sqlite_xml_is_content(value, count) ? sqlite_xml_xml_method(connection) : NULL;
+    if (sxml_host_serialize(processor, &(sxml_host_serialize_request){.value = value, .options = options}) !=
         SXML_STATUS_OK) {
         sqlite_xml_fail(context, processor);
         return;
@@ -345,7 +403,7 @@ static void sqlite_xml_xml(sqlite3_context *context, int argument_count, sqlite3
     if (document == NULL) {
         return;
     }
-    sqlite_xml_result(context, connection->processor, document, 1);
+    sqlite_xml_result(context, connection, document);
     sxml_host_value_release(document);
 }
 
@@ -412,7 +470,7 @@ static void sqlite_xml_evaluate(sqlite3_context *context, sqlite3_value **argume
     if (result == NULL) {
         sqlite_xml_fail(context, processor);
     } else {
-        sqlite_xml_result(context, processor, result, 1);
+        sqlite_xml_result(context, connection, result);
         sxml_host_value_release(result);
     }
     sxml_host_value_release(document);
@@ -1101,7 +1159,7 @@ static int sqlite_xml_table_column(sqlite3_vtab_cursor *cursor, sqlite3_context 
         return SQLITE_NOMEM;
     }
     if (column == SQLITE_XML_TABLE_XML) {
-        sqlite_xml_result(context, processor, value, 1);
+        sqlite_xml_result(context, connection, value);
         sxml_host_value_release(value);
         return SQLITE_OK;
     }
@@ -1125,7 +1183,7 @@ static int sqlite_xml_table_column(sqlite3_vtab_cursor *cursor, sqlite3_context 
     if (result == NULL) {
         sqlite_xml_fail(context, processor);
     } else {
-        sqlite_xml_result(context, processor, result, 1);
+        sqlite_xml_result(context, connection, result);
         sxml_host_value_release(result);
     }
     sxml_host_value_release(value);
@@ -1239,7 +1297,7 @@ static void sqlite_xml_run(sqlite3_context *context, int argument_count, sqlite3
             sqlite3_result_int(context, count > 0);
         }
     } else {
-        sqlite_xml_result(context, processor, result, 1);
+        sqlite_xml_result(context, connection, result);
     }
     sxml_host_value_release(result);
     sxml_host_value_release(document);
@@ -1349,12 +1407,277 @@ static void sqlite_xml_double_arrow(sqlite3_context *context, int argument_count
     sqlite_xml_evaluate(context, arguments, SQLITE_XML_MODE_ATOMIZE);
 }
 
+/* ------------------------------------------------ xmlagg, xmlconcat */
+
+/*
+ * xmlagg(x) (SQL/XML XMLAGG) and xmlconcat(x, ...) (XMLCONCAT): the XML
+ * values of a group, or of the arguments, in order, as one XDMB document
+ * whose children are theirs: document { $x1, $x2, ... }. A value is XDMB,
+ * EXI or text; text that is not a document is XML content (a fragment,
+ * as xmlquery returns for several nodes, or plain text, which becomes a
+ * text node). NULLs are skipped; none left gives NULL. xmlagg is also a
+ * window function: SQLite calls xInverse for the oldest row of the frame,
+ * so the parts are a queue.
+ */
+
+typedef struct sqlite_xml_part {
+    /* A document node, or a fragment's nodes. */
+    sxml_host_value *value;
+    /* The copy of an XDMB blob value reads (SQLite's bytes last for one
+       call only), or NULL. */
+    void *bytes;
+} sqlite_xml_part;
+
+typedef struct sqlite_xml_aggregate {
+    sqlite_xml_part *parts;
+    size_t first;
+    size_t count;
+    size_t capacity;
+} sqlite_xml_aggregate;
+
+static void sqlite_xml_part_release(sqlite_xml_part *part) {
+    sxml_host_value_release(part->value);
+    sqlite3_free(part->bytes);
+    *part = (sqlite_xml_part){0};
+}
+
+/* One of the connection's own queries, compiled at its first use. */
+static sxml_host_query *sqlite_xml_own_query(sqlite3_context *context, sxml_host_query **slot, const char *text) {
+    if (*slot == NULL) {
+        sqlite_xml_connection *connection = sqlite3_user_data(context);
+        *slot = sxml_host_query_compile(connection->processor,
+                                        &(sxml_host_query_compile_request){
+                                            .query_text = {(const uint8_t *)text, strlen(text)}});
+        if (*slot == NULL) {
+            sqlite_xml_fail(context, connection->processor);
+        }
+    }
+    return *slot;
+}
+
+/* argument as a part; 0 with the error set. */
+static int sqlite_xml_part_make(sqlite3_context *context, sqlite3_value *argument, sqlite_xml_part *part) {
+    sqlite_xml_connection *connection = sqlite3_user_data(context);
+    sxml_host_processor *processor = connection->processor;
+    *part = (sqlite_xml_part){0};
+    sxml_byte_view bytes = {sqlite3_value_blob(argument), (size_t)sqlite3_value_bytes(argument)};
+    if (sqlite3_value_type(argument) == SQLITE_BLOB && xdmb_is_encoded(bytes)) {
+        part->bytes = sqlite3_malloc64(bytes.byte_count);
+        if (part->bytes == NULL) {
+            sqlite3_result_error_nomem(context);
+            return 0;
+        }
+        memcpy(part->bytes, bytes.bytes, bytes.byte_count);
+        part->value = sqlite_xml_open_blob(context, processor, (sxml_byte_view){part->bytes, bytes.byte_count});
+    } else if (sqlite3_value_type(argument) == SQLITE_BLOB && sqlite_xml_is_exi(bytes)) {
+        part->value = sqlite_xml_document(context, processor, argument); /* decoded into a tree of its own */
+    } else {
+        bytes.bytes = sqlite3_value_text(argument);
+        bytes.byte_count = (size_t)sqlite3_value_bytes(argument);
+        /* Content, parsed inside an element whose nodes are then taken
+           out: a fragment, plain text, or a document without a prolog all
+           read the same as content. A document with an XML declaration or
+           a DOCTYPE, or content that does not parse, is parsed as a
+           document. */
+        size_t skip = 0;
+        while (skip < bytes.byte_count && (bytes.bytes[skip] == ' ' || bytes.bytes[skip] == '\t' ||
+                                           bytes.bytes[skip] == '\n' || bytes.bytes[skip] == '\r')) {
+            skip++;
+        }
+        int has_prolog = (bytes.byte_count - skip >= 5 && memcmp(bytes.bytes + skip, "<?xml", 5) == 0) ||
+                         (bytes.byte_count - skip >= 9 && memcmp(bytes.bytes + skip, "<!DOCTYPE", 9) == 0) ||
+                         (bytes.byte_count >= 3 && memcmp(bytes.bytes, "\xEF\xBB\xBF", 3) == 0);
+        sxml_host_value *element = NULL;
+        sxml_host_query *nodes = NULL;
+        if (!has_prolog) {
+            static const char open[] = "<sqlite-xml-content>", close[] = "</sqlite-xml-content>";
+            nodes = sqlite_xml_own_query(context, &connection->fragment_nodes, "/*/node()");
+            if (nodes == NULL) {
+                return 0;
+            }
+            char *wrapped = sqlite3_mprintf("%s%.*s%s", open, (int)bytes.byte_count, bytes.bytes, close);
+            if (wrapped == NULL) {
+                sqlite3_result_error_nomem(context);
+                return 0;
+            }
+            element = sxml_host_parse(
+                processor, &(sxml_host_parse_request){.input = {(const uint8_t *)wrapped, strlen(wrapped)}});
+            sqlite3_free(wrapped);
+        }
+        if (element != NULL) {
+            part->value = sxml_host_query_evaluate(nodes, &(sxml_host_query_evaluate_request){.context_value = element});
+            sxml_host_value_release(element); /* the nodes keep their tree */
+        } else {
+            part->value = sxml_host_parse(processor, &(sxml_host_parse_request){.input = bytes});
+        }
+        if (part->value == NULL) {
+            sqlite_xml_fail(context, processor);
+        }
+    }
+    if (part->value == NULL) {
+        sqlite_xml_part_release(part);
+        return 0;
+    }
+    return 1;
+}
+
+/* The result: document { parts } as XDMB; NULL for no parts. */
+static void sqlite_xml_combine(sqlite3_context *context, const sqlite_xml_part *parts, size_t count) {
+    if (count == 0) {
+        sqlite3_result_null(context);
+        return;
+    }
+    sqlite_xml_connection *connection = sqlite3_user_data(context);
+    sxml_host_processor *processor = connection->processor;
+    sxml_host_query *combine = sqlite_xml_own_query(context, &connection->combine, "document { . }");
+    if (combine == NULL) {
+        return;
+    }
+    sxml_sequence *sequences = sqlite3_malloc64(count * sizeof *sequences);
+    if (sequences == NULL) {
+        sqlite3_result_error_nomem(context);
+        return;
+    }
+    for (size_t index = 0; index < count; index++) {
+        sequences[index] = parts[index].value->sequence;
+    }
+    sxml_sequence all = {0};
+    sxml_status status = sxml_sequence_concatenate(sxml_processor_get_item_heap(processor->processor),
+                                                   (sxml_sequence_view){sequences, count}, &all);
+    sqlite3_free(sequences);
+    if (status != SXML_STATUS_OK) {
+        sqlite3_result_error_nomem(context);
+        return;
+    }
+    sxml_host_value *items = sxml_host_value_make(processor, all);
+    if (items == NULL) {
+        sqlite3_result_error_nomem(context);
+        return;
+    }
+    sxml_host_value *document =
+        sxml_host_query_evaluate(combine, &(sxml_host_query_evaluate_request){.context_value = items});
+    sxml_host_value_release(items);
+    if (document == NULL) {
+        sqlite_xml_fail(context, processor);
+        return;
+    }
+    sxml_item item = {0};
+    sxml_node_reference node = {0};
+    xdmb_bytes encoded = {0};
+    status = sxml_sequence_get_item(document->sequence, (sxml_item_request){0}, &item);
+    if (status == SXML_STATUS_OK) {
+        status = sxml_item_get_node(item, &node);
+    }
+    if (status == SXML_STATUS_OK) {
+        status = xdmb_encode(
+            &(xdmb_encode_request){.tree = node.tree,
+                                   .type_registry = sxml_processor_get_type_registry(processor->processor)},
+            &encoded);
+    }
+    if (status == SXML_STATUS_OK) {
+        sqlite3_result_blob64(context, encoded.bytes, encoded.byte_count, SQLITE_TRANSIENT);
+        xdmb_free(&encoded);
+    } else {
+        sqlite3_result_error(context, "sxml: cannot encode", -1);
+    }
+    sxml_host_value_release(document);
+}
+
+static void sqlite_xml_agg_step(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
+    (void)argument_count;
+    if (sqlite3_value_type(arguments[0]) == SQLITE_NULL) {
+        return;
+    }
+    sqlite_xml_aggregate *aggregate = sqlite3_aggregate_context(context, sizeof *aggregate);
+    if (aggregate == NULL) {
+        sqlite3_result_error_nomem(context);
+        return;
+    }
+    if (aggregate->first + aggregate->count == aggregate->capacity) {
+        if (aggregate->first > 0) { /* a sliding frame: move the queue down */
+            memmove(aggregate->parts, aggregate->parts + aggregate->first, aggregate->count * sizeof *aggregate->parts);
+            aggregate->first = 0;
+        } else {
+            size_t capacity = aggregate->capacity ? 2 * aggregate->capacity : 16;
+            sqlite_xml_part *parts = sqlite3_realloc64(aggregate->parts, capacity * sizeof *parts);
+            if (parts == NULL) {
+                sqlite3_result_error_nomem(context);
+                return;
+            }
+            aggregate->parts = parts;
+            aggregate->capacity = capacity;
+        }
+    }
+    if (sqlite_xml_part_make(context, arguments[0], &aggregate->parts[aggregate->first + aggregate->count])) {
+        aggregate->count++;
+    }
+}
+
+static void sqlite_xml_agg_inverse(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
+    (void)argument_count;
+    if (sqlite3_value_type(arguments[0]) == SQLITE_NULL) {
+        return; /* skipped by the step too */
+    }
+    sqlite_xml_aggregate *aggregate = sqlite3_aggregate_context(context, sizeof *aggregate);
+    if (aggregate != NULL && aggregate->count > 0) {
+        sqlite_xml_part_release(&aggregate->parts[aggregate->first]);
+        aggregate->first++;
+        aggregate->count--;
+    }
+}
+
+static void sqlite_xml_agg_value(sqlite3_context *context) {
+    sqlite_xml_aggregate *aggregate = sqlite3_aggregate_context(context, 0);
+    if (aggregate == NULL) {
+        sqlite3_result_null(context);
+        return;
+    }
+    sqlite_xml_combine(context, aggregate->parts + aggregate->first, aggregate->count);
+}
+
+static void sqlite_xml_agg_final(sqlite3_context *context) {
+    sqlite_xml_agg_value(context);
+    sqlite_xml_aggregate *aggregate = sqlite3_aggregate_context(context, 0);
+    if (aggregate != NULL) {
+        for (size_t index = 0; index < aggregate->count; index++) {
+            sqlite_xml_part_release(&aggregate->parts[aggregate->first + index]);
+        }
+        sqlite3_free(aggregate->parts);
+    }
+}
+
+static void sqlite_xml_concat(sqlite3_context *context, int argument_count, sqlite3_value **arguments) {
+    sqlite_xml_part *parts = sqlite3_malloc64((size_t)(argument_count ? argument_count : 1) * sizeof *parts);
+    if (parts == NULL) {
+        sqlite3_result_error_nomem(context);
+        return;
+    }
+    size_t count = 0;
+    int failed = 0;
+    for (int index = 0; index < argument_count && !failed; index++) {
+        if (sqlite3_value_type(arguments[index]) != SQLITE_NULL) {
+            failed = !sqlite_xml_part_make(context, arguments[index], &parts[count]);
+            count += !failed;
+        }
+    }
+    if (!failed) {
+        sqlite_xml_combine(context, parts, count);
+    }
+    for (size_t index = 0; index < count; index++) {
+        sqlite_xml_part_release(&parts[index]);
+    }
+    sqlite3_free(parts);
+}
+
 static void sqlite_xml_connection_destroy(void *state) {
     sqlite_xml_connection *connection = state;
     sqlite3_finalize(connection->json_arrow);
     sqlite3_finalize(connection->json_double_arrow);
     sqlite3_close(connection->json);
     sxml_host_schema_destroy(connection->exi_schema);
+    sxml_host_query_destroy(connection->combine);
+    sxml_host_query_destroy(connection->fragment_nodes);
+    sxml_host_value_release(connection->xml_method);
     sxml_host_processor_destroy(connection->processor);
     sqlite3_free(connection);
 }
@@ -1399,6 +1722,7 @@ static int sqlite_xml_register(sqlite3 *database, char **error_message, int with
         {"xmlexists", 2, sqlite_xml_exists_query, 0, 0},
         {"xmlexists", 3, sqlite_xml_exists_query, 0, READS_FILES},
         {"xmlexi", -1, sqlite_xml_exi, 0, 0},
+        {"xmlconcat", -1, sqlite_xml_concat, 0, 0},
         /* spike only */
         {"xmlschema", 1, sqlite_xml_schema, 0, 0},
         {"xmlparse_approximate", 0, sqlite_xml_approximate, 0, 0},
@@ -1417,6 +1741,13 @@ static int sqlite_xml_register(sqlite3 *database, char **error_message, int with
                                             SQLITE_UTF8 | flags | all_functions[index].flags, connection,
                                             all_functions[index].function, NULL, NULL,
                                             is_last ? sqlite_xml_connection_destroy : NULL);
+    }
+    if (result == SQLITE_OK) {
+        /* an aggregate, and a window function (xValue, xInverse) */
+        result = sqlite3_create_window_function(database, "xmlagg", 1,
+                                                SQLITE_UTF8 | SQLITE_DETERMINISTIC | SQLITE_INNOCUOUS, connection,
+                                                sqlite_xml_agg_step, sqlite_xml_agg_final, sqlite_xml_agg_value,
+                                                sqlite_xml_agg_inverse, NULL);
     }
     if (result == SQLITE_OK) {
         result = sqlite3_create_module(database, "xmlfiles", &sqlite_xml_files_module, NULL);
